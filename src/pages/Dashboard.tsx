@@ -9,6 +9,7 @@ interface Props {
   project: Project | null;
   parts?: TeamPart[];
   assignees?: string[];
+  isDark?: boolean;
 }
 
 const STATUS_COLORS_FIXED = { '진행 중': '#3b82f6', '완료': '#10b981' };
@@ -89,14 +90,13 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, parts, assignees = [] }: Props) {
+export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], isDark = false }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
-  const isDark = document.documentElement.classList.contains('dark');
   const COLORS = {
-    before: isDark ? '#4b5563' : '#d1d5db',   // 다크: gray-600, 라이트: gray-300
+    before: isDark ? '#2e3250' : '#e4e6ea',   // 다크: 배경에 묻히는 짙은 남색, 라이트: 거의 안보이는 연회색
     inProg: '#3b82f6',
     done:   '#10b981',
-    hold:   isDark ? '#374151' : '#94a3b8',   // 다크: gray-700, 라이트: slate-400
+    hold:   isDark ? '#30344f' : '#cbd5e1',   // 다크: 배경 근처, 라이트: slate-200
   };
   // 팀 파트가 있으면 파트 기준, 없으면 빈 배열 (하드코딩 제거)
   const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];

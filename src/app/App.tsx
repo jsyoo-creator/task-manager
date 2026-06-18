@@ -3,12 +3,22 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import Layout from '../components/Layout';
 import Dashboard from '../pages/Dashboard';
 import TaskManagement from '../pages/TaskManagement';
+import CalendarPage from '../pages/CalendarPage';
+import WeeklyPage from '../pages/WeeklyPage';
+import VacationPage from '../pages/VacationPage';
+import SeatMapPage from '../pages/SeatMapPage';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks, useAllSubTasks } from '../hooks/useTasks';
+import { useMembers } from '../hooks/useMembers';
+import { useVacations } from '../hooks/useVacations';
+import type { TaskCategory } from '../types';
 
 function App() {
   const { projects, loading: projLoading, addProject } = useProjects();
   const [projectId, setProjectId] = useState<string>('');
+  const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
+  const { members } = useMembers();
+  const { vacations, addVacation, deleteVacation } = useVacations();
 
   useEffect(() => {
     if (!projLoading && projects.length > 0 && !projectId) {
@@ -40,7 +50,13 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Layout project={currentProject} projects={projects} onProjectChange={setProjectId}>
+      <Layout
+        project={currentProject}
+        projects={projects}
+        onProjectChange={setProjectId}
+        activeCategory={activeCategory}
+        onCategoryChange={setActiveCategory}
+      >
         <Routes>
           <Route
             path="/"
@@ -61,23 +77,44 @@ function App() {
                 onUpdateTask={updateTask}
                 onDeleteTask={deleteTask}
                 projectId={projectId}
+                activeCategory={activeCategory}
               />
             }
           />
-          <Route path="/calendar" element={<PlaceholderPage title="캘린더" />} />
-          <Route path="/weekly" element={<PlaceholderPage title="위클리" />} />
+          <Route
+            path="/calendar"
+            element={<CalendarPage tasks={tasks} activeCategory={activeCategory} />}
+          />
+          <Route
+            path="/weekly"
+            element={
+              <WeeklyPage
+                tasks={tasks}
+                subtasks={subtasks}
+                members={members}
+                activeCategory={activeCategory}
+              />
+            }
+          />
+          <Route
+            path="/vacation"
+            element={
+              <VacationPage
+                vacations={vacations}
+                members={members}
+                onAddVacation={addVacation}
+                onDeleteVacation={deleteVacation}
+              />
+            }
+          />
+          <Route
+            path="/seats"
+            element={<SeatMapPage members={members} />}
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
     </BrowserRouter>
-  );
-}
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-64 bg-white rounded-xl border border-gray-100 shadow-sm">
-      <p className="text-gray-400 text-sm">{title} 페이지 준비 중</p>
-    </div>
   );
 }
 

@@ -13,8 +13,7 @@ export function useTasks(projectId: string) {
   useEffect(() => {
     if (!projectId) { setLoading(false); return; }
     const q = query(collection(db, 'tasks'), where('projectId', '==', projectId));
-    const unsub = onSnapshot(
-      q,
+    const unsub = onSnapshot(q,
       snap => {
         const sorted = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Task))
@@ -22,10 +21,7 @@ export function useTasks(projectId: string) {
         setTasks(sorted);
         setLoading(false);
       },
-      err => {
-        console.error('tasks error:', err);
-        setLoading(false);
-      }
+      err => { console.error('tasks:', err); setLoading(false); }
     );
     return unsub;
   }, [projectId]);
@@ -52,15 +48,14 @@ export function useSubTasks(taskId: string) {
   useEffect(() => {
     if (!taskId) return;
     const q = query(collection(db, 'subtasks'), where('taskId', '==', taskId));
-    const unsub = onSnapshot(
-      q,
+    const unsub = onSnapshot(q,
       snap => {
         const sorted = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as SubTask))
           .sort((a, b) => a.createdAt?.localeCompare(b.createdAt ?? '') ?? 0);
         setSubtasks(sorted);
       },
-      err => console.error('subtasks error:', err)
+      err => console.error('subtasks:', err)
     );
     return unsub;
   }, [taskId]);
@@ -86,12 +81,9 @@ export function useAllSubTasks(projectId: string) {
   useEffect(() => {
     if (!projectId) return;
     const q = query(collection(db, 'subtasks'));
-    const unsub = onSnapshot(
-      q,
-      snap => {
-        setSubtasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as SubTask)));
-      },
-      err => console.error('allSubtasks error:', err)
+    const unsub = onSnapshot(q,
+      snap => setSubtasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as SubTask))),
+      err => console.error('allSubtasks:', err)
     );
     return unsub;
   }, [projectId]);

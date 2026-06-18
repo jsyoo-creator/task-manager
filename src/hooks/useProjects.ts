@@ -8,20 +8,14 @@ export function useProjects() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'projects'));
     const unsub = onSnapshot(
-      q,
+      query(collection(db, 'projects')),
       snap => {
-        const sorted = snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as Project))
-          .sort((a, b) => a.createdAt?.localeCompare(b.createdAt ?? '') ?? 0);
-        setProjects(sorted);
+        setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as Project))
+          .sort((a, b) => a.createdAt?.localeCompare(b.createdAt ?? '') ?? 0));
         setLoading(false);
       },
-      err => {
-        console.error('projects error:', err);
-        setLoading(false);
-      }
+      err => { console.error('projects:', err); setLoading(false); }
     );
     return unsub;
   }, []);

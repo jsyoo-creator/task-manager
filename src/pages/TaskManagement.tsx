@@ -13,6 +13,7 @@ interface Props {
   projectId: string;
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
+  canManage: boolean;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -36,7 +37,7 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const COL = '28px 8px 1fr 68px 90px 90px 90px 72px 72px 46px 46px 46px 46px 46px 52px 28px 28px';
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange, canManage }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
@@ -68,12 +69,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         </div>
         <div className="flex items-center gap-3">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} />
-          <button
-            onClick={() => setModalOpen(true)}
-            className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold"
-          >
-            <Plus size={14} /> 새 업무
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold"
+            >
+              <Plus size={14} /> 새 업무
+            </button>
+          )}
         </div>
       </div>
 
@@ -125,6 +128,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             onToggle={() => toggleExpand(task.id)}
             onUpdate={onUpdateTask}
             onDelete={onDeleteTask}
+            canManage={canManage}
           />
         ))}
       </div>
@@ -151,11 +155,12 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, expanded, onToggle, onUpdate, onDelete }: {
+function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage }: {
   task: Task; expanded: boolean;
   onToggle: () => void;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  canManage: boolean;
 }) {
   const { subtasks, addSubTask, deleteSubTask } = useSubTasks(task.id);
   const [addingSubtask, setAddingSubtask] = useState(false);
@@ -217,14 +222,12 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete }: {
           );
         })}
         <span className="text-center text-xs font-semibold text-gray-700 dark:text-white/60">{totalH > 0 ? `${totalH}h` : '-'}</span>
-        <button onClick={() => setAddingSubtask(true)}
-          className="flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
-          <Plus size={13} />
-        </button>
-        <button onClick={() => onDelete(task.id)}
-          className="flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-red-400 transition-colors">
-          <Trash2 size={12} />
-        </button>
+        {canManage
+          ? <button onClick={() => setAddingSubtask(true)} className="flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"><Plus size={13} /></button>
+          : <span />}
+        {canManage
+          ? <button onClick={() => onDelete(task.id)} className="flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
+          : <span />}
       </div>
 
       {expanded && (

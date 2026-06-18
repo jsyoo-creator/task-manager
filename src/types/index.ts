@@ -1,3 +1,30 @@
+export type UserRole = 'superadmin' | 'manager' | 'user';
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL: string;
+  role: UserRole;
+  createdAt: string;
+}
+
+export interface UserPermissions {
+  canManageTasks: boolean;   // 업무 등록/수정/삭제
+  canManageUsers: boolean;   // 사용자 권한 관리 (최고관리자만)
+  canInputTime: boolean;     // 세부업무 시간/날짜 입력
+  canAddVacation: boolean;   // 휴가 등록
+}
+
+export function getPermissions(role: UserRole): UserPermissions {
+  return {
+    canManageTasks: role === 'superadmin' || role === 'manager',
+    canManageUsers: role === 'superadmin',
+    canInputTime: true,
+    canAddVacation: true,
+  };
+}
+
 export type TaskStatus = '진행 전' | '진행 중' | '완료' | '보류';
 export type TaskCategory = '라이브' | '복지' | '사업자' | '기타';
 export type TaskType = '신규' | '기타' | '파생' | '기획';

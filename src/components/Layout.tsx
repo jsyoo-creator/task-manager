@@ -1,10 +1,10 @@
 import { NavLink } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, Sun, Moon, ChevronRight, LogOut
+  Grid3X3, Sun, Moon, ChevronRight, LogOut, Settings
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import type { Project, TaskCategory } from '../types';
+import type { Project, TaskCategory, AppUser } from '../types';
 
 interface Props {
   children: React.ReactNode;
@@ -16,6 +16,7 @@ interface Props {
   isDark: boolean;
   onToggleDark: () => void;
   user: User;
+  appUser: AppUser | null;
   onSignOut: () => void;
 }
 
@@ -26,10 +27,11 @@ const NAV = [
   { to: '/weekly', label: '위클리', icon: BarChart3 },
   { to: '/vacation', label: '휴가', icon: Umbrella },
   { to: '/seats', label: '자리 배치도', icon: Grid3X3 },
+  { to: '/settings', label: '설정', icon: Settings },
 ];
 
 export default function Layout({
-  children, project, isDark, onToggleDark, user, onSignOut,
+  children, project, isDark, onToggleDark, user, appUser, onSignOut,
 }: Props) {
   return (
     <div className="flex min-h-screen bg-[#e8eaf6] dark:bg-[#080c18]">
@@ -129,10 +131,10 @@ export default function Layout({
             }
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold text-black/70 dark:text-white/65 truncate leading-tight">
-                {user.displayName ?? user.email}
+                {appUser?.displayName ?? user.displayName ?? user.email}
               </p>
               <p className="text-[9px] text-black/35 dark:text-white/30 truncate">
-                {user.email}
+                {appUser?.role === 'superadmin' ? '최고 관리자' : appUser?.role === 'manager' ? '중간 관리자' : '일반 사용자'}
               </p>
             </div>
             <button

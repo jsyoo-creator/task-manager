@@ -9,15 +9,19 @@ import CalendarPage from '../pages/CalendarPage';
 import WeeklyPage from '../pages/WeeklyPage';
 import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
+import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks, useAllSubTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
 import { useAuth } from '../hooks/useAuth';
+import { useUserRole } from '../hooks/useUserRole';
+import { getPermissions } from '../types';
 import type { TaskCategory } from '../types';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
+  const { appUser, loading: roleLoading, updateDisplayName } = useUserRole(user);
 
   const { projects, loading: projLoading, addProject } = useProjects();
   const [projectId, setProjectId] = useState<string>('');
@@ -54,15 +58,15 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
   const { subtasks } = useAllSubTasks(projectId);
 
-  // Auth 로딩 중 → LoadingScreen 표시 (흰 화면 방지)
-  if (authLoading) {
+  if (authLoading || (user && roleLoading)) {
     return <LoadingScreen done={false} onFinished={() => {}} isDark={isDark} />;
   }
 
-  // 미로그인 → 로그인 페이지
   if (!user) {
     return <LoginPage onSignIn={signIn} error={authError} />;
   }
+
+  const permissions = getPermissions(appUser?.role ?? 'user');
 
   return (
     <>
@@ -84,6 +88,7 @@ function App() {
           isDark={isDark}
           onToggleDark={() => setIsDark(d => !d)}
           user={user}
+          appUser={appUser}
           onSignOut={signOut}
         >
           <Routes>
@@ -95,6 +100,7 @@ function App() {
                 tasks={tasks} onAddTask={addTask} onUpdateTask={updateTask}
                 onDeleteTask={deleteTask} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
+                canManage={permissions.canManageTasks}
               />
             } />
             <Route path="/calendar" element={
@@ -107,6 +113,11 @@ function App() {
               <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
             } />
             <Route path="/seats" element={<SeatMapPage members={members} />} />
+            <Route path="/settings" element={
+              appUser
+                ? <SettingsPage appUser={appUser} onUpdateName={updateDisplayName} />
+                : <Navigate to="/" replace />
+            } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

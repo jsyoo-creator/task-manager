@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import Layout from '../components/Layout';
 import LoadingScreen from '../components/LoadingScreen';
+import LoginPage from '../pages/LoginPage';
 import Dashboard from '../pages/Dashboard';
 import TaskManagement from '../pages/TaskManagement';
 import CalendarPage from '../pages/CalendarPage';
@@ -12,17 +13,19 @@ import { useProjects } from '../hooks/useProjects';
 import { useTasks, useAllSubTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
+import { useAuth } from '../hooks/useAuth';
 import type { TaskCategory } from '../types';
 
 function App() {
+  const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
+
   const { projects, loading: projLoading, addProject } = useProjects();
   const [projectId, setProjectId] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
   const [isDark, setIsDark] = useState(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
-
-  const [loadingDone, setLoadingDone] = useState(false);  /* loading screen finished */
+  const [loadingDone, setLoadingDone] = useState(false);
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
@@ -51,6 +54,14 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
   const { subtasks } = useAllSubTasks(projectId);
 
+  // Auth 로딩 중: 빈 화면 (LoadingScreen과 겹치지 않게)
+  if (authLoading) return null;
+
+  // 미로그인 → 로그인 페이지
+  if (!user) {
+    return <LoginPage onSignIn={signIn} error={authError} />;
+  }
+
   return (
     <>
       {!loadingDone && (
@@ -70,6 +81,8 @@ function App() {
           onCategoryChange={setActiveCategory}
           isDark={isDark}
           onToggleDark={() => setIsDark(d => !d)}
+          user={user}
+          onSignOut={signOut}
         >
           <Routes>
             <Route path="/" element={

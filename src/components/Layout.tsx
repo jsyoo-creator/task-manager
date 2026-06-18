@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, Sun, Moon, ChevronRight
+  Grid3X3, Sun, Moon, ChevronRight, LogOut
 } from 'lucide-react';
+import type { User } from 'firebase/auth';
 import type { Project, TaskCategory } from '../types';
 
 interface Props {
@@ -14,6 +15,8 @@ interface Props {
   onCategoryChange: (cat: TaskCategory | 'all') => void;
   isDark: boolean;
   onToggleDark: () => void;
+  user: User;
+  onSignOut: () => void;
 }
 
 const NAV = [
@@ -26,7 +29,7 @@ const NAV = [
 ];
 
 export default function Layout({
-  children, project, isDark, onToggleDark,
+  children, project, isDark, onToggleDark, user, onSignOut,
 }: Props) {
   return (
     <div className="flex min-h-screen bg-[#e8eaf6] dark:bg-[#080c18]">
@@ -101,7 +104,7 @@ export default function Layout({
 
         {/* Dark mode toggle */}
         <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
-        <div className="p-3">
+        <div className="p-3 pb-1">
           <button
             onClick={onToggleDark}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[8px] bg-black/5 dark:bg-white/5 hover:bg-black/8 dark:hover:bg-white/8 transition-all text-[12px] text-black/50 dark:text-white/50"
@@ -112,6 +115,34 @@ export default function Layout({
               <div className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow transition-transform ${isDark ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
             </div>
           </button>
+        </div>
+
+        {/* User profile + sign out */}
+        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
+        <div className="p-3">
+          <div className="flex items-center gap-2.5 px-2 py-2">
+            {user.photoURL
+              ? <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/15" />
+              : <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+                  {user.displayName?.slice(0, 1) ?? '?'}
+                </div>
+            }
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-black/70 dark:text-white/65 truncate leading-tight">
+                {user.displayName ?? user.email}
+              </p>
+              <p className="text-[9px] text-black/35 dark:text-white/30 truncate">
+                {user.email}
+              </p>
+            </div>
+            <button
+              onClick={onSignOut}
+              title="로그아웃"
+              className="w-6 h-6 rounded-md flex items-center justify-center text-black/30 dark:text-white/30 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all flex-shrink-0"
+            >
+              <LogOut size={13} />
+            </button>
+          </div>
         </div>
       </aside>
 

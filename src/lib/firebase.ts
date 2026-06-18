@@ -13,4 +13,4 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
-export const auth = getAuth(app);
+export const auth = getAuth(app);  // Auth 도메인은 signInWithPopup 시점에만 필요

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey } from '../types';
@@ -289,24 +289,26 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
-  const [popupStyle, setPopupStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
 
   const parsed = value ? new Date(value + 'T00:00:00') : new Date();
   const [viewYear, setViewYear] = useState(parsed.getFullYear());
   const [viewMonth, setViewMonth] = useState(parsed.getMonth());
 
-  const updatePosition = useCallback(() => {
-    if (!btnRef.current) return;
-    const r = btnRef.current.getBoundingClientRect();
-    const POPUP_H = 268;
-    const spaceBelow = window.innerHeight - r.bottom - 8;
-    const top = spaceBelow >= POPUP_H ? r.bottom + 6 : r.top - POPUP_H - 6;
-    setPopupStyle({ top, left: r.left });
-  }, []);
+  // 팝업이 DOM에 마운트된 직후 실제 크기 측정 → 정확한 위치 계산
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current || !popupRef.current) return;
+    const btn = btnRef.current.getBoundingClientRect();
+    const popH = popupRef.current.offsetHeight;
+    const popW = popupRef.current.offsetWidth;
+    const spaceBelow = window.innerHeight - btn.bottom - 8;
+    const top = spaceBelow >= popH ? btn.bottom + 6 : Math.max(8, btn.top - popH - 6);
+    const left = btn.left + popW > window.innerWidth - 8 ? Math.max(8, btn.right - popW) : btn.left;
+    setPopupStyle({ position: 'fixed', top, left, zIndex: 9999, visibility: 'visible' });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    updatePosition();
     const handler = (e: MouseEvent) => {
       if (
         btnRef.current && !btnRef.current.contains(e.target as Node) &&
@@ -314,12 +316,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
       ) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open, updatePosition]);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
@@ -351,8 +349,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
       {open && createPortal(
         <div
           ref={popupRef}
-          style={{ position: 'fixed', top: popupStyle.top, left: popupStyle.left, zIndex: 9999, width: 240 }}
-          className="glass-card !p-0 !rounded-2xl overflow-hidden shadow-2xl">
+          style={{ ...popupStyle, width: 240 }}
+          className="!rounded-2xl overflow-hidden shadow-2xl border border-white/10 dark:border-white/8 bg-white dark:bg-[#1e1f2e]">
           <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
             <button type="button" onClick={prevMonth}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-black/8 dark:hover:bg-white/10 text-gray-500 dark:text-white/50 transition-colors">
@@ -369,7 +367,7 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
 
           <div className="grid grid-cols-7 px-2 pb-0.5">
             {DAY_LABELS.map((d, i) => (
-              <div key={d} className={`text-center text-[10px] font-medium py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400 dark:text-white/30'}`}>
+              <div key={d} className={`text-center text-[10px] font-medium py-1 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500 dark:text-white/50'}`}>
                 {d}
               </div>
             ))}
@@ -385,8 +383,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
                 <button key={day} type="button" onClick={() => select(day)}
                   className={`text-[11px] py-1.5 rounded-lg font-medium transition-colors ${
                     isSelected ? 'bg-blue-500 text-white' :
-                    isToday ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
-                    'text-gray-700 dark:text-white/70 hover:bg-black/8 dark:hover:bg-white/10'
+                    isToday ? 'bg-blue-50 dark:bg-blue-500/25 text-blue-600 dark:text-blue-300' :
+                    'text-gray-700 dark:text-white/85 hover:bg-black/8 dark:hover:bg-white/12'
                   }`}>
                   {day}
                 </button>

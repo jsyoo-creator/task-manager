@@ -19,7 +19,7 @@ const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const REVISION_OPTIONS = ['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'];
 
-const cls = "w-full bg-black/4 dark:bg-white/8 border border-black/8 dark:border-white/12 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500/40 placeholder-gray-400 dark:placeholder-white/25 transition-all";
+const cls = "w-full bg-black/3 dark:bg-white/8 border border-black/8 dark:border-white/12 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500/40 placeholder-gray-400 dark:placeholder-white/25 transition-all";
 const lbl = "block text-xs font-medium text-gray-500 dark:text-white/40 mb-1";
 
 // 의미상 짝을 이루는 필드 쌍 (폼에서 나란히 배치)
@@ -74,8 +74,8 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="glass-card !rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/30 dark:bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="w-full max-w-lg mx-4 max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-[#1c1f2e] border border-black/8 dark:border-white/8 shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/8 flex-shrink-0">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white/85">새 업무 등록</h2>
           <button onClick={onClose} className="text-gray-400 dark:text-white/35 hover:text-gray-600 dark:hover:text-white/60 transition-colors">

@@ -17,8 +17,16 @@ function App() {
   const { projects, loading: projLoading, addProject } = useProjects();
   const [projectId, setProjectId] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
+  const [isDark, setIsDark] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
 
   useEffect(() => {
     if (!projLoading && projects.length > 0 && !projectId) {
@@ -30,7 +38,7 @@ function App() {
     if (!projLoading && projects.length === 0) {
       addProject({
         name: '라이브 커머스 & 복지/사업자를 업무관리',
-        description: '개인정보 보안 규정 위반 시 징계 대상이 될 수 있으니 보안 철저 (사무실 보안관리, 업무 관리 주의)',
+        description: '개인정보 보안 규정 위반 시 징계 대상이 될 수 있으니 보안 철저',
         categories: ['라이브', '복지', '사업자'],
       });
     }
@@ -42,8 +50,8 @@ function App() {
 
   if (projLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white text-sm">로딩 중...</div>
+      <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
+        <div className="text-white/60 text-sm">로딩 중...</div>
       </div>
     );
   }
@@ -56,61 +64,29 @@ function App() {
         onProjectChange={setProjectId}
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
+        isDark={isDark}
+        onToggleDark={() => setIsDark(d => !d)}
       >
         <Routes>
-          <Route
-            path="/"
-            element={
-              <Dashboard
-                tasks={tasks}
-                subtasks={subtasks}
-                project={currentProject}
-              />
-            }
-          />
-          <Route
-            path="/tasks"
-            element={
-              <TaskManagement
-                tasks={tasks}
-                onAddTask={addTask}
-                onUpdateTask={updateTask}
-                onDeleteTask={deleteTask}
-                projectId={projectId}
-                activeCategory={activeCategory}
-              />
-            }
-          />
-          <Route
-            path="/calendar"
-            element={<CalendarPage tasks={tasks} activeCategory={activeCategory} />}
-          />
-          <Route
-            path="/weekly"
-            element={
-              <WeeklyPage
-                tasks={tasks}
-                subtasks={subtasks}
-                members={members}
-                activeCategory={activeCategory}
-              />
-            }
-          />
-          <Route
-            path="/vacation"
-            element={
-              <VacationPage
-                vacations={vacations}
-                members={members}
-                onAddVacation={addVacation}
-                onDeleteVacation={deleteVacation}
-              />
-            }
-          />
-          <Route
-            path="/seats"
-            element={<SeatMapPage members={members} />}
-          />
+          <Route path="/" element={
+            <Dashboard tasks={tasks} subtasks={subtasks} project={currentProject} />
+          } />
+          <Route path="/tasks" element={
+            <TaskManagement
+              tasks={tasks} onAddTask={addTask} onUpdateTask={updateTask}
+              onDeleteTask={deleteTask} projectId={projectId} activeCategory={activeCategory}
+            />
+          } />
+          <Route path="/calendar" element={
+            <CalendarPage tasks={tasks} activeCategory={activeCategory} />
+          } />
+          <Route path="/weekly" element={
+            <WeeklyPage tasks={tasks} subtasks={subtasks} members={members} activeCategory={activeCategory} />
+          } />
+          <Route path="/vacation" element={
+            <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
+          } />
+          <Route path="/seats" element={<SeatMapPage members={members} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

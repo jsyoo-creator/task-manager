@@ -1,0 +1,57 @@
+/* Class-based dark mode */
+@variant dark (&:where(.dark, .dark *));
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 9999px; }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* Glass card */
+.glass-card {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.82), rgba(255,255,255,0.58));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.92);
+  box-shadow:
+    0px 1px 2px rgba(0,0,0,0.04),
+    0px 4px 8px rgba(0,0,0,0.05),
+    0px 12px 24px rgba(0,0,0,0.06),
+    0px 24px 48px rgba(0,0,0,0.05);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dark .glass-card {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+  border-color: rgba(255,255,255,0.09);
+  box-shadow:
+    0px 1px 2px rgba(0,0,0,0.4),
+    0px 4px 8px rgba(0,0,0,0.35),
+    0px 12px 24px rgba(0,0,0,0.3),
+    0px 24px 48px rgba(0,0,0,0.25);
+}
+
+/* Glass card no-overflow (for tables that need x-scroll) */
+.glass-card-noclip {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.82), rgba(255,255,255,0.58));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.92);
+  box-shadow:
+    0px 1px 2px rgba(0,0,0,0.04),
+    0px 4px 8px rgba(0,0,0,0.05),
+    0px 12px 24px rgba(0,0,0,0.06);
+  border-radius: 12px;
+}
+
+.dark .glass-card-noclip {
+  background: linear-gradient(to bottom, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+  border-color: rgba(255,255,255,0.09);
+  box-shadow:
+    0px 1px 2px rgba(0,0,0,0.4),
+    0px 4px 8px rgba(0,0,0,0.35),
+    0px 12px 24px rgba(0,0,0,0.3);
+}

@@ -6,3 +6,4 @@ dist/
 .env.*.local
 .claude/
 node_modules
+.vercel

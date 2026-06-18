@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Task, TaskCategory } from '../types';
+import type { Task, TaskCategory, TeamPart } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 
 interface Props {
   tasks: Task[];
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
+  parts?: TeamPart[];
 }
 
 const CAT_STYLE: Record<string, { pill: string; dot: string }> = {
@@ -18,7 +19,7 @@ const CAT_STYLE: Record<string, { pill: string; dot: string }> = {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, activeCategory, onCategoryChange }: Props) {
+export default function CalendarPage({ tasks, activeCategory, onCategoryChange, parts }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -57,7 +58,7 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange }
           <p className="page-subtitle">{year}년 {month + 1}월 업무 일정</p>
         </div>
         <div className="flex items-center gap-3">
-          <CategoryTabs active={activeCategory} onChange={onCategoryChange} />
+          <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
           <div className="flex items-center gap-1">
             <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
               <ChevronLeft size={15} />

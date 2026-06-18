@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import {
-  doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query,
+  doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, deleteField,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { User } from 'firebase/auth';
-import type { AppUser, UserRole } from '../types';
+import type { AppUser, UserRole, Department } from '../types';
 
 export function useUserRole(firebaseUser: User | null) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
@@ -63,7 +63,21 @@ export function useUserRole(firebaseUser: User | null) {
     await updateDoc(doc(db, 'users', firebaseUser.uid), { displayName: name });
   };
 
-  return { appUser, loading, updateDisplayName };
+  const updateDepartment = async (department: Department) => {
+    if (!firebaseUser) return;
+    await updateDoc(doc(db, 'users', firebaseUser.uid), { department });
+  };
+
+  const updateSelectedTeam = async (teamId: string | null) => {
+    if (!firebaseUser) return;
+    if (teamId === null) {
+      await updateDoc(doc(db, 'users', firebaseUser.uid), { selectedTeamId: deleteField() });
+    } else {
+      await updateDoc(doc(db, 'users', firebaseUser.uid), { selectedTeamId: teamId });
+    }
+  };
+
+  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeam };
 }
 
 export function useAllUsers() {
@@ -80,5 +94,9 @@ export function useAllUsers() {
     await updateDoc(doc(db, 'users', uid), { role });
   };
 
-  return { users, updateUserRole };
+  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department }) => {
+    await updateDoc(doc(db, 'users', uid), data);
+  };
+
+  return { users, updateUserRole, updateUserInfo };
 }

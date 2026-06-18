@@ -1,17 +1,25 @@
 import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { FileText, Zap, CheckCircle2, Calendar } from 'lucide-react';
-import type { Task, SubTask, Project } from '../types';
+import type { Task, SubTask, Project, TeamPart } from '../types';
 
 interface Props {
   tasks: Task[];
   subtasks: SubTask[];
   project: Project | null;
+  parts?: TeamPart[];
+  assignees?: string[];
 }
 
 const STATUS_COLORS = { '진행 전': '#94a3b8', '진행 중': '#3b82f6', '완료': '#10b981', '보류': '#64748b' };
-const CAT_COLORS: Record<string, string> = { '라이브': '#ef4444', '복지': '#f97316', '사업자': '#6366f1' };
-const CAT_LABELS: Record<string, string> = { '라이브': '라이브', '복지': '복지물', '사업자': '사업자물' };
+
+// tailwind bg class → hex 변환 (파트 색상용)
+const TW_TO_HEX: Record<string, string> = {
+  'bg-red-500': '#ef4444', 'bg-orange-400': '#fb923c', 'bg-yellow-400': '#facc15',
+  'bg-green-500': '#22c55e', 'bg-teal-500': '#14b8a6', 'bg-blue-500': '#3b82f6',
+  'bg-indigo-500': '#6366f1', 'bg-purple-500': '#a855f7', 'bg-pink-500': '#ec4899',
+  'bg-gray-400': '#9ca3af',
+};
 const REVISION_LABELS = [
   'KV 크리에이티브 변경',
   '상세페이지 레이아웃 변동, 신규 상에 추가',
@@ -81,9 +89,15 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project }: Props) {
+export default function Dashboard({ tasks, subtasks, project, parts, assignees = [] }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
-  const cats = project?.categories ?? ['라이브', '복지', '사업자'];
+  // 팀 파트가 있으면 파트 기준, 없으면 빈 배열 (하드코딩 제거)
+  const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];
+  // 파트 이름 → 색상 hex 매핑
+  const catColor = (cat: string): string => {
+    const part = parts?.find(p => p.name === cat);
+    return part ? (TW_TO_HEX[part.color] ?? '#94a3b8') : '#94a3b8';
+  };
   const monthKeys = getMonthKeys();
 
   const stats = useMemo(() => {
@@ -130,8 +144,7 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
     }), [subtasks]);
   const totalRevisions = revisionStats.reduce((a, b) => a + b.count, 0);
 
-  const ASSIGNEES = ['김도은 님', '정소희 PL', '윤다영 님', '김동주 님', '고아현 님', '한수진 님', '탁세현 님'];
-  const assigneeStats = useMemo(() => ASSIGNEES.map(name => {
+  const assigneeStats = useMemo(() => assignees.map(name => {
     const mySubs = subtasks.filter(s => s.assignee === name);
     const monthCounts: Record<string, number> = {};
     monthKeys.forEach((mk, i) => {
@@ -140,7 +153,7 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
       monthCounts[mk] = mySubs.filter(s => s.startDate?.startsWith(prefix)).length;
     });
     return { name, monthCounts, total: mySubs.length, totalH: mySubs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
-  }).filter(a => a.total > 0), [subtasks, monthKeys]);
+  }).filter(a => a.total > 0), [subtasks, monthKeys, assignees]);
 
   /* ─── Legend row (progress bar 위) ─── */
   const legendItems = [
@@ -246,28 +259,29 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
             </div>
           </div>
 
-          {/* 분류별 완료율 — 2fr 너비, 카테고리 가로 3열 */}
+          {/* 분류별 완료율 — 파트가 있을 때만 표시 */}
+          {cats.length > 0 && (
           <div className="glass-card flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
               <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">분류별 완료율</span>
               <span className="text-[11px] text-gray-400 dark:text-white/32">🗓️ 전체 기간</span>
             </div>
-            <div className="flex-1 grid grid-cols-3 divide-x divide-black/[0.05] dark:divide-white/[0.07]">
+            <div className="flex-1 grid divide-x divide-black/[0.05] dark:divide-white/[0.07]" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
               {catStats.map(({ cat, total, done, inProg, hold, rate }) => (
                 <div key={cat} className="flex flex-col justify-center p-5 gap-3">
                   {/* 카테고리명 + 완료율 */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: CAT_COLORS[cat] }} />
-                      <span style={{ color: CAT_COLORS[cat] }}>{CAT_LABELS[cat] ?? cat}</span>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
+                      <span style={{ color: catColor(cat) }}>{cat}</span>
                     </span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: rate > 0 ? CAT_COLORS[cat] : '#94a3b8' }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>
                       {rate}%
                     </span>
                   </div>
                   {/* 진행 바 */}
                   <div className="h-1.5 rounded-full bg-black/6 dark:bg-white/10 overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: CAT_COLORS[cat] }} />
+                    <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: catColor(cat) }} />
                   </div>
                   {/* 4개 수치 */}
                   <div className="grid grid-cols-4 text-center">
@@ -287,6 +301,7 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
               ))}
             </div>
           </div>
+          )}
 
         </div>
       </section>

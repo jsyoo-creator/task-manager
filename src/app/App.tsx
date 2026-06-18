@@ -15,13 +15,15 @@ import { useTasks, useAllSubTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
 import { useAuth } from '../hooks/useAuth';
-import { useUserRole } from '../hooks/useUserRole';
-import { getPermissions } from '../types';
-import type { TaskCategory } from '../types';
+import { useUserRole, useAllUsers } from '../hooks/useUserRole';
+import { useTeams } from '../hooks/useTeams';
+import { getPermissions, resolveBuiltinFields } from '../types';
+import type { TaskCategory, TeamFormConfig } from '../types';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
-  const { appUser, loading: roleLoading, updateDisplayName } = useUserRole(user);
+  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeam } = useUserRole(user);
+  const { users: allUsers } = useAllUsers();
 
   const { projects, loading: projLoading, addProject } = useProjects();
   const [projectId, setProjectId] = useState<string>('');
@@ -33,6 +35,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig } = useTeams();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
@@ -57,6 +60,33 @@ function App() {
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
   const { subtasks } = useAllSubTasks(projectId);
+
+  const selectedTeam = teams.find(t => t.id === appUser?.selectedTeamId) ?? null;
+  const activeParts = selectedTeam?.parts ?? [];
+  const teamAssignees = selectedTeam
+    ? allUsers.filter(u => u.selectedTeamId === selectedTeam.id).map(u => u.displayName)
+    : [];
+
+  // 활성 카테고리에 해당하는 파트 (없으면 undefined → 팀 기본 설정 사용)
+  const activePart = activeCategory !== 'all'
+    ? activeParts.find(p => p.name === activeCategory)
+    : undefined;
+  const effectiveFormConfig = activePart?.formConfig ?? selectedTeam?.formConfig;
+
+  // 업무 관리 페이지에서 컬럼 너비 조절 시 적절한 레벨에 저장
+  const handleTaskUpdateConfig = (config: TeamFormConfig) => {
+    if (!selectedTeam) return;
+    if (activePart) {
+      updatePartFormConfig(selectedTeam.id, activePart.id, config);
+    } else {
+      updateFormConfig(selectedTeam.id, config);
+    }
+  };
+
+  // 선택된 팀의 파트와 일치하는 업무만 표시 (파트가 있을 때만 필터링)
+  const filteredTasks = activeParts.length > 0
+    ? tasks.filter(t => activeParts.some(p => p.name === t.category))
+    : tasks;
 
   if (authLoading || (user && roleLoading)) {
     return <LoadingScreen done={false} onFinished={() => {}} isDark={isDark} />;
@@ -90,24 +120,31 @@ function App() {
           user={user}
           appUser={appUser}
           onSignOut={signOut}
+          teams={teams}
+          teamsLoading={teamsLoading}
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={tasks} subtasks={subtasks} project={currentProject} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} />
             } />
             <Route path="/tasks" element={
               <TaskManagement
-                tasks={tasks} onAddTask={addTask} onUpdateTask={updateTask}
+                tasks={filteredTasks} onAddTask={addTask} onUpdateTask={updateTask}
                 onDeleteTask={deleteTask} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canManage={permissions.canManageTasks}
+                parts={activeParts}
+                assignees={teamAssignees}
+                formConfig={effectiveFormConfig}
+                builtinFields={resolveBuiltinFields(effectiveFormConfig)}
+                onUpdateConfig={permissions.canManageTasks ? handleTaskUpdateConfig : undefined}
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={tasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+              <CalendarPage tasks={filteredTasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} />
             } />
             <Route path="/weekly" element={
-              <WeeklyPage tasks={tasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} />
             } />
             <Route path="/vacation" element={
               <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
@@ -115,7 +152,20 @@ function App() {
             <Route path="/seats" element={<SeatMapPage members={members} />} />
             <Route path="/settings" element={
               appUser
-                ? <SettingsPage appUser={appUser} onUpdateName={updateDisplayName} />
+                ? <SettingsPage
+                    appUser={appUser}
+                    onUpdateName={updateDisplayName}
+                    onUpdateDepartment={updateDepartment}
+                    onUpdateSelectedTeam={(id: string | null) => updateSelectedTeam(id)}
+                    teams={teams}
+                    onCreateTeam={createTeam}
+                    onUpdateTeam={updateTeam}
+                    onSetParts={setParts}
+                    onDeleteTeam={deleteTeam}
+                    onUpdateFormConfig={updateFormConfig}
+                    onUpdatePartFormConfig={updatePartFormConfig}
+                    onClearPartFormConfig={clearPartFormConfig}
+                  />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
             <Route path="*" element={<Navigate to="/" replace />} />

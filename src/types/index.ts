@@ -50,6 +50,7 @@ export interface CustomFormField {
   label: string;
   type: FormFieldType;
   required: boolean;
+  enabled?: boolean; // undefined = true (하위 호환)
   options?: string[]; // select 타입일 때 선택지
 }
 

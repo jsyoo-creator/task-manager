@@ -389,6 +389,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
     setEditingCustomId(null);
   };
 
+  const toggleCustom = (id: string) => {
+    onSaveCustom(customFields.map(f => f.id === id ? { ...f, enabled: f.enabled === false ? true : false } : f));
+  };
+
   const deleteCustom = (id: string) => {
     onSaveCustom(customFields.filter(f => f.id !== id));
   };
@@ -538,6 +542,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {!isEditingCF && <span className="text-[10px] text-gray-400 bg-black/5 dark:bg-white/8 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
                     {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
+                    <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
                     <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                   </div>
                 </div>

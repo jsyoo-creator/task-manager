@@ -228,7 +228,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
           })()}
 
           {/* 커스텀 필드 */}
-          {customFields.map(cf => (
+          {customFields.filter(cf => cf.enabled !== false).map(cf => (
             <div key={cf.id}>
               <label className={lbl}>
                 {cf.label}{cf.required && <span className="text-red-400 ml-0.5">*</span>}

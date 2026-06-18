@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey } from '../types';
 import { resolveBuiltinFields } from '../types';
@@ -286,19 +287,39 @@ const DAY_LABELS = ['일','월','화','수','목','금','토'];
 
 function DatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [popupStyle, setPopupStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
   const parsed = value ? new Date(value + 'T00:00:00') : new Date();
   const [viewYear, setViewYear] = useState(parsed.getFullYear());
   const [viewMonth, setViewMonth] = useState(parsed.getMonth());
 
+  const updatePosition = useCallback(() => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const POPUP_H = 268;
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const top = spaceBelow >= POPUP_H ? r.bottom + 6 : r.top - POPUP_H - 6;
+    setPopupStyle({ top, left: r.left });
+  }, []);
+
   useEffect(() => {
     if (!open) return;
+    updatePosition();
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        btnRef.current && !btnRef.current.contains(e.target as Node) &&
+        popupRef.current && !popupRef.current.contains(e.target as Node)
+      ) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, updatePosition]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
@@ -318,8 +339,8 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
   const displayValue = value ? `${value.slice(0,4)}.${value.slice(5,7)}.${value.slice(8,10)}` : '';
 
   return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(o => !o)}
+    <>
+      <button ref={btnRef} type="button" onClick={() => setOpen(o => !o)}
         className={`${cls} flex items-center justify-between cursor-pointer`}>
         <span className={displayValue ? '' : 'text-gray-400 dark:text-white/25'}>
           {displayValue || '날짜 선택'}
@@ -327,8 +348,11 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
         <CalendarDays size={13} className="text-gray-400 dark:text-white/35 flex-shrink-0 ml-2" />
       </button>
 
-      {open && (
-        <div className="absolute top-full mt-1.5 left-0 z-[200] glass-card !p-0 !rounded-2xl overflow-hidden w-60 shadow-2xl">
+      {open && createPortal(
+        <div
+          ref={popupRef}
+          style={{ position: 'fixed', top: popupStyle.top, left: popupStyle.left, zIndex: 9999, width: 240 }}
+          className="glass-card !p-0 !rounded-2xl overflow-hidden shadow-2xl">
           <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
             <button type="button" onClick={prevMonth}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-black/8 dark:hover:bg-white/10 text-gray-500 dark:text-white/50 transition-colors">
@@ -369,8 +393,9 @@ function DatePicker({ value, onChange }: { value: string; onChange: (v: string) 
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }

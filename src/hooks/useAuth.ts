@@ -25,7 +25,13 @@ export function useAuth(): AuthState {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 3초 안에 응답 없으면 강제로 로딩 해제 (Firebase Console 미설정 대비)
+    // Firebase Auth 초기화 실패 시 (환경변수 미설정) 로그인 화면 표시
+    if (!auth) {
+      setError('서비스 설정 오류가 발생했습니다. 관리자에게 문의하세요.');
+      setLoading(false);
+      return;
+    }
+
     const timeout = setTimeout(() => setLoading(false), 3000);
 
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -50,6 +56,7 @@ export function useAuth(): AuthState {
   }, []);
 
   const signIn = async () => {
+    if (!auth) { setError('서비스 설정 오류가 발생했습니다. 관리자에게 문의하세요.'); return; }
     setError(null);
     try {
       const result = await signInWithPopup(auth, provider);
@@ -65,7 +72,7 @@ export function useAuth(): AuthState {
     }
   };
 
-  const signOut = () => fbSignOut(auth);
+  const signOut = () => auth ? fbSignOut(auth) : Promise.resolve();
 
   return { user, loading, error, signIn, signOut };
 }

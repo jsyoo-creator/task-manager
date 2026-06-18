@@ -13,4 +13,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
-export const auth = getAuth(app);  // Auth 도메인은 signInWithPopup 시점에만 필요
+
+// API 키 미설정 시 앱이 크래시되지 않도록 안전하게 초기화
+let _auth: ReturnType<typeof getAuth> | null = null;
+try {
+  _auth = getAuth(app);
+} catch (e) {
+  console.warn('Firebase Auth init failed (check env vars):', e);
+}
+export const auth = _auth;

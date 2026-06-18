@@ -224,32 +224,39 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
-        <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
-          <Card title="메인 업무 상태">
-            <div className="p-5">
+        <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
+
+          {/* 메인 업무 상태 */}
+          <div className="glass-card flex flex-col">
+            <div className="px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
+              <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">메인 업무 상태</span>
+            </div>
+            <div className="flex-1 flex items-center p-5">
               <DonutChart data={mainDonut} items={tasks} />
             </div>
-          </Card>
+          </div>
 
-          <Card title="세부 업무 상태">
-            <div className="p-5">
+          {/* 세부 업무 상태 */}
+          <div className="glass-card flex flex-col">
+            <div className="px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
+              <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">세부 업무 상태</span>
+            </div>
+            <div className="flex-1 flex items-center p-5">
               <DonutChart data={subDonut} items={subtasks} />
             </div>
-          </Card>
+          </div>
 
           {/* 분류별 완료율 — 2fr 너비, 카테고리 가로 3열 */}
-          <div className="glass-card">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07]">
+          <div className="glass-card flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
               <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">분류별 완료율</span>
-              <span className="text-[11px] text-gray-400 dark:text-white/32 flex items-center gap-1">
-                🗓️ 전체 기간
-              </span>
+              <span className="text-[11px] text-gray-400 dark:text-white/32">🗓️ 전체 기간</span>
             </div>
-            <div className="grid grid-cols-3 divide-x divide-black/[0.05] dark:divide-white/[0.07] p-0">
+            <div className="flex-1 grid grid-cols-3 divide-x divide-black/[0.05] dark:divide-white/[0.07]">
               {catStats.map(({ cat, total, done, inProg, hold, rate }) => (
-                <div key={cat} className="p-4">
+                <div key={cat} className="flex flex-col justify-center p-5 gap-3">
                   {/* 카테고리명 + 완료율 */}
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: CAT_COLORS[cat] }} />
                       <span style={{ color: CAT_COLORS[cat] }}>{CAT_LABELS[cat] ?? cat}</span>
@@ -259,7 +266,7 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
                     </span>
                   </div>
                   {/* 진행 바 */}
-                  <div className="h-1.5 rounded-full bg-black/6 dark:bg-white/10 mb-4 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-black/6 dark:bg-white/10 overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: CAT_COLORS[cat] }} />
                   </div>
                   {/* 4개 수치 */}
@@ -280,6 +287,7 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
               ))}
             </div>
           </div>
+
         </div>
       </section>
 
@@ -374,41 +382,41 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
   );
 }
 
-/* ─── DonutChart ─── */
+/* ─── DonutChart — 좌우 배치, w-full 꽉 채움 ─── */
 function DonutChart({ data, items }: { data: { name: string; value: number }[]; items: { status: string }[] }) {
   const isEmpty = data.length === 0;
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex items-center gap-4 w-full">
       {/* 도넛 */}
-      <div className="w-28 h-28 relative flex items-center justify-center flex-shrink-0">
+      <div className="w-[100px] h-[100px] flex-shrink-0 relative flex items-center justify-center">
         {isEmpty ? (
           <>
             <div className="empty-ring absolute inset-0 rounded-full"
-              style={{ boxShadow: 'inset 0 0 0 14px rgba(0,0,0,0.07)' }} />
-            <style>{`.dark .empty-ring{box-shadow:inset 0 0 0 14px rgba(255,255,255,0.10)!important}`}</style>
+              style={{ boxShadow: 'inset 0 0 0 12px rgba(0,0,0,0.07)' }} />
+            <style>{`.dark .empty-ring{box-shadow:inset 0 0 0 12px rgba(255,255,255,0.10)!important}`}</style>
             <span className="text-[10px] text-gray-400 dark:text-white/28 text-center leading-tight z-10">데이터<br/>없음</span>
           </>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} cx="50%" cy="50%" innerRadius={34} outerRadius={54} dataKey="value" strokeWidth={0}>
+              <Pie data={data} cx="50%" cy="50%" innerRadius={30} outerRadius={48} dataKey="value" strokeWidth={0}>
                 {data.map(e => <Cell key={e.name} fill={STATUS_COLORS[e.name as keyof typeof STATUS_COLORS] ?? '#e5e7eb'} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
         )}
       </div>
-      {/* 범례 — 카드 폭 꽉 채움 */}
-      <div className="w-full space-y-2.5">
+      {/* 범례 — flex-1로 나머지 폭 채움 */}
+      <div className="flex-1 space-y-3 min-w-0">
         {(['진행 전', '진행 중', '완료'] as const).map(s => {
           const count = items.filter(t => t.status === s).length;
           return (
-            <div key={s} className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-white/55">
+            <div key={s} className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-white/55 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[s] }} />
-                {s}
+                <span className="truncate">{s}</span>
               </span>
-              <span className={`text-sm font-bold tabular-nums ${count > 0 ? 'text-gray-800 dark:text-white/80' : 'text-gray-300 dark:text-white/20'}`}>
+              <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${count > 0 ? 'text-gray-800 dark:text-white/80' : 'text-gray-300 dark:text-white/22'}`}>
                 {count}
               </span>
             </div>

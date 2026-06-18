@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import Layout from '../components/Layout';
+import LoadingScreen from '../components/LoadingScreen';
 import Dashboard from '../pages/Dashboard';
 import TaskManagement from '../pages/TaskManagement';
 import CalendarPage from '../pages/CalendarPage';
@@ -20,6 +21,8 @@ function App() {
   const [isDark, setIsDark] = useState(() =>
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
+
+  const [loadingDone, setLoadingDone] = useState(false);  /* loading screen finished */
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
@@ -48,49 +51,51 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
   const { subtasks } = useAllSubTasks(projectId);
 
-  if (projLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
-        <div className="text-white/60 text-sm">로딩 중...</div>
-      </div>
-    );
-  }
-
   return (
-    <BrowserRouter>
-      <Layout
-        project={currentProject}
-        projects={projects}
-        onProjectChange={setProjectId}
-        activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
-        isDark={isDark}
-        onToggleDark={() => setIsDark(d => !d)}
-      >
-        <Routes>
-          <Route path="/" element={
-            <Dashboard tasks={tasks} subtasks={subtasks} project={currentProject} />
-          } />
-          <Route path="/tasks" element={
-            <TaskManagement
-              tasks={tasks} onAddTask={addTask} onUpdateTask={updateTask}
-              onDeleteTask={deleteTask} projectId={projectId} activeCategory={activeCategory}
-            />
-          } />
-          <Route path="/calendar" element={
-            <CalendarPage tasks={tasks} activeCategory={activeCategory} />
-          } />
-          <Route path="/weekly" element={
-            <WeeklyPage tasks={tasks} subtasks={subtasks} members={members} activeCategory={activeCategory} />
-          } />
-          <Route path="/vacation" element={
-            <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
-          } />
-          <Route path="/seats" element={<SeatMapPage members={members} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <>
+      {!loadingDone && (
+        <LoadingScreen
+          done={!projLoading}
+          onFinished={() => setLoadingDone(true)}
+          isDark={isDark}
+        />
+      )}
+
+      <BrowserRouter>
+        <Layout
+          project={currentProject}
+          projects={projects}
+          onProjectChange={setProjectId}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+          isDark={isDark}
+          onToggleDark={() => setIsDark(d => !d)}
+        >
+          <Routes>
+            <Route path="/" element={
+              <Dashboard tasks={tasks} subtasks={subtasks} project={currentProject} />
+            } />
+            <Route path="/tasks" element={
+              <TaskManagement
+                tasks={tasks} onAddTask={addTask} onUpdateTask={updateTask}
+                onDeleteTask={deleteTask} projectId={projectId} activeCategory={activeCategory}
+              />
+            } />
+            <Route path="/calendar" element={
+              <CalendarPage tasks={tasks} activeCategory={activeCategory} />
+            } />
+            <Route path="/weekly" element={
+              <WeeklyPage tasks={tasks} subtasks={subtasks} members={members} activeCategory={activeCategory} />
+            } />
+            <Route path="/vacation" element={
+              <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
+            } />
+            <Route path="/seats" element={<SeatMapPage members={members} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </>
   );
 }
 

@@ -16,6 +16,17 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Base body readability */
+body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: #1a1f2e;
+}
+.dark body {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -26,41 +37,41 @@
    Glass Card  (light + dark variants)
 ─────────────────────────────────────── */
 .glass-card {
-  background: linear-gradient(145deg, rgba(255,255,255,0.88), rgba(255,255,255,0.65));
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  /* 더 불투명하게 (0.88→0.93) → 텍스트 가독성 향상 */
+  background: linear-gradient(145deg, rgba(255,255,255,0.93), rgba(255,255,255,0.78));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255,255,255,0.95);
   box-shadow:
-    0 1px 1px rgba(0,0,0,0.03),
-    0 4px 8px rgba(0,0,0,0.05),
-    0 12px 24px rgba(0,0,0,0.06),
+    0 1px 1px rgba(0,0,0,0.04),
+    0 4px 8px rgba(0,0,0,0.06),
+    0 12px 24px rgba(0,0,0,0.07),
     0 24px 48px rgba(0,0,0,0.04);
   border-radius: 16px;
   overflow: hidden;
 }
 .dark .glass-card {
-  background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  background: linear-gradient(145deg, rgba(30,38,60,0.85), rgba(20,28,46,0.78));
   border-color: rgba(255,255,255,0.1);
   box-shadow:
-    0 1px 1px rgba(0,0,0,0.5),
-    0 4px 8px rgba(0,0,0,0.4),
-    0 12px 24px rgba(0,0,0,0.35),
-    0 24px 48px rgba(0,0,0,0.25);
+    0 1px 1px rgba(0,0,0,0.6),
+    0 4px 8px rgba(0,0,0,0.45),
+    0 12px 24px rgba(0,0,0,0.38);
 }
 
 /* Glass card — no clip (for horizontally scrollable tables) */
 .glass-card-noclip {
-  background: linear-gradient(145deg, rgba(255,255,255,0.88), rgba(255,255,255,0.65));
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  background: linear-gradient(145deg, rgba(255,255,255,0.93), rgba(255,255,255,0.78));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255,255,255,0.95);
-  box-shadow: 0 1px 1px rgba(0,0,0,0.03), 0 4px 8px rgba(0,0,0,0.05), 0 12px 24px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.06), 0 12px 24px rgba(0,0,0,0.07);
   border-radius: 16px;
 }
 .dark .glass-card-noclip {
-  background: linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  background: linear-gradient(145deg, rgba(30,38,60,0.85), rgba(20,28,46,0.78));
   border-color: rgba(255,255,255,0.1);
-  box-shadow: 0 1px 1px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.35);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.45), 0 12px 24px rgba(0,0,0,0.38);
 }
 
 /* ───────────────────────────────────────
@@ -139,20 +150,51 @@
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.5px;
-  color: #0f172a;
+  color: #0d1221;           /* 더 진한 검정 */
   line-height: 1.2;
 }
 .dark .page-title {
-  color: rgba(255,255,255,0.9);
+  color: rgba(255,255,255,0.95);
 }
 .page-subtitle {
   font-size: 13px;
-  color: rgba(0,0,0,0.45);
-  font-weight: 400;
+  color: rgba(0,0,0,0.55);  /* 0.45 → 0.55 */
+  font-weight: 450;
   margin-top: 2px;
 }
 .dark .page-subtitle {
-  color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.50);  /* 0.35 → 0.50 */
+}
+
+/* ───────────────────────────────────────
+   Readability boosts inside glass cards
+─────────────────────────────────────── */
+
+/* Light mode: bump faint grays one step up */
+.glass-card .text-gray-400,
+.glass-card-noclip .text-gray-400 {
+  color: rgb(107 114 128);   /* gray-500 */
+}
+.glass-card .text-gray-500,
+.glass-card-noclip .text-gray-500 {
+  color: rgb(75 85 99);      /* gray-600 */
+}
+
+/* Dark mode: custom readable class for card inner text */
+.card-label {
+  color: rgba(0, 0, 0, 0.58);
+  font-size: 12px;
+  font-weight: 500;
+}
+.dark .card-label {
+  color: rgba(255, 255, 255, 0.58);
+}
+.card-meta {
+  color: rgba(0, 0, 0, 0.48);
+  font-size: 11px;
+}
+.dark .card-meta {
+  color: rgba(255, 255, 255, 0.48);
 }
 
 /* ───────────────────────────────────────

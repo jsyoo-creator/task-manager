@@ -91,7 +91,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <div className="glass-card-noclip overflow-x-auto">
         {/* Header */}
-        <div className="grid text-[11px] text-gray-400 dark:text-white/30 font-medium bg-black/3 dark:bg-white/4 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
+        <div className="grid text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
           style={{ gridTemplateColumns: COL }}>
           <span />
           <span />
@@ -134,9 +134,9 @@ function FilterSelect({ label, value, onChange, children }: {
 }) {
   return (
     <div className="flex items-center gap-1.5 glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs">
-      <span className="text-gray-400 dark:text-white/35">{label}</span>
+      <span className="text-gray-500 dark:text-white/50 font-medium">{label}</span>
       <select
-        className="bg-transparent border-none focus:outline-none text-gray-700 dark:text-white/70 font-medium cursor-pointer text-xs"
+        className="bg-transparent border-none focus:outline-none text-gray-800 dark:text-white/78 font-semibold cursor-pointer text-xs"
         value={value}
         onChange={e => onChange(e.target.value)}
       >
@@ -177,12 +177,12 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete }: {
         className="grid items-center px-3 py-2.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
         style={{ gridTemplateColumns: COL }}
       >
-        <button onClick={onToggle} className="text-gray-400 dark:text-white/30 hover:text-gray-600 dark:hover:text-white/60 flex items-center justify-center">
+        <button onClick={onToggle} className="text-gray-400 dark:text-white/45 hover:text-gray-600 dark:hover:text-white/70 flex items-center justify-center">
           <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
         </button>
         <span className={`w-2 h-2 rounded-full ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
-        <span className="font-medium text-gray-800 dark:text-white/80 truncate pr-2">{task.title}</span>
-        <select className={`${sel} text-gray-600 dark:text-white/55`} value={task.type}
+        <span className="font-semibold text-gray-800 dark:text-white/85 truncate pr-2">{task.title}</span>
+        <select className={`${sel} text-gray-700 dark:text-white/65`} value={task.type}
           onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
           {TYPES.map(t => <option key={t}>{t}</option>)}
         </select>
@@ -192,16 +192,16 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete }: {
             {STATUSES.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
-        <select className={`${sel} text-gray-500 dark:text-white/45`} value={task.receiver}
+        <select className={`${sel} text-gray-600 dark:text-white/58`} value={task.receiver}
           onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
           {ASSIGNEES.map(a => <option key={a}>{a}</option>)}
         </select>
-        <select className={`${sel} text-gray-700 dark:text-white/65`} value={task.assignee}
+        <select className={`${sel} text-gray-700 dark:text-white/72`} value={task.assignee}
           onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
           {ASSIGNEES.map(a => <option key={a}>{a}</option>)}
         </select>
-        <span className="text-xs text-gray-500 dark:text-white/40">{task.startDate?.slice(5).replace('-', '.') ?? '-'}</span>
-        <span className="text-xs text-gray-500 dark:text-white/40">{task.endDate?.slice(5).replace('-', '.') ?? '-'}</span>
+        <span className="text-xs text-gray-600 dark:text-white/55">{task.startDate?.slice(5).replace('-', '.') ?? '-'}</span>
+        <span className="text-xs text-gray-600 dark:text-white/55">{task.endDate?.slice(5).replace('-', '.') ?? '-'}</span>
         {[1, 2, 3, 4, 5].map(w => {
           const h = task.weeklyHours?.[`week${w}`] ?? 0;
           return (

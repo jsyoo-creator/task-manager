@@ -331,11 +331,11 @@ function StatCard({ label, value, sub, icon, iconCls, subBlue }: {
   return (
     <div className="glass-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-gray-500 dark:text-white/40">{label}</span>
+        <span className="text-xs font-semibold text-gray-600 dark:text-white/58 tracking-wide">{label}</span>
         <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconCls}`}>{icon}</span>
       </div>
-      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{value}</div>
-      <div className={`text-xs ${subBlue ? 'text-blue-500' : 'text-gray-400 dark:text-white/30'}`}>{sub}</div>
+      <div className="text-[28px] font-bold text-gray-900 dark:text-white leading-none mb-2">{value}</div>
+      <div className={`text-xs font-medium ${subBlue ? 'text-blue-500' : 'text-gray-500 dark:text-white/50'}`}>{sub}</div>
     </div>
   );
 }

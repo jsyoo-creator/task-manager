@@ -92,7 +92,7 @@ export default function Layout({
                 `relative flex items-center gap-2.5 px-3 py-2.5 rounded-[8px] text-[13px] font-medium transition-all group ${
                   isActive
                     ? 'text-[#2670e9] bg-gradient-to-r from-[#2670e9]/12 to-transparent'
-                    : 'text-black/55 dark:text-white/50 hover:text-black/80 dark:hover:text-white/80 hover:bg-black/5 dark:hover:bg-white/5'
+                    : 'text-black/65 dark:text-white/62 hover:text-black/85 dark:hover:text-white/85 hover:bg-black/5 dark:hover:bg-white/6'
                 }`
               }
             >
@@ -124,8 +124,8 @@ export default function Layout({
                   onClick={() => onCategoryChange('all')}
                   className={`w-full text-left px-3 py-2 rounded-[8px] text-[12px] transition-all ${
                     activeCategory === 'all'
-                      ? 'bg-black/8 dark:bg-white/10 text-black/80 dark:text-white/80 font-medium'
-                      : 'text-black/45 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5'
+                      ? 'bg-black/8 dark:bg-white/10 text-black/85 dark:text-white/85 font-semibold'
+                      : 'text-black/60 dark:text-white/55 hover:bg-black/5 dark:hover:bg-white/5'
                   }`}
                 >
                   전체
@@ -136,8 +136,8 @@ export default function Layout({
                     onClick={() => onCategoryChange(cat as TaskCategory)}
                     className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-[8px] text-[12px] transition-all ${
                       activeCategory === cat
-                        ? 'bg-black/8 dark:bg-white/10 text-black/80 dark:text-white/80 font-medium'
-                        : 'text-black/45 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5'
+                        ? 'bg-black/8 dark:bg-white/10 text-black/85 dark:text-white/85 font-semibold'
+                        : 'text-black/60 dark:text-white/55 hover:bg-black/5 dark:hover:bg-white/5'
                     }`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${CAT_DOT[cat] ?? 'bg-gray-400'}`} />

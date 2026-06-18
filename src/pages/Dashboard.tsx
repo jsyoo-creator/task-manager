@@ -11,7 +11,7 @@ interface Props {
   assignees?: string[];
 }
 
-const STATUS_COLORS = { '진행 전': '#d1d5db', '진행 중': '#3b82f6', '완료': '#10b981', '보류': '#94a3b8' };
+const STATUS_COLORS_FIXED = { '진행 중': '#3b82f6', '완료': '#10b981' };
 
 // tailwind bg class → hex 변환 (파트 색상용)
 const TW_TO_HEX: Record<string, string> = {
@@ -91,6 +91,13 @@ function Card({ title, action, children, className = '' }: {
 
 export default function Dashboard({ tasks, subtasks, project, parts, assignees = [] }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
+  const isDark = document.documentElement.classList.contains('dark');
+  const COLORS = {
+    before: isDark ? '#4b5563' : '#d1d5db',   // 다크: gray-600, 라이트: gray-300
+    inProg: '#3b82f6',
+    done:   '#10b981',
+    hold:   isDark ? '#374151' : '#94a3b8',   // 다크: gray-700, 라이트: slate-400
+  };
   // 팀 파트가 있으면 파트 기준, 없으면 빈 배열 (하드코딩 제거)
   const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];
   // 파트 이름 → 색상 hex 매핑
@@ -158,10 +165,10 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
   /* ─── Legend row (progress bar 위) ─── */
   const legendItems = [
-    { l: '진행 전', v: stats.before, c: STATUS_COLORS['진행 전'] },
-    { l: '진행 중', v: stats.inProgress, c: STATUS_COLORS['진행 중'] },
-    { l: '완료', v: stats.done, c: STATUS_COLORS['완료'] },
-    { l: '보류', v: stats.hold, c: STATUS_COLORS['보류'] },
+    { l: '진행 전', v: stats.before,    c: COLORS.before },
+    { l: '진행 중', v: stats.inProgress, c: COLORS.inProg },
+    { l: '완료',   v: stats.done,        c: COLORS.done },
+    { l: '보류',   v: stats.hold,        c: COLORS.hold },
   ];
 
   return (
@@ -188,7 +195,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             accentColor="#3b82f6" icon={<FileText size={14} />} />
           <StatCard label="진행 전" value={stats.before}
             sub={`전체의 ${stats.total > 0 ? Math.round((stats.before / stats.total) * 100) : 0}%`}
-            accentColor="#d1d5db" icon={<FileText size={14} />} />
+            accentColor={COLORS.before} icon={<FileText size={14} />} />
           <StatCard label="진행 중" value={stats.inProgress}
             sub={`전체의 ${stats.total > 0 ? Math.round((stats.inProgress / stats.total) * 100) : 0}%`}
             accentColor="#f59e0b" icon={<Zap size={14} />} />
@@ -246,7 +253,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">메인 업무 상태</span>
             </div>
             <div className="flex-1 flex items-center p-5">
-              <DonutChart data={mainDonut} items={tasks} />
+              <DonutChart data={mainDonut} items={tasks} colors={COLORS} />
             </div>
           </div>
 
@@ -256,7 +263,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">세부 업무 상태</span>
             </div>
             <div className="flex-1 flex items-center p-5">
-              <DonutChart data={subDonut} items={subtasks} />
+              <DonutChart data={subDonut} items={subtasks} colors={COLORS} />
             </div>
           </div>
 
@@ -399,7 +406,15 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 }
 
 /* ─── DonutChart — 좌우 배치, w-full 꽉 채움 ─── */
-function DonutChart({ data, items }: { data: { name: string; value: number }[]; items: { status: string }[] }) {
+function DonutChart({ data, items, colors }: {
+  data: { name: string; value: number }[];
+  items: { status: string }[];
+  colors: { before: string; inProg: string; done: string; hold: string };
+}) {
+  const colorOf = (name: string) => ({
+    '진행 전': colors.before, '진행 중': colors.inProg, '완료': colors.done, '보류': colors.hold,
+  }[name] ?? '#e5e7eb');
+
   const isEmpty = data.length === 0;
   return (
     <div className="flex items-center gap-4 w-full">
@@ -416,7 +431,7 @@ function DonutChart({ data, items }: { data: { name: string; value: number }[]; 
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={data} cx="50%" cy="50%" innerRadius={30} outerRadius={48} dataKey="value" strokeWidth={0}>
-                {data.map(e => <Cell key={e.name} fill={STATUS_COLORS[e.name as keyof typeof STATUS_COLORS] ?? '#e5e7eb'} />)}
+                {data.map(e => <Cell key={e.name} fill={colorOf(e.name)} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -429,7 +444,7 @@ function DonutChart({ data, items }: { data: { name: string; value: number }[]; 
           return (
             <div key={s} className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-white/55 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[s] }} />
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorOf(s) }} />
                 <span className="truncate">{s}</span>
               </span>
               <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${count > 0 ? 'text-gray-800 dark:text-white/80' : 'text-gray-300 dark:text-white/22'}`}>

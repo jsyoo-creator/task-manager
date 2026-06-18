@@ -322,7 +322,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
                 <div key={`w${w}`} className="flex justify-center">
                   {h > 0
                     ? <span className="text-xs text-green-600 dark:text-green-400 font-medium">{h}h</span>
-                    : <span className="text-xs text-gray-200 dark:text-white/15">-</span>}
+                    : <span className="text-xs text-gray-400 dark:text-white/15">-</span>}
                 </div>
               );
             }),
@@ -332,10 +332,10 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
         })}
 
         {canManage
-          ? <button onClick={() => setAddingSubtask(true)} className="flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"><Plus size={13} /></button>
+          ? <button onClick={() => setAddingSubtask(true)} className="flex items-center justify-center text-gray-400 dark:text-white/25 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"><Plus size={13} /></button>
           : <span />}
         {canManage
-          ? <button onClick={() => onDelete(task.id)} className="flex items-center justify-center text-gray-300 dark:text-white/20 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
+          ? <button onClick={() => onDelete(task.id)} className="flex items-center justify-center text-gray-400 dark:text-white/25 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
           : <span />}
       </div>
 
@@ -414,7 +414,7 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
               <div key={`w${w}`} className="flex justify-center">
                 {h > 0
                   ? <span className="text-xs text-green-500 dark:text-green-400">{h}h</span>
-                  : <span className="text-xs text-gray-200 dark:text-white/12">-</span>}
+                  : <span className="text-xs text-gray-400 dark:text-white/20">-</span>}
               </div>
             );
           }),
@@ -423,7 +423,7 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
         return [];
       })}
       <span />
-      <button onClick={onDelete} className="flex items-center justify-center text-gray-200 dark:text-white/15 hover:text-red-400 transition-colors">
+      <button onClick={onDelete} className="flex items-center justify-center text-gray-400 dark:text-white/25 hover:text-red-400 transition-colors">
         <Trash2 size={11} />
       </button>
     </div>

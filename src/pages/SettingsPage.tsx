@@ -3,6 +3,8 @@ import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layer
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig } from '../types';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface Props {
   appUser: AppUser;
@@ -878,6 +880,40 @@ export default function SettingsPage({
   const { users, updateUserRole, updateUserInfo } = useAllUsers();
 
   const canManageUsers = appUser.role === 'superadmin' || appUser.role === 'manager';
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState('');
+
+  const runSubtaskMigration = async () => {
+    setMigrating(true);
+    setMigrateResult('');
+    try {
+      const [subtasksSnap, tasksSnap] = await Promise.all([
+        getDocs(collection(db, 'subtasks')),
+        getDocs(collection(db, 'tasks')),
+      ]);
+      const taskMap = new Map(tasksSnap.docs.map(d => [d.id, d.data().projectId as string]));
+      const needsMigration = subtasksSnap.docs.filter(d => !d.data().projectId);
+      if (needsMigration.length === 0) {
+        setMigrateResult('✅ 이미 모든 세부업무에 projectId가 있습니다.');
+        return;
+      }
+      let updated = 0, failed = 0;
+      for (const subDoc of needsMigration) {
+        const projectId = taskMap.get(subDoc.data().taskId);
+        if (projectId) {
+          await updateDoc(doc(db, 'subtasks', subDoc.id), { projectId });
+          updated++;
+        } else {
+          failed++;
+        }
+      }
+      setMigrateResult(`✅ 완료: ${updated}건 업데이트${failed > 0 ? `, ${failed}건 실패 (부모 task 없음)` : ''}`);
+    } catch (e) {
+      setMigrateResult(`❌ 오류: ${String(e)}`);
+    } finally {
+      setMigrating(false);
+    }
+  };
 
   const handleSaveName = async () => {
     if (!nameInput.trim()) return;
@@ -1030,6 +1066,32 @@ export default function SettingsPage({
           </div>
         </div>
       </section>
+
+      {/* 슈퍼어드민 전용: 데이터 마이그레이션 */}
+      {appUser.role === 'superadmin' && (
+        <section className="glass-card p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-white/70 flex items-center gap-1.5">
+            <Shield size={14} className="text-orange-400" />
+            데이터 마이그레이션 (관리자 전용)
+          </h3>
+          <div className="rounded-xl border border-orange-200 dark:border-orange-500/20 bg-orange-50/50 dark:bg-orange-500/5 p-3 space-y-2">
+            <p className="text-xs text-gray-600 dark:text-white/55">
+              세부업무(subtask)에 projectId 필드 일괄 추가 — 기존 데이터 마이그레이션용
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={runSubtaskMigration}
+                disabled={migrating}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                {migrating ? '실행 중...' : 'subtask 마이그레이션 실행'}
+              </button>
+              {migrateResult && (
+                <span className="text-xs text-gray-600 dark:text-white/60">{migrateResult}</span>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

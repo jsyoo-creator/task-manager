@@ -9,7 +9,7 @@ interface Props {
   project: Project | null;
 }
 
-const STATUS_COLORS = { '진행 전': '#3b82f6', '진행 중': '#f59e0b', '완료': '#10b981', '보류': '#94a3b8' };
+const STATUS_COLORS = { '진행 전': '#94a3b8', '진행 중': '#3b82f6', '완료': '#10b981', '보류': '#64748b' };
 const CAT_COLORS: Record<string, string> = { '라이브': '#ef4444', '복지': '#f97316', '사업자': '#6366f1' };
 const CAT_LABELS: Record<string, string> = { '라이브': '라이브', '복지': '복지물', '사업자': '사업자물' };
 const REVISION_LABELS = [

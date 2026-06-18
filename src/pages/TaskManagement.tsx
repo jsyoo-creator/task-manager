@@ -29,10 +29,10 @@ const CAT_DOT: Record<string, string> = {
   '라이브': 'bg-red-500', '복지': 'bg-orange-400', '사업자': 'bg-indigo-500', '기타': 'bg-gray-400',
 };
 const STATUS_STYLE: Record<TaskStatus, string> = {
-  '진행 전': 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-500/15',
-  '진행 중': 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-500/15',
-  '완료': 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-500/15',
-  '보류': 'text-slate-500 bg-slate-100 dark:text-slate-400 dark:bg-white/8',
+  '진행 전': 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15',
+  '진행 중': 'text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/15',
+  '완료': 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-500/15',
+  '보류': 'text-slate-600 bg-slate-200 dark:text-slate-400 dark:bg-white/8',
 };
 
 const now = new Date();
@@ -257,7 +257,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
 
   return (
     <div className="border-b border-black/4 dark:border-white/6 last:border-0 min-w-max">
-      <div className="grid items-center px-3 py-2.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
+      <div className="grid items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
         style={{ gridTemplateColumns: colTemplate }}>
         <button onClick={onToggle} className="text-gray-400 dark:text-white/45 hover:text-gray-600 dark:hover:text-white/70 flex items-center justify-center">
           <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
@@ -366,10 +366,10 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
 }) {
   const totalH = Object.values(sub.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
   const SUB_STATUS: Record<string, string> = {
-    '진행 전': 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-500/15',
-    '진행 중': 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-500/15',
-    '완료': 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-500/15',
-    '보류': 'text-slate-500 bg-slate-100 dark:text-slate-400 dark:bg-white/8',
+    '진행 전': 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15',
+    '진행 중': 'text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/15',
+    '완료': 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-500/15',
+    '보류': 'text-slate-600 bg-slate-200 dark:text-slate-400 dark:bg-white/8',
   };
   return (
     <div className="grid items-center px-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"

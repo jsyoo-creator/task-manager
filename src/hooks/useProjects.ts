@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, doc, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, doc, query } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Project } from '../types';
 
@@ -8,11 +8,21 @@ export function useProjects() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'projects'), orderBy('createdAt', 'asc'));
-    const unsub = onSnapshot(q, snap => {
-      setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as Project)));
-      setLoading(false);
-    });
+    const q = query(collection(db, 'projects'));
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        const sorted = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Project))
+          .sort((a, b) => a.createdAt?.localeCompare(b.createdAt ?? '') ?? 0);
+        setProjects(sorted);
+        setLoading(false);
+      },
+      err => {
+        console.error('projects error:', err);
+        setLoading(false);
+      }
+    );
     return unsub;
   }, []);
 

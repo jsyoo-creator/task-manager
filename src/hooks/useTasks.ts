@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, query, where, orderBy, Timestamp
+  doc, query, where
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Task, SubTask } from '../types';
@@ -11,16 +11,22 @@ export function useTasks(projectId: string) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!projectId) return;
-    const q = query(
-      collection(db, 'tasks'),
-      where('projectId', '==', projectId),
-      orderBy('createdAt', 'desc')
+    if (!projectId) { setLoading(false); return; }
+    const q = query(collection(db, 'tasks'), where('projectId', '==', projectId));
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        const sorted = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Task))
+          .sort((a, b) => b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0);
+        setTasks(sorted);
+        setLoading(false);
+      },
+      err => {
+        console.error('tasks error:', err);
+        setLoading(false);
+      }
     );
-    const unsub = onSnapshot(q, snap => {
-      setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
-      setLoading(false);
-    });
     return unsub;
   }, [projectId]);
 
@@ -45,14 +51,17 @@ export function useSubTasks(taskId: string) {
 
   useEffect(() => {
     if (!taskId) return;
-    const q = query(
-      collection(db, 'subtasks'),
-      where('taskId', '==', taskId),
-      orderBy('createdAt', 'asc')
+    const q = query(collection(db, 'subtasks'), where('taskId', '==', taskId));
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        const sorted = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as SubTask))
+          .sort((a, b) => a.createdAt?.localeCompare(b.createdAt ?? '') ?? 0);
+        setSubtasks(sorted);
+      },
+      err => console.error('subtasks error:', err)
     );
-    const unsub = onSnapshot(q, snap => {
-      setSubtasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as SubTask)));
-    });
     return unsub;
   }, [taskId]);
 
@@ -76,10 +85,14 @@ export function useAllSubTasks(projectId: string) {
 
   useEffect(() => {
     if (!projectId) return;
-    const q = query(collection(db, 'subtasks'), orderBy('createdAt', 'asc'));
-    const unsub = onSnapshot(q, snap => {
-      setSubtasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as SubTask)));
-    });
+    const q = query(collection(db, 'subtasks'));
+    const unsub = onSnapshot(
+      q,
+      snap => {
+        setSubtasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as SubTask)));
+      },
+      err => console.error('allSubtasks error:', err)
+    );
     return unsub;
   }, [projectId]);
 

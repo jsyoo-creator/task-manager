@@ -93,10 +93,10 @@ function Card({ title, action, children, className = '' }: {
 export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], isDark = false }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
   const COLORS = {
-    before: isDark ? '#2e3250' : '#e4e6ea',   // 다크: 배경에 묻히는 짙은 남색, 라이트: 거의 안보이는 연회색
+    before: isDark ? '#2e3250' : '#c8ccd4',   // 다크: 배경에 묻히는 짙은 남색, 라이트: 연한 회색(빈 링보다 살짝 진하게)
     inProg: '#3b82f6',
     done:   '#10b981',
-    hold:   isDark ? '#30344f' : '#cbd5e1',   // 다크: 배경 근처, 라이트: slate-200
+    hold:   isDark ? '#30344f' : '#b8bfc9',   // 다크: 배경 근처, 라이트: 보류 전용
   };
   // 팀 파트가 있으면 파트 기준, 없으면 빈 배열 (하드코딩 제거)
   const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];

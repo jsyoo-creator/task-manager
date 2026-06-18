@@ -14,11 +14,11 @@ export function useUserRole(firebaseUser: User | null) {
     if (!firebaseUser) { setAppUser(null); setLoading(false); return; }
 
     const ref = doc(db, 'users', firebaseUser.uid);
+    let unsub: (() => void) | undefined;
 
     const init = async () => {
       const snap = await getDoc(ref);
       if (!snap.exists()) {
-        // 첫 사용자 → 최고 관리자
         const allSnap = await getDocs(collection(db, 'users'));
         const role: UserRole = allSnap.empty ? 'superadmin' : 'user';
         const data: AppUser = {
@@ -31,18 +31,16 @@ export function useUserRole(firebaseUser: User | null) {
         };
         await setDoc(ref, data);
       }
+      // 문서 존재 확인 후 리스너 등록 → appUser가 반드시 있는 상태에서 loading=false
+      unsub = onSnapshot(ref, s => {
+        if (s.exists()) setAppUser(s.data() as AppUser);
+        setLoading(false);
+      });
     };
 
-    init().catch(console.error);
+    init().catch(err => { console.error(err); setLoading(false); });
 
-    const unsub = onSnapshot(ref, snap => {
-      if (snap.exists()) {
-        setAppUser(snap.data() as AppUser);
-      }
-      setLoading(false);
-    });
-
-    return unsub;
+    return () => unsub?.();
   }, [firebaseUser?.uid]);
 
   const updateDisplayName = async (name: string) => {

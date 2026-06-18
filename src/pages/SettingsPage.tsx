@@ -92,7 +92,7 @@ export default function SettingsPage({ appUser, onUpdateName }: Props) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="page-title">설정</h1>
         <p className="page-subtitle">계정 및 권한 관리</p>

@@ -13,67 +13,117 @@ const STEPS = [
   '대시보드 구성',
 ];
 
-/* ── Pixel art cat ──────────────────────────────────── */
-function PixelCat() {
-  const P = 4; // px per pixel
-  const COLOR: Record<string, string> = {
-    B: '#fb923c', // body orange
-    D: '#e8710a', // darker orange stripe
-    P: '#fda4af', // ear inner pink
-    E: '#292524', // eye
-    N: '#f43f5e', // nose
-    R: '#fca5a5', // rosy cheek
-    M: '#7c2d12', // mouth
-    W: '#fff7ed', // white belly
-  };
-  // 12 columns × 12 rows
-  const MAP = [
-    '..B......B..',  // 0  ear tips
-    '.BBB....BBB.',  // 1  ears
-    '.BPB....BPB.',  // 2  inner ear
-    'BBBBBBBBBBBB',  // 3  head top
-    'BBBBDDDDBBBB',  // 4  forehead stripe
-    'BBEEBBBBEEBB',  // 5  eyes
-    'BBBBBBBBBBBB',  // 6  mid head
-    'BRRBBNNBBRRB',  // 7  cheeks + nose
-    'BBBBBMMBBBBB',  // 8  mouth
-    'WWWWWWWWWWWW',  // 9  belly
-    '.WWWWWWWWWW.',  // 10 chin
-    '..WWWWWWWW..',  // 11 bottom
-  ];
+/* ── pixel helpers ─────────────────────────────────── */
+type PixelMap = { map: string[]; colors: Record<string, string>; p: number };
 
-  const rects: React.ReactNode[] = [];
-  MAP.forEach((row, y) => {
-    row.split('').forEach((ch, x) => {
-      const fill = COLOR[ch];
-      if (fill) rects.push(
-        <rect key={`${x}-${y}`} x={x * P} y={y * P} width={P} height={P} fill={fill} />
-      );
-    });
-  });
-
-  const W = 12 * P; // 48
-  const H = 12 * P; // 48
-  const WX = 10;    // whisker extension
-
+function Pixels({ map, colors, p }: PixelMap) {
   return (
     <svg
-      viewBox={`${-WX} 0 ${W + WX * 2} ${H}`}
-      width={W + WX * 2}
-      height={H}
-      style={{ imageRendering: 'pixelated' }}
+      viewBox={`0 0 ${map[0].length * p} ${map.length * p}`}
+      width={map[0].length * p}
+      height={map.length * p}
+      style={{ imageRendering: 'pixelated', display: 'block' }}
     >
-      {rects}
-      {/* Whiskers left */}
-      <line x1={-WX} y1={7 * P + 1} x2={P}     y2={7.5 * P}     stroke="#d4a27f" strokeWidth="0.9" strokeLinecap="round" />
-      <line x1={-WX} y1={7 * P + 5} x2={P}     y2={7.5 * P + 2} stroke="#d4a27f" strokeWidth="0.9" strokeLinecap="round" />
-      {/* Whiskers right */}
-      <line x1={11 * P} y1={7.5 * P}     x2={W + WX} y2={7 * P + 1} stroke="#d4a27f" strokeWidth="0.9" strokeLinecap="round" />
-      <line x1={11 * P} y1={7.5 * P + 2} x2={W + WX} y2={7 * P + 5} stroke="#d4a27f" strokeWidth="0.9" strokeLinecap="round" />
+      {map.flatMap((row, y) =>
+        row.split('').map((ch, x) => {
+          const fill = colors[ch];
+          return fill
+            ? <rect key={`${x}-${y}`} x={x * p} y={y * p} width={p} height={p} fill={fill} />
+            : null;
+        })
+      )}
     </svg>
   );
 }
 
+/* ── pixel cat (smaller, P=3) ──────────────────────── */
+function PixelCat() {
+  const p = 3;
+  const colors: Record<string, string> = {
+    B: '#fb923c', D: '#ea7019', P: '#fda4af',
+    E: '#1c1917', N: '#f43f5e', R: '#fca5a5',
+    M: '#7c2d12', W: '#fff7ed',
+  };
+  const map = [
+    '..B......B..',
+    '.BBB....BBB.',
+    '.BPB....BPB.',
+    'BBBBBBBBBBBB',
+    'BBBBDDDDBBBB',
+    'BBEEBBBBEEBB',
+    'BBBBBBBBBBBB',
+    'BRRBBNNBBRRB',
+    'BBBBBMMBBBBB',
+    'WWWWWWWWWWWW',
+    '.WWWWWWWWWW.',
+    '..WWWWWWWW..',
+  ];
+  const W = map[0].length * p;
+  const H = map.length * p;
+  return (
+    <svg viewBox={`-8 0 ${W + 16} ${H}`} width={W + 16} height={H} style={{ imageRendering: 'pixelated', display: 'block' }}>
+      <Pixels map={map} colors={colors} p={p} />
+      <g transform={`translate(-8, 0)`}>
+        {/* whiskers left */}
+        <line x1={0} y1={21} x2={p * 2} y2={22} stroke="#d4a27f" strokeWidth="0.8" strokeLinecap="round" />
+        <line x1={0} y1={24} x2={p * 2} y2={24} stroke="#d4a27f" strokeWidth="0.8" strokeLinecap="round" />
+      </g>
+      {/* whiskers right */}
+      <line x1={W + 8} y1={21} x2={W - p * 2 + 8} y2={22} stroke="#d4a27f" strokeWidth="0.8" strokeLinecap="round" />
+      <line x1={W + 8} y1={24} x2={W - p * 2 + 8} y2={24} stroke="#d4a27f" strokeWidth="0.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/* ── pixel house ───────────────────────────────────── */
+function PixelHouse() {
+  const p = 3;
+  const colors: Record<string, string> = {
+    R: '#e74c3c',  // roof red
+    r: '#c0392b',  // roof shadow
+    W: '#fde8b4',  // wall
+    D: '#7c3c0d',  // door
+    G: '#9ca3af',  // chimney
+    N: '#93c5fd',  // window
+  };
+  // 10×10, chimney at col 1, roof peaks at col 5
+  const map = [
+    '.G........',
+    '.G...R....',
+    '.G..RrR...',
+    '.G.RrRrR..',
+    '.GRrRrRrR.',
+    'RrRrRrRrRr',
+    'WWWWWWWWWW',
+    'WNNWWWWDWW',
+    'WNNWWWWDWW',
+    'WWWWWWWWWW',
+  ];
+  return <Pixels map={map} colors={colors} p={p} />;
+}
+
+/* ── smoke puffs (CSS) ─────────────────────────────── */
+function Smoke() {
+  // chimney is at col 1 → x = 1*3 = 3px
+  return (
+    <div className="absolute" style={{ top: -12, left: 3 }}>
+      {[0, 1, 2].map(i => (
+        <div
+          key={i}
+          className="absolute rounded-full bg-gray-400/50 dark:bg-white/25"
+          style={{
+            width: 5 - i,
+            height: 5 - i,
+            left: i * 2,
+            animation: `ls-smoke 1.8s ease-out ${i * 0.5}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ── main component ────────────────────────────────── */
 export default function LoadingScreen({ done, onFinished, isDark }: Props) {
   const [progress, setProgress] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
@@ -98,8 +148,7 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
   }, []);
 
   useEffect(() => {
-    const idx = Math.min(STEPS.length - 1, Math.floor(progress / 25));
-    setStepIdx(idx);
+    setStepIdx(Math.min(STEPS.length - 1, Math.floor(progress / 25)));
   }, [progress]);
 
   useEffect(() => {
@@ -110,43 +159,49 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
       setProgress(p);
       if (p >= 100) {
         clearInterval(sprint);
-        setTimeout(() => {
-          setFadeOut(true);
-          setTimeout(onFinished, 420);
-        }, 300);
+        setTimeout(() => { setFadeOut(true); setTimeout(onFinished, 420); }, 300);
       }
     }, 30);
     return () => clearInterval(sprint);
   }, [done]);
 
-  const charX = Math.max(0, Math.min(91, progress - 2));
+  // Cat moves 0→82%, then shrinks into house
+  const catX = Math.max(0, Math.min(82, progress - 2));
+  const entering = progress >= 90;
 
   return (
     <>
       <style>{`
         @keyframes ls-cat {
-          0%,100% { transform: scaleX(1.12) scaleY(0.88) translateY(0px); }
-          15%     { transform: scaleX(1)    scaleY(1)    translateY(-2px); }
-          45%     { transform: scaleX(0.9)  scaleY(1.12) translateY(-22px); }
-          75%     { transform: scaleX(1)    scaleY(1)    translateY(-2px); }
+          0%,100% { transform: scaleX(1.1) scaleY(0.9) translateY(0px); }
+          15%     { transform: scaleX(1)   scaleY(1)   translateY(-1px); }
+          45%     { transform: scaleX(0.9) scaleY(1.1) translateY(-18px); }
+          75%     { transform: scaleX(1)   scaleY(1)   translateY(-1px); }
           88%     { transform: scaleX(1.06) scaleY(0.94) translateY(0px); }
         }
         @keyframes ls-shadow {
-          0%,100% { transform: scaleX(1.2)  scaleY(1);   opacity: 0.32; }
-          45%     { transform: scaleX(0.45) scaleY(0.5); opacity: 0.10; }
-          88%     { transform: scaleX(1.1)  scaleY(0.8); opacity: 0.25; }
+          0%,100% { transform: scaleX(1.2) scaleY(1);   opacity:0.28; }
+          45%     { transform: scaleX(0.4) scaleY(0.5); opacity:0.08; }
         }
         @keyframes ls-shimmer {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(400%); }
         }
         @keyframes ls-dot {
-          0%,80%,100% { transform: scale(0); opacity:0; }
-          40%         { transform: scale(1); opacity:1; }
+          0%,80%,100% { transform:scale(0); opacity:0; }
+          40%         { transform:scale(1); opacity:1; }
         }
         @keyframes ls-fadein {
-          from { opacity:0; transform: translateY(12px); }
-          to   { opacity:1; transform: translateY(0); }
+          from { opacity:0; transform:translateY(12px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        @keyframes ls-smoke {
+          0%   { transform:translateY(0) scale(1);   opacity:0.5; }
+          100% { transform:translateY(-14px) scale(1.8); opacity:0; }
+        }
+        @keyframes ls-arrive {
+          0%   { transform:scale(1);   opacity:1; }
+          100% { transform:scale(0.1); opacity:0; }
         }
       `}</style>
 
@@ -169,37 +224,50 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
           {/* Logo */}
           <div className="flex items-center gap-3 select-none">
             <div className="w-10 h-10 rounded-[11px] bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg"
-              style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.22) inset, 0 4px 14px rgba(37,99,235,0.45)' }}>
-              T
-            </div>
+              style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.22) inset, 0 4px 14px rgba(37,99,235,0.45)' }}>T</div>
             <div className="leading-tight">
               <p className="text-[10px] font-semibold tracking-[0.14em] text-black/28 dark:text-white/28 uppercase">PIVOT</p>
               <p className="text-sm font-bold text-black/80 dark:text-white/85">Task Manager</p>
             </div>
           </div>
 
-          {/* Cat + progress */}
+          {/* Track */}
           <div className="w-full">
             <div className="relative h-20 mb-1">
-              {/* Shadow */}
+
+              {/* House — right end */}
+              <div className="absolute right-0 bottom-2" style={{ zIndex: 2 }}>
+                <div className="relative">
+                  <Smoke />
+                  <PixelHouse />
+                </div>
+              </div>
+
+              {/* Cat shadow */}
               <div
-                className="absolute bottom-0 rounded-full bg-black/20 dark:bg-black/35"
+                className="absolute rounded-full bg-black/18 dark:bg-black/30"
                 style={{
-                  width: 44,
-                  height: 8,
-                  left: `calc(${charX}% - 2px)`,
+                  width: 32, height: 6,
+                  bottom: 2,
+                  left: `calc(${catX}% + 2px)`,
                   transition: 'left 0.15s linear',
-                  animation: 'ls-shadow 0.68s ease-in-out infinite',
+                  animation: entering ? 'none' : 'ls-shadow 0.68s ease-in-out infinite',
+                  opacity: entering ? 0 : undefined,
                 }}
               />
+
               {/* Cat */}
               <div
-                className="absolute bottom-2"
                 style={{
-                  left: `calc(${charX}% - 14px)`,
+                  position: 'absolute',
+                  bottom: 4,
+                  left: `calc(${catX}% - 8px)`,
                   transition: 'left 0.15s linear',
-                  animation: 'ls-cat 0.68s ease-in-out infinite',
+                  animation: entering
+                    ? 'ls-arrive 0.4s ease-in forwards'
+                    : 'ls-cat 0.68s ease-in-out infinite',
                   transformOrigin: 'bottom center',
+                  zIndex: 1,
                 }}
               >
                 <PixelCat />
@@ -210,27 +278,20 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
             <div className="relative h-2.5 bg-black/8 dark:bg-white/10 rounded-full overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 rounded-full transition-all duration-150"
-                style={{
-                  width: `${progress}%`,
-                  background: 'linear-gradient(90deg, #fb923c, #f97316 60%, #fb7185)',
-                }}
+                style={{ width: `${progress}%`, background: 'linear-gradient(90deg,#fb923c,#f97316 60%,#fb7185)' }}
               />
               <div
                 className="absolute inset-y-0 w-16 rounded-full"
                 style={{
-                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)',
+                  background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)',
                   animation: 'ls-shimmer 1.4s linear infinite',
                 }}
               />
             </div>
 
             <div className="flex items-center justify-between mt-2">
-              <span className="text-[11px] font-medium text-black/50 dark:text-white/45">
-                {STEPS[stepIdx]}
-              </span>
-              <span className="text-[11px] font-bold tabular-nums" style={{ color: '#f97316' }}>
-                {Math.round(progress)}%
-              </span>
+              <span className="text-[11px] font-medium text-black/50 dark:text-white/45">{STEPS[stepIdx]}</span>
+              <span className="text-[11px] font-bold tabular-nums" style={{ color: '#f97316' }}>{Math.round(progress)}%</span>
             </div>
           </div>
 
@@ -238,8 +299,7 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
           <div className="flex items-center gap-2">
             {[0, 1, 2].map(i => (
               <div key={i} className="w-1.5 h-1.5 rounded-full"
-                style={{ background: '#fb923c', animation: `ls-dot 1.2s ease-in-out ${i * 0.2}s infinite` }}
-              />
+                style={{ background: '#fb923c', animation: `ls-dot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
             ))}
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, Plus, Trash2 } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
+import CategoryTabs from '../components/CategoryTabs';
 import { useSubTasks } from '../hooks/useTasks';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   onDeleteTask: (id: string) => void;
   projectId: string;
   activeCategory: TaskCategory | 'all';
+  onCategoryChange: (cat: TaskCategory | 'all') => void;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -34,7 +36,7 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const COL = '28px 8px 1fr 68px 90px 90px 90px 72px 72px 46px 46px 46px 46px 46px 52px 28px 28px';
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
@@ -59,17 +61,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   return (
     <div>
       {/* Page header */}
-      <div className="flex items-end justify-between mb-4">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="page-title">업무 관리</h1>
           <p className="page-subtitle">업무 목록 · {filtered.length}건</p>
         </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold"
-        >
-          <Plus size={14} /> 새 업무
-        </button>
+        <div className="flex items-center gap-3">
+          <CategoryTabs active={activeCategory} onChange={onCategoryChange} />
+          <button
+            onClick={() => setModalOpen(true)}
+            className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold"
+          >
+            <Plus size={14} /> 새 업무
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

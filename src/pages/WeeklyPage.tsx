@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import type { Task, SubTask, TaskCategory, Member } from '../types';
+import CategoryTabs from '../components/CategoryTabs';
 
 interface Props {
   tasks: Task[];
   subtasks: SubTask[];
   members: Member[];
   activeCategory: TaskCategory | 'all';
+  onCategoryChange: (cat: TaskCategory | 'all') => void;
 }
 
 const CAT_PILL: Record<string, string> = {
@@ -41,7 +43,7 @@ function toDate(str: string) {
   return new Date(y, m - 1, d);
 }
 
-export default function WeeklyPage({ tasks, subtasks, members, activeCategory }: Props) {
+export default function WeeklyPage({ tasks, subtasks, members, activeCategory, onCategoryChange }: Props) {
   const { start, end, weekNum, now } = useMemo(getWeekBounds, []);
   const weekKey = `week${weekNum}`;
   const weekLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${weekNum}주차`;
@@ -69,14 +71,12 @@ export default function WeeklyPage({ tasks, subtasks, members, activeCategory }:
   return (
     <div>
       {/* Page header */}
-      <div className="flex items-end justify-between mb-4">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="page-title">위클리</h1>
-          <p className="page-subtitle">{weekLabel} · 팀원별 주간 업무 현황</p>
+          <p className="page-subtitle">{weekLabel} · {start.getMonth() + 1}/{start.getDate()} – {end.getMonth() + 1}/{end.getDate()}</p>
         </div>
-        <span className="text-xs text-black/30 dark:text-white/25 font-medium">
-          {start.getMonth() + 1}/{start.getDate()} – {end.getMonth() + 1}/{end.getDate()}
-        </span>
+        <CategoryTabs active={activeCategory} onChange={onCategoryChange} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

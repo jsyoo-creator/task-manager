@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router';
+import { NavLink } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
   Grid3X3, Sun, Moon, ChevronRight
@@ -25,23 +25,9 @@ const NAV = [
   { to: '/seats', label: '자리 배치도', icon: Grid3X3 },
 ];
 
-const CAT_DOT: Record<string, string> = {
-  '라이브': 'bg-red-500',
-  '복지': 'bg-orange-400',
-  '사업자': 'bg-indigo-500',
-  '기타': 'bg-gray-400',
-};
-
-const SUBCAT_PAGES = ['/tasks', '/calendar', '/weekly'];
-
 export default function Layout({
-  children, project, projects, onProjectChange,
-  activeCategory, onCategoryChange, isDark, onToggleDark,
+  children, project, isDark, onToggleDark,
 }: Props) {
-  const location = useLocation();
-  const showSubCat = SUBCAT_PAGES.includes(location.pathname);
-  const cats = project?.categories ?? ['라이브', '복지', '사업자'];
-
   return (
     <div className="flex min-h-screen bg-[#e8eaf6] dark:bg-[#080c18]">
 
@@ -113,42 +99,6 @@ export default function Layout({
           ))}
         </nav>
 
-        {/* Category filter (tasks / calendar / weekly) */}
-        {showSubCat && (
-          <>
-            <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
-            <div className="p-2.5 pb-1">
-              <p className="text-[9px] text-black/30 dark:text-white/25 font-semibold uppercase tracking-widest mb-1.5 px-1">카테고리</p>
-              <div className="space-y-0.5">
-                <button
-                  onClick={() => onCategoryChange('all')}
-                  className={`w-full text-left px-3 py-2 rounded-[8px] text-[12px] transition-all ${
-                    activeCategory === 'all'
-                      ? 'bg-black/8 dark:bg-white/10 text-black/85 dark:text-white/85 font-semibold'
-                      : 'text-black/60 dark:text-white/55 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  전체
-                </button>
-                {cats.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => onCategoryChange(cat as TaskCategory)}
-                    className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-[8px] text-[12px] transition-all ${
-                      activeCategory === cat
-                        ? 'bg-black/8 dark:bg-white/10 text-black/85 dark:text-white/85 font-semibold'
-                        : 'text-black/60 dark:text-white/55 hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${CAT_DOT[cat] ?? 'bg-gray-400'}`} />
-                    {cat === '복지' ? '복지물' : cat === '사업자' ? '사업자물' : cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
         {/* Dark mode toggle */}
         <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
         <div className="p-3">
@@ -165,9 +115,9 @@ export default function Layout({
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main content — left-aligned, full width */}
       <div className="ml-[220px] flex-1 min-w-0 relative z-10">
-        <div className="p-5 max-w-[1280px] mx-auto">
+        <div className="p-5">
           {children}
         </div>
       </div>

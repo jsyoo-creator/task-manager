@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task, TaskCategory } from '../types';
+import CategoryTabs from '../components/CategoryTabs';
 
 interface Props {
   tasks: Task[];
   activeCategory: TaskCategory | 'all';
+  onCategoryChange: (cat: TaskCategory | 'all') => void;
 }
 
 const CAT_STYLE: Record<string, { pill: string; dot: string }> = {
@@ -16,7 +18,7 @@ const CAT_STYLE: Record<string, { pill: string; dot: string }> = {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, activeCategory }: Props) {
+export default function CalendarPage({ tasks, activeCategory, onCategoryChange }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -49,19 +51,22 @@ export default function CalendarPage({ tasks, activeCategory }: Props) {
   return (
     <div className="space-y-4">
       {/* Page header */}
-      <div className="flex items-end justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">캘린더</h1>
           <p className="page-subtitle">{year}년 {month + 1}월 업무 일정</p>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
-            <ChevronLeft size={15} />
-          </button>
-          <span className="text-sm font-semibold text-black/70 dark:text-white/70 w-16 text-center">{month + 1}월</span>
-          <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
-            <ChevronRight size={15} />
-          </button>
+        <div className="flex items-center gap-3">
+          <CategoryTabs active={activeCategory} onChange={onCategoryChange} />
+          <div className="flex items-center gap-1">
+            <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
+              <ChevronLeft size={15} />
+            </button>
+            <span className="text-sm font-semibold text-black/70 dark:text-white/70 w-14 text-center">{month + 1}월</span>
+            <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
+              <ChevronRight size={15} />
+            </button>
+          </div>
         </div>
       </div>
 

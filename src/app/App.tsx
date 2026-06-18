@@ -78,14 +78,15 @@ function App() {
             <Route path="/tasks" element={
               <TaskManagement
                 tasks={tasks} onAddTask={addTask} onUpdateTask={updateTask}
-                onDeleteTask={deleteTask} projectId={projectId} activeCategory={activeCategory}
+                onDeleteTask={deleteTask} projectId={projectId}
+                activeCategory={activeCategory} onCategoryChange={setActiveCategory}
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={tasks} activeCategory={activeCategory} />
+              <CalendarPage tasks={tasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
             } />
             <Route path="/weekly" element={
-              <WeeklyPage tasks={tasks} subtasks={subtasks} members={members} activeCategory={activeCategory} />
+              <WeeklyPage tasks={tasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
             } />
             <Route path="/vacation" element={
               <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />

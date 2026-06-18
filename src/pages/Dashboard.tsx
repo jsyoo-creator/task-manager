@@ -219,11 +219,12 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
       </section>
 
       {/* ═══════════════════════════════
-          섹션 3: 업무 상태 분석 (3 chart cards)
+          섹션 3: 업무 상태 분석
+          grid-cols-4: 도넛 1칸씩 + 분류별 2칸
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <Card title="메인 업무 상태">
             <div className="p-5">
               <DonutChart data={mainDonut} items={tasks} />
@@ -236,31 +237,41 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
             </div>
           </Card>
 
-          <Card title="분류별 완료율">
-            <div className="p-5 space-y-5">
+          {/* 분류별 완료율 — 2칸 너비, 카테고리 가로 3열 */}
+          <div className="glass-card col-span-2">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07]">
+              <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">분류별 완료율</span>
+              <span className="text-[11px] text-gray-400 dark:text-white/32 flex items-center gap-1">
+                🗓️ 전체 기간
+              </span>
+            </div>
+            <div className="grid grid-cols-3 divide-x divide-black/[0.05] dark:divide-white/[0.07] p-0">
               {catStats.map(({ cat, total, done, inProg, hold, rate }) => (
-                <div key={cat}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: CAT_COLORS[cat] }}>
+                <div key={cat} className="p-4">
+                  {/* 카테고리명 + 완료율 */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: CAT_COLORS[cat] }} />
-                      {CAT_LABELS[cat] ?? cat}
+                      <span style={{ color: CAT_COLORS[cat] }}>{CAT_LABELS[cat] ?? cat}</span>
                     </span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: rate > 0 ? CAT_COLORS[cat] : undefined }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: rate > 0 ? CAT_COLORS[cat] : '#94a3b8' }}>
                       {rate}%
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-black/6 dark:bg-white/10 mb-3 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${rate}%`, backgroundColor: CAT_COLORS[cat] }} />
+                  {/* 진행 바 */}
+                  <div className="h-1.5 rounded-full bg-black/6 dark:bg-white/10 mb-4 overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: CAT_COLORS[cat] }} />
                   </div>
+                  {/* 4개 수치 */}
                   <div className="grid grid-cols-4 text-center">
                     {[
-                      { l: '총', v: total, c: 'text-gray-600 dark:text-white/55' },
+                      { l: '총', v: total, c: 'text-gray-700 dark:text-white/65' },
                       { l: '완료', v: done, c: 'text-emerald-500' },
-                      { l: '진행', v: inProg, c: 'text-amber-500' },
+                      { l: '진행', v: inProg, c: 'text-blue-500' },
                       { l: '대기', v: hold, c: 'text-slate-400' },
                     ].map(({ l, v, c }) => (
                       <div key={l}>
-                        <div className={`text-sm font-bold tabular-nums ${c}`}>{v}</div>
+                        <div className={`text-base font-bold tabular-nums leading-tight ${c}`}>{v}</div>
                         <div className="text-[9px] text-gray-400 dark:text-white/28 mt-0.5">{l}</div>
                       </div>
                     ))}
@@ -268,7 +279,7 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
                 </div>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       </section>
 

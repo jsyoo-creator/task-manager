@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
@@ -28,11 +28,17 @@ const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 const CAT_DOT: Record<string, string> = {
   '라이브': 'bg-red-500', '복지': 'bg-orange-400', '사업자': 'bg-indigo-500', '기타': 'bg-gray-400',
 };
-const STATUS_STYLE: Record<TaskStatus, string> = {
-  '진행 전': 'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-500/15',
-  '진행 중': 'text-amber-600 bg-amber-100 dark:text-amber-400 dark:bg-amber-500/15',
-  '완료': 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-500/15',
-  '보류': 'text-slate-600 bg-slate-200 dark:text-slate-400 dark:bg-white/8',
+const STATUS_BG: Record<TaskStatus, string> = {
+  '진행 전': 'bg-blue-100 dark:bg-blue-500/15',
+  '진행 중': 'bg-amber-100 dark:bg-amber-500/15',
+  '완료': 'bg-green-100 dark:bg-green-500/15',
+  '보류': 'bg-slate-200 dark:bg-white/8',
+};
+const STATUS_TEXT: Record<TaskStatus, string> = {
+  '진행 전': 'text-blue-600 dark:text-blue-400',
+  '진행 중': 'text-amber-600 dark:text-amber-400',
+  '완료': 'text-green-600 dark:text-green-400',
+  '보류': 'text-slate-600 dark:text-slate-400',
 };
 
 const now = new Date();
@@ -155,7 +161,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <div className="glass-card-noclip overflow-x-auto">
         {/* 헤더 */}
-        <div className="grid text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
+        <div className="grid gap-x-3 text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
           style={{ gridTemplateColumns: colTemplate }}>
           <span /><span />
           {tableFields.flatMap(fc => {
@@ -257,7 +263,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
 
   return (
     <div className="border-b border-black/4 dark:border-white/6 last:border-0 min-w-max">
-      <div className="grid items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
+      <div className="grid gap-x-3 items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
         style={{ gridTemplateColumns: colTemplate }}>
         <button onClick={onToggle} className="text-gray-400 dark:text-white/45 hover:text-gray-600 dark:hover:text-white/70 flex items-center justify-center">
           <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
@@ -266,7 +272,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
 
         {tableFields.flatMap(fc => {
           if (fc.key === 'title') return [
-            <span key="title" className="font-semibold text-gray-800 dark:text-white/85 truncate pr-2">{task.title}</span>,
+            <span key="title" className="font-semibold text-gray-800 dark:text-white/85 truncate pl-2 pr-2">{task.title}</span>,
           ];
           if (fc.key === 'category') return [
             <span key="category" className="text-xs truncate">
@@ -283,11 +289,13 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
             </select>
           ];
           if (fc.key === 'status') return [
-            <div key="status" onClick={e => e.stopPropagation()}>
-              <select className={`${sel} font-medium px-1.5 py-0.5 rounded-full ${STATUS_STYLE[task.status]}`}
+            <div key="status" onClick={e => e.stopPropagation()}
+              className={`relative inline-flex items-center rounded-full pl-1.5 pr-5 py-0.5 ${STATUS_BG[task.status]}`}>
+              <select className={`appearance-none border-none focus:outline-none cursor-pointer text-xs font-medium bg-transparent ${STATUS_TEXT[task.status]}`}
                 value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
                 {STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
+              <ChevronDown size={10} className={`absolute right-1 pointer-events-none ${STATUS_TEXT[task.status]}`} />
             </div>
           ];
           if (fc.key === 'receiver') return [
@@ -372,12 +380,12 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
     '보류': 'text-slate-600 bg-slate-200 dark:text-slate-400 dark:bg-white/8',
   };
   return (
-    <div className="grid items-center px-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"
+    <div className="grid gap-x-3 items-center px-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"
       style={{ gridTemplateColumns: colTemplate }}>
       <span className="text-gray-300 dark:text-white/20 text-[10px] flex justify-center">└</span>
       <span className={`w-1.5 h-1.5 rounded-full ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
       {tableFields.flatMap(fc => {
-        if (fc.key === 'title')     return [<span key="title" className="text-xs text-gray-700 dark:text-white/65 truncate pr-2">{sub.title}</span>];
+        if (fc.key === 'title')     return [<span key="title" className="text-xs text-gray-700 dark:text-white/65 truncate pl-2 pr-2">{sub.title}</span>];
         if (fc.key === 'category')  return [
           <span key="category" className="text-xs truncate">
             <span className="inline-flex items-center gap-1">

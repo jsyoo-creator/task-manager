@@ -220,11 +220,11 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
 
       {/* ═══════════════════════════════
           섹션 3: 업무 상태 분석
-          grid-cols-4: 도넛 1칸씩 + 분류별 2칸
+          1fr 1fr 2fr: 도넛 25%씩, 분류별 50%
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
           <Card title="메인 업무 상태">
             <div className="p-5">
               <DonutChart data={mainDonut} items={tasks} />
@@ -237,8 +237,8 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
             </div>
           </Card>
 
-          {/* 분류별 완료율 — 2칸 너비, 카테고리 가로 3열 */}
-          <div className="glass-card col-span-2">
+          {/* 분류별 완료율 — 2fr 너비, 카테고리 가로 3열 */}
+          <div className="glass-card">
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07]">
               <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">분류별 완료율</span>
               <span className="text-[11px] text-gray-400 dark:text-white/32 flex items-center gap-1">
@@ -378,8 +378,9 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
 function DonutChart({ data, items }: { data: { name: string; value: number }[]; items: { status: string }[] }) {
   const isEmpty = data.length === 0;
   return (
-    <div className="flex items-center gap-5">
-      <div className="w-28 h-28 flex-shrink-0 relative flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4">
+      {/* 도넛 */}
+      <div className="w-28 h-28 relative flex items-center justify-center flex-shrink-0">
         {isEmpty ? (
           <>
             <div className="empty-ring absolute inset-0 rounded-full"
@@ -390,23 +391,24 @@ function DonutChart({ data, items }: { data: { name: string; value: number }[]; 
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} cx="50%" cy="50%" innerRadius={32} outerRadius={52} dataKey="value" strokeWidth={0}>
+              <Pie data={data} cx="50%" cy="50%" innerRadius={34} outerRadius={54} dataKey="value" strokeWidth={0}>
                 {data.map(e => <Cell key={e.name} fill={STATUS_COLORS[e.name as keyof typeof STATUS_COLORS] ?? '#e5e7eb'} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
         )}
       </div>
-      <div className="space-y-3 flex-1">
+      {/* 범례 — 카드 폭 꽉 채움 */}
+      <div className="w-full space-y-2.5">
         {(['진행 전', '진행 중', '완료'] as const).map(s => {
           const count = items.filter(t => t.status === s).length;
           return (
             <div key={s} className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-white/55">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: STATUS_COLORS[s] }} />
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[s] }} />
                 {s}
               </span>
-              <span className={`text-sm font-bold tabular-nums ${count > 0 ? 'text-gray-800 dark:text-white/80' : 'text-gray-200 dark:text-white/18'}`}>
+              <span className={`text-sm font-bold tabular-nums ${count > 0 ? 'text-gray-800 dark:text-white/80' : 'text-gray-300 dark:text-white/20'}`}>
                 {count}
               </span>
             </div>

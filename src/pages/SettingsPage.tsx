@@ -411,6 +411,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
             const label = fc.customLabel ?? defaultLabel;
             const isDragOver = dragOverIdx === i;
             const isTitle = fc.key === 'title';
+            const isTypeFixed = fc.key === 'weeklyHours' || fc.key === 'revisionLevel';
             return (
               <div
                 key={fc.key}
@@ -435,16 +436,18 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                       onChange={e => setLabelInput(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}
                     />
-                    <select
-                      className="text-[11px] px-1.5 py-0.5 rounded-md border border-black/10 dark:border-white/12 bg-white dark:bg-white/8 text-gray-700 dark:text-white/70 focus:outline-none flex-shrink-0"
-                      value={typeInput}
-                      onChange={e => setTypeInput(e.target.value as FormFieldType | 'default')}
-                      onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}>
-                      <option value="default">기본값</option>
-                      {BUILTIN_FIELD_TYPES.map(t => (
-                        <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
-                      ))}
-                    </select>
+                    {!isTypeFixed && (
+                      <select
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-black/10 dark:border-white/12 bg-white dark:bg-white/8 text-gray-700 dark:text-white/70 focus:outline-none flex-shrink-0"
+                        value={typeInput}
+                        onChange={e => setTypeInput(e.target.value as FormFieldType | 'default')}
+                        onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}>
+                        <option value="default">기본값</option>
+                        {BUILTIN_FIELD_TYPES.map(t => (
+                          <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 ) : (
                   <button

@@ -268,7 +268,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <span className="text-[11px] text-gray-400 dark:text-white/32">🗓️ 전체 기간</span>
             </div>
             <div className="flex-1 grid divide-x divide-black/[0.05] dark:divide-white/[0.07]" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
-              {catStats.map(({ cat, total, done, inProg, hold, rate }) => (
+              {catStats.map(({ cat, total, done, inProg, hold, before, rate }) => (
                 <div key={cat} className="flex flex-col justify-center p-5 gap-3">
                   {/* 카테고리명 + 완료율 */}
                   <div className="flex items-center justify-between">

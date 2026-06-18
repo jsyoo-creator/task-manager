@@ -37,16 +37,15 @@ body {
    Glass Card  (light + dark variants)
 ─────────────────────────────────────── */
 .glass-card {
-  /* 더 불투명하게 (0.88→0.93) → 텍스트 가독성 향상 */
-  background: linear-gradient(145deg, rgba(255,255,255,0.93), rgba(255,255,255,0.78));
+  background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(255,255,255,0.82));
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.95);
+  border: 1px solid rgba(255,255,255,0.98);
   box-shadow:
-    0 1px 1px rgba(0,0,0,0.04),
-    0 4px 8px rgba(0,0,0,0.06),
-    0 12px 24px rgba(0,0,0,0.07),
-    0 24px 48px rgba(0,0,0,0.04);
+    0 1px 2px rgba(0,0,0,0.06),
+    0 4px 12px rgba(0,0,0,0.08),
+    0 16px 32px rgba(0,0,0,0.07),
+    0 32px 48px rgba(0,0,0,0.04);
   border-radius: 16px;
   overflow: hidden;
 }
@@ -61,11 +60,11 @@ body {
 
 /* Glass card — no clip (for horizontally scrollable tables) */
 .glass-card-noclip {
-  background: linear-gradient(145deg, rgba(255,255,255,0.93), rgba(255,255,255,0.78));
+  background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(255,255,255,0.82));
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.95);
-  box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 4px 8px rgba(0,0,0,0.06), 0 12px 24px rgba(0,0,0,0.07);
+  border: 1px solid rgba(255,255,255,0.98);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.08), 0 16px 32px rgba(0,0,0,0.07);
   border-radius: 16px;
 }
 .dark .glass-card-noclip {

@@ -43,32 +43,39 @@ export default function Layout({
   const cats = project?.categories ?? ['라이브', '복지', '사업자'];
 
   return (
-    <div className="flex min-h-screen bg-[#edf0f4] dark:bg-[#0a0f1a]">
+    <div className="flex min-h-screen bg-[#e8eaf6] dark:bg-[#080c18]">
 
-      {/* Decorative background blobs */}
+      {/* Decorative background blobs — Figma-style mesh gradient */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-blue-400/20 dark:bg-blue-600/10 blur-[100px]" />
-        <div className="absolute top-1/3 -right-20 w-[400px] h-[400px] rounded-full bg-purple-400/15 dark:bg-purple-600/8 blur-[100px]" />
-        <div className="absolute -bottom-20 left-1/3 w-[350px] h-[350px] rounded-full bg-pink-400/10 dark:bg-indigo-600/8 blur-[100px]" />
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full
+          bg-[#b8c8ff] opacity-50 dark:bg-[#1e40af] dark:opacity-15 blur-[90px]" />
+        <div className="absolute top-[15%] right-[-80px] w-[520px] h-[520px] rounded-full
+          bg-[#d4b8ff] opacity-40 dark:bg-[#6d28d9] dark:opacity-12 blur-[90px]" />
+        <div className="absolute bottom-0 left-[20%] w-[480px] h-[480px] rounded-full
+          bg-[#ffb8d4] opacity-35 dark:bg-[#9d174d] dark:opacity-10 blur-[90px]" />
+        <div className="absolute top-[45%] left-[35%] w-[380px] h-[380px] rounded-full
+          bg-[#b8e8ff] opacity-30 dark:bg-[#0369a1] dark:opacity-10 blur-[110px]" />
       </div>
 
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40
-        bg-gradient-to-b from-white/85 to-white/65 dark:from-[#141c2e]/90 dark:to-[#0a0f1a]/85
-        backdrop-blur-2xl border-r border-white/80 dark:border-white/8">
+        bg-gradient-to-b from-white/90 to-white/70 dark:from-[#141c2e]/95 dark:to-[#080c18]/90
+        backdrop-blur-[40px] border-r border-white/90 dark:border-white/8
+        shadow-[1px_0_0_rgba(0,0,0,0.04),2px_0_12px_rgba(0,0,0,0.04)]">
 
         {/* Logo + Project */}
         <div className="p-4 pb-3">
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-[0_2px_8px_rgba(38,112,233,0.4)] flex-shrink-0">
+            <div className="relative w-8 h-8 rounded-[9px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] flex items-center justify-center text-white font-bold text-sm flex-shrink-0
+              shadow-[0_2px_6px_rgba(37,99,235,0.5),0_0_0_1px_rgba(255,255,255,0.2)_inset]
+              before:absolute before:inset-0 before:rounded-[9px] before:bg-gradient-to-b before:from-white/25 before:to-transparent">
               T
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] text-black/30 dark:text-white/30 font-semibold tracking-widest uppercase">TASK MGMT</p>
-              <p className="text-xs font-semibold text-black/80 dark:text-white/80 truncate leading-tight">{project?.name ?? '프로젝트 선택'}</p>
+              <p className="text-[9px] text-black/25 dark:text-white/25 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
+              <p className="text-xs font-semibold text-black/80 dark:text-white/80 truncate leading-tight">{project?.name ?? '업무 관리'}</p>
             </div>
           </div>
-
         </div>
 
         {/* Divider */}

@@ -84,6 +84,15 @@ export default function SeatMapPage({ members }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="page-title">자리 배치도</h1>
+          <p className="page-subtitle">F · K · L 존 좌석 현황</p>
+        </div>
+        <span className="text-xs text-black/30 dark:text-white/25 font-medium">{members.length}명</span>
+      </div>
+
       {/* Legend */}
       <div className="flex items-center gap-4">
         {Object.entries(ROLE_STYLE).map(([role, s]) => (

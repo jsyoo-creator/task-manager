@@ -54,6 +54,16 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
   };
 
   return (
+    <div className="space-y-4">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="page-title">휴가</h1>
+          <p className="page-subtitle">{year}년 연간 휴가 관리</p>
+        </div>
+        <span className="text-xs text-black/30 dark:text-white/25 font-medium">연간 {15}일 기준</span>
+      </div>
+
     <div className="grid gap-4" style={{ gridTemplateColumns: '320px 1fr' }}>
       {/* Left: Mini calendar */}
       <div className="glass-card">
@@ -178,6 +188,7 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

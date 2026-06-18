@@ -104,7 +104,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId }: Pro
               취소
             </button>
             <button type="submit"
-              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors shadow-[0_2px_8px_rgba(38,112,233,0.35)]">
+              className="btn-shiny-primary flex-1 py-2.5 text-sm font-semibold">
               등록
             </button>
           </div>

@@ -58,6 +58,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   return (
     <div>
+      {/* Page header */}
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <h1 className="page-title">업무 관리</h1>
+          <p className="page-subtitle">업무 목록 · {filtered.length}건</p>
+        </div>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold"
+        >
+          <Plus size={14} /> 새 업무
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
         <FilterSelect label="연도" value={yearFilter} onChange={v => setYearFilter(Number(v))}>
@@ -72,13 +86,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           {ASSIGNEES.map(a => <option key={a}>{a}</option>)}
         </FilterSelect>
         <div className="flex-1" />
-        <span className="text-xs text-gray-400 dark:text-white/30">{filtered.length}건</span>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shadow-[0_2px_8px_rgba(38,112,233,0.35)]"
-        >
-          <Plus size={13} /> 새 업무
-        </button>
+        <span className="text-xs text-gray-400 dark:text-white/30">총 {filtered.length}건</span>
       </div>
 
       <div className="glass-card-noclip overflow-x-auto">

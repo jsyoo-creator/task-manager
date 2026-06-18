@@ -103,7 +103,16 @@ export default function Dashboard({ tasks, subtasks, project }: Props) {
   const EMPTY_DONUT = [{ name: '없음', value: 1 }];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Page header */}
+      <div className="flex items-end justify-between pb-1">
+        <div>
+          <h1 className="page-title">대시보드</h1>
+          <p className="page-subtitle">{project?.name ?? ''} · 전체 업무 현황</p>
+        </div>
+        <span className="text-xs text-black/30 dark:text-white/25 font-medium">{now.getFullYear()}년 {now.getMonth() + 1}월</span>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-5 gap-3">
         <StatCard label="전체 업무" value={stats.total} sub={`세부업무 ${stats.totalSubtasks}개`}

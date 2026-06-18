@@ -68,9 +68,13 @@ export default function WeeklyPage({ tasks, subtasks, members, activeCategory }:
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-white/60">{weekLabel}</h2>
-        <span className="text-xs text-gray-400 dark:text-white/30">
+      {/* Page header */}
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <h1 className="page-title">위클리</h1>
+          <p className="page-subtitle">{weekLabel} · 팀원별 주간 업무 현황</p>
+        </div>
+        <span className="text-xs text-black/30 dark:text-white/25 font-medium">
           {start.getMonth() + 1}/{start.getDate()} – {end.getMonth() + 1}/{end.getDate()}
         </span>
       </div>

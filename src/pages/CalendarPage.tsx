@@ -47,18 +47,25 @@ export default function CalendarPage({ tasks, activeCategory }: Props) {
   while (cells.length % 7 !== 0) cells.push(null);
 
   return (
-    <div className="glass-card">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/5 dark:border-white/8">
-        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-black/6 dark:hover:bg-white/8 text-gray-500 dark:text-white/50 transition-colors">
-          <ChevronLeft size={16} />
-        </button>
-        <h2 className="text-sm font-semibold text-gray-800 dark:text-white/80">{year}년 {month + 1}월</h2>
-        <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-black/6 dark:hover:bg-white/8 text-gray-500 dark:text-white/50 transition-colors">
-          <ChevronRight size={16} />
-        </button>
+    <div className="space-y-4">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="page-title">캘린더</h1>
+          <p className="page-subtitle">{year}년 {month + 1}월 업무 일정</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="text-sm font-semibold text-black/70 dark:text-white/70 w-16 text-center">{month + 1}월</span>
+          <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
+            <ChevronRight size={15} />
+          </button>
+        </div>
       </div>
 
+    <div className="glass-card">
       {/* Day labels */}
       <div className="grid grid-cols-7 border-b border-black/4 dark:border-white/6">
         {DAYS.map((d, i) => (
@@ -104,6 +111,7 @@ export default function CalendarPage({ tasks, activeCategory }: Props) {
           );
         })}
       </div>
+    </div>
     </div>
   );
 }

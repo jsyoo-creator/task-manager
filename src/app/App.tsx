@@ -116,7 +116,7 @@ function App() {
             <Route path="/settings" element={
               appUser
                 ? <SettingsPage appUser={appUser} onUpdateName={updateDisplayName} />
-                : <Navigate to="/" replace />
+                : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

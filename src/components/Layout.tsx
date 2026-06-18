@@ -69,25 +69,6 @@ export default function Layout({
             </div>
           </div>
 
-          {/* Project buttons */}
-          {projects.length > 0 && (
-            <div className="space-y-0.5">
-              {projects.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => onProjectChange(p.id)}
-                  className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] transition-all ${
-                    project?.id === p.id
-                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-black/40 dark:text-white/40 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                  <span className="truncate">{p.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Divider */}

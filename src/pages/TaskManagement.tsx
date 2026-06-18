@@ -272,11 +272,11 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
 
         {tableFields.flatMap(fc => {
           if (fc.key === 'title') return [
-            <span key="title" className="font-semibold text-gray-800 dark:text-white/85 truncate pl-2 pr-2">{task.title}</span>,
+            <span key="title" className="font-semibold text-gray-800 dark:text-white/85 truncate pr-2">{task.title}</span>,
           ];
           if (fc.key === 'category') return [
             <span key="category" className="text-xs truncate">
-              <span className={`inline-flex items-center gap-1`}>
+              <span className={`inline-flex items-center gap-1.5`}>
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
                 <span className="text-gray-700 dark:text-white/65 truncate">{task.category}</span>
               </span>
@@ -290,12 +290,13 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
           ];
           if (fc.key === 'status') return [
             <div key="status" onClick={e => e.stopPropagation()}
-              className={`relative inline-flex items-center rounded-full pl-1.5 pr-5 py-0.5 ${STATUS_BG[task.status]}`}>
-              <select className={`appearance-none border-none focus:outline-none cursor-pointer text-xs font-medium bg-transparent ${STATUS_TEXT[task.status]}`}
+              className={`relative inline-flex items-center gap-0.5 rounded-full pl-2 pr-2 py-0.5 cursor-pointer ${STATUS_BG[task.status]}`}>
+              <span className={`text-xs font-medium whitespace-nowrap ${STATUS_TEXT[task.status]}`}>{task.status}</span>
+              <ChevronDown size={10} className={STATUS_TEXT[task.status]} />
+              <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
                 {STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
-              <ChevronDown size={10} className={`absolute right-1 pointer-events-none ${STATUS_TEXT[task.status]}`} />
             </div>
           ];
           if (fc.key === 'receiver') return [
@@ -385,7 +386,7 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
       <span className="text-gray-300 dark:text-white/20 text-[10px] flex justify-center">└</span>
       <span className={`w-1.5 h-1.5 rounded-full ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
       {tableFields.flatMap(fc => {
-        if (fc.key === 'title')     return [<span key="title" className="text-xs text-gray-700 dark:text-white/65 truncate pl-2 pr-2">{sub.title}</span>];
+        if (fc.key === 'title')     return [<span key="title" className="text-xs text-gray-700 dark:text-white/65 truncate pr-2">{sub.title}</span>];
         if (fc.key === 'category')  return [
           <span key="category" className="text-xs truncate">
             <span className="inline-flex items-center gap-1">

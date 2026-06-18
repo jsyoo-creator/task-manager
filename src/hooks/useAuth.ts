@@ -25,11 +25,14 @@ export function useAuth(): AuthState {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (u) => {
+    // 3초 안에 응답 없으면 강제로 로딩 해제 (Firebase Console 미설정 대비)
+    const timeout = setTimeout(() => setLoading(false), 3000);
+
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      clearTimeout(timeout);
       if (u) {
         const domain = u.email?.split('@')[1];
         if (domain !== ALLOWED_DOMAIN) {
-          // 허용되지 않은 도메인 → 즉시 로그아웃
           await fbSignOut(auth);
           setUser(null);
           setError(`${ALLOWED_DOMAIN} 계정만 접속할 수 있습니다.`);
@@ -42,6 +45,8 @@ export function useAuth(): AuthState {
       }
       setLoading(false);
     });
+
+    return () => { clearTimeout(timeout); unsub(); };
   }, []);
 
   const signIn = async () => {

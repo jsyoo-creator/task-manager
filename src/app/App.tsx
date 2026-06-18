@@ -54,8 +54,10 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
   const { subtasks } = useAllSubTasks(projectId);
 
-  // Auth 로딩 중: 빈 화면 (LoadingScreen과 겹치지 않게)
-  if (authLoading) return null;
+  // Auth 로딩 중 → LoadingScreen 표시 (흰 화면 방지)
+  if (authLoading) {
+    return <LoadingScreen done={false} onFinished={() => {}} isDark={isDark} />;
+  }
 
   // 미로그인 → 로그인 페이지
   if (!user) {

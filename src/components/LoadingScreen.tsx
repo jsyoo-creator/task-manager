@@ -25,7 +25,12 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
     const tick = () => {
       setProgress(p => {
         if (p >= 88) return p;
-        const bump = Math.random() * 7 + 2;
+        // 구간마다 다른 속도 → 앞 단계를 충분히 보여주고, 끝쪽에서 천천히 대기
+        let bump: number;
+        if (p < 25)      bump = Math.random() * 3   + 2;    // 빠름  (~1.1초)
+        else if (p < 50) bump = Math.random() * 2   + 1.5;  // 중간  (~1.6초)
+        else if (p < 75) bump = Math.random() * 1.2 + 0.8;  // 느림  (~2.8초)
+        else             bump = Math.random() * 0.5 + 0.25; // 매우 느림 — Firebase 대기
         return Math.min(88, p + bump);
       });
     };

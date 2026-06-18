@@ -11,7 +11,7 @@ interface Props {
   assignees?: string[];
 }
 
-const STATUS_COLORS = { '진행 전': '#94a3b8', '진행 중': '#3b82f6', '완료': '#10b981', '보류': '#64748b' };
+const STATUS_COLORS = { '진행 전': '#d1d5db', '진행 중': '#3b82f6', '완료': '#10b981', '보류': '#94a3b8' };
 
 // tailwind bg class → hex 변환 (파트 색상용)
 const TW_TO_HEX: Record<string, string> = {
@@ -127,14 +127,15 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   ].filter(d => d.value > 0), [subtasks]);
 
   const catStats = useMemo(() => cats.map(cat => {
-    const subs = subtasks.filter(s => tasks.find(t => t.id === s.taskId)?.category === cat);
-    const total = subs.length;
-    const done = subs.filter(s => s.status === '완료').length;
-    const inProg = subs.filter(s => s.status === '진행 중').length;
-    const hold = subs.filter(s => s.status === '보류').length;
+    const catTasks = tasks.filter(t => t.category === cat);
+    const total = catTasks.length;
+    const done = catTasks.filter(t => t.status === '완료').length;
+    const inProg = catTasks.filter(t => t.status === '진행 중').length;
+    const hold = catTasks.filter(t => t.status === '보류').length;
+    const before = catTasks.filter(t => t.status === '진행 전').length;
     const rate = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { cat, total, done, inProg, hold, rate };
-  }), [tasks, subtasks, cats]);
+    return { cat, total, done, inProg, hold, before, rate };
+  }), [tasks, cats]);
 
   const revisionStats = useMemo(() =>
     REVISION_LABELS.map((label, i) => {
@@ -187,7 +188,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             accentColor="#3b82f6" icon={<FileText size={14} />} />
           <StatCard label="진행 전" value={stats.before}
             sub={`전체의 ${stats.total > 0 ? Math.round((stats.before / stats.total) * 100) : 0}%`}
-            accentColor="#94a3b8" icon={<FileText size={14} />} />
+            accentColor="#d1d5db" icon={<FileText size={14} />} />
           <StatCard label="진행 중" value={stats.inProgress}
             sub={`전체의 ${stats.total > 0 ? Math.round((stats.inProgress / stats.total) * 100) : 0}%`}
             accentColor="#f59e0b" icon={<Zap size={14} />} />
@@ -289,7 +290,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                       { l: '총', v: total, c: 'text-gray-700 dark:text-white/65' },
                       { l: '완료', v: done, c: 'text-emerald-500' },
                       { l: '진행', v: inProg, c: 'text-blue-500' },
-                      { l: '대기', v: hold, c: 'text-slate-400' },
+                      { l: '진행 전', v: before, c: 'text-gray-400 dark:text-white/35' },
                     ].map(({ l, v, c }) => (
                       <div key={l}>
                         <div className={`text-base font-bold tabular-nums leading-tight ${c}`}>{v}</div>

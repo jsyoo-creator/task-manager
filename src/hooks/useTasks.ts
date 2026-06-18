@@ -80,7 +80,7 @@ export function useAllSubTasks(projectId: string) {
 
   useEffect(() => {
     if (!projectId) return;
-    const q = query(collection(db, 'subtasks'));
+    const q = query(collection(db, 'subtasks'), where('projectId', '==', projectId));
     const unsub = onSnapshot(q,
       snap => setSubtasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as SubTask))),
       err => console.error('allSubtasks:', err)

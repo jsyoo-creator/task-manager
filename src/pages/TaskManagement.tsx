@@ -247,7 +247,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
   const handleAddSubtask = async () => {
     if (!newSub.title.trim()) return;
     await addSubTask({
-      taskId: task.id, title: newSub.title.trim(), category: task.category, type: task.type,
+      taskId: task.id, projectId: task.projectId, title: newSub.title.trim(), category: task.category, type: task.type,
       status: '진행 전', receiver: task.receiver, assignee: newSub.assignee,
       startDate: task.startDate, endDate: task.endDate, weeklyHours: {}, totalHours: 0, revisionLevel: 0,
     });

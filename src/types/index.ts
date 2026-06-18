@@ -136,6 +136,7 @@ export interface Team {
 export interface SubTask {
   id: string;
   taskId: string;
+  projectId: string;
   title: string;
   category: TaskCategory;
   type: TaskType;

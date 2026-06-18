@@ -161,7 +161,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <div className="glass-card-noclip overflow-x-auto">
         {/* 헤더 */}
-        <div className="grid gap-x-3 text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
+        <div className="grid gap-x-2text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
           style={{ gridTemplateColumns: colTemplate }}>
           <span /><span />
           {tableFields.flatMap(fc => {
@@ -263,7 +263,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
 
   return (
     <div className="border-b border-black/4 dark:border-white/6 last:border-0 min-w-max">
-      <div className="grid gap-x-3 items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
+      <div className="grid gap-x-2items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
         style={{ gridTemplateColumns: colTemplate }}>
         <button onClick={onToggle} className="text-gray-400 dark:text-white/45 hover:text-gray-600 dark:hover:text-white/70 flex items-center justify-center">
           <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
@@ -290,7 +290,7 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
           ];
           if (fc.key === 'status') return [
             <div key="status" onClick={e => e.stopPropagation()}
-              className={`relative inline-flex items-center gap-0.5 rounded-full pl-2 pr-2 py-0.5 cursor-pointer ${STATUS_BG[task.status]}`}>
+              className={`relative flex items-center justify-between w-full rounded-full pl-2 pr-2 py-0.5 cursor-pointer ${STATUS_BG[task.status]}`}>
               <span className={`text-xs font-medium whitespace-nowrap ${STATUS_TEXT[task.status]}`}>{task.status}</span>
               <ChevronDown size={10} className={STATUS_TEXT[task.status]} />
               <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -381,7 +381,7 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
     '보류': 'text-slate-600 bg-slate-200 dark:text-slate-400 dark:bg-white/8',
   };
   return (
-    <div className="grid gap-x-3 items-center px-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"
+    <div className="grid gap-x-2items-center px-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"
       style={{ gridTemplateColumns: colTemplate }}>
       <span className="text-gray-300 dark:text-white/20 text-[10px] flex justify-center">└</span>
       <span className={`w-1.5 h-1.5 rounded-full ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />

@@ -55,7 +55,7 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
 }
 
 const HEADER_LABEL: Partial<Record<string, string>> = {
-  title: '업무', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
+  title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
 export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields, onUpdateConfig }: Props) {
@@ -268,6 +268,14 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
           if (fc.key === 'title') return [
             <span key="title" className="font-semibold text-gray-800 dark:text-white/85 truncate pr-2">{task.title}</span>,
           ];
+          if (fc.key === 'category') return [
+            <span key="category" className="text-xs truncate">
+              <span className={`inline-flex items-center gap-1`}>
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
+                <span className="text-gray-700 dark:text-white/65 truncate">{task.category}</span>
+              </span>
+            </span>
+          ];
           if (fc.key === 'type') return [
             <select key="type" className={`${sel} text-gray-700 dark:text-white/65`} value={task.type}
               onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
@@ -370,6 +378,14 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
       <span className={`w-1.5 h-1.5 rounded-full ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
       {tableFields.flatMap(fc => {
         if (fc.key === 'title')     return [<span key="title" className="text-xs text-gray-700 dark:text-white/65 truncate pr-2">{sub.title}</span>];
+        if (fc.key === 'category')  return [
+          <span key="category" className="text-xs truncate">
+            <span className="inline-flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
+              <span className="text-gray-500 dark:text-white/40 truncate">{sub.category}</span>
+            </span>
+          </span>
+        ];
         if (fc.key === 'type')      return [<span key="type" className="text-xs text-gray-400 dark:text-white/35">{sub.type}</span>];
         if (fc.key === 'status')    return [<span key="status" className={`text-xs font-medium px-1.5 py-0.5 rounded-full w-fit whitespace-nowrap ${SUB_STATUS[sub.status]}`}>{sub.status}</span>];
         if (fc.key === 'receiver')  return [<span key="receiver" className="text-xs text-gray-400 dark:text-white/35">{sub.receiver}</span>];

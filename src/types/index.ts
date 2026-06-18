@@ -80,9 +80,9 @@ export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
   { key: 'revisionLevel', label: '수정단계' },
 ];
 
-// 테이블 컬럼이 있는 필드 (category·revisionLevel 제외)
+// 테이블 컬럼이 있는 필드 (revisionLevel 제외)
 export const TABLE_FIELD_KEYS: BuiltinFieldKey[] = [
-  'title', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
+  'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
 ];
 
 export const DEFAULT_ENABLED_BUILTINS: BuiltinFieldKey[] = [
@@ -93,7 +93,7 @@ export const DEFAULT_BUILTIN_FIELD_CONFIGS: BuiltinFieldConfig[] = [
   { key: 'title',         enabled: true,  width: 0 },
   { key: 'type',          enabled: true,  width: 68 },
   { key: 'status',        enabled: true,  width: 90 },
-  { key: 'category',      enabled: true,  width: 60 },
+  { key: 'category',      enabled: true,  width: 72 },
   { key: 'receiver',      enabled: true,  width: 90 },
   { key: 'assignee',      enabled: true,  width: 90 },
   { key: 'startDate',     enabled: true,  width: 72 },

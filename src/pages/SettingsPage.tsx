@@ -591,19 +591,19 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     <button
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); setCustomTypeInput(cf.type as FormFieldType); setCustomDeptInput(cf.department ?? ''); }}
+                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); setCustomTypeInput(((cf.type as string) === '이름' ? 'name' : cf.type) as FormFieldType); setCustomDeptInput(cf.department ?? ''); }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {cf.label}
                     </button>
                   )}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
-                    {cf.type === 'name' && (['전체', ...DEPARTMENTS] as const).map(d => {
+                    {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
+                    {(cf.type === 'name' || (cf.type as string) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
                       const val = d === '전체' ? undefined : d as Department;
                       const active = (cf.department ?? undefined) === val;
                       return (
                         <button key={d} type="button"
-                          onClick={e => { e.stopPropagation(); onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, department: val } : f)); }}
+                          onClick={e => { e.stopPropagation(); onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, type: 'name' as FormFieldType, department: val } : f)); }}
                           className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
                           {d}
                         </button>

@@ -1,42 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, Trash2, ChevronDown, Check, ExternalLink } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskType, TeamPart, MetaField } from '../types';
+import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType } from '../types';
 import { DEFAULT_META_FIELDS } from '../types';
-import { useSubTasks } from '../hooks/useTasks';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 380;
 
-// 시작일 기준 5주 × 5일(월~금) 날짜 계산
-function getWeekDays(startDate: string): { weekLabel: string; days: { name: string; date: string }[] }[] {
-  const DAY_NAMES = ['월', '화', '수', '목', '금'];
-  if (!startDate) return Array.from({ length: 5 }, (_, i) => ({
-    weekLabel: `${i + 1}주`,
-    days: DAY_NAMES.map(name => ({ name, date: '' })),
-  }));
-
-  const start = new Date(startDate);
-  const dow = start.getDay();
-  const diffToMon = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(start);
-  monday.setDate(start.getDate() + diffToMon);
-
-  return Array.from({ length: 5 }, (_, i) => {
-    const mon = new Date(monday);
-    mon.setDate(monday.getDate() + i * 7);
-    const fri = new Date(mon);
-    fri.setDate(mon.getDate() + 4);
-    const m1 = mon.getMonth() + 1, d1 = mon.getDate();
-    const m2 = fri.getMonth() + 1, d2 = fri.getDate();
-    const weekLabel = m1 === m2 ? `${m1}/${d1}~${d2}` : `${m1}/${d1}~${m2}/${d2}`;
-    const days = DAY_NAMES.map((name, j) => {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + j);
-      return { name, date: `${d.getMonth() + 1}/${d.getDate()}` };
-    });
-    return { weekLabel, days };
-  });
-}
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 
@@ -60,8 +29,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+type SubTaskEntry = { assignee?: string; weeklyHours: Record<string, number>; totalHours: number };
+
 export default function TaskDetailPanel({
-  task, onClose, onUpdate, onDelete, assignees, parts, canManage, metaFields: metaFieldsProp,
+  task, onClose, onUpdate, onDelete, assignees, parts, canManage, metaFields: metaFieldsProp, subTaskTypes = [],
 }: {
   task: Task;
   onClose: () => void;
@@ -71,15 +42,13 @@ export default function TaskDetailPanel({
   parts: TeamPart[];
   canManage: boolean;
   metaFields?: MetaField[];
+  subTaskTypes?: SubTaskType[];
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
-  const { subtasks, addSubTask, deleteSubTask } = useSubTasks(task.id);
   const [title, setTitle] = useState(task.title);
   const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});
-  const [localHours, setLocalHours] = useState<Record<string, number>>(task.weeklyHours ?? {});
+  const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
-  const [addingSubtask, setAddingSubtask] = useState(false);
-  const [newSub, setNewSub] = useState({ title: '', assignee: task.assignee });
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -98,8 +67,7 @@ export default function TaskDetailPanel({
   useEffect(() => {
     setTitle(task.title);
     setLocalMeta(task.customFields ?? {});
-    setLocalHours(task.weeklyHours ?? {});
-    setNewSub(s => ({ ...s, assignee: task.assignee }));
+    setLocalSubTaskData(task.subTaskData ?? {});
   }, [task.id]);
 
   // ESC 닫기
@@ -130,16 +98,8 @@ export default function TaskDetailPanel({
     }
   };
 
-  const handleAddSubtask = async () => {
-    if (!newSub.title.trim()) return;
-    await addSubTask({
-      taskId: task.id, projectId: task.projectId,
-      title: newSub.title.trim(), category: task.category, type: task.type,
-      status: '진행 전', receiver: task.receiver, assignee: newSub.assignee,
-      startDate: task.startDate, endDate: task.endDate, weeklyHours: {}, totalHours: 0, revisionLevel: 0,
-    });
-    setNewSub({ title: '', assignee: task.assignee });
-    setAddingSubtask(false);
+  const saveSubTaskData = (next: Record<string, SubTaskEntry>) => {
+    onUpdate(task.id, { subTaskData: next });
   };
 
   const handleDelete = () => {
@@ -270,81 +230,81 @@ export default function TaskDetailPanel({
           </Field>
         </div>
 
-        {/* 주차별 시간 — 5주 × 5일 */}
+        {/* 세부업무 & 주차별 시간 */}
         <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
-          <div className="flex items-center justify-between mb-2.5">
-            <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide">주차별 시간</p>
-            {(() => {
-              const total = Object.values(localHours).reduce((a, b) => a + b, 0);
-              return total > 0
-                ? <span className="text-xs text-gray-600 dark:text-white/40">합계 <span className="font-semibold text-gray-800 dark:text-white/65">{total}h</span></span>
-                : null;
-            })()}
-          </div>
-
-          {/* 요일 헤더 */}
-          <div className="grid grid-cols-[30px_repeat(5,1fr)] gap-x-1 mb-0.5">
-            <span />
-            {['월', '화', '수', '목', '금'].map(d => (
-              <span key={d} className="text-center text-[10px] font-medium text-gray-600 dark:text-white/30">{d}</span>
-            ))}
-          </div>
-
-          {/* 주차 행 */}
-          {(() => {
-            const sd = task.startDate ? new Date(task.startDate) : null;
-            const dow = sd ? sd.getDay() : 1;
-            const startDayIdx = (dow === 0 || dow === 6) ? 0 : dow - 1;
-
-            return getWeekDays(task.startDate).map(({ weekLabel, days }, wi) => {
-              const weekNum = wi + 1;
-              return (
-                <div key={weekNum} className="grid grid-cols-[30px_repeat(5,1fr)] gap-x-1 mb-1">
-                  {/* 주차 레이블 */}
-                  <div className="flex flex-col items-center justify-center">
-                    <span className="text-[10px] font-semibold text-gray-700 dark:text-white/45">{weekNum}주</span>
-                    {weekLabel && <span className="text-[8px] text-gray-500 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
+          <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide mb-2.5">세부업무 & 주차별 시간</p>
+          {subTaskTypes.length === 0 ? (
+            <p className="text-xs text-gray-400 dark:text-white/20 text-center py-3">팀 설정 → 세부 업무 탭에서 유형을 등록해주세요</p>
+          ) : (
+            <div className="space-y-2.5">
+              {subTaskTypes.map(type => {
+                const entry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
+                const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
+                return (
+                  <div key={type.id} className="rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-semibold text-gray-700 dark:text-white/70 flex-1">{type.name}</span>
+                      <select
+                        disabled={!canManage}
+                        className="text-xs bg-black/5 dark:bg-white/8 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 dark:text-white/55 cursor-pointer disabled:cursor-default"
+                        value={entry.assignee ?? ''}
+                        onChange={e => {
+                          const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
+                          setLocalSubTaskData(next);
+                          saveSubTaskData(next);
+                        }}>
+                        <option value="">담당자</option>
+                        {assignees.map(a => <option key={a}>{a}</option>)}
+                      </select>
+                      {total > 0 && (
+                        <span className="text-xs text-gray-500 dark:text-white/35 flex-shrink-0">{total}h</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[1, 2, 3, 4, 5].map(w => {
+                        const key = `${type.id}_w${w}`;
+                        const wKey = `w${w}`;
+                        const val = entry.weeklyHours[wKey] ?? 0;
+                        return (
+                          <div key={w} className="flex flex-col items-center gap-0.5">
+                            <span className="text-[10px] text-gray-400 dark:text-white/25">{w}주</span>
+                            {canManage ? (
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={key in localRaw ? localRaw[key] : (val === 0 ? '' : String(val))}
+                                placeholder="-"
+                                onChange={e => {
+                                  const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                  setLocalRaw(prev => ({ ...prev, [key]: raw }));
+                                  const n = Math.min(200, parseFloat(raw) || 0);
+                                  const newHours = { ...entry.weeklyHours, [wKey]: n };
+                                  if (n === 0) delete newHours[wKey];
+                                  setLocalSubTaskData(prev => ({
+                                    ...prev,
+                                    [type.id]: { ...entry, weeklyHours: newHours, totalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
+                                  }));
+                                }}
+                                onBlur={() => {
+                                  setLocalRaw(prev => { const next = { ...prev }; delete next[key]; return next; });
+                                  saveSubTaskData(localSubTaskData);
+                                }}
+                                className="w-full text-center text-[11px] bg-black/[0.08] dark:bg-white/8 rounded py-1 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-800 dark:text-white/75 placeholder:text-gray-500 dark:placeholder:text-white/20"
+                              />
+                            ) : (
+                              <span className="w-full text-center text-[11px] rounded py-1 bg-black/[0.08] dark:bg-white/8 text-gray-700 dark:text-white/55">
+                                {val > 0 ? val : <span className="opacity-50">-</span>}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-
-                  {/* 일별 입력 */}
-                  {days.map(({ date }, di) => {
-                    const key = `w${weekNum}d${di + 1}`;
-                    const val = localHours[key] ?? 0;
-                    const disabled = wi === 0 && di < startDayIdx;
-                    return (
-                      <div key={di} className="flex flex-col items-center gap-0.5">
-                        <span className={`text-[9px] ${disabled ? 'text-gray-400 dark:text-white/12' : 'text-gray-500 dark:text-white/25'}`}>{date}</span>
-                        {canManage && !disabled ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={key in localRaw ? localRaw[key] : (val === 0 ? '' : String(val))}
-                            placeholder="-"
-                            onChange={e => {
-                              const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                              setLocalRaw(prev => ({ ...prev, [key]: raw }));
-                              const n = Math.min(24, parseFloat(raw) || 0);
-                              setLocalHours(prev => ({ ...prev, [key]: n }));
-                            }}
-                            onBlur={() => {
-                              setLocalRaw(prev => { const next = { ...prev }; delete next[key]; return next; });
-                              const total = Object.values(localHours).reduce((a, b) => a + b, 0);
-                              onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
-                            }}
-                            className="w-full text-center text-[11px] bg-black/[0.08] dark:bg-white/8 rounded py-1 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-800 dark:text-white/75 placeholder:text-gray-500 dark:placeholder:text-white/20"
-                          />
-                        ) : (
-                          <span className={`w-full text-center text-[11px] rounded py-1 ${disabled ? 'bg-black/[0.03] dark:bg-white/[0.02] text-gray-400 dark:text-white/10' : 'bg-black/[0.08] dark:bg-white/8 text-gray-700 dark:text-white/55'}`}>
-                            {!disabled && val > 0 ? val : <span className="opacity-50">-</span>}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            });
-          })()}
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 업무 상세 정보 */}
@@ -379,52 +339,6 @@ export default function TaskDetailPanel({
           </div>
         </div>
 
-        {/* 세부업무 */}
-        <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide">
-              세부업무 <span className="text-gray-500 dark:text-white/20 font-normal normal-case ml-1">{subtasks.length}건</span>
-            </p>
-            {canManage && (
-              <button onClick={() => setAddingSubtask(true)}
-                className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
-                <Plus size={12} /> 추가
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            {subtasks.map(sub => (
-              <SubtaskItem key={sub.id} sub={sub} onDelete={() => deleteSubTask(sub.id)} canManage={canManage} />
-            ))}
-          </div>
-
-          {addingSubtask && (
-            <div className="mt-2 flex items-center gap-2 bg-black/3 dark:bg-white/5 rounded-xl px-3 py-2.5 border border-black/6 dark:border-white/8">
-              <input autoFocus type="text" placeholder="세부업무명..."
-                className="flex-1 text-sm bg-transparent border-none focus:outline-none text-gray-800 dark:text-white/80 placeholder:text-gray-300 dark:placeholder:text-white/25"
-                value={newSub.title}
-                onChange={e => setNewSub(s => ({ ...s, title: e.target.value }))}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddSubtask(); if (e.key === 'Escape') setAddingSubtask(false); }} />
-              {assignees.length > 0 && (
-                <select className="text-xs bg-transparent border-none focus:outline-none text-gray-500 dark:text-white/50 cursor-pointer"
-                  value={newSub.assignee} onChange={e => setNewSub(s => ({ ...s, assignee: e.target.value }))}>
-                  {assignees.map(a => <option key={a}>{a}</option>)}
-                </select>
-              )}
-              <button onClick={handleAddSubtask} className="w-5 h-5 flex items-center justify-center rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors flex-shrink-0">
-                <Check size={11} />
-              </button>
-              <button onClick={() => setAddingSubtask(false)} className="w-5 h-5 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-white/60 transition-colors flex-shrink-0">
-                <X size={11} />
-              </button>
-            </div>
-          )}
-
-          {subtasks.length === 0 && !addingSubtask && (
-            <p className="text-xs text-gray-500 dark:text-white/20 text-center py-3">세부업무가 없습니다</p>
-          )}
-        </div>
 
         <div className="h-6" />
       </div>
@@ -445,22 +359,3 @@ export default function TaskDetailPanel({
   );
 }
 
-function SubtaskItem({ sub, onDelete, canManage }: { sub: SubTask; onDelete: () => void; canManage: boolean }) {
-  const STATUS_DOT: Record<string, string> = {
-    '진행 전': 'bg-blue-400', '진행 중': 'bg-amber-400', '완료': 'bg-green-400', '보류': 'bg-slate-400',
-  };
-  return (
-    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-black/3 dark:hover:bg-white/5 group transition-colors">
-      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[sub.status] ?? 'bg-gray-300'}`} />
-      <span className="flex-1 text-sm text-gray-700 dark:text-white/65 truncate">{sub.title}</span>
-      <span className="text-xs text-gray-400 dark:text-white/30 flex-shrink-0">{sub.assignee}</span>
-      <span className="text-[11px] text-gray-400 dark:text-white/30 flex-shrink-0">{sub.status}</span>
-      {canManage && (
-        <button onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-gray-300 dark:text-white/25 hover:text-red-400 transition-all flex-shrink-0">
-          <Trash2 size={11} />
-        </button>
-      )}
-    </div>
-  );
-}

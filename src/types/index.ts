@@ -143,6 +143,11 @@ export interface MetaField {
   isUrl?: boolean;
 }
 
+export interface SubTaskType {
+  id: string;
+  name: string;
+}
+
 export const DEFAULT_META_FIELDS: MetaField[] = [
   { key: '제품군',              label: '제품군' },
   { key: '컨셉',                label: '컨셉' },
@@ -163,6 +168,7 @@ export interface Team {
   createdAt: string;
   formConfig?: TeamFormConfig;
   metaFields?: MetaField[];
+  subTaskTypes?: SubTaskType[];
 }
 
 export interface SubTask {
@@ -200,6 +206,11 @@ export interface Task {
   totalHours: number;
   revisionLevel: number;
   customFields?: Record<string, string>;
+  subTaskData?: Record<string, {
+    assignee?: string;
+    weeklyHours: Record<string, number>;
+    totalHours: number;
+  }>;
   memo?: string;
   createdAt: string;
   updatedAt: string;

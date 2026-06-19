@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType } from '../types';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
@@ -24,6 +24,7 @@ interface Props {
   onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
   onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
   onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
+  onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -872,7 +873,106 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields }: {
+// ──────────────────────────────────────────
+// 세부 업무 유형 편집기
+// ──────────────────────────────────────────
+function SubTaskTypesEditor({ team, onSave }: {
+  team: Team;
+  onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [newName, setNewName] = useState('');
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  useEffect(() => { setEditingId(null); }, [team.id]);
+
+  const types = team.subTaskTypes ?? [];
+  const save = (next: SubTaskType[]) => onSave(team.id, next);
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...types];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  const saveName = (id: string) => {
+    const name = nameInput.trim();
+    if (name) save(types.map(t => t.id === id ? { ...t, name } : t));
+    setEditingId(null);
+  };
+
+  const deleteType = (id: string) => save(types.filter(t => t.id !== id));
+
+  const addType = () => {
+    const name = newName.trim();
+    if (!name) return;
+    save([...types, { id: `st_${Date.now()}`, name }]);
+    setNewName('');
+  };
+
+  const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide">
+        세부 업무 유형
+        <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+      </p>
+      {types.length > 0 ? (
+        <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5">
+          {types.map((t, i) => (
+            <div key={t.id} draggable
+              onDragStart={() => { dragIdxRef.current = i; }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+              onDrop={() => onDrop(i)}
+              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+              className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 dark:hover:bg-white/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+              <GripVertical size={13} className="text-gray-300 dark:text-white/20 cursor-grab active:cursor-grabbing flex-shrink-0" />
+              {editingId === t.id ? (
+                <input autoFocus
+                  className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 dark:border-blue-500/60 bg-white dark:bg-white/8 text-gray-800 dark:text-white/80 focus:outline-none"
+                  value={nameInput} onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                  onBlur={() => saveName(t.id)} />
+              ) : (
+                <button type="button"
+                  onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
+                  className="flex-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate min-w-0">
+                  {t.name}
+                </button>
+              )}
+              <button type="button" onClick={() => deleteType(t.id)}
+                className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 dark:text-white/30 text-center py-3">세부 업무 유형이 없습니다</p>
+      )}
+      <div className="flex items-center gap-2">
+        <input className={iCls}
+          placeholder="새 유형 이름 (예: 기획, 디자인, 퍼블)"
+          value={newName} onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addType()} />
+        <button onClick={addType} disabled={!newName.trim()}
+          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+          <Plus size={11} />추가
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -884,13 +984,14 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
   onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
   onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
+  onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask'>>({});
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -1004,7 +1105,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015] dark:bg-white/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 dark:border-white/5 px-5">
-                    {(['parts', 'form', 'meta'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -1012,7 +1113,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                             : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-white/60'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : '업무 정보 필드'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : '세부 업무'}
                       </button>
                     ))}
                   </div>
@@ -1079,6 +1180,16 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                     </div>
                   )}
 
+                  {/* 세부 업무 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'subtask' && (
+                    <div className="px-5 py-4">
+                      <SubTaskTypesEditor
+                        team={team}
+                        onSave={onUpdateSubTaskTypes}
+                      />
+                    </div>
+                  )}
+
                 </div>
               )}
             </div>
@@ -1095,7 +1206,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -1325,6 +1436,7 @@ export default function SettingsPage({
           onUpdateMetaFields={onUpdateMetaFields}
           onUpdatePartMetaFields={onUpdatePartMetaFields}
           onClearPartMetaFields={onClearPartMetaFields}
+          onUpdateSubTaskTypes={onUpdateSubTaskTypes}
         />
       )}
 

@@ -267,28 +267,27 @@ export default function TaskDetailPanel({
           </div>
 
           {/* 요일 헤더 */}
-          <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1">
+          <div className="grid grid-cols-[30px_repeat(5,1fr)] gap-x-1 mb-0.5">
             <span />
             {['월', '화', '수', '목', '금'].map(d => (
-              <span key={d} className="text-center text-[10px] font-medium text-gray-400 dark:text-white/30">{d}</span>
+              <span key={d} className="text-center text-[10px] font-medium text-gray-500 dark:text-white/30">{d}</span>
             ))}
           </div>
 
           {/* 주차 행 */}
           {(() => {
-            // 1주차에서 시작일 이전 요일 비활성화 계산 (0=월 ~ 4=금)
             const sd = task.startDate ? new Date(task.startDate) : null;
-            const dow = sd ? sd.getDay() : 1; // 0=일,1=월,...,6=토
+            const dow = sd ? sd.getDay() : 1;
             const startDayIdx = (dow === 0 || dow === 6) ? 0 : dow - 1;
 
             return getWeekDays(task.startDate).map(({ weekLabel, days }, wi) => {
               const weekNum = wi + 1;
               return (
-                <div key={weekNum} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1.5">
+                <div key={weekNum} className="grid grid-cols-[30px_repeat(5,1fr)] gap-x-1 mb-1">
                   {/* 주차 레이블 */}
                   <div className="flex flex-col items-center justify-center">
-                    <span className="text-[10px] font-semibold text-gray-500 dark:text-white/45">{weekNum}주</span>
-                    {weekLabel && <span className="text-[8px] text-gray-300 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
+                    <span className="text-[10px] font-semibold text-gray-600 dark:text-white/45">{weekNum}주</span>
+                    {weekLabel && <span className="text-[8px] text-gray-400 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
                   </div>
 
                   {/* 일별 입력 */}
@@ -298,7 +297,7 @@ export default function TaskDetailPanel({
                     const disabled = wi === 0 && di < startDayIdx;
                     return (
                       <div key={di} className="flex flex-col items-center gap-0.5">
-                        <span className={`text-[9px] ${disabled ? 'text-gray-200 dark:text-white/12' : 'text-gray-300 dark:text-white/20'}`}>{date}</span>
+                        <span className={`text-[9px] ${disabled ? 'text-gray-300 dark:text-white/12' : 'text-gray-400 dark:text-white/25'}`}>{date}</span>
                         {canManage && !disabled ? (
                           <input
                             type="text"
@@ -316,11 +315,11 @@ export default function TaskDetailPanel({
                               const total = Object.values(localHours).reduce((a, b) => a + b, 0);
                               onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
                             }}
-                            className="w-full text-center text-xs bg-black/5 dark:bg-white/8 rounded-md py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-700 dark:text-white/75 placeholder:text-gray-300 dark:placeholder:text-white/15"
+                            className="w-full text-center text-[11px] bg-black/[0.07] dark:bg-white/8 rounded py-1 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-700 dark:text-white/75 placeholder:text-gray-400 dark:placeholder:text-white/20"
                           />
                         ) : (
-                          <span className={`w-full text-center text-xs rounded-md py-1.5 ${disabled ? 'bg-black/[0.02] dark:bg-white/[0.02] text-gray-200 dark:text-white/10' : 'bg-black/5 dark:bg-white/8 text-gray-600 dark:text-white/55'}`}>
-                            {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                          <span className={`w-full text-center text-[11px] rounded py-1 ${disabled ? 'bg-black/[0.02] dark:bg-white/[0.02] text-gray-300 dark:text-white/10' : 'bg-black/[0.07] dark:bg-white/8 text-gray-600 dark:text-white/55'}`}>
+                            {!disabled && val > 0 ? val : <span className="opacity-40">-</span>}
                           </span>
                         )}
                       </div>

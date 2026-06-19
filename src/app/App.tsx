@@ -105,9 +105,9 @@ function App() {
     ? tasks.filter(t => activeParts.some(p => p.name === t.category))
     : tasks;
 
-  // 현재 팀 tasks에 속한 서브태스크만 추출
-  const filteredTaskIds = new Set(filteredTasks.map(t => t.id));
-  const subtasks = allSubtasks.filter(s => filteredTaskIds.has(s.taskId));
+  // 현재 팀 전체 tasks 기준으로 서브태스크 필터 (파트 필터 전 tasks 사용)
+  const teamTaskIds = new Set(tasks.map(t => t.id));
+  const subtasks = allSubtasks.filter(s => teamTaskIds.has(s.taskId));
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });

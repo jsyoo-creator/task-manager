@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
 
 function RouteWatcher({ onRouteChange }: { onRouteChange: (path: string) => void }) {
@@ -17,14 +17,14 @@ import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
-import { useTasks, useAllSubTasks } from '../hooks/useTasks';
+import { useTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
 import { getPermissions, resolveBuiltinFields } from '../types';
-import type { Task, TaskCategory } from '../types';
+import type { Task, TaskCategory, SubTask } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
 function App() {
@@ -84,8 +84,6 @@ function App() {
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId, activeTeamId);
-  const { subtasks: allSubtasks } = useAllSubTasks(projectId);
-
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
   const teamMembers = selectedTeam
@@ -105,9 +103,32 @@ function App() {
     ? tasks.filter(t => activeParts.some(p => p.name === t.category))
     : tasks;
 
-  // 현재 팀 전체 tasks 기준으로 서브태스크 필터 (파트 필터 전 tasks 사용)
-  const teamTaskIds = new Set(tasks.map(t => t.id));
-  const subtasks = allSubtasks.filter(s => teamTaskIds.has(s.taskId));
+  // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
+  const subtasks = useMemo<SubTask[]>(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return tasks.flatMap(task =>
+      Object.entries(task.subTaskData ?? {}).map(([key, entry]) => ({
+        id: `${task.id}__${key}`,
+        taskId: task.id,
+        projectId: task.projectId ?? '',
+        title: key,
+        category: task.category,
+        type: task.type,
+        status: (
+          !entry.startDate           ? '진행 전' :
+          entry.endDate && entry.endDate < today ? '완료'   : '진행 중'
+        ) as SubTask['status'],
+        assignee:  entry.assignee ?? '',
+        receiver:  '',
+        startDate: entry.startDate ?? '',
+        endDate:   entry.endDate   ?? '',
+        weeklyHours: entry.weeklyHours,
+        totalHours:  entry.totalHours,
+        revisionLevel: 0,
+        createdAt: task.createdAt,
+      }))
+    );
+  }, [tasks]);
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });

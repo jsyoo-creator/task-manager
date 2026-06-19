@@ -6,7 +6,7 @@ interface Props {
 
 export default function LoginPage({ onSignIn, error }: Props) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F7F8FC] relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[#F4F0FE] relative overflow-hidden">
 
       {/* Login card */}
       <div className="relative z-10 w-full max-w-[400px] mx-4">
@@ -14,7 +14,7 @@ export default function LoginPage({ onSignIn, error }: Props) {
 
           {/* Logo */}
           <div className="flex justify-center mb-7">
-            <div className="relative w-14 h-14 rounded-2xl bg-[#5B5BD6] flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+            <div className="relative w-14 h-14 rounded-2xl bg-[#6C63FF] flex items-center justify-center text-white font-bold text-2xl shadow-lg">
               T
             </div>
           </div>

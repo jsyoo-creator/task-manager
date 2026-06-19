@@ -5,16 +5,16 @@
   --font-family-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  --color-bg:             #F7F8FC;
-  --color-surface:        #FFFFFF;
-  --color-border:         #E5E7EB;
-  --color-border-light:   #F3F4F6;
-  --color-accent:         #5B5BD6;
-  --color-accent-hover:   #4F4FC4;
-  --color-accent-light:   #EEEEFF;
-  --color-text-primary:   #111827;
-  --color-text-secondary: #6B7280;
-  --color-text-muted:     #9CA3AF;
+  --sidebar-bg:      #1E2264;
+  --sidebar-active:  rgba(255,255,255,0.13);
+  --color-bg:        #F4F0FE;
+  --color-surface:   #FFFFFF;
+  --color-border:    #E8E4F3;
+  --color-accent:    #6C63FF;
+  --color-pink:      #FF6B9D;
+  --color-text:      #1E2264;
+  --color-text-2:    #6B7280;
+  --color-text-3:    #9CA3AF;
 }
 
 *, *::before, *::after {
@@ -27,71 +27,73 @@ body {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.55;
-  color: #111827;
-  background: #F7F8FC;
+  color: #1E2264;
+  background: #F4F0FE;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); border-radius: 9999px; }
+::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.18); border-radius: 9999px; }
 
 /* ─────────────────────────────────────
    Card
 ───────────────────────────────────── */
 .glass-card {
   background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #EDE9FA;
   box-shadow:
-    0 1px 2px rgba(0,0,0,0.04),
-    0 2px 8px rgba(0,0,0,0.04);
-  border-radius: 12px;
+    0 2px 4px rgba(108,99,255,0.05),
+    0 8px 24px rgba(108,99,255,0.07);
+  border-radius: 16px;
   overflow: hidden;
 }
 
 .glass-card-noclip {
   background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #EDE9FA;
   box-shadow:
-    0 1px 2px rgba(0,0,0,0.04),
-    0 2px 8px rgba(0,0,0,0.04);
-  border-radius: 12px;
+    0 2px 4px rgba(108,99,255,0.05),
+    0 8px 24px rgba(108,99,255,0.07);
+  border-radius: 16px;
 }
 
 /* ─────────────────────────────────────
    Buttons
 ───────────────────────────────────── */
 .btn-shiny {
-  position: relative;
   background: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  border-radius: 8px;
+  border: 1px solid #EDE9FA;
+  box-shadow: 0 1px 3px rgba(108,99,255,0.08);
+  border-radius: 10px;
   transition: all 0.15s ease;
 }
 .btn-shiny:hover {
-  border-color: #D1D5DB;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  border-color: #D4CEF8;
+  box-shadow: 0 2px 8px rgba(108,99,255,0.14);
 }
 
 .btn-shiny-primary {
-  position: relative;
-  background: #5B5BD6;
+  background: linear-gradient(135deg, #6C63FF 0%, #5B52E8 100%);
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   color: white;
   transition: all 0.15s ease;
-  z-index: 1;
+  box-shadow: 0 4px 14px rgba(108,99,255,0.35);
 }
-.btn-shiny-primary:hover  { background: #4F4FC4; }
-.btn-shiny-primary:active { background: #4646B8; }
+.btn-shiny-primary:hover  {
+  background: linear-gradient(135deg, #7B73FF 0%, #6A61F0 100%);
+  box-shadow: 0 6px 18px rgba(108,99,255,0.45);
+  transform: translateY(-1px);
+}
+.btn-shiny-primary:active { transform: translateY(0); }
 .btn-shiny-primary::before { display: none; }
 
 /* ─────────────────────────────────────
    Gradient text
 ───────────────────────────────────── */
 .text-gradient {
-  background: linear-gradient(135deg, #5B5BD6 0%, #7C3AED 100%);
+  background: linear-gradient(135deg, #6C63FF 0%, #FF6B9D 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -101,10 +103,10 @@ body {
    Page header
 ───────────────────────────────────── */
 .page-title {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.3px;
-  color: #111827;
+  letter-spacing: -0.4px;
+  color: #1E2264;
   line-height: 1.2;
 }
 .page-subtitle {
@@ -132,5 +134,5 @@ body {
 ───────────────────────────────────── */
 .divider-fade {
   height: 1px;
-  background: #E5E7EB;
+  background: #EDE9FA;
 }

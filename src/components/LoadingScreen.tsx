@@ -205,7 +205,7 @@ export default function LoadingScreen({ done, onFinished}: Props) {
         className={`fixed inset-0 z-[999] flex items-center justify-center transition-opacity duration-400 ${
           fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
-        style={{ background: '#F7F8FC' }}
+        style={{ background: '#F4F0FE' }}
       >
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#b8c8ff] opacity-45 blur-[90px]" />
@@ -219,7 +219,7 @@ export default function LoadingScreen({ done, onFinished}: Props) {
         >
           {/* Logo */}
           <div className="flex items-center gap-2.5 select-none">
-            <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-base"
+            <div className="w-9 h-9 rounded-[10px] bg-[#6C63FF] flex items-center justify-center text-white font-bold text-base"
               style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.22) inset, 0 4px 14px rgba(37,99,235,0.45)' }}>T</div>
             <div className="leading-snug">
               <p className="text-[9px] font-semibold tracking-[0.18em] text-gray-400 uppercase">PIVOT</p>

@@ -564,43 +564,28 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setCDragOverIdx(null); }}
                   onDrop={() => onDropCustom(i)}
                   onDragEnd={() => { cdragIdxRef.current = null; setCDragOverIdx(null); }}
-                  className={`flex ${isEditingCF ? 'items-start' : 'items-center'} gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
-                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 mt-0.5" />
+                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
                   {isEditingCF ? (
                     <div
-                      className="flex-1 flex flex-col gap-1 min-w-0"
+                      className="flex-1 flex items-center gap-1.5 min-w-0"
                       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <input
-                          autoFocus
-                          className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                          value={customLabelInput}
-                          onChange={e => setCustomLabelInput(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
-                        />
-                        <select
-                          className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
-                          value={customTypeInput}
-                          onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
-                          {CUSTOM_FIELD_TYPES.map(t => (
-                            <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {customTypeInput === 'name' && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-gray-400 flex-shrink-0">직군 필터</span>
-                          <select
-                            className="text-[11px] px-1.5 py-0.5 rounded-md border border-violet-300 bg-violet-50 text-gray-700 focus:outline-none"
-                            value={customDeptInput}
-                            onChange={e => setCustomDeptInput(e.target.value as Department | '')}
-                            onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
-                            <option value="">전체 (직군 무관)</option>
-                            {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-                          </select>
-                        </div>
-                      )}
+                      <input
+                        autoFocus
+                        className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                        value={customLabelInput}
+                        onChange={e => setCustomLabelInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
+                      />
+                      <select
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
+                        value={customTypeInput}
+                        onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
+                        {CUSTOM_FIELD_TYPES.map(t => (
+                          <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
                     </div>
                   ) : (
                     <button
@@ -611,16 +596,21 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                       {cf.label}
                     </button>
                   )}
-                  <div className={`flex items-center gap-1.5 flex-shrink-0 ${isEditingCF ? 'mt-0.5' : ''}`}>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
-                    {!isEditingCF && cf.type === 'name' && (
+                    {/* 이름 타입: 편집/비편집 무관하게 항상 직군 선택기 표시 */}
+                    {(isEditingCF ? customTypeInput : cf.type) === 'name' && (
                       <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 focus:outline-none cursor-pointer"
-                        value={cf.department ?? ''}
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-violet-300 bg-violet-50 text-violet-700 focus:outline-none cursor-pointer"
+                        value={isEditingCF ? customDeptInput : (cf.department ?? '')}
                         onClick={e => e.stopPropagation()}
                         onChange={e => {
                           const dept = e.target.value as Department | '';
-                          onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, department: dept || undefined } : f));
+                          if (isEditingCF) {
+                            setCustomDeptInput(dept);
+                          } else {
+                            onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, department: dept || undefined } : f));
+                          }
                         }}>
                         <option value="">직군 전체</option>
                         {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}

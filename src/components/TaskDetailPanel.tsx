@@ -96,6 +96,8 @@ export default function TaskDetailPanel({
   const [title, setTitle] = useState(task.title);
   const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});
   const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
+  const localSubTaskDataRef = useRef(localSubTaskData);
+  localSubTaskDataRef.current = localSubTaskData;
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -420,7 +422,7 @@ export default function TaskDetailPanel({
                                     }}
                                     onBlur={() => {
                                       setLocalRaw(prev => { const next = { ...prev }; delete next[rawKey]; return next; });
-                                      saveSubTaskData(localSubTaskData);
+                                      saveSubTaskData(localSubTaskDataRef.current);
                                     }}
                                     className="w-full text-center text-[10px] bg-black/[0.08] dark:bg-white/8 rounded py-0.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-800 dark:text-white/75 placeholder:text-gray-400 dark:placeholder:text-white/18"
                                   />

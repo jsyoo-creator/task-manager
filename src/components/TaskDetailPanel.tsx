@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, ChevronDown, Check } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskType, TeamPart } from '../types';
 import { useSubTasks } from '../hooks/useTasks';
+import DatePicker from './DatePicker';
 
 const PANEL_W = 380;
 
@@ -238,18 +239,10 @@ export default function TaskDetailPanel({
           </Field>
 
           <Field label="기간">
-            <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-white/55">
-              {canManage ? (
-                <>
-                  <input type="date" value={task.startDate ?? ''} onChange={e => onUpdate(task.id, { startDate: e.target.value })}
-                    className="bg-transparent border-none focus:outline-none cursor-pointer text-sm text-gray-600 dark:text-white/55" />
-                  <span className="text-gray-300 dark:text-white/20">→</span>
-                  <input type="date" value={task.endDate ?? ''} onChange={e => onUpdate(task.id, { endDate: e.target.value })}
-                    className="bg-transparent border-none focus:outline-none cursor-pointer text-sm text-gray-600 dark:text-white/55" />
-                </>
-              ) : (
-                <span>{task.startDate ?? '-'} → {task.endDate ?? '-'}</span>
-              )}
+            <div className="flex items-center gap-2">
+              <DatePicker value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage} />
+              <span className="text-gray-300 dark:text-white/20 text-xs">→</span>
+              <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />
             </div>
           </Field>
         </div>

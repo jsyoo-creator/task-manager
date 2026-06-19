@@ -209,9 +209,19 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
   colMinWidth: number;
 }) {
 
-  const totalH = task.totalHours > 0
-    ? task.totalHours
-    : Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
+  const totalH = (() => {
+    if (task.subTaskData && Object.keys(task.subTaskData).length > 0) {
+      return Object.values(task.subTaskData).reduce((sum, e) => {
+        const h = e.totalHours > 0
+          ? e.totalHours
+          : Object.values(e.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
+        return sum + h;
+      }, 0);
+    }
+    return task.totalHours > 0
+      ? task.totalHours
+      : Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
+  })();
   const sel = "bg-transparent border-none focus:outline-none cursor-pointer text-xs w-full";
 
   return (

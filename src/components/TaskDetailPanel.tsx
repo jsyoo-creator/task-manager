@@ -351,7 +351,7 @@ export default function TaskDetailPanel({
         <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
           <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
-            {META_FIELDS.map(({ key, label, isUrl }) => {
+            {metaFields.map(({ key, label, isUrl }) => {
               const val = localMeta[key] ?? '';
               return (
                 <div key={key} className="flex items-center gap-2">

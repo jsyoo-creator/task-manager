@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
+
+function RouteWatcher({ onRouteChange }: { onRouteChange: (path: string) => void }) {
+  const location = useLocation();
+  useEffect(() => { onRouteChange(location.pathname); }, [location.pathname]);
+  return null;
+}
 import Layout from '../components/Layout';
 import LoadingScreen from '../components/LoadingScreen';
 import LoginPage from '../pages/LoginPage';
@@ -130,6 +136,7 @@ function App() {
       )}
 
       <BrowserRouter>
+        <RouteWatcher onRouteChange={path => { if (path !== '/tasks') setDetailTaskId(null); }} />
         <Layout
           project={currentProject}
           projects={projects}

@@ -95,7 +95,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     if (assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
-      return t.taskMonth === prefix || t.startDate?.startsWith(prefix) || t.endDate?.startsWith(prefix);
+      if (t.taskMonth) return t.taskMonth === prefix;
+      return t.startDate?.startsWith(prefix) || t.endDate?.startsWith(prefix);
     }
     return true;
   });

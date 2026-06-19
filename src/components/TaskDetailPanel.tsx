@@ -64,8 +64,8 @@ const CAT_DOT: Record<string, string> = {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-black/5 dark:border-white/6 last:border-0">
-      <span className="text-xs text-gray-400 dark:text-white/35 font-medium w-14 flex-shrink-0 pt-0.5">{label}</span>
+    <div className="flex items-start gap-3 py-2.5 border-b border-black/[0.08] dark:border-white/6 last:border-0">
+      <span className="text-xs text-gray-500 dark:text-white/35 font-medium w-14 flex-shrink-0 pt-0.5">{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
@@ -170,13 +170,13 @@ export default function TaskDetailPanel({
         ${visible ? 'translate-x-0' : '-translate-x-full'}`}
     >
       {/* 헤더 */}
-      <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-black/6 dark:border-white/8 flex-shrink-0">
+      <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-black/[0.08] dark:border-white/8 flex-shrink-0">
         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${categoryColor}`} />
-        <span className="text-xs text-gray-400 dark:text-white/35 font-medium truncate flex-1">
+        <span className="text-xs text-gray-600 dark:text-white/35 font-medium truncate flex-1">
           {task.category || '파트 없음'} · {task.type}
         </span>
         <button onClick={handleClose}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/75 hover:bg-black/5 dark:hover:bg-white/8 transition-colors flex-shrink-0">
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 dark:text-white/40 hover:text-gray-700 dark:hover:text-white/75 hover:bg-black/5 dark:hover:bg-white/8 transition-colors flex-shrink-0">
           <X size={15} />
         </button>
       </div>
@@ -280,13 +280,13 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 주차별 시간 — 5주 × 5일 */}
-        <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
+        <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
           <div className="flex items-center justify-between mb-2.5">
-            <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide">주차별 시간</p>
+            <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide">주차별 시간</p>
             {(() => {
               const total = Object.values(localHours).reduce((a, b) => a + b, 0);
               return total > 0
-                ? <span className="text-xs text-gray-500 dark:text-white/40">합계 <span className="font-semibold text-gray-700 dark:text-white/65">{total}h</span></span>
+                ? <span className="text-xs text-gray-600 dark:text-white/40">합계 <span className="font-semibold text-gray-800 dark:text-white/65">{total}h</span></span>
                 : null;
             })()}
           </div>
@@ -295,7 +295,7 @@ export default function TaskDetailPanel({
           <div className="grid grid-cols-[30px_repeat(5,1fr)] gap-x-1 mb-0.5">
             <span />
             {['월', '화', '수', '목', '금'].map(d => (
-              <span key={d} className="text-center text-[10px] font-medium text-gray-500 dark:text-white/30">{d}</span>
+              <span key={d} className="text-center text-[10px] font-medium text-gray-600 dark:text-white/30">{d}</span>
             ))}
           </div>
 
@@ -311,8 +311,8 @@ export default function TaskDetailPanel({
                 <div key={weekNum} className="grid grid-cols-[30px_repeat(5,1fr)] gap-x-1 mb-1">
                   {/* 주차 레이블 */}
                   <div className="flex flex-col items-center justify-center">
-                    <span className="text-[10px] font-semibold text-gray-600 dark:text-white/45">{weekNum}주</span>
-                    {weekLabel && <span className="text-[8px] text-gray-400 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
+                    <span className="text-[10px] font-semibold text-gray-700 dark:text-white/45">{weekNum}주</span>
+                    {weekLabel && <span className="text-[8px] text-gray-500 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
                   </div>
 
                   {/* 일별 입력 */}
@@ -322,7 +322,7 @@ export default function TaskDetailPanel({
                     const disabled = wi === 0 && di < startDayIdx;
                     return (
                       <div key={di} className="flex flex-col items-center gap-0.5">
-                        <span className={`text-[9px] ${disabled ? 'text-gray-300 dark:text-white/12' : 'text-gray-400 dark:text-white/25'}`}>{date}</span>
+                        <span className={`text-[9px] ${disabled ? 'text-gray-400 dark:text-white/12' : 'text-gray-500 dark:text-white/25'}`}>{date}</span>
                         {canManage && !disabled ? (
                           <input
                             type="text"
@@ -340,11 +340,11 @@ export default function TaskDetailPanel({
                               const total = Object.values(localHours).reduce((a, b) => a + b, 0);
                               onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
                             }}
-                            className="w-full text-center text-[11px] bg-black/[0.07] dark:bg-white/8 rounded py-1 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-700 dark:text-white/75 placeholder:text-gray-400 dark:placeholder:text-white/20"
+                            className="w-full text-center text-[11px] bg-black/[0.08] dark:bg-white/8 rounded py-1 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-800 dark:text-white/75 placeholder:text-gray-500 dark:placeholder:text-white/20"
                           />
                         ) : (
-                          <span className={`w-full text-center text-[11px] rounded py-1 ${disabled ? 'bg-black/[0.02] dark:bg-white/[0.02] text-gray-300 dark:text-white/10' : 'bg-black/[0.07] dark:bg-white/8 text-gray-600 dark:text-white/55'}`}>
-                            {!disabled && val > 0 ? val : <span className="opacity-40">-</span>}
+                          <span className={`w-full text-center text-[11px] rounded py-1 ${disabled ? 'bg-black/[0.03] dark:bg-white/[0.02] text-gray-400 dark:text-white/10' : 'bg-black/[0.08] dark:bg-white/8 text-gray-700 dark:text-white/55'}`}>
+                            {!disabled && val > 0 ? val : <span className="opacity-50">-</span>}
                           </span>
                         )}
                       </div>
@@ -357,14 +357,14 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 업무 상세 정보 */}
-        <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
-          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2.5">업무 정보</p>
+        <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
+          <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
             {META_FIELDS.map(({ key, label, isUrl }) => {
               const val = localMeta[key] ?? '';
               return (
                 <div key={key} className="flex items-center gap-2">
-                  <span className="text-[11px] text-gray-400 dark:text-white/35 w-[96px] flex-shrink-0 truncate">{label}</span>
+                  <span className="text-[11px] text-gray-600 dark:text-white/35 w-[96px] flex-shrink-0 truncate">{label}</span>
                   <div className="flex-1 flex items-center gap-1 min-w-0">
                     <input
                       type={isUrl ? 'url' : 'text'}
@@ -373,7 +373,7 @@ export default function TaskDetailPanel({
                       value={val}
                       onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
                       onBlur={e => handleMetaBlur(key, e.target.value)}
-                      className="flex-1 min-w-0 text-xs text-gray-700 dark:text-white/70 bg-black/4 dark:bg-white/6 rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-300 dark:placeholder:text-white/18 transition-colors"
+                      className="flex-1 min-w-0 text-xs text-gray-800 dark:text-white/70 bg-black/[0.07] dark:bg-white/6 rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 dark:placeholder:text-white/20 transition-colors"
                     />
                     {isUrl && val && (
                       <a href={val} target="_blank" rel="noopener noreferrer"
@@ -389,10 +389,10 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 세부업무 */}
-        <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
+        <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide">
-              세부업무 <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">{subtasks.length}건</span>
+            <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide">
+              세부업무 <span className="text-gray-500 dark:text-white/20 font-normal normal-case ml-1">{subtasks.length}건</span>
             </p>
             {canManage && (
               <button onClick={() => setAddingSubtask(true)}
@@ -431,7 +431,7 @@ export default function TaskDetailPanel({
           )}
 
           {subtasks.length === 0 && !addingSubtask && (
-            <p className="text-xs text-gray-300 dark:text-white/20 text-center py-3">세부업무가 없습니다</p>
+            <p className="text-xs text-gray-500 dark:text-white/20 text-center py-3">세부업무가 없습니다</p>
           )}
         </div>
 
@@ -440,8 +440,8 @@ export default function TaskDetailPanel({
 
       {/* 하단 액션 */}
       {canManage && (
-        <div className="px-5 py-3 border-t border-black/6 dark:border-white/8 flex justify-between items-center flex-shrink-0">
-          <span className="text-[11px] text-gray-300 dark:text-white/20">
+        <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/8 flex justify-between items-center flex-shrink-0">
+          <span className="text-[11px] text-gray-500 dark:text-white/20">
             {task.updatedAt ? `수정 ${new Date(task.updatedAt).toLocaleDateString('ko-KR')}` : ''}
           </span>
           <button onClick={handleDelete}

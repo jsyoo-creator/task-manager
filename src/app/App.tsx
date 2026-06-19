@@ -89,9 +89,11 @@ function App() {
 
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
-  const teamAssignees = selectedTeam
-    ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id)).map(u => u.displayName)
+  const teamMembers = selectedTeam
+    ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id))
+        .map(u => ({ name: u.displayName, department: u.department as string | undefined }))
     : [];
+  const teamAssignees = teamMembers.map(m => m.name);
 
   // 활성 카테고리에 해당하는 파트 (없으면 undefined → 팀 기본 설정 사용)
   const activePart = activeCategory !== 'all'
@@ -216,6 +218,7 @@ function App() {
               canManage={permissions.canManageTasks}
               metaFields={resolvedMetaFields}
               subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
+              teamMembers={teamMembers}
             />
           );
         })()}

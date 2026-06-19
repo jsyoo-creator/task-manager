@@ -4,7 +4,7 @@ import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType } fro
 import { DEFAULT_META_FIELDS } from '../types';
 import DatePicker from './DatePicker';
 
-const PANEL_W = 380;
+const PANEL_W = 540;
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
@@ -20,6 +20,12 @@ const CAT_DOT: Record<string, string> = {
   '라이브': 'bg-red-500', '복지': 'bg-orange-400', '사업자': 'bg-indigo-500', '기타': 'bg-gray-400',
 };
 
+const DEPT_BADGE: Record<string, string> = {
+  '기획':  'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+  '디자인': 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300',
+  '퍼블':  'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
+};
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3 py-2.5 border-b border-black/[0.08] dark:border-white/6 last:border-0">
@@ -29,10 +35,44 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-type SubTaskEntry = { assignee?: string; weeklyHours: Record<string, number>; totalHours: number };
+type SubTaskEntry = {
+  assignee?: string;
+  startDate?: string;
+  endDate?: string;
+  weeklyHours: Record<string, number>; // keys: w1d1~w5d5
+  totalHours: number;
+};
+
+function getWeekDays(startDate: string) {
+  const DAY_NAMES = ['월', '화', '수', '목', '금'];
+  if (!startDate) {
+    return Array.from({ length: 5 }, () => ({
+      weekLabel: '',
+      days: DAY_NAMES.map(name => ({ name, date: '' })),
+    }));
+  }
+  const base = new Date(startDate);
+  const dow = base.getDay();
+  const diff = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(base);
+  monday.setDate(base.getDate() + diff);
+
+  return Array.from({ length: 5 }, (_, wi) => {
+    const weekMon = new Date(monday);
+    weekMon.setDate(monday.getDate() + wi * 7);
+    const weekLabel = `${weekMon.getMonth() + 1}/${weekMon.getDate()}`;
+    const days = Array.from({ length: 5 }, (__, di) => {
+      const d = new Date(weekMon);
+      d.setDate(weekMon.getDate() + di);
+      return { name: DAY_NAMES[di], date: `${d.getMonth() + 1}/${d.getDate()}` };
+    });
+    return { weekLabel, days };
+  });
+}
 
 export default function TaskDetailPanel({
-  task, onClose, onUpdate, onDelete, assignees, parts, canManage, metaFields: metaFieldsProp, subTaskTypes = [],
+  task, onClose, onUpdate, onDelete, assignees, parts, canManage,
+  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers,
 }: {
   task: Task;
   onClose: () => void;
@@ -43,6 +83,7 @@ export default function TaskDetailPanel({
   canManage: boolean;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
+  teamMembers?: { name: string; department?: string }[];
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const [title, setTitle] = useState(task.title);
@@ -52,7 +93,6 @@ export default function TaskDetailPanel({
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  // 마운트: 슬라이드인 + 메인 콘텐츠 밀어내기
   useEffect(() => {
     requestAnimationFrame(() => {
       setVisible(true);
@@ -63,14 +103,12 @@ export default function TaskDetailPanel({
     };
   }, []);
 
-  // task 바뀌면 로컬 상태 동기화
   useEffect(() => {
     setTitle(task.title);
     setLocalMeta(task.customFields ?? {});
     setLocalSubTaskData(task.subTaskData ?? {});
   }, [task.id]);
 
-  // ESC 닫기
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
     document.addEventListener('keydown', handler);
@@ -236,24 +274,36 @@ export default function TaskDetailPanel({
           {subTaskTypes.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-white/20 text-center py-3">팀 설정 → 세부 업무 탭에서 유형을 등록해주세요</p>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {subTaskTypes.map(type => {
-                const entry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
+                const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
                 const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
+
+                // 직군에 맞는 담당자 필터링
+                const filtered = type.department && teamMembers?.length
+                  ? teamMembers.filter(m => m.department === type.department).map(m => m.name)
+                  : null;
+                const displayAssignees = (filtered && filtered.length > 0) ? filtered : assignees;
+
+                // 시작일 기준 비활성 컬럼 계산
+                const sd = entry.startDate ? new Date(entry.startDate) : null;
+                const dow = sd ? sd.getDay() : 1;
+                const startDayIdx = !sd ? 0 : (dow === 0 || dow === 6) ? 0 : dow - 1;
+                const weeks = getWeekDays(entry.startDate ?? '');
+
                 return (
                   <div key={type.id} className="rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-3">
+                    {/* 헤더: 이름 + 직군 배지 + 담당자 + 총시간 */}
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-white/70 flex-1">{type.name}</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-white/70 flex-1 truncate">{type.name}</span>
                       {type.department && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${
-                          type.department === '기획' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300' :
-                          type.department === '디자인' ? 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' :
-                          'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300'
-                        }`}>{type.department}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${DEPT_BADGE[type.department] ?? ''}`}>
+                          {type.department}
+                        </span>
                       )}
                       <select
                         disabled={!canManage}
-                        className="text-xs bg-black/5 dark:bg-white/8 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 dark:text-white/55 cursor-pointer disabled:cursor-default"
+                        className="text-xs bg-black/5 dark:bg-white/8 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 dark:text-white/55 cursor-pointer disabled:cursor-default max-w-[120px]"
                         value={entry.assignee ?? ''}
                         onChange={e => {
                           const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
@@ -261,52 +311,107 @@ export default function TaskDetailPanel({
                           saveSubTaskData(next);
                         }}>
                         <option value="">담당자</option>
-                        {assignees.map(a => <option key={a}>{a}</option>)}
+                        {displayAssignees.map(a => <option key={a}>{a}</option>)}
                       </select>
                       {total > 0 && (
-                        <span className="text-xs text-gray-500 dark:text-white/35 flex-shrink-0">{total}h</span>
+                        <span className="text-xs font-semibold text-blue-500 dark:text-blue-400 flex-shrink-0">{total}h</span>
                       )}
                     </div>
-                    <div className="grid grid-cols-5 gap-1">
-                      {[1, 2, 3, 4, 5].map(w => {
-                        const key = `${type.id}_w${w}`;
-                        const wKey = `w${w}`;
-                        const val = entry.weeklyHours[wKey] ?? 0;
-                        return (
-                          <div key={w} className="flex flex-col items-center gap-0.5">
-                            <span className="text-[10px] text-gray-400 dark:text-white/25">{w}주</span>
-                            {canManage ? (
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={key in localRaw ? localRaw[key] : (val === 0 ? '' : String(val))}
-                                placeholder="-"
-                                onChange={e => {
-                                  const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                                  setLocalRaw(prev => ({ ...prev, [key]: raw }));
-                                  const n = Math.min(200, parseFloat(raw) || 0);
-                                  const newHours = { ...entry.weeklyHours, [wKey]: n };
-                                  if (n === 0) delete newHours[wKey];
-                                  setLocalSubTaskData(prev => ({
-                                    ...prev,
-                                    [type.id]: { ...entry, weeklyHours: newHours, totalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
-                                  }));
-                                }}
-                                onBlur={() => {
-                                  setLocalRaw(prev => { const next = { ...prev }; delete next[key]; return next; });
-                                  saveSubTaskData(localSubTaskData);
-                                }}
-                                className="w-full text-center text-[11px] bg-black/[0.08] dark:bg-white/8 rounded py-1 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-800 dark:text-white/75 placeholder:text-gray-500 dark:placeholder:text-white/20"
-                              />
-                            ) : (
-                              <span className="w-full text-center text-[11px] rounded py-1 bg-black/[0.08] dark:bg-white/8 text-gray-700 dark:text-white/55">
-                                {val > 0 ? val : <span className="opacity-50">-</span>}
-                              </span>
+
+                    {/* 시작일 / 종료일 */}
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className="text-[11px] text-gray-500 dark:text-white/35 flex-shrink-0">시작</span>
+                      <DatePicker
+                        value={entry.startDate ?? ''}
+                        onChange={v => {
+                          const next = { ...localSubTaskData, [type.id]: { ...entry, startDate: v } };
+                          setLocalSubTaskData(next);
+                          saveSubTaskData(next);
+                        }}
+                        disabled={!canManage}
+                      />
+                      <span className="text-gray-300 dark:text-white/20 flex-shrink-0">→</span>
+                      <DatePicker
+                        value={entry.endDate ?? ''}
+                        onChange={v => {
+                          const next = { ...localSubTaskData, [type.id]: { ...entry, endDate: v } };
+                          setLocalSubTaskData(next);
+                          saveSubTaskData(next);
+                        }}
+                        disabled={!canManage}
+                      />
+                    </div>
+
+                    {/* 요일 헤더 */}
+                    <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-0.5">
+                      <span />
+                      {['월', '화', '수', '목', '금'].map(d => (
+                        <span key={d} className="text-center text-[10px] font-medium text-gray-500 dark:text-white/30">{d}</span>
+                      ))}
+                    </div>
+
+                    {/* 주차별 행 */}
+                    {weeks.map(({ weekLabel, days }, wi) => {
+                      const weekNum = wi + 1;
+                      return (
+                        <div key={wi} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1">
+                          <div className="flex flex-col items-center justify-center">
+                            <span className="text-[10px] font-semibold text-gray-600 dark:text-white/40 leading-none">{weekNum}주</span>
+                            {weekLabel && (
+                              <span className="text-[8px] text-gray-400 dark:text-white/20 leading-tight mt-0.5">{weekLabel}</span>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                          {days.map(({ date }, di) => {
+                            const key = `w${weekNum}d${di + 1}`;
+                            const rawKey = `${type.id}_${key}`;
+                            const val = entry.weeklyHours[key] ?? 0;
+                            const disabled = wi === 0 && di < startDayIdx;
+                            return (
+                              <div key={di} className="flex flex-col items-center gap-0.5">
+                                <span className={`text-[8px] leading-none ${disabled ? 'text-gray-300 dark:text-white/10' : 'text-gray-400 dark:text-white/22'}`}>
+                                  {date || ' '}
+                                </span>
+                                {canManage && !disabled ? (
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={rawKey in localRaw ? localRaw[rawKey] : (val === 0 ? '' : String(val))}
+                                    placeholder="-"
+                                    onChange={e => {
+                                      const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                      setLocalRaw(prev => ({ ...prev, [rawKey]: raw }));
+                                      const n = Math.min(24, parseFloat(raw) || 0);
+                                      const newHours = { ...entry.weeklyHours, [key]: n };
+                                      if (n === 0) delete newHours[key];
+                                      setLocalSubTaskData(prev => {
+                                        const cur = prev[type.id] ?? entry;
+                                        return {
+                                          ...prev,
+                                          [type.id]: { ...cur, weeklyHours: newHours, totalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
+                                        };
+                                      });
+                                    }}
+                                    onBlur={() => {
+                                      setLocalRaw(prev => { const next = { ...prev }; delete next[rawKey]; return next; });
+                                      saveSubTaskData(localSubTaskData);
+                                    }}
+                                    className="w-full text-center text-[10px] bg-black/[0.08] dark:bg-white/8 rounded py-0.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-800 dark:text-white/75 placeholder:text-gray-400 dark:placeholder:text-white/18"
+                                  />
+                                ) : (
+                                  <span className={`w-full text-center text-[10px] rounded py-0.5 ${
+                                    disabled
+                                      ? 'bg-black/[0.02] dark:bg-white/[0.02] text-gray-300 dark:text-white/10'
+                                      : 'bg-black/[0.08] dark:bg-white/8 text-gray-600 dark:text-white/50'
+                                  }`}>
+                                    {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -314,7 +419,7 @@ export default function TaskDetailPanel({
           )}
         </div>
 
-        {/* 업무 상세 정보 */}
+        {/* 업무 정보 */}
         <div className="px-5 py-3 border-t border-black/[0.08] dark:border-white/6">
           <p className="text-[11px] font-semibold text-gray-600 dark:text-white/30 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
@@ -346,7 +451,6 @@ export default function TaskDetailPanel({
           </div>
         </div>
 
-
         <div className="h-6" />
       </div>
 
@@ -365,4 +469,3 @@ export default function TaskDetailPanel({
     </div>
   );
 }
-

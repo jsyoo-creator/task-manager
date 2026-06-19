@@ -210,7 +210,9 @@ export interface Task {
   customFields?: Record<string, string>;
   subTaskData?: Record<string, {
     assignee?: string;
-    weeklyHours: Record<string, number>;
+    startDate?: string;
+    endDate?: string;
+    weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)
     totalHours: number;
   }>;
   memo?: string;

@@ -202,7 +202,7 @@ export default function TaskDetailPanel({
             <div>
               <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">월</p>
               {canManage ? (
-                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
                   value={task.taskMonth ?? ''}
                   onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
                   <option value="">-</option>

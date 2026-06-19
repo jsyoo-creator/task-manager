@@ -21,7 +21,7 @@ interface Props {
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
-  onUpdateAllTeamsMetaFields: (fields: MetaField[]) => Promise<void>;
+  onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
   onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
   onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
 }
@@ -698,16 +698,16 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 // ──────────────────────────────────────────
 // 팀 관리 섹션
 // ──────────────────────────────────────────
-// 업무 정보 필드 섹션 (전체 팀 공통 + 파트별 재정의)
+// 업무 정보 필드 섹션 (팀별 + 파트별 재정의)
 // ──────────────────────────────────────────
-function GlobalMetaSection({ teams, onSaveAll, onSavePart, onClearPart }: {
+function GlobalMetaSection({ teams, onSaveTeam, onSavePart, onClearPart }: {
   teams: Team[];
-  onSaveAll: (fields: MetaField[]) => Promise<void>;
+  onSaveTeam: (teamId: string, fields: MetaField[]) => Promise<void>;
   onSavePart: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
   onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
-  // selectedTarget: 'global' | `${teamId}::${partId}`
-  const [selectedTarget, setSelectedTarget] = useState<string>('global');
+  // selectedTarget: `team::{teamId}` | `part::{teamId}::{partId}`
+  const [selectedTarget, setSelectedTarget] = useState<string>(`team::${teams[0]?.id ?? ''}`);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -715,33 +715,35 @@ function GlobalMetaSection({ teams, onSaveAll, onSavePart, onClearPart }: {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
-  useEffect(() => { setSelectedTarget('global'); setEditingKey(null); }, [teams.map(t => t.id).join(',')]);
+  const teamIds = teams.map(t => t.id).join(',');
+  useEffect(() => {
+    setSelectedTarget(`team::${teams[0]?.id ?? ''}`);
+    setEditingKey(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamIds]);
 
-  // 전체 팀에 걸쳐 파트가 하나라도 있는지
-  const allParts = teams.flatMap(t => t.parts.map(p => ({ team: t, part: p })));
-  const hasParts = allParts.length > 0;
   const multipleTeams = teams.length > 1;
+  const showTargetTabs = multipleTeams || teams.some(t => t.parts.length > 0);
 
-  // 현재 선택 대상 해석
-  const isGlobal = selectedTarget === 'global';
-  let currentTeam: Team | undefined;
-  let currentPart: TeamPart | undefined;
-  if (!isGlobal) {
-    const [teamId, partId] = selectedTarget.split('::');
-    currentTeam = teams.find(t => t.id === teamId);
-    currentPart = currentTeam?.parts.find(p => p.id === partId);
-  }
-  const isInherited = !isGlobal && !currentPart?.metaFields;
+  // 현재 선택 대상 파싱
+  const isTeamLevel = selectedTarget.startsWith('team::');
+  const parts = selectedTarget.split('::');
+  const selTeamId = isTeamLevel ? parts[1] : parts[1];
+  const selPartId = !isTeamLevel ? parts[2] : undefined;
+  const selTeam = teams.find(t => t.id === selTeamId);
+  const selPart = selPartId ? selTeam?.parts.find(p => p.id === selPartId) : undefined;
+  const isInherited = !isTeamLevel && !selPart?.metaFields;
 
-  // 글로벌 값: 첫 번째 팀의 metaFields (모든 팀이 동일해야 하므로)
-  const globalFields: MetaField[] = teams.find(t => t.metaFields)?.metaFields ?? DEFAULT_META_FIELDS;
-  const fields: MetaField[] = isGlobal ? globalFields : (currentPart?.metaFields ?? globalFields);
+  const teamFields: MetaField[] = selTeam?.metaFields ?? DEFAULT_META_FIELDS;
+  const fields: MetaField[] = isTeamLevel ? teamFields : (selPart?.metaFields ?? teamFields);
+
+  const select = (key: string) => { setSelectedTarget(key); setEditingKey(null); };
 
   const save = (next: MetaField[]) => {
-    if (isGlobal) {
-      onSaveAll(next);
-    } else if (currentTeam && currentPart) {
-      onSavePart(currentTeam.id, currentPart.id, next);
+    if (isTeamLevel && selTeam) {
+      onSaveTeam(selTeam.id, next);
+    } else if (selTeam && selPart) {
+      onSavePart(selTeam.id, selPart.id, next);
     }
   };
 
@@ -785,43 +787,49 @@ function GlobalMetaSection({ teams, onSaveAll, onSavePart, onClearPart }: {
       </div>
       <div className="px-5 py-4 space-y-4">
 
-        {/* 적용 대상 */}
-        {hasParts && (
+        {/* 적용 대상: 팀이 여러 개이거나 파트가 있을 때만 표시 */}
+        {showTargetTabs && (
           <div>
             <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">적용 대상</p>
             <div className="flex flex-wrap gap-1.5">
-              {/* 팀 기본 (전체) */}
-              <button
-                onClick={() => { setSelectedTarget('global'); setEditingKey(null); }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                  selectedTarget === 'global'
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'border-black/10 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
-                }`}>
-                팀 기본
-              </button>
-              {/* 모든 팀의 파트 */}
-              {allParts.map(({ team, part }) => {
-                const key = `${team.id}::${part.id}`;
-                const hasOwn = !!part.metaFields;
-                return (
+              {teams.flatMap(team => {
+                const teamKey = `team::${team.id}`;
+                const teamBtn = (
                   <button
-                    key={key}
-                    onClick={() => { setSelectedTarget(key); setEditingKey(null); }}
+                    key={teamKey}
+                    onClick={() => select(teamKey)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      selectedTarget === key
+                      selectedTarget === teamKey
                         ? 'bg-blue-500 text-white border-blue-500'
                         : 'border-black/10 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
                     }`}>
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />
-                    {multipleTeams ? `${team.emoji} ${part.name}` : part.name}
-                    {hasOwn && (
-                      <span className={`text-[10px] px-1 rounded ${selectedTarget === key ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'}`}>
-                        별도
-                      </span>
-                    )}
+                    {multipleTeams ? <span className="mr-0.5">{team.emoji}</span> : null}
+                    {multipleTeams ? team.name : '팀 기본'}
                   </button>
                 );
+                const partBtns = team.parts.map(part => {
+                  const partKey = `part::${team.id}::${part.id}`;
+                  const hasOwn = !!part.metaFields;
+                  return (
+                    <button
+                      key={partKey}
+                      onClick={() => select(partKey)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        selectedTarget === partKey
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'border-black/10 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />
+                      {part.name}
+                      {hasOwn && (
+                        <span className={`text-[10px] px-1 rounded ${selectedTarget === partKey ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'}`}>
+                          별도
+                        </span>
+                      )}
+                    </button>
+                  );
+                });
+                return [teamBtn, ...partBtns];
               })}
             </div>
           </div>
@@ -831,17 +839,17 @@ function GlobalMetaSection({ teams, onSaveAll, onSavePart, onClearPart }: {
         {isInherited && (
           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
             <p className="text-xs text-amber-700 dark:text-amber-300">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
-            <button onClick={() => currentTeam && currentPart && onClearPart(currentTeam.id, currentPart.id)}
+            <button onClick={() => selTeam && selPart && onClearPart(selTeam.id, selPart.id)}
               className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 font-medium ml-3 flex-shrink-0">
               <RotateCcw size={11} />초기화
             </button>
           </div>
         )}
-        {!isGlobal && !isInherited && (
+        {!isTeamLevel && !isInherited && (
           <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
             <p className="text-xs text-blue-700 dark:text-blue-300">이 파트의 별도 설정이 적용 중</p>
             <button onClick={() => {
-              if (currentTeam && currentPart) { onClearPart(currentTeam.id, currentPart.id); setSelectedTarget('global'); }
+              if (selTeam && selPart) { onClearPart(selTeam.id, selPart.id); select(`team::${selTeam.id}`); }
             }} className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 font-medium ml-3 flex-shrink-0">
               <RotateCcw size={11} />팀 기본으로 초기화
             </button>
@@ -909,7 +917,7 @@ function GlobalMetaSection({ teams, onSaveAll, onSavePart, onClearPart }: {
               <Plus size={11} />추가
             </button>
           </div>
-          {isGlobal && (
+          {isTeamLevel && (
             <button onClick={() => save(DEFAULT_META_FIELDS)}
               className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-white/60 transition-colors mt-1">
               <RotateCcw size={11} /> 기본값으로 초기화
@@ -1129,7 +1137,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateAllTeamsMetaFields, onUpdatePartMetaFields, onClearPartMetaFields,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -1363,7 +1371,7 @@ export default function SettingsPage({
       {canManageUsers && (
         <GlobalMetaSection
           teams={teams}
-          onSaveAll={onUpdateAllTeamsMetaFields}
+          onSaveTeam={onUpdateMetaFields}
           onSavePart={onUpdatePartMetaFields}
           onClearPart={onClearPartMetaFields}
         />

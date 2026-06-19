@@ -40,7 +40,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields } = useTeams(user?.uid);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
@@ -187,7 +187,7 @@ function App() {
                     onUpdateFormConfig={updateFormConfig}
                     onUpdatePartFormConfig={updatePartFormConfig}
                     onClearPartFormConfig={clearPartFormConfig}
-                    onUpdateAllTeamsMetaFields={updateAllTeamsMetaFields}
+                    onUpdateMetaFields={updateMetaFields}
                     onUpdatePartMetaFields={updatePartMetaFields}
                     onClearPartMetaFields={clearPartMetaFields}
                   />
@@ -201,8 +201,7 @@ function App() {
           const detailTask = tasks.find(t => t.id === detailTaskId);
           if (!detailTask) return null;
           const taskPart = activeParts.find(p => p.name === detailTask.category);
-          const globalMetaFields = teams.find(t => t.metaFields)?.metaFields;
-          const resolvedMetaFields = taskPart?.metaFields ?? globalMetaFields;
+          const resolvedMetaFields = taskPart?.metaFields ?? selectedTeam?.metaFields;
           return (
             <TaskDetailPanel
               task={detailTask}

@@ -123,7 +123,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           style={{ gridTemplateColumns: colTemplate }}>
           {tableFields.flatMap(fc => {
             if (fc.key === 'title') return [
-              <span key="title" className="pl-2 text-gray-500 dark:text-white/50">
+              <span key="title" className="pl-3.5 text-gray-500 dark:text-white/50">
                 {fc.customLabel ?? HEADER_LABEL.title}
               </span>,
             ];

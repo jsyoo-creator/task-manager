@@ -111,9 +111,9 @@ export default function TaskDetailPanel({
     <div
       style={{ left: 220, width: PANEL_W }}
       className={`fixed top-0 h-screen z-30 flex flex-col
-        bg-white/95 dark:bg-[#111827]/96 backdrop-blur-2xl
-        border-r border-black/8 dark:border-white/8
-        shadow-[4px_0_24px_rgba(0,0,0,0.07)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.35)]
+        bg-[#eef2fb] dark:bg-[#182234] backdrop-blur-2xl
+        shadow-[inset_2px_0_0_rgba(0,0,0,0.09),4px_0_20px_rgba(0,0,0,0.09)]
+        dark:shadow-[inset_2px_0_0_rgba(255,255,255,0.09),4px_0_28px_rgba(0,0,0,0.45)]
         transition-transform duration-260 ease-out
         ${visible ? 'translate-x-0' : '-translate-x-full'}`}
     >

@@ -99,10 +99,15 @@ function App() {
     : undefined;
   const effectiveFormConfig = activePart?.formConfig ?? selectedTeam?.formConfig;
 
-  // 선택된 팀의 파트와 일치하는 업무만 표시 (파트가 있을 때만 필터링)
-  const filteredTasks = activeParts.length > 0
-    ? tasks.filter(t => activeParts.some(p => p.name === t.category))
-    : tasks;
+  // 팀 + 파트 필터링
+  const filteredTasks = tasks.filter(t => {
+    if (t.teamId && activeTeamId && t.teamId !== activeTeamId) return false;
+    if (activeParts.length > 0 && !activeParts.some(p => p.name === t.category)) return false;
+    return true;
+  });
+
+  const addTaskForTeam = (data: Omit<(typeof tasks)[0], 'id' | 'createdAt' | 'updatedAt'>) =>
+    addTask({ ...data, teamId: activeTeamId ?? '' });
 
   if (authLoading || (user && roleLoading)) {
     return <LoadingScreen done={false} onFinished={() => {}} isDark={isDark} />;
@@ -147,7 +152,7 @@ function App() {
             } />
             <Route path="/tasks" element={
               <TaskManagement
-                tasks={filteredTasks} onAddTask={addTask} onUpdateTask={updateTask}
+                tasks={filteredTasks} onAddTask={addTaskForTeam} onUpdateTask={updateTask}
                 onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canManage={permissions.canManageTasks}

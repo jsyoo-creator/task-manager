@@ -155,6 +155,7 @@ export interface SubTask {
 export interface Task {
   id: string;
   projectId: string;
+  teamId?: string;
   title: string;
   category: TaskCategory;
   type: TaskType;

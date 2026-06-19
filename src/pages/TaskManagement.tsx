@@ -59,6 +59,21 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
   return cols.join(' ');
 }
 
+// 헤더와 데이터 행이 동일한 minWidth를 가져야 1fr 컬럼이 일치함
+function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
+  let w = 0;
+  let colCount = 0;
+  for (const fc of tableFields) {
+    if (fc.key === 'title') { w += 120; colCount++; }
+    else if (fc.key === 'weeklyHours') { w += fc.width * 5 + 52; colCount += 6; }
+    else { w += fc.width; colCount++; }
+  }
+  w += 28; colCount++; // delete 컬럼
+  w += (colCount - 1) * 12; // gap-x-3
+  w += 24; // px-3 양쪽
+  return w;
+}
+
 const HEADER_LABEL: Partial<Record<string, string>> = {
   title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
@@ -72,6 +87,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
   const colTemplate = buildCols(tableFields);
+  const colMinWidth = buildMinWidth(tableFields);
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
@@ -119,8 +135,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <div className="glass-card-noclip overflow-x-auto">
         {/* 헤더 */}
-        <div className="grid gap-x-3 text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
-          style={{ gridTemplateColumns: colTemplate }}>
+        <div className="grid gap-x-3 text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5"
+          style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
           {tableFields.flatMap(fc => {
             if (fc.key === 'title') return [
               <span key="title" className="pl-3.5 text-gray-500 dark:text-white/50">
@@ -157,6 +173,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             assignees={assignees}
             tableFields={tableFields}
             colTemplate={colTemplate}
+            colMinWidth={colMinWidth}
           />
         ))}
       </div>
@@ -181,7 +198,7 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees, tableFields, colTemplate }: {
+function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees, tableFields, colTemplate, colMinWidth }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -190,15 +207,16 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
   assignees: string[];
   tableFields: BuiltinFieldConfig[];
   colTemplate: string;
+  colMinWidth: number;
 }) {
 
   const totalH = Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
   const sel = "bg-transparent border-none focus:outline-none cursor-pointer text-xs w-full";
 
   return (
-    <div className="border-b border-black/4 dark:border-white/6 last:border-0 min-w-max">
+    <div className="border-b border-black/4 dark:border-white/6 last:border-0">
       <div className="grid gap-x-3 items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
-        style={{ gridTemplateColumns: colTemplate }}>
+        style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
 
         {tableFields.flatMap(fc => {
           if (fc.key === 'title') return [

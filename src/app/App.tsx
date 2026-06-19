@@ -22,7 +22,7 @@ import type { TaskCategory } from '../types';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
-  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams } = useUserRole(user);
+  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam } = useUserRole(user);
   const { users: allUsers } = useAllUsers();
 
   const { projects, loading: projLoading, addProject } = useProjects();
@@ -51,8 +51,11 @@ function App() {
       setActiveTeamId(null);
       localStorage.removeItem('activeTeamId');
     } else if (!activeTeamId || !ids.includes(activeTeamId)) {
-      setActiveTeamId(ids[0]);
-      localStorage.setItem('activeTeamId', ids[0]);
+      const preferred = (appUser?.defaultTeamId && ids.includes(appUser.defaultTeamId))
+        ? appUser.defaultTeamId
+        : ids[0];
+      setActiveTeamId(preferred);
+      localStorage.setItem('activeTeamId', preferred);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser?.selectedTeamIds?.join(',')]);
@@ -169,6 +172,7 @@ function App() {
                     onUpdateName={updateDisplayName}
                     onUpdateDepartment={updateDepartment}
                     onUpdateSelectedTeams={updateSelectedTeams}
+                    onUpdateDefaultTeam={updateDefaultTeam}
                     teams={teams}
                     teamsLoading={teamsLoading}
                     onCreateTeam={createTeam}

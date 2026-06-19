@@ -10,6 +10,7 @@ export interface AppUser {
   role: UserRole;
   department?: Department;
   selectedTeamIds?: string[];
+  defaultTeamId?: string;
   createdAt: string;
 }
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig } from '../types';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -11,6 +11,7 @@ interface Props {
   onUpdateName: (name: string) => Promise<void>;
   onUpdateDepartment: (dept: Department) => Promise<void>;
   onUpdateSelectedTeams: (teamIds: string[]) => Promise<void>;
+  onUpdateDefaultTeam: (teamId: string | null) => Promise<void>;
   teams: Team[];
   teamsLoading: boolean;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -899,7 +900,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 // 메인 페이지
 // ──────────────────────────────────────────
 export default function SettingsPage({
-  appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams,
+  appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
   onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig,
 }: Props) {
@@ -1004,30 +1005,58 @@ export default function SettingsPage({
             ) : teams.length === 0 ? (
               <p className="text-xs text-gray-400 italic">생성된 팀이 없습니다{appUser.role !== 'user' ? ' — 아래에서 팀을 먼저 만들어주세요' : ''}.</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {teams.map(t => {
-                  const isSelected = appUser.selectedTeamIds?.includes(t.id) ?? false;
-                  const handleToggle = () => {
-                    const current = appUser.selectedTeamIds ?? [];
-                    const next = isSelected
-                      ? current.filter(id => id !== t.id)
-                      : [...current, t.id];
-                    onUpdateSelectedTeams(next);
-                  };
-                  return (
-                    <button key={t.id} onClick={handleToggle}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-                        isSelected
-                          ? 'bg-blue-500 text-white border-blue-500 shadow-md'
-                          : 'border-black/10 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
-                      }`}>
-                      <span className="text-base">{t.emoji}</span>
-                      <span>{t.name}</span>
-                      {isSelected && <Check size={13} />}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {teams.map(t => {
+                    const isSelected = appUser.selectedTeamIds?.includes(t.id) ?? false;
+                    const isDefault = appUser.defaultTeamId === t.id;
+                    const selectedCount = appUser.selectedTeamIds?.length ?? 0;
+                    const handleToggle = () => {
+                      const current = appUser.selectedTeamIds ?? [];
+                      const next = isSelected
+                        ? current.filter(id => id !== t.id)
+                        : [...current, t.id];
+                      onUpdateSelectedTeams(next);
+                      if (isSelected && isDefault) onUpdateDefaultTeam(null);
+                    };
+                    const handleSetDefault = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      onUpdateDefaultTeam(isDefault ? null : t.id);
+                    };
+                    return (
+                      <div key={t.id} className="relative">
+                        <button onClick={handleToggle}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                            isSelected
+                              ? 'bg-blue-500 text-white border-blue-500 shadow-md pr-8'
+                              : 'border-black/10 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                          }`}>
+                          <span className="text-base">{t.emoji}</span>
+                          <span>{t.name}</span>
+                          {isSelected && !isDefault && <Check size={13} />}
+                        </button>
+                        {isSelected && selectedCount >= 2 && (
+                          <button
+                            onClick={handleSetDefault}
+                            title={isDefault ? '기본 팀 해제' : '기본 팀으로 설정'}
+                            className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded transition-colors ${
+                              isDefault
+                                ? 'text-yellow-300'
+                                : 'text-white/50 hover:text-yellow-300'
+                            }`}>
+                            <Star size={12} fill={isDefault ? 'currentColor' : 'none'} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {(appUser.selectedTeamIds?.length ?? 0) >= 2 && (
+                  <p className="mt-1.5 text-[11px] text-gray-400 dark:text-white/30">
+                    ★ 를 눌러 접속 시 기본으로 선택될 팀을 지정하세요.
+                  </p>
+                )}
+              </>
             )}
             {!teamsLoading && teams.length > 0 && !appUser.selectedTeamIds?.length && (
               <p className="mt-1.5 text-xs text-orange-500">소속 팀을 하나 이상 선택해주세요. 팀을 선택해야 업무 데이터를 볼 수 있습니다.</p>

@@ -84,7 +84,14 @@ export function useUserRole(firebaseUser: User | null) {
     });
   };
 
-  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams };
+  const updateDefaultTeam = async (teamId: string | null) => {
+    if (!firebaseUser) return;
+    await updateDoc(doc(db, 'users', firebaseUser.uid), {
+      defaultTeamId: teamId ?? deleteField(),
+    });
+  };
+
+  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam };
 }
 
 export function useAllUsers() {

@@ -101,6 +101,7 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const activeTeam = userTeams.find(t => t.id === activeTeamId) ?? userTeams[0] ?? null;
+  const canSwitch = userTeams.length > 1;
 
   useEffect(() => {
     if (!open) return;
@@ -111,9 +112,14 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  if (userTeams.length <= 1) {
-    return (
-      <>
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => canSwitch && setOpen(o => !o)}
+        className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 -mx-2 transition-colors select-none ${
+          canSwitch ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/6' : ''
+        }`}
+      >
         <div className="w-8 h-8 rounded-[9px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] flex items-center justify-center flex-shrink-0
           shadow-[0_2px_6px_rgba(37,99,235,0.5),0_0_0_1px_rgba(255,255,255,0.2)_inset]
           relative before:absolute before:inset-0 before:rounded-[9px] before:bg-gradient-to-b before:from-white/25 before:to-transparent">
@@ -121,44 +127,31 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
             ? <span className="text-base leading-none relative z-10">{activeTeam.emoji}</span>
             : <span className="text-white font-bold text-xs relative z-10 opacity-60">무</span>}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[9px] text-black/25 dark:text-white/25 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
           <p className="text-xs font-semibold text-black/80 dark:text-white/80 truncate leading-tight">
             {activeTeam?.name ?? <span className="italic text-black/35 dark:text-white/30 font-normal">무소속</span>}
           </p>
         </div>
-      </>
-    );
-  }
+        {canSwitch && (
+          <div className="flex items-center gap-0.5 flex-shrink-0 bg-black/6 dark:bg-white/8 rounded-md px-1.5 py-0.5">
+            <span className="text-[9px] font-bold text-black/40 dark:text-white/35 tabular-nums">{userTeams.length}팀</span>
+            <ChevronDown size={10} className={`text-black/40 dark:text-white/35 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          </div>
+        )}
+      </div>
 
-  return (
-    <div ref={ref} className="relative flex items-center gap-2.5 min-w-0 flex-1">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/6 px-0.5 py-0.5 -mx-0.5 transition-colors group"
-      >
-        <div className="w-8 h-8 rounded-[9px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] flex items-center justify-center flex-shrink-0
-          shadow-[0_2px_6px_rgba(37,99,235,0.5),0_0_0_1px_rgba(255,255,255,0.2)_inset]
-          relative before:absolute before:inset-0 before:rounded-[9px] before:bg-gradient-to-b before:from-white/25 before:to-transparent">
-          <span className="text-base leading-none relative z-10">{activeTeam?.emoji}</span>
-        </div>
-        <div className="min-w-0 flex-1 text-left">
-          <p className="text-[9px] text-black/25 dark:text-white/25 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
-          <p className="text-xs font-semibold text-black/80 dark:text-white/80 truncate leading-tight">{activeTeam?.name}</p>
-        </div>
-        <ChevronDown size={11} className={`flex-shrink-0 text-black/30 dark:text-white/30 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 w-48 z-50
-          bg-white/95 dark:bg-[#1a2235]/95 backdrop-blur-xl
+      {open && canSwitch && (
+        <div className="absolute top-full left-0 mt-2 w-52 z-50
+          bg-white/96 dark:bg-[#1a2235]/96 backdrop-blur-xl
           border border-black/10 dark:border-white/10
-          rounded-xl shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden">
+          rounded-2xl shadow-xl shadow-black/12 dark:shadow-black/40 overflow-hidden py-1">
+          <p className="text-[9px] font-bold text-black/25 dark:text-white/20 uppercase tracking-[0.15em] px-3.5 pt-2 pb-1.5">팀 전환</p>
           {userTeams.map(t => (
             <button
               key={t.id}
               onClick={() => { onActiveTeamChange(t.id); setOpen(false); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors ${
                 t.id === activeTeamId
                   ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
                   : 'text-black/70 dark:text-white/70 hover:bg-black/5 dark:hover:bg-white/6'
@@ -208,12 +201,15 @@ export default function Layout({
 
         {/* Logo + Team */}
         <div className="p-4 pb-3">
-          <div className="flex items-center gap-2.5 mb-3">
+          <div className="mb-3">
             {teamsLoading ? (
-              <>
+              <div className="flex items-center gap-2.5 px-2 py-1.5">
                 <div className="w-8 h-8 rounded-[9px] bg-black/10 dark:bg-white/10 animate-pulse flex-shrink-0" />
-                <p className="text-xs text-black/40 dark:text-white/40">로딩 중...</p>
-              </>
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-1.5 w-7 bg-black/10 dark:bg-white/10 animate-pulse rounded-full" />
+                  <div className="h-2.5 w-24 bg-black/10 dark:bg-white/10 animate-pulse rounded-full" />
+                </div>
+              </div>
             ) : (
               <TeamSwitcher
                 userTeams={userSelectedTeams}

@@ -1,10 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Plus, Trash2, ChevronDown, Check } from 'lucide-react';
+import { X, Plus, Trash2, ChevronDown, Check, ExternalLink } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskType, TeamPart } from '../types';
 import { useSubTasks } from '../hooks/useTasks';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 380;
+
+const META_FIELDS: { key: string; label: string; isUrl?: boolean }[] = [
+  { key: '제품군',            label: '제품군' },
+  { key: '컨셉',              label: '컨셉' },
+  { key: '셋팅',              label: '셋팅' },
+  { key: '기획전명',          label: '기획전명' },
+  { key: 'KV모델',            label: 'KV모델' },
+  { key: '히든기획전_url_main', label: '히든기획전 URL 메인', isUrl: true },
+  { key: '히든기획전_url_2',   label: '히든기획전 URL 2',    isUrl: true },
+  { key: '방송안내_url',       label: '방송안내 URL',         isUrl: true },
+  { key: '피그마_url',         label: '피그마 URL',           isUrl: true },
+];
 
 // 시작일 기준 5주 × 5일(월~금) 날짜 계산
 function getWeekDays(startDate: string): { weekLabel: string; days: { name: string; date: string }[] }[] {
@@ -72,7 +84,7 @@ export default function TaskDetailPanel({
 }) {
   const { subtasks, addSubTask, deleteSubTask } = useSubTasks(task.id);
   const [title, setTitle] = useState(task.title);
-  const [memo, setMemo] = useState(task.memo ?? '');
+  const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});
   const [localHours, setLocalHours] = useState<Record<string, number>>(task.weeklyHours ?? {});
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
   const [addingSubtask, setAddingSubtask] = useState(false);
@@ -94,7 +106,7 @@ export default function TaskDetailPanel({
   // task 바뀌면 로컬 상태 동기화
   useEffect(() => {
     setTitle(task.title);
-    setMemo(task.memo ?? '');
+    setLocalMeta(task.customFields ?? {});
     setLocalHours(task.weeklyHours ?? {});
     setNewSub(s => ({ ...s, assignee: task.assignee }));
   }, [task.id]);
@@ -118,8 +130,13 @@ export default function TaskDetailPanel({
     else setTitle(task.title);
   };
 
-  const handleMemoBlur = () => {
-    if (memo !== (task.memo ?? '')) onUpdate(task.id, { memo: memo || undefined });
+  const handleMetaBlur = (key: string, val: string) => {
+    const prev = task.customFields?.[key] ?? '';
+    if (val !== prev) {
+      const next = { ...(task.customFields ?? {}), [key]: val };
+      if (!val) delete next[key];
+      onUpdate(task.id, { customFields: next });
+    }
   };
 
   const handleAddSubtask = async () => {
@@ -339,18 +356,36 @@ export default function TaskDetailPanel({
           })()}
         </div>
 
-        {/* 메모 */}
+        {/* 업무 상세 정보 */}
         <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
-          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2">메모</p>
-          <textarea
-            value={memo}
-            onChange={e => setMemo(e.target.value)}
-            onBlur={handleMemoBlur}
-            readOnly={!canManage}
-            placeholder={canManage ? '업무 관련 메모를 입력하세요...' : '메모 없음'}
-            rows={4}
-            className="w-full text-sm text-gray-700 dark:text-white/70 bg-black/3 dark:bg-white/5 rounded-xl border border-black/6 dark:border-white/8 px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400/40 placeholder:text-gray-300 dark:placeholder:text-white/20 leading-relaxed transition-colors"
-          />
+          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2.5">업무 정보</p>
+          <div className="space-y-2">
+            {META_FIELDS.map(({ key, label, isUrl }) => {
+              const val = localMeta[key] ?? '';
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[11px] text-gray-400 dark:text-white/35 w-[96px] flex-shrink-0 truncate">{label}</span>
+                  <div className="flex-1 flex items-center gap-1 min-w-0">
+                    <input
+                      type={isUrl ? 'url' : 'text'}
+                      readOnly={!canManage}
+                      placeholder={canManage ? (isUrl ? 'https://' : '-') : '-'}
+                      value={val}
+                      onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
+                      onBlur={e => handleMetaBlur(key, e.target.value)}
+                      className="flex-1 min-w-0 text-xs text-gray-700 dark:text-white/70 bg-black/4 dark:bg-white/6 rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-300 dark:placeholder:text-white/18 transition-colors"
+                    />
+                    {isUrl && val && (
+                      <a href={val} target="_blank" rel="noopener noreferrer"
+                        className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* 세부업무 */}

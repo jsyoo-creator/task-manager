@@ -405,12 +405,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
     setCDragOverIdx(null);
   };
 
-  const updateWidth = (key: BuiltinFieldKey, w: number) => {
-    const updated = fields.map(f => f.key === key ? { ...f, width: w } : f);
-    setFields(updated);
-    onSaveFields(updated);
-  };
-
   const toggleBuiltin = (key: BuiltinFieldKey) => {
     const updated = fields.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f);
     setFields(updated);
@@ -515,18 +509,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                   </button>
                 )}
-                {/* 너비 조절 (title 제외) */}
-                {!isTitle && isTableField(fc.key) && fc.enabled && (
-                  <div className="flex items-center gap-px flex-shrink-0">
-                    <button onClick={() => updateWidth(fc.key, Math.max(50, fc.width - 10))}
-                      className="w-5 h-5 flex items-center justify-center text-gray-300 dark:text-white/25 hover:text-gray-600 dark:hover:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors text-sm leading-none">−</button>
-                    <span className="w-10 text-center text-[11px] text-gray-400 dark:text-white/35 tabular-nums select-none">
-                      {fc.key === 'weeklyHours' ? `${fc.width}×5` : `${fc.width}px`}
-                    </span>
-                    <button onClick={() => updateWidth(fc.key, Math.min(300, fc.width + 10))}
-                      className="w-5 h-5 flex items-center justify-center text-gray-300 dark:text-white/25 hover:text-gray-600 dark:hover:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors text-sm leading-none">+</button>
-                  </div>
-                )}
                 {/* 토글 (title은 항상 활성) */}
                 {isTitle
                   ? <span className="text-[11px] text-gray-300 dark:text-white/25 italic flex-shrink-0">항상</span>
@@ -536,9 +518,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
             );
           })}
         </div>
-        <p className="mt-1.5 text-[11px] text-gray-400 dark:text-white/30">
-          업무 페이지에서 헤더 드래그로 너비 조절 가능 (관리자만)
-        </p>
       </div>
 
       {/* 커스텀 필드 */}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
@@ -18,8 +18,7 @@ interface Props {
   parts?: TeamPart[];
   assignees?: string[];
   formConfig?: TeamFormConfig;
-  builtinFields?: BuiltinFieldConfig[]; // App에서 미리 계산된 resolved 필드
-  onUpdateConfig?: (config: TeamFormConfig) => void; // 컬럼 너비 저장용 (관리자만)
+  builtinFields?: BuiltinFieldConfig[];
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -64,53 +63,16 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields, onUpdateConfig }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
   const [assigneeFilter, setAssigneeFilter] = useState('전체');
-  // 드래그 중인 컬럼 너비를 로컬에서 관리 (Firestore save는 mouseup에서)
-  const [liveWidths, setLiveWidths] = useState<Partial<Record<string, number>>>({});
 
-  const resolvedFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
-  // 로컬 너비 오버라이드 적용
-  const builtinFields = resolvedFields.map(fc => ({
-    ...fc,
-    width: (liveWidths[fc.key] as number | undefined) ?? fc.width,
-  }));
+  const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
   const colTemplate = buildCols(tableFields);
-
-  // 컬럼 리사이즈 핸들러
-  const startResize = useCallback((key: string, currentWidth: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startX;
-      const newW = Math.max(50, Math.min(300, currentWidth + delta));
-      setLiveWidths(w => ({ ...w, [key]: newW }));
-    };
-
-    const onMouseUp = (ev: MouseEvent) => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      const delta = ev.clientX - startX;
-      const newW = Math.max(50, Math.min(300, currentWidth + delta));
-      // Firestore 저장
-      if (onUpdateConfig) {
-        const newFields = resolvedFields.map(f =>
-          f.key === key ? { ...f, width: newW } : f
-        );
-        onUpdateConfig({ builtinFields: newFields, customFields: formConfig?.customFields ?? [] });
-      }
-      setLiveWidths({});
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [resolvedFields, formConfig, onUpdateConfig]);
 
   const filtered = tasks.filter(t => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
@@ -177,16 +139,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               ];
             }
             return [
-              <div key={fc.key} className={`relative flex items-center select-none pl-2${onUpdateConfig ? ' pr-3' : ''}`}>
+              <div key={fc.key} className="flex items-center select-none pl-2">
                 <span>{fc.customLabel ?? HEADER_LABEL[fc.key]}</span>
-                {onUpdateConfig && (
-                  <div
-                    onMouseDown={(e) => startResize(fc.key, fc.width, e)}
-                    className="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize flex items-center justify-center group z-10"
-                    title="드래그하여 너비 조절">
-                    <div className="w-0.5 h-3.5 rounded-full bg-gray-400/50 dark:bg-white/20 group-hover:bg-blue-400 group-hover:h-4/5 transition-all" />
-                  </div>
-                )}
               </div>,
             ];
           })}

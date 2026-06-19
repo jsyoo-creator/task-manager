@@ -18,7 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
 import { getPermissions, resolveBuiltinFields } from '../types';
-import type { TaskCategory, TeamFormConfig } from '../types';
+import type { TaskCategory } from '../types';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
@@ -94,16 +94,6 @@ function App() {
     : undefined;
   const effectiveFormConfig = activePart?.formConfig ?? selectedTeam?.formConfig;
 
-  // 업무 관리 페이지에서 컬럼 너비 조절 시 적절한 레벨에 저장
-  const handleTaskUpdateConfig = (config: TeamFormConfig) => {
-    if (!selectedTeam) return;
-    if (activePart) {
-      updatePartFormConfig(selectedTeam.id, activePart.id, config);
-    } else {
-      updateFormConfig(selectedTeam.id, config);
-    }
-  };
-
   // 선택된 팀의 파트와 일치하는 업무만 표시 (파트가 있을 때만 필터링)
   const filteredTasks = activeParts.length > 0
     ? tasks.filter(t => activeParts.some(p => p.name === t.category))
@@ -160,7 +150,6 @@ function App() {
                 assignees={teamAssignees}
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
-                onUpdateConfig={permissions.canManageTasks ? handleTaskUpdateConfig : undefined}
               />
             } />
             <Route path="/calendar" element={

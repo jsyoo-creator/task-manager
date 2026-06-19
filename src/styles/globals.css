@@ -92,45 +92,44 @@ body {
   border-color: rgba(255,255,255,0.15);
 }
 
-/* Shiny primary — pink → purple → indigo gradient with neon glow */
+/* Shiny primary — neon glow border, pink → indigo gradient */
 .btn-shiny-primary {
   position: relative;
-  background: linear-gradient(135deg, #e040fb 0%, #7c3aed 52%, #4338ca 100%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  overflow: hidden;
+  background: linear-gradient(to right, #8c1a5a 0%, #4a22a8 55%, #1c34a8 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  overflow: visible;
   transition: all 0.2s ease;
   color: white;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-    0 0 14px rgba(224, 64, 251, 0.45),
-    0 0 28px rgba(124, 58, 237, 0.25),
-    0 4px 12px rgba(0, 0, 0, 0.28);
+  z-index: 1;
 }
+/* 바깥으로 번지는 그라디언트 글로우 */
 .btn-shiny-primary::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 46%;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.16), transparent);
+  inset: -2px;
+  border-radius: 14px;
+  background: linear-gradient(to right, #e040c0 0%, #7040e0 55%, #3050e8 100%);
+  z-index: -1;
+  opacity: 0.55;
+  filter: blur(6px);
+  transition: opacity 0.2s ease, filter 0.2s ease;
   pointer-events: none;
 }
 .btn-shiny-primary:hover {
-  background: linear-gradient(135deg, #f472b6 0%, #a855f7 52%, #6366f1 100%);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
-    0 0 20px rgba(244, 114, 182, 0.6),
-    0 0 40px rgba(168, 85, 247, 0.35),
-    0 6px 16px rgba(0, 0, 0, 0.32);
+  border-color: rgba(255, 255, 255, 0.32);
   transform: translateY(-1px);
 }
+.btn-shiny-primary:hover::before {
+  opacity: 0.85;
+  filter: blur(9px);
+}
 .btn-shiny-primary:active {
-  transform: translateY(0px);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.1) inset,
-    0 0 10px rgba(224, 64, 251, 0.4),
-    0 0 20px rgba(124, 58, 237, 0.2),
-    0 2px 8px rgba(0, 0, 0, 0.25);
+  transform: translateY(0);
+}
+.btn-shiny-primary:active::before {
+  opacity: 0.5;
+  filter: blur(4px);
 }
 
 /* ───────────────────────────────────────

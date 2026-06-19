@@ -6,13 +6,13 @@ import {
 import { db } from '../lib/firebase';
 import type { Task, SubTask } from '../types';
 
-export function useTasks(projectId: string) {
+export function useTasks(projectId: string, teamId: string | null) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!projectId) { setLoading(false); return; }
-    const q = query(collection(db, 'tasks'), where('projectId', '==', projectId));
+    if (!projectId || !teamId) { setTasks([]); setLoading(false); return; }
+    const q = query(collection(db, 'tasks'), where('teamId', '==', teamId));
     const unsub = onSnapshot(q,
       snap => {
         const sorted = snap.docs
@@ -24,7 +24,7 @@ export function useTasks(projectId: string) {
       err => { console.error('tasks:', err); setLoading(false); }
     );
     return unsub;
-  }, [projectId]);
+  }, [projectId, teamId]);
 
   const addTask = async (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();

@@ -6,6 +6,14 @@ import { db } from '../lib/firebase';
 import type { User } from 'firebase/auth';
 import type { AppUser, UserRole, Department } from '../types';
 
+function migrateAppUser(raw: Record<string, unknown>): AppUser {
+  const data = { ...raw } as AppUser & { selectedTeamId?: string };
+  if (!data.selectedTeamIds && data.selectedTeamId) {
+    data.selectedTeamIds = [data.selectedTeamId];
+  }
+  return data as AppUser;
+}
+
 export function useUserRole(firebaseUser: User | null) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +48,7 @@ export function useUserRole(firebaseUser: User | null) {
       unsub = onSnapshot(
         ref,
         s => {
-          if (s.exists()) setAppUser(s.data() as AppUser);
+          if (s.exists()) setAppUser(migrateAppUser(s.data() as Record<string, unknown>));
           setLoading(false);
         },
         err => {
@@ -68,16 +76,22 @@ export function useUserRole(firebaseUser: User | null) {
     await updateDoc(doc(db, 'users', firebaseUser.uid), { department });
   };
 
-  const updateSelectedTeam = async (teamId: string | null) => {
+  const updateSelectedTeams = async (teamIds: string[]) => {
     if (!firebaseUser) return;
-    if (teamId === null) {
-      await updateDoc(doc(db, 'users', firebaseUser.uid), { selectedTeamId: deleteField() });
-    } else {
-      await updateDoc(doc(db, 'users', firebaseUser.uid), { selectedTeamId: teamId });
-    }
+    await updateDoc(doc(db, 'users', firebaseUser.uid), {
+      selectedTeamIds: teamIds,
+      selectedTeamId: deleteField(),
+    });
   };
 
-  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeam };
+  const updateDefaultTeam = async (teamId: string | null) => {
+    if (!firebaseUser) return;
+    await updateDoc(doc(db, 'users', firebaseUser.uid), {
+      defaultTeamId: teamId ?? deleteField(),
+    });
+  };
+
+  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam };
 }
 
 export function useAllUsers() {
@@ -94,7 +108,7 @@ export function useAllUsers() {
     await updateDoc(doc(db, 'users', uid), { role });
   };
 
-  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department }) => {
+  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[] }) => {
     await updateDoc(doc(db, 'users', uid), data);
   };
 

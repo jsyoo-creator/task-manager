@@ -9,7 +9,8 @@ export interface AppUser {
   photoURL: string;
   role: UserRole;
   department?: Department;
-  selectedTeamId?: string;
+  selectedTeamIds?: string[];
+  defaultTeamId?: string;
   createdAt: string;
 }
 
@@ -40,6 +41,8 @@ export interface TeamPart {
   name: string;
   color: string; // tailwind bg class e.g. 'bg-red-500'
   formConfig?: TeamFormConfig; // 파트별 별도 폼 설정 (없으면 팀 기본 상속)
+  metaFields?: MetaField[]; // 파트별 업무 정보 필드 (없으면 팀 기본 상속)
+  subTaskTypes?: SubTaskType[]; // 파트별 세부 업무 목록 (없으면 팀 기본 상속)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────
@@ -55,7 +58,7 @@ export interface CustomFormField {
 }
 
 export type BuiltinFieldKey =
-  | 'title' | 'status' | 'category' | 'type'
+  | 'taskMonth' | 'title' | 'status' | 'category' | 'type'
   | 'receiver' | 'assignee'
   | 'startDate' | 'endDate'
   | 'revisionLevel' | 'weeklyHours';
@@ -69,6 +72,7 @@ export interface BuiltinFieldConfig {
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
+  { key: 'taskMonth',     label: '월' },
   { key: 'title',         label: '업무명' },
   { key: 'status',        label: '상태' },
   { key: 'category',      label: '파트/구분' },
@@ -83,14 +87,15 @@ export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
 
 // 테이블 컬럼이 있는 필드 (revisionLevel 제외)
 export const TABLE_FIELD_KEYS: BuiltinFieldKey[] = [
-  'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
+  'taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
 ];
 
 export const DEFAULT_ENABLED_BUILTINS: BuiltinFieldKey[] = [
-  'title', 'status', 'category', 'type', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
+  'taskMonth', 'title', 'status', 'category', 'type', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
 ];
 
 export const DEFAULT_BUILTIN_FIELD_CONFIGS: BuiltinFieldConfig[] = [
+  { key: 'taskMonth',     enabled: true,  width: 52 },
   { key: 'title',         enabled: true,  width: 0 },
   { key: 'type',          enabled: true,  width: 68 },
   { key: 'status',        enabled: true,  width: 90 },
@@ -110,19 +115,52 @@ export interface TeamFormConfig {
 }
 
 export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfig[] {
-  if (!config) return DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f }));
-  if (config.builtinFields?.length) {
-    // 구버전 데이터에 title이 없으면 맨 앞에 추가
-    const hasTitle = config.builtinFields.some(f => f.key === 'title');
-    if (!hasTitle) {
-      return [{ key: 'title', enabled: true, width: 0 }, ...config.builtinFields];
+  let fields: BuiltinFieldConfig[];
+  if (!config) {
+    fields = DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f }));
+  } else if (config.builtinFields?.length) {
+    fields = [...config.builtinFields];
+    if (!fields.some(f => f.key === 'title')) {
+      fields.unshift({ key: 'title', enabled: true, width: 0 });
     }
-    return config.builtinFields;
+  } else {
+    const legacy = config.enabledBuiltins ?? DEFAULT_ENABLED_BUILTINS;
+    fields = DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f, enabled: legacy.includes(f.key) }));
   }
-  // 구버전 enabledBuiltins → 마이그레이션
-  const legacy = config.enabledBuiltins ?? DEFAULT_ENABLED_BUILTINS;
-  return DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f, enabled: legacy.includes(f.key) }));
+  // taskMonth는 항상 맨 앞 고정 (없으면 추가)
+  const monthIdx = fields.findIndex(f => f.key === 'taskMonth');
+  if (monthIdx === -1) {
+    fields.unshift({ key: 'taskMonth', enabled: true, width: 52 });
+  } else if (monthIdx > 0) {
+    const [m] = fields.splice(monthIdx, 1);
+    fields.unshift(m);
+  }
+  return fields;
 }
+
+export interface MetaField {
+  key: string;
+  label: string;
+  isUrl?: boolean;
+}
+
+export interface SubTaskType {
+  id: string;
+  name: string;
+  department?: Department;
+}
+
+export const DEFAULT_META_FIELDS: MetaField[] = [
+  { key: '제품군',              label: '제품군' },
+  { key: '컨셉',                label: '컨셉' },
+  { key: '셋팅',                label: '셋팅' },
+  { key: '기획전명',            label: '기획전명' },
+  { key: 'KV모델',              label: 'KV모델' },
+  { key: '히든기획전_url_main', label: '히든기획전 URL 메인', isUrl: true },
+  { key: '히든기획전_url_2',   label: '히든기획전 URL 2',    isUrl: true },
+  { key: '방송안내_url',        label: '방송안내 URL',         isUrl: true },
+  { key: '피그마_url',          label: '피그마 URL',           isUrl: true },
+];
 
 export interface Team {
   id: string;
@@ -131,6 +169,8 @@ export interface Team {
   parts: TeamPart[];
   createdAt: string;
   formConfig?: TeamFormConfig;
+  metaFields?: MetaField[];
+  subTaskTypes?: SubTaskType[];
 }
 
 export interface SubTask {
@@ -154,6 +194,8 @@ export interface SubTask {
 export interface Task {
   id: string;
   projectId: string;
+  teamId?: string;
+  taskMonth?: string; // "YYYY-MM"
   title: string;
   category: TaskCategory;
   type: TaskType;
@@ -166,6 +208,14 @@ export interface Task {
   totalHours: number;
   revisionLevel: number;
   customFields?: Record<string, string>;
+  subTaskData?: Record<string, {
+    assignee?: string;
+    startDate?: string;
+    endDate?: string;
+    weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)
+    totalHours: number;
+  }>;
+  memo?: string;
   createdAt: string;
   updatedAt: string;
 }

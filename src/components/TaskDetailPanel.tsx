@@ -195,84 +195,96 @@ export default function TaskDetailPanel({
           />
         </div>
 
-        {/* 속성 */}
-        <div className="px-5 pb-2">
-          <Field label="월">
-            {canManage ? (
-              <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
-                value={task.taskMonth ?? ''}
-                onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
-                <option value="">-</option>
-                {Array.from({ length: 12 }, (_, i) => {
-                  const m = String(i + 1).padStart(2, '0');
-                  const year = task.taskMonth?.slice(0, 4) ?? new Date().getFullYear().toString();
-                  return <option key={i} value={`${year}-${m}`}>{i + 1}월</option>;
-                })}
-              </select>
-            ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}</span>}
-          </Field>
-
-          <Field label="상태">
-            {canManage ? (
-              <div className="relative inline-flex">
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
-                  {task.status}<ChevronDown size={10} />
-                </div>
-                <select className="absolute inset-0 opacity-0 cursor-pointer" value={task.status}
-                  onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                  {STATUSES.map(s => <option key={s}>{s}</option>)}
+        {/* 속성 - 컴팩트 그리드 */}
+        <div className="px-5 pb-1 border-b border-black/[0.08] dark:border-white/6">
+          {/* 행 1: 월 / 상태 / 유형 */}
+          <div className="grid grid-cols-3 gap-x-3 py-2.5 border-b border-black/[0.06] dark:border-white/5">
+            <div>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">월</p>
+              {canManage ? (
+                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                  value={task.taskMonth ?? ''}
+                  onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
+                  <option value="">-</option>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const m = String(i + 1).padStart(2, '0');
+                    const year = task.taskMonth?.slice(0, 4) ?? new Date().getFullYear().toString();
+                    return <option key={i} value={`${year}-${m}`}>{i + 1}월</option>;
+                  })}
                 </select>
-              </div>
-            ) : (
-              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLE[task.status]}`}>{task.status}</span>
-            )}
-          </Field>
+              ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}</span>}
+            </div>
 
-          <Field label="유형">
-            {canManage ? (
-              <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
-                value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
-                {TYPES.map(t => <option key={t}>{t}</option>)}
-              </select>
-            ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.type}</span>}
-          </Field>
+            <div>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">상태</p>
+              {canManage ? (
+                <div className="relative inline-flex">
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
+                    {task.status}<ChevronDown size={9} />
+                  </div>
+                  <select className="absolute inset-0 opacity-0 cursor-pointer" value={task.status}
+                    onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                    {STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[task.status]}`}>{task.status}</span>
+              )}
+            </div>
 
-          {parts.length > 0 && (
-            <Field label="파트">
+            <div>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">유형</p>
               {canManage ? (
                 <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
-                  value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
-                  {parts.map(p => <option key={p.id}>{p.name}</option>)}
+                  value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                  {TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
-              ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.category}</span>}
-            </Field>
-          )}
+              ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.type}</span>}
+            </div>
+          </div>
 
-          <Field label="담당자">
-            {canManage ? (
-              <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
-                value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                {assignees.map(a => <option key={a}>{a}</option>)}
-              </select>
-            ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.assignee}</span>}
-          </Field>
+          {/* 행 2: 파트 / 담당자 / 접수자 */}
+          <div className={`grid ${parts.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-x-3 py-2.5 border-b border-black/[0.06] dark:border-white/5`}>
+            {parts.length > 0 && (
+              <div>
+                <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">파트</p>
+                {canManage ? (
+                  <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                    value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                    {parts.map(p => <option key={p.id}>{p.name}</option>)}
+                  </select>
+                ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.category}</span>}
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">담당자</p>
+              {canManage ? (
+                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                  value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                  {assignees.map(a => <option key={a}>{a}</option>)}
+                </select>
+              ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.assignee}</span>}
+            </div>
+            <div>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">접수자</p>
+              {canManage ? (
+                <select className="text-sm text-gray-600 dark:text-white/55 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                  value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                  {assignees.map(a => <option key={a}>{a}</option>)}
+                </select>
+              ) : <span className="text-sm text-gray-600 dark:text-white/55">{task.receiver}</span>}
+            </div>
+          </div>
 
-          <Field label="접수자">
-            {canManage ? (
-              <select className="text-sm text-gray-600 dark:text-white/55 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
-                value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                {assignees.map(a => <option key={a}>{a}</option>)}
-              </select>
-            ) : <span className="text-sm text-gray-600 dark:text-white/55">{task.receiver}</span>}
-          </Field>
-
-          <Field label="기간">
+          {/* 행 3: 기간 */}
+          <div className="py-2.5">
+            <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1.5">기간</p>
             <div className="flex items-center gap-2">
               <DatePicker value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage} />
               <span className="text-gray-300 dark:text-white/20 text-xs">→</span>
               <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />
             </div>
-          </Field>
+          </div>
         </div>
 
         {/* 세부업무 & 주차별 시간 */}

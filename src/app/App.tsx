@@ -104,9 +104,8 @@ function App() {
     : tasks;
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
-  const subtasks = useMemo<SubTask[]>(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return tasks.flatMap(task =>
+  const subtasks = useMemo<SubTask[]>(() =>
+    tasks.flatMap(task =>
       Object.entries(task.subTaskData ?? {}).map(([key, entry]) => ({
         id: `${task.id}__${key}`,
         taskId: task.id,
@@ -114,10 +113,7 @@ function App() {
         title: key,
         category: task.category,
         type: task.type,
-        status: (
-          !entry.startDate           ? '진행 전' :
-          entry.endDate && entry.endDate < today ? '완료'   : '진행 중'
-        ) as SubTask['status'],
+        status: (entry.status ?? '진행 전') as SubTask['status'],
         assignee:  entry.assignee ?? '',
         receiver:  '',
         startDate: entry.startDate ?? '',
@@ -127,8 +123,8 @@ function App() {
         revisionLevel: 0,
         createdAt: task.createdAt,
       }))
-    );
-  }, [tasks]);
+    )
+  , [tasks]);
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });

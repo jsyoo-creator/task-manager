@@ -36,6 +36,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 type SubTaskEntry = {
+  status?: TaskStatus;
   assignee?: string;
   startDate?: string;
   endDate?: string;
@@ -327,7 +328,7 @@ export default function TaskDetailPanel({
 
                 return (
                   <div key={type.id} className="rounded-xl bg-gray-50 p-3">
-                    {/* 헤더: 이름 + 직군 배지 + 담당자 + 총시간 */}
+                    {/* 헤더: 이름 + 직군 배지 + 상태 + 담당자 + 총시간 */}
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{type.name}</span>
                       {type.department && (
@@ -335,6 +336,24 @@ export default function TaskDetailPanel({
                           {type.department}
                         </span>
                       )}
+                      {/* 세부업무 상태 선택 */}
+                      <div className="relative flex-shrink-0">
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium cursor-pointer ${STATUS_STYLE[entry.status ?? '진행 전']}`}>
+                          <span>{entry.status ?? '진행 전'}</span>
+                          <ChevronDown size={9} />
+                        </div>
+                        <select
+                          disabled={!canManage}
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default"
+                          value={entry.status ?? '진행 전'}
+                          onChange={e => {
+                            const next = { ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
+                            setLocalSubTaskData(next);
+                            saveSubTaskData(next);
+                          }}>
+                          {STATUSES.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      </div>
                       <select
                         disabled={!canManage}
                         className="text-xs bg-gray-100 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 cursor-pointer disabled:cursor-default max-w-[120px]"

@@ -209,6 +209,7 @@ export interface Task {
   revisionLevel: number;
   customFields?: Record<string, string>;
   subTaskData?: Record<string, {
+    status?: TaskStatus;
     assignee?: string;
     startDate?: string;
     endDate?: string;

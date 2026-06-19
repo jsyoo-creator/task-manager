@@ -172,7 +172,7 @@ export default function Layout({
   const NAV = hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY;
 
   return (
-    <div className="flex min-h-screen bg-[#F4F0FE]">
+    <div className="flex min-h-screen" style={{ background: '#1E2264' }}>
 
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"
@@ -261,13 +261,26 @@ export default function Layout({
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0 relative"
-        style={{ marginLeft: 'calc(220px + var(--detail-panel-w, 0px))', transition: 'margin-left 0.26s ease-out' }}>
-        <div className="p-6">
-          <DepartmentAlert appUser={appUser} />
-          <TeamAlert appUser={appUser} teamsLoading={teamsLoading} teams={teams} />
-          {children}
+      {/* Main content — bright rounded panel over dark bg */}
+      <div
+        className="flex-1 min-w-0 relative"
+        style={{
+          marginLeft: 'calc(220px + var(--detail-panel-w, 0px))',
+          transition: 'margin-left 0.26s ease-out',
+          padding: '12px 12px 12px 0',
+          minHeight: '100vh',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          className="rounded-[28px] min-h-[calc(100vh-24px)]"
+          style={{ background: 'linear-gradient(160deg, #FAFAFE 0%, #F0EEFF 100%)' }}
+        >
+          <div className="p-6">
+            <DepartmentAlert appUser={appUser} />
+            <TeamAlert appUser={appUser} teamsLoading={teamsLoading} teams={teams} />
+            {children}
+          </div>
         </div>
       </div>
     </div>

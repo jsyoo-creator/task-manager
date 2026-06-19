@@ -28,7 +28,7 @@ body {
   font-weight: 400;
   line-height: 1.55;
   color: #1E2264;
-  background: #F4F0FE;
+  background: #1E2264;
 }
 
 /* Scrollbar */
@@ -40,21 +40,27 @@ body {
    Card
 ───────────────────────────────────── */
 .glass-card {
-  background: #FFFFFF;
-  border: 1px solid #EDE9FA;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 2px 4px rgba(108,99,255,0.05),
-    0 8px 24px rgba(108,99,255,0.07);
+    0 1px 0 rgba(255,255,255,0.65) inset,
+    0 4px 16px rgba(108,99,255,0.08),
+    0 16px 48px rgba(108,99,255,0.07);
   border-radius: 16px;
   overflow: hidden;
 }
 
 .glass-card-noclip {
-  background: #FFFFFF;
-  border: 1px solid #EDE9FA;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 2px 4px rgba(108,99,255,0.05),
-    0 8px 24px rgba(108,99,255,0.07);
+    0 1px 0 rgba(255,255,255,0.65) inset,
+    0 4px 16px rgba(108,99,255,0.08),
+    0 16px 48px rgba(108,99,255,0.07);
   border-radius: 16px;
 }
 

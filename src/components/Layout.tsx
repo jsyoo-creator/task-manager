@@ -301,7 +301,7 @@ export default function Layout({
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 relative z-10"
+      <div className="flex-1 min-w-0 relative"
         style={{ marginLeft: 'calc(220px + var(--detail-panel-w, 0px))', transition: 'margin-left 0.26s ease-out' }}>
         <div className="p-5">
           <DepartmentAlert appUser={appUser} />

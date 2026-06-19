@@ -56,7 +56,7 @@ export interface CustomFormField {
 }
 
 export type BuiltinFieldKey =
-  | 'title' | 'status' | 'category' | 'type'
+  | 'taskMonth' | 'title' | 'status' | 'category' | 'type'
   | 'receiver' | 'assignee'
   | 'startDate' | 'endDate'
   | 'revisionLevel' | 'weeklyHours';
@@ -70,6 +70,7 @@ export interface BuiltinFieldConfig {
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
+  { key: 'taskMonth',     label: '월' },
   { key: 'title',         label: '업무명' },
   { key: 'status',        label: '상태' },
   { key: 'category',      label: '파트/구분' },
@@ -84,14 +85,15 @@ export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
 
 // 테이블 컬럼이 있는 필드 (revisionLevel 제외)
 export const TABLE_FIELD_KEYS: BuiltinFieldKey[] = [
-  'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
+  'taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
 ];
 
 export const DEFAULT_ENABLED_BUILTINS: BuiltinFieldKey[] = [
-  'title', 'status', 'category', 'type', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
+  'taskMonth', 'title', 'status', 'category', 'type', 'receiver', 'assignee', 'startDate', 'endDate', 'weeklyHours',
 ];
 
 export const DEFAULT_BUILTIN_FIELD_CONFIGS: BuiltinFieldConfig[] = [
+  { key: 'taskMonth',     enabled: true,  width: 52 },
   { key: 'title',         enabled: true,  width: 0 },
   { key: 'type',          enabled: true,  width: 68 },
   { key: 'status',        enabled: true,  width: 90 },
@@ -111,18 +113,27 @@ export interface TeamFormConfig {
 }
 
 export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfig[] {
-  if (!config) return DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f }));
-  if (config.builtinFields?.length) {
-    // 구버전 데이터에 title이 없으면 맨 앞에 추가
-    const hasTitle = config.builtinFields.some(f => f.key === 'title');
-    if (!hasTitle) {
-      return [{ key: 'title', enabled: true, width: 0 }, ...config.builtinFields];
+  let fields: BuiltinFieldConfig[];
+  if (!config) {
+    fields = DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f }));
+  } else if (config.builtinFields?.length) {
+    fields = [...config.builtinFields];
+    if (!fields.some(f => f.key === 'title')) {
+      fields.unshift({ key: 'title', enabled: true, width: 0 });
     }
-    return config.builtinFields;
+  } else {
+    const legacy = config.enabledBuiltins ?? DEFAULT_ENABLED_BUILTINS;
+    fields = DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f, enabled: legacy.includes(f.key) }));
   }
-  // 구버전 enabledBuiltins → 마이그레이션
-  const legacy = config.enabledBuiltins ?? DEFAULT_ENABLED_BUILTINS;
-  return DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f, enabled: legacy.includes(f.key) }));
+  // taskMonth는 항상 맨 앞 고정 (없으면 추가)
+  const monthIdx = fields.findIndex(f => f.key === 'taskMonth');
+  if (monthIdx === -1) {
+    fields.unshift({ key: 'taskMonth', enabled: true, width: 52 });
+  } else if (monthIdx > 0) {
+    const [m] = fields.splice(monthIdx, 1);
+    fields.unshift(m);
+  }
+  return fields;
 }
 
 export interface Team {
@@ -156,6 +167,7 @@ export interface Task {
   id: string;
   projectId: string;
   teamId?: string;
+  taskMonth?: string; // "YYYY-MM"
   title: string;
   category: TaskCategory;
   type: TaskType;

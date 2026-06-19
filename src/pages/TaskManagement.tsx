@@ -76,7 +76,7 @@ function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
 }
 
 const HEADER_LABEL: Partial<Record<string, string>> = {
-  title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
+  taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
 export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields }: Props) {
@@ -95,7 +95,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     if (assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
-      return t.startDate?.startsWith(prefix) || t.endDate?.startsWith(prefix);
+      return t.taskMonth === prefix || t.startDate?.startsWith(prefix) || t.endDate?.startsWith(prefix);
     }
     return true;
   });
@@ -260,6 +260,26 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
               onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
               {assignees.map(a => <option key={a}>{a}</option>)}
             </select>
+          ];
+          if (fc.key === 'taskMonth') return [
+            <div key="taskMonth" onClick={e => e.stopPropagation()}>
+              {canManage ? (
+                <select className="bg-transparent border-none focus:outline-none cursor-pointer text-xs text-gray-600 dark:text-white/55 w-full"
+                  value={task.taskMonth ?? ''}
+                  onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
+                  <option value="">-</option>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const m = String(i + 1).padStart(2, '0');
+                    const year = task.taskMonth?.slice(0, 4) ?? new Date().getFullYear().toString();
+                    return <option key={i} value={`${year}-${m}`}>{i + 1}월</option>;
+                  })}
+                </select>
+              ) : (
+                <span className="text-xs text-gray-600 dark:text-white/55">
+                  {task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}
+                </span>
+              )}
+            </div>
           ];
           if (fc.key === 'startDate') return [
             <div key="startDate" onClick={e => e.stopPropagation()}>

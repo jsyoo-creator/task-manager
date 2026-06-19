@@ -510,9 +510,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                   </button>
                 )}
-                {/* 토글 (title은 항상 활성) */}
-                {isTitle
-                  ? <span className="text-[11px] text-gray-300 dark:text-white/25 italic flex-shrink-0">항상</span>
+                {/* 토글 (taskMonth·title은 고정) */}
+                {(fc.key === 'taskMonth' || isTitle)
+                  ? <span className="text-[11px] text-gray-300 dark:text-white/25 italic flex-shrink-0">고정</span>
                   : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
                 }
               </div>

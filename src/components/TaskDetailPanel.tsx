@@ -184,6 +184,21 @@ export default function TaskDetailPanel({
 
         {/* 속성 */}
         <div className="px-5 pb-2">
+          <Field label="월">
+            {canManage ? (
+              <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
+                value={task.taskMonth ?? ''}
+                onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
+                <option value="">-</option>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const m = String(i + 1).padStart(2, '0');
+                  const year = task.taskMonth?.slice(0, 4) ?? new Date().getFullYear().toString();
+                  return <option key={i} value={`${year}-${m}`}>{i + 1}월</option>;
+                })}
+              </select>
+            ) : <span className="text-sm text-gray-700 dark:text-white/70">{task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}</span>}
+          </Field>
+
           <Field label="상태">
             {canManage ? (
               <div className="relative inline-flex">

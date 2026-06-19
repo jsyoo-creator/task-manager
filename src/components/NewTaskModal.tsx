@@ -18,6 +18,13 @@ const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const REVISION_OPTIONS = ['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'];
 
+const now = new Date();
+const DEFAULT_TASK_MONTH = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
+  const m = String(i + 1).padStart(2, '0');
+  return { value: `${now.getFullYear()}-${m}`, label: `${i + 1}월` };
+});
+
 const cls = "w-full bg-black/3 dark:bg-white/8 border border-black/8 dark:border-white/12 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500/40 placeholder-gray-400 dark:placeholder-white/25 transition-all";
 const lbl = "block text-xs font-medium text-gray-500 dark:text-white/40 mb-1";
 
@@ -38,6 +45,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     .map(fc => fc.key);
 
   const [form, setForm] = useState({
+    taskMonth: DEFAULT_TASK_MONTH,
     title: '',
     category: partNames[0] ?? '',
     type: '신규' as TaskType,
@@ -53,12 +61,13 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   if (!open) return null;
 
   const resetForm = () => {
-    setForm({ title: '', category: partNames[0] ?? '', type: '신규', status: '진행 전', receiver: assignees[0] ?? '', assignee: assignees[0] ?? '', startDate: '', endDate: '', revisionLevel: 0 });
+    setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '진행 전', receiver: assignees[0] ?? '', assignee: assignees[0] ?? '', startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.taskMonth) { alert('월을 선택해 주세요.'); return; }
     onSubmit({ ...form, projectId, weeklyHours: {}, totalHours: 0, customFields: Object.keys(custom).length > 0 ? custom : undefined });
     resetForm();
     onClose();
@@ -67,7 +76,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const setF = (patch: Partial<typeof form>) => setForm(f => ({ ...f, ...patch }));
 
   const DEFAULT_LABELS: Partial<Record<BuiltinFieldKey, string>> = {
-    title: '업무명', category: '파트/구분', type: '유형', status: '상태',
+    taskMonth: '월', title: '업무명', category: '파트/구분', type: '유형', status: '상태',
     receiver: '접수자', assignee: '담당자', startDate: '시작일', endDate: '종료일',
     revisionLevel: '수정단계',
   };
@@ -130,6 +139,15 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 );
               }
 
+              if (k === 'taskMonth') return (
+                <div>
+                  <label className={lbl}>{fieldLabel} *</label>
+                  <select required className={cls} value={form.taskMonth} onChange={e => setF({ taskMonth: e.target.value })}>
+                    <option value="">월 선택</option>
+                    {MONTH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              );
               if (k === 'title') return (
                 <div>
                   <label className={lbl}>{fieldLabel} *</label>

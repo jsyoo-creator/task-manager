@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
@@ -46,7 +46,7 @@ const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 function buildCols(tableFields: BuiltinFieldConfig[]): string {
-  const cols: string[] = [];
+  const cols: string[] = ['18px']; // drag handle
   for (const fc of tableFields) {
     if (fc.key === 'title') {
       cols.push('minmax(120px, 1fr)');
@@ -56,20 +56,19 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
       cols.push(`${fc.width}px`);
     }
   }
-  cols.push('28px');
+  cols.push('48px'); // copy + delete
   return cols.join(' ');
 }
 
-// 헤더와 데이터 행이 동일한 minWidth를 가져야 1fr 컬럼이 일치함
 function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
-  let w = 0;
-  let colCount = 0;
+  let w = 18; // drag handle
+  let colCount = 1;
   for (const fc of tableFields) {
     if (fc.key === 'title') { w += 120; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }
-  w += 28; colCount++; // delete 컬럼
+  w += 48; colCount++; // copy + delete
   w += (colCount - 1) * 12; // gap-x-3
   w += 24; // px-3 양쪽
   return w;
@@ -84,11 +83,32 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
   const [assigneeFilter, setAssigneeFilter] = useState('전체');
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
   const colTemplate = buildCols(tableFields);
   const colMinWidth = buildMinWidth(tableFields);
+
+  const handleDrop = (dropOnId: string) => {
+    if (!dragId || dragId === dropOnId) { setDragId(null); setDragOverId(null); return; }
+    const ids = filtered.map(t => t.id);
+    const fromIdx = ids.indexOf(dragId);
+    const toIdx = ids.indexOf(dropOnId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newIds = [...ids];
+    newIds.splice(fromIdx, 1);
+    newIds.splice(toIdx, 0, dragId);
+    newIds.forEach((id, idx) => onUpdateTask(id, { sortOrder: idx }));
+    setDragId(null);
+    setDragOverId(null);
+  };
+
+  const handleCopyTask = (task: Task) => {
+    const { id: _id, createdAt: _ca, updatedAt: _ua, sortOrder: _so, ...rest } = task as Task & { sortOrder?: number };
+    onAddTask({ ...rest, title: `${task.title} (복사)` });
+  };
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
@@ -139,6 +159,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         {/* 헤더 */}
         <div className="grid gap-x-3 text-[11px] text-gray-500 font-semibold bg-black/3 border-b border-black/5 px-3 py-2.5"
           style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+          <span key="drag-h" />
           {tableFields.flatMap(fc => {
             if (fc.key === 'title') return [
               <span key="title" className="pl-3.5 text-gray-500">
@@ -168,11 +189,18 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             onUpdate={onUpdateTask}
             onDelete={onDeleteTask}
             onOpenDetail={() => onOpenDetail(task.id)}
+            onCopy={() => handleCopyTask(task)}
             canManage={canManage}
             assignees={assignees}
             tableFields={tableFields}
             colTemplate={colTemplate}
             colMinWidth={colMinWidth}
+            isDragging={dragId === task.id}
+            isDragOver={dragOverId === task.id}
+            onDragStart={() => setDragId(task.id)}
+            onDragOver={() => setDragOverId(task.id)}
+            onDrop={() => handleDrop(task.id)}
+            onDragEnd={() => { setDragId(null); setDragOverId(null); }}
           />
         ))}
       </div>
@@ -197,16 +225,23 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees, tableFields, colTemplate, colMinWidth }: {
+function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, tableFields, colTemplate, colMinWidth, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onOpenDetail: () => void;
+  onCopy: () => void;
   canManage: boolean;
   assignees: string[];
   tableFields: BuiltinFieldConfig[];
   colTemplate: string;
   colMinWidth: number;
+  isDragging: boolean;
+  isDragOver: boolean;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }) {
 
   const totalH = (() => {
@@ -225,9 +260,21 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
   const sel = "bg-transparent border-none focus:outline-none cursor-pointer text-xs w-full";
 
   return (
-    <div className="border-b border-black/4 last:border-0">
-      <div className="grid gap-x-3 items-center px-3 py-3.5 hover:bg-gray-50 text-sm transition-colors"
+    <div
+      className={`border-b border-black/4 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''}`}
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
+      onDrop={e => { e.preventDefault(); onDrop(); }}
+      onDragEnd={onDragEnd}
+    >
+      <div className={`grid gap-x-3 items-center px-3 py-3.5 hover:bg-gray-50 text-sm transition-colors ${isDragging ? 'opacity-40' : ''}`}
         style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+
+        {/* 드래그 핸들 */}
+        <div className="flex items-center justify-center text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing">
+          <GripVertical size={13} />
+        </div>
 
         {tableFields.flatMap(fc => {
           if (fc.key === 'title') return [
@@ -310,9 +357,14 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
           return [];
         })}
 
-        {canManage
-          ? <button onClick={() => onDelete(task.id)} className="flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
-          : <span />}
+        {canManage ? (
+          <div className="flex items-center justify-end gap-2">
+            <button onClick={e => { e.stopPropagation(); onCopy(); }}
+              title="복사" className="text-gray-300 hover:text-[#6C63FF] transition-colors"><Copy size={11} /></button>
+            <button onClick={() => onDelete(task.id)}
+              className="text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
+          </div>
+        ) : <span />}
       </div>
     </div>
   );

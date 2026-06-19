@@ -195,6 +195,7 @@ export interface Task {
   id: string;
   projectId: string;
   teamId?: string;
+  sortOrder?: number;
   taskMonth?: string; // "YYYY-MM"
   title: string;
   category: TaskCategory;

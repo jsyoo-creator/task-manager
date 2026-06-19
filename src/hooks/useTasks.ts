@@ -17,7 +17,12 @@ export function useTasks(projectId: string, teamId: string | null) {
       snap => {
         const sorted = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Task))
-          .sort((a, b) => b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0);
+          .sort((a, b) => {
+            if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+            if (a.sortOrder != null) return -1;
+            if (b.sortOrder != null) return 1;
+            return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;
+          });
         setTasks(sorted);
         setLoading(false);
       },

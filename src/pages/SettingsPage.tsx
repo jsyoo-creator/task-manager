@@ -3,7 +3,7 @@ import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layer
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig } from '../types';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface Props {
@@ -944,6 +944,59 @@ export default function SettingsPage({
     }
   };
 
+  const [migratingTeam, setMigratingTeam] = useState(false);
+  const [migrateTeamResult, setMigrateTeamResult] = useState('');
+
+  const runTaskTeamMigration = async () => {
+    setMigratingTeam(true);
+    setMigrateTeamResult('');
+    try {
+      // 파트명 → teamId 맵 구성
+      const partToTeamId: Record<string, string> = {};
+      for (const team of teams) {
+        for (const part of team.parts) {
+          partToTeamId[part.name] = team.id;
+        }
+      }
+
+      // teamId 없는 업무 전체 조회
+      const tasksSnap = await getDocs(collection(db, 'tasks'));
+      const needsMigration = tasksSnap.docs.filter(d => !d.data().teamId);
+
+      if (needsMigration.length === 0) {
+        setMigrateTeamResult('✅ 모든 업무에 이미 teamId가 있습니다.');
+        return;
+      }
+
+      let updated = 0, skipped = 0;
+      // Firestore batch 한도 500건 단위 처리
+      for (let i = 0; i < needsMigration.length; i += 499) {
+        const batch = writeBatch(db);
+        const chunk = needsMigration.slice(i, i + 499);
+        for (const taskDoc of chunk) {
+          const category = taskDoc.data().category as string;
+          const teamId = partToTeamId[category];
+          if (teamId) {
+            batch.update(doc(db, 'tasks', taskDoc.id), { teamId });
+            updated++;
+          } else {
+            skipped++;
+          }
+        }
+        await batch.commit();
+      }
+
+      setMigrateTeamResult(
+        `✅ 완료: ${updated}건 업데이트` +
+        (skipped > 0 ? `, ${skipped}건 매칭 실패 (파트 없음)` : '')
+      );
+    } catch (e) {
+      setMigrateTeamResult(`❌ 오류: ${String(e)}`);
+    } finally {
+      setMigratingTeam(false);
+    }
+  };
+
   const handleSaveName = async () => {
     if (!nameInput.trim()) return;
     await onUpdateName(nameInput.trim());
@@ -1148,6 +1201,22 @@ export default function SettingsPage({
               </button>
               {migrateResult && (
                 <span className="text-xs text-gray-600 dark:text-white/60">{migrateResult}</span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-xl border border-orange-200 dark:border-orange-500/20 bg-orange-50/50 dark:bg-orange-500/5 p-3 space-y-2">
+            <p className="text-xs text-gray-600 dark:text-white/55">
+              기존 업무에 teamId 일괄 추가 — 파트명 기준으로 팀 자동 매칭
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={runTaskTeamMigration}
+                disabled={migratingTeam}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                {migratingTeam ? '실행 중...' : '업무 teamId 마이그레이션 실행'}
+              </button>
+              {migrateTeamResult && (
+                <span className="text-xs text-gray-600 dark:text-white/60">{migrateTeamResult}</span>
               )}
             </div>
           </div>

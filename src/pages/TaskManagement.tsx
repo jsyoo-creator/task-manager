@@ -234,7 +234,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
             <button key="title" onClick={onOpenDetail}
               className="flex items-center gap-1.5 min-w-0 pr-2 group/title text-left w-full">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
-              <span className="font-semibold text-gray-800 truncate group-hover/title:text-blue-600 transition-colors">{task.title}</span>
+              <span className="text-xs font-semibold text-gray-800 truncate group-hover/title:text-blue-600 transition-colors">{task.title}</span>
             </button>,
           ];
           if (fc.key === 'category') return [

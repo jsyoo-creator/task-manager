@@ -194,7 +194,7 @@ export default function TaskDetailPanel({
       <div className="flex-1 overflow-y-auto">
 
         {/* 제목 */}
-        <div className="px-5 pt-4 pb-3">
+        <div className="px-5 pt-3 pb-2">
           <textarea
             ref={titleRef}
             value={title}
@@ -202,8 +202,8 @@ export default function TaskDetailPanel({
             onBlur={handleTitleBlur}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); titleRef.current?.blur(); } }}
             readOnly={!canManage}
-            rows={2}
-            className="w-full text-xl font-bold text-gray-900 bg-transparent border-none resize-none focus:outline-none leading-snug placeholder:text-gray-300"
+            rows={1}
+            className="w-full text-[17px] font-bold text-gray-900 bg-transparent border-none resize-none focus:outline-none leading-snug placeholder:text-gray-300"
             placeholder="업무명"
           />
         </div>

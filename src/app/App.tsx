@@ -19,6 +19,7 @@ import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
 import { getPermissions, resolveBuiltinFields } from '../types';
 import type { TaskCategory } from '../types';
+import TaskDetailPanel from '../components/TaskDetailPanel';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
@@ -35,6 +36,7 @@ function App() {
   const [activeTeamId, setActiveTeamId] = useState<string | null>(() =>
     localStorage.getItem('activeTeamId') ?? null
   );
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
@@ -146,7 +148,7 @@ function App() {
             <Route path="/tasks" element={
               <TaskManagement
                 tasks={filteredTasks} onAddTask={addTask} onUpdateTask={updateTask}
-                onDeleteTask={deleteTask} projectId={projectId}
+                onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canManage={permissions.canManageTasks}
                 parts={activeParts}
@@ -188,6 +190,21 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
+
+        {(() => {
+          const detailTask = tasks.find(t => t.id === detailTaskId);
+          return detailTask ? (
+            <TaskDetailPanel
+              task={detailTask}
+              onClose={() => setDetailTaskId(null)}
+              onUpdate={updateTask}
+              onDelete={(id) => { deleteTask(id); setDetailTaskId(null); }}
+              assignees={teamAssignees}
+              parts={activeParts}
+              canManage={permissions.canManageTasks}
+            />
+          ) : null;
+        })()}
       </BrowserRouter>
     </>
   );

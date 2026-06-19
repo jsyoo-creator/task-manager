@@ -301,7 +301,8 @@ export default function Layout({
       </aside>
 
       {/* Main content */}
-      <div className="ml-[220px] flex-1 min-w-0 relative z-10">
+      <div className="flex-1 min-w-0 relative z-10"
+        style={{ marginLeft: 'calc(220px + var(--detail-panel-w, 0px))', transition: 'margin-left 0.26s ease-out' }}>
         <div className="p-5">
           <DepartmentAlert appUser={appUser} />
           <TeamAlert appUser={appUser} teamsLoading={teamsLoading} teams={teams} />

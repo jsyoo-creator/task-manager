@@ -1,17 +1,16 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
-import TaskDetailPanel from '../components/TaskDetailPanel';
-import { useSubTasks } from '../hooks/useTasks';
 
 interface Props {
   tasks: Task[];
   onAddTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
+  onOpenDetail: (id: string) => void;
   projectId: string;
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
@@ -46,7 +45,7 @@ const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 function buildCols(tableFields: BuiltinFieldConfig[]): string {
-  const cols = ['28px'];
+  const cols: string[] = [];
   for (const fc of tableFields) {
     if (fc.key === 'title') {
       cols.push('minmax(120px, 1fr)');
@@ -56,7 +55,7 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
       cols.push(`${fc.width}px`);
     }
   }
-  cols.push('28px', '28px');
+  cols.push('28px');
   return cols.join(' ');
 }
 
@@ -64,10 +63,8 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [expanded, setExpanded] = useState<string[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
   const [assigneeFilter, setAssigneeFilter] = useState('전체');
@@ -76,7 +73,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
   const colTemplate = buildCols(tableFields);
 
-  const filtered = tasks.filter(t => {
+  const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
@@ -85,9 +82,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     }
     return true;
   });
-
-  const toggleExpand = (id: string) =>
-    setExpanded(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   return (
     <div>
@@ -127,7 +121,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         {/* 헤더 */}
         <div className="grid gap-x-3 text-[11px] text-gray-500 dark:text-white/50 font-semibold bg-black/3 dark:bg-white/5 border-b border-black/5 dark:border-white/8 px-3 py-2.5 min-w-max"
           style={{ gridTemplateColumns: colTemplate }}>
-          <span />
           {tableFields.flatMap(fc => {
             if (fc.key === 'title') return [
               <span key="title" className="pl-2 text-gray-500 dark:text-white/50">
@@ -146,7 +139,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </div>,
             ];
           })}
-          <span /><span />
+          <span />
         </div>
 
         {filtered.length === 0 && (
@@ -157,11 +150,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <TaskRow
             key={task.id}
             task={task}
-            expanded={expanded.includes(task.id)}
-            onToggle={() => toggleExpand(task.id)}
             onUpdate={onUpdateTask}
             onDelete={onDeleteTask}
-            onOpenDetail={() => setSelectedTaskId(task.id)}
+            onOpenDetail={() => onOpenDetail(task.id)}
             canManage={canManage}
             assignees={assignees}
             tableFields={tableFields}
@@ -172,21 +163,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={onAddTask}
         projectId={projectId} parts={parts} assignees={assignees} formConfig={formConfig} />
-
-      {selectedTaskId && (() => {
-        const task = tasks.find(t => t.id === selectedTaskId);
-        return task ? (
-          <TaskDetailPanel
-            task={task}
-            onClose={() => setSelectedTaskId(null)}
-            onUpdate={onUpdateTask}
-            onDelete={(id) => { onDeleteTask(id); setSelectedTaskId(null); }}
-            assignees={assignees}
-            parts={parts ?? []}
-            canManage={canManage}
-          />
-        ) : null;
-      })()}
     </div>
   );
 }
@@ -205,9 +181,8 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, onOpenDetail, canManage, assignees, tableFields, colTemplate }: {
-  task: Task; expanded: boolean;
-  onToggle: () => void;
+function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees, tableFields, colTemplate }: {
+  task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
   onOpenDetail: () => void;
@@ -216,31 +191,14 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, onOpenDetail, c
   tableFields: BuiltinFieldConfig[];
   colTemplate: string;
 }) {
-  const { subtasks, addSubTask, deleteSubTask } = useSubTasks(task.id);
-  const [addingSubtask, setAddingSubtask] = useState(false);
-  const [newSub, setNewSub] = useState({ title: '', assignee: task.assignee });
 
   const totalH = Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
   const sel = "bg-transparent border-none focus:outline-none cursor-pointer text-xs w-full";
-
-  const handleAddSubtask = async () => {
-    if (!newSub.title.trim()) return;
-    await addSubTask({
-      taskId: task.id, projectId: task.projectId, title: newSub.title.trim(), category: task.category, type: task.type,
-      status: '진행 전', receiver: task.receiver, assignee: newSub.assignee,
-      startDate: task.startDate, endDate: task.endDate, weeklyHours: {}, totalHours: 0, revisionLevel: 0,
-    });
-    setNewSub({ title: '', assignee: task.assignee });
-    setAddingSubtask(false);
-  };
 
   return (
     <div className="border-b border-black/4 dark:border-white/6 last:border-0 min-w-max">
       <div className="grid gap-x-3 items-center px-3 py-3.5 hover:bg-black/3 dark:hover:bg-white/4 text-sm transition-colors"
         style={{ gridTemplateColumns: colTemplate }}>
-        <button onClick={onToggle} className="text-gray-400 dark:text-white/45 hover:text-gray-600 dark:hover:text-white/70 flex items-center justify-center">
-          <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
-        </button>
 
         {tableFields.flatMap(fc => {
           if (fc.key === 'title') return [
@@ -306,40 +264,9 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, onOpenDetail, c
         })}
 
         {canManage
-          ? <button onClick={() => setAddingSubtask(true)} className="flex items-center justify-center text-gray-400 dark:text-white/25 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"><Plus size={13} /></button>
-          : <span />}
-        {canManage
           ? <button onClick={() => onDelete(task.id)} className="flex items-center justify-center text-gray-400 dark:text-white/25 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
           : <span />}
       </div>
-
-      {expanded && (
-        <div className="bg-black/2 dark:bg-white/2 border-t border-black/4 dark:border-white/6">
-          {subtasks.map(sub => (
-            <SubTaskRow key={sub.id} sub={sub} onDelete={() => deleteSubTask(sub.id)} tableFields={tableFields} colTemplate={colTemplate} />
-          ))}
-          {addingSubtask ? (
-            <div className="px-3 py-2 flex items-center gap-2">
-              <span className="w-7" /><span className="w-2.5" />
-              <input autoFocus type="text" placeholder="세부업무명..."
-                className="flex-1 text-xs border border-blue-300 dark:border-blue-500/50 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-white/8 text-gray-800 dark:text-white/80 mr-2"
-                value={newSub.title} onChange={e => setNewSub(s => ({ ...s, title: e.target.value }))}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddSubtask(); if (e.key === 'Escape') setAddingSubtask(false); }} />
-              <select className="text-xs border border-black/10 dark:border-white/15 rounded-lg px-2 py-1 focus:outline-none bg-white dark:bg-white/8 text-gray-700 dark:text-white/70 mr-2"
-                value={newSub.assignee} onChange={e => setNewSub(s => ({ ...s, assignee: e.target.value }))}>
-                {assignees.map(a => <option key={a}>{a}</option>)}
-              </select>
-              <button onClick={handleAddSubtask} className="text-xs bg-blue-500 text-white px-2.5 py-1 rounded-lg hover:bg-blue-600">추가</button>
-              <button onClick={() => setAddingSubtask(false)} className="text-xs text-gray-400 dark:text-white/40 hover:text-gray-600 px-1">취소</button>
-            </div>
-          ) : (
-            <button onClick={() => setAddingSubtask(true)}
-              className="flex items-center gap-1 px-10 py-1.5 text-xs text-blue-400 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-500/10 w-full transition-colors">
-              <Plus size={11} /> 세부업무 추가
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -357,12 +284,12 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
     '보류': 'text-slate-600 bg-slate-200 dark:text-slate-400 dark:bg-white/8',
   };
   return (
-    <div className="grid gap-x-3 items-center px-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"
+    <div className="grid gap-x-3 items-center pl-6 pr-3 py-2 border-b border-black/3 dark:border-white/5 last:border-0 min-w-max"
       style={{ gridTemplateColumns: colTemplate }}>
-      <span className="text-gray-300 dark:text-white/20 text-[10px] flex justify-center">└</span>
       {tableFields.flatMap(fc => {
         if (fc.key === 'title') return [
           <span key="title" className="flex items-center gap-1.5 min-w-0 pr-2">
+            <span className="text-gray-300 dark:text-white/20 text-[10px] mr-0.5">└</span>
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
             <span className="text-xs text-gray-700 dark:text-white/65 truncate">{sub.title}</span>
           </span>

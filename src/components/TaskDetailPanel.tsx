@@ -202,7 +202,7 @@ export default function TaskDetailPanel({
             <div>
               <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">월</p>
               {canManage ? (
-                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
+                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
                   value={task.taskMonth ?? ''}
                   onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
                   <option value="">-</option>
@@ -218,11 +218,11 @@ export default function TaskDetailPanel({
             <div>
               <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">상태</p>
               {canManage ? (
-                <div className="relative inline-flex">
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
+                <div className="relative block w-full">
+                  <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
                     {task.status}<ChevronDown size={9} />
                   </div>
-                  <select className="absolute inset-0 opacity-0 cursor-pointer" value={task.status}
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
                     onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
                     {STATUSES.map(s => <option key={s}>{s}</option>)}
                   </select>
@@ -235,7 +235,7 @@ export default function TaskDetailPanel({
             <div>
               <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">유형</p>
               {canManage ? (
-                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5"
+                <select className="text-sm text-gray-700 dark:text-white/70 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
                   value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
                   {TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>

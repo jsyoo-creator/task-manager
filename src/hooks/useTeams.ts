@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Team, TeamPart, TeamFormConfig, MetaField } from '../types';
 
@@ -79,6 +79,13 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { metaFields: fields });
   };
 
+  const updateAllTeamsMetaFields = async (fields: MetaField[]) => {
+    if (teams.length === 0) return;
+    const batch = writeBatch(db);
+    teams.forEach(team => batch.update(doc(db, 'teams', team.id), { metaFields: fields }));
+    await batch.commit();
+  };
+
   const updatePartMetaFields = async (teamId: string, partId: string, fields: MetaField[]) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
@@ -97,5 +104,5 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields };
 }

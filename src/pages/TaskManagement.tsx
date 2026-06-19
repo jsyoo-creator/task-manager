@@ -246,7 +246,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
             </span>
           ];
           if (fc.key === 'type') return [
-            <select key="type" className={`${sel} text-gray-700 value={task.type}
+            <select key="type" className={`${sel} text-gray-700`} value={task.type}
               onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
               {TYPES.map(t => <option key={t}>{t}</option>)}
             </select>
@@ -263,13 +263,13 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
             </div>
           ];
           if (fc.key === 'receiver') return [
-            <select key="receiver" className={`${sel} text-gray-600 value={task.receiver}
+            <select key="receiver" className={`${sel} text-gray-600`} value={task.receiver}
               onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
               {assignees.map(a => <option key={a}>{a}</option>)}
             </select>
           ];
           if (fc.key === 'assignee') return [
-            <select key="assignee" className={`${sel} text-gray-700 value={task.assignee}
+            <select key="assignee" className={`${sel} text-gray-700`} value={task.assignee}
               onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
               {assignees.map(a => <option key={a}>{a}</option>)}
             </select>

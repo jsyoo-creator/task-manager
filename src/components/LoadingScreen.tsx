@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 interface Props {
   done: boolean;
   onFinished: () => void;
-}
+  }
 
 const STEPS = [
   '프로젝트 불러오는 중',
@@ -121,7 +121,7 @@ function Smoke() {
 }
 
 /* ── main component ────────────────────────────────── */
-export default function LoadingScreen({ done, onFinished }: Props) {
+export default function LoadingScreen({ done, onFinished}: Props) {
   const [progress, setProgress] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);

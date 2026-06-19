@@ -5,11 +5,16 @@ import { useSubTasks } from '../hooks/useTasks';
 
 const PANEL_W = 380;
 
-// 시작일 기준으로 월요일 찾아 5주치 날짜 범위 반환
-function getWeekRanges(startDate: string): { label: string }[] {
-  if (!startDate) return Array(5).fill({ label: '' });
+// 시작일 기준 5주 × 5일(월~금) 날짜 계산
+function getWeekDays(startDate: string): { weekLabel: string; days: { name: string; date: string }[] }[] {
+  const DAY_NAMES = ['월', '화', '수', '목', '금'];
+  if (!startDate) return Array.from({ length: 5 }, (_, i) => ({
+    weekLabel: `${i + 1}주`,
+    days: DAY_NAMES.map(name => ({ name, date: '' })),
+  }));
+
   const start = new Date(startDate);
-  const dow = start.getDay(); // 0=일,1=월,...,6=토
+  const dow = start.getDay();
   const diffToMon = dow === 0 ? -6 : 1 - dow;
   const monday = new Date(start);
   monday.setDate(start.getDate() + diffToMon);
@@ -17,12 +22,17 @@ function getWeekRanges(startDate: string): { label: string }[] {
   return Array.from({ length: 5 }, (_, i) => {
     const mon = new Date(monday);
     mon.setDate(monday.getDate() + i * 7);
-    const sun = new Date(mon);
-    sun.setDate(mon.getDate() + 6);
+    const fri = new Date(mon);
+    fri.setDate(mon.getDate() + 4);
     const m1 = mon.getMonth() + 1, d1 = mon.getDate();
-    const m2 = sun.getMonth() + 1, d2 = sun.getDate();
-    const label = m1 === m2 ? `${m1}/${d1}~${d2}` : `${m1}/${d1}~${m2}/${d2}`;
-    return { label };
+    const m2 = fri.getMonth() + 1, d2 = fri.getDate();
+    const weekLabel = m1 === m2 ? `${m1}/${d1}~${d2}` : `${m1}/${d1}~${m2}/${d2}`;
+    const days = DAY_NAMES.map((name, j) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + j);
+      return { name, date: `${d.getMonth() + 1}/${d.getDate()}` };
+    });
+    return { weekLabel, days };
   });
 }
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -62,6 +72,7 @@ export default function TaskDetailPanel({
   const { subtasks, addSubTask, deleteSubTask } = useSubTasks(task.id);
   const [title, setTitle] = useState(task.title);
   const [memo, setMemo] = useState(task.memo ?? '');
+  const [localHours, setLocalHours] = useState<Record<string, number>>(task.weeklyHours ?? {});
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSub, setNewSub] = useState({ title: '', assignee: task.assignee });
   const [visible, setVisible] = useState(false);
@@ -82,6 +93,7 @@ export default function TaskDetailPanel({
   useEffect(() => {
     setTitle(task.title);
     setMemo(task.memo ?? '');
+    setLocalHours(task.weeklyHours ?? {});
     setNewSub(s => ({ ...s, assignee: task.assignee }));
   }, [task.id]);
 
@@ -241,47 +253,71 @@ export default function TaskDetailPanel({
           </Field>
         </div>
 
-        {/* 주차별 시간 */}
+        {/* 주차별 시간 — 5주 × 5일 */}
         <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
-          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2.5">주차별 시간</p>
-          <div className="grid grid-cols-5 gap-2">
-            {[1,2,3,4,5].map((w, i) => {
-              const key = `week${w}` as const;
-              const val = task.weeklyHours?.[key] ?? 0;
-              const weekRanges = getWeekRanges(task.startDate);
-              const { label } = weekRanges[i];
-              return (
-                <div key={w} className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] font-medium text-gray-500 dark:text-white/40">{w}주</span>
-                  {label && <span className="text-[9px] text-gray-400 dark:text-white/25 leading-tight">{label}</span>}
-                  {canManage ? (
-                    <input
-                      type="number" min={0} max={99}
-                      value={val === 0 ? '' : val}
-                      placeholder="0"
-                      onChange={e => {
-                        const n = Math.max(0, parseInt(e.target.value) || 0);
-                        const next = { ...(task.weeklyHours ?? {}), [key]: n };
-                        const total = Object.values(next).reduce((a, b) => a + b, 0);
-                        onUpdate(task.id, { weeklyHours: next, totalHours: total });
-                      }}
-                      className="w-full text-center text-sm font-medium bg-black/5 dark:bg-white/8 rounded-lg py-1.5 border-none focus:outline-none focus:ring-2 focus:ring-blue-400/40 text-gray-700 dark:text-white/75 placeholder:text-gray-300 dark:placeholder:text-white/20"
-                    />
-                  ) : (
-                    <span className="w-full text-center text-sm font-medium bg-black/5 dark:bg-white/8 rounded-lg py-1.5 text-gray-700 dark:text-white/75">
-                      {val > 0 ? `${val}h` : '-'}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide">주차별 시간</p>
+            {(() => {
+              const total = Object.values(localHours).reduce((a, b) => a + b, 0);
+              return total > 0
+                ? <span className="text-xs text-gray-500 dark:text-white/40">합계 <span className="font-semibold text-gray-700 dark:text-white/65">{total}h</span></span>
+                : null;
+            })()}
           </div>
-          {(() => {
-            const total = Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
-            return total > 0 ? (
-              <p className="text-right text-xs text-gray-500 dark:text-white/40 mt-2">합계 <span className="font-semibold text-gray-700 dark:text-white/65">{total}h</span></p>
-            ) : null;
-          })()}
+
+          {/* 요일 헤더 */}
+          <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1">
+            <span />
+            {['월', '화', '수', '목', '금'].map(d => (
+              <span key={d} className="text-center text-[10px] font-medium text-gray-400 dark:text-white/30">{d}</span>
+            ))}
+          </div>
+
+          {/* 주차 행 */}
+          {getWeekDays(task.startDate).map(({ weekLabel, days }, wi) => {
+            const weekNum = wi + 1;
+            const weekTotal = days.reduce((s, _, di) => s + (localHours[`w${weekNum}d${di + 1}`] ?? 0), 0);
+            return (
+              <div key={weekNum} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1.5">
+                {/* 주차 레이블 */}
+                <div className="flex flex-col items-center justify-center">
+                  <span className="text-[10px] font-semibold text-gray-500 dark:text-white/45">{weekNum}주</span>
+                  {weekLabel && <span className="text-[8px] text-gray-300 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
+                </div>
+
+                {/* 일별 입력 */}
+                {days.map(({ date }, di) => {
+                  const key = `w${weekNum}d${di + 1}`;
+                  const val = localHours[key] ?? 0;
+                  return (
+                    <div key={di} className="flex flex-col items-center gap-0.5">
+                      <span className="text-[9px] text-gray-300 dark:text-white/20">{date}</span>
+                      {canManage ? (
+                        <input
+                          type="number" min={0} max={24}
+                          value={val === 0 ? '' : val}
+                          placeholder="-"
+                          onChange={e => {
+                            const n = Math.max(0, Math.min(24, parseInt(e.target.value) || 0));
+                            setLocalHours(prev => ({ ...prev, [key]: n }));
+                          }}
+                          onBlur={() => {
+                            const total = Object.values(localHours).reduce((a, b) => a + b, 0);
+                            onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
+                          }}
+                          className="w-full text-center text-xs bg-black/5 dark:bg-white/8 rounded-md py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-700 dark:text-white/75 placeholder:text-gray-300 dark:placeholder:text-white/15"
+                        />
+                      ) : (
+                        <span className="w-full text-center text-xs bg-black/5 dark:bg-white/8 rounded-md py-1.5 text-gray-600 dark:text-white/55">
+                          {val > 0 ? val : <span className="text-gray-300 dark:text-white/15">-</span>}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
 
         {/* 메모 */}

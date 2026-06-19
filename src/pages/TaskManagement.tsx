@@ -50,7 +50,7 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
     if (fc.key === 'title') {
       cols.push('minmax(120px, 1fr)');
     } else if (fc.key === 'weeklyHours') {
-      cols.push(...Array(5).fill(`${fc.width}px`), '52px');
+      cols.push('52px');
     } else {
       cols.push(`${fc.width}px`);
     }
@@ -65,7 +65,7 @@ function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
   let colCount = 0;
   for (const fc of tableFields) {
     if (fc.key === 'title') { w += 120; colCount++; }
-    else if (fc.key === 'weeklyHours') { w += fc.width * 5 + 52; colCount += 6; }
+    else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }
   w += 28; colCount++; // delete 컬럼
@@ -144,10 +144,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </span>,
             ];
             if (fc.key === 'weeklyHours') {
-              return [
-                ...['1주','2주','3주','4주','5주'].map(w => <span key={`h-${w}`} className="text-center">{w}</span>),
-                <span key="h-total" className="text-center">합계</span>,
-              ];
+              return [<span key="h-total" className="text-center">합계</span>];
             }
             return [
               <div key={fc.key} className="flex items-center select-none pl-2">
@@ -266,16 +263,6 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
           if (fc.key === 'startDate') return [<span key="startDate" className="text-xs text-gray-600 dark:text-white/55">{task.startDate?.slice(5).replace('-', '.') ?? '-'}</span>];
           if (fc.key === 'endDate')   return [<span key="endDate" className="text-xs text-gray-600 dark:text-white/55">{task.endDate?.slice(5).replace('-', '.') ?? '-'}</span>];
           if (fc.key === 'weeklyHours') return [
-            ...[1,2,3,4,5].map(w => {
-              const h = task.weeklyHours?.[`week${w}`] ?? 0;
-              return (
-                <div key={`w${w}`} className="flex justify-center">
-                  {h > 0
-                    ? <span className="text-xs text-green-600 dark:text-green-400 font-medium">{h}h</span>
-                    : <span className="text-xs text-gray-400 dark:text-white/15">-</span>}
-                </div>
-              );
-            }),
             <span key="total" className="text-center text-xs font-semibold text-gray-700 dark:text-white/60">{totalH > 0 ? `${totalH}h` : '-'}</span>
           ];
           return [];

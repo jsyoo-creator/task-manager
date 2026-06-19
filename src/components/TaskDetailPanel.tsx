@@ -220,6 +220,46 @@ export default function TaskDetailPanel({
           </Field>
         </div>
 
+        {/* 주차별 시간 */}
+        <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
+          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2.5">주차별 시간</p>
+          <div className="grid grid-cols-5 gap-2">
+            {[1,2,3,4,5].map(w => {
+              const key = `week${w}` as const;
+              const val = task.weeklyHours?.[key] ?? 0;
+              return (
+                <div key={w} className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] text-gray-400 dark:text-white/30">{w}주</span>
+                  {canManage ? (
+                    <input
+                      type="number" min={0} max={99}
+                      value={val === 0 ? '' : val}
+                      placeholder="0"
+                      onChange={e => {
+                        const n = Math.max(0, parseInt(e.target.value) || 0);
+                        const next = { ...(task.weeklyHours ?? {}), [key]: n };
+                        const total = Object.values(next).reduce((a, b) => a + b, 0);
+                        onUpdate(task.id, { weeklyHours: next, totalHours: total });
+                      }}
+                      className="w-full text-center text-sm font-medium bg-black/5 dark:bg-white/8 rounded-lg py-1.5 border-none focus:outline-none focus:ring-2 focus:ring-blue-400/40 text-gray-700 dark:text-white/75 placeholder:text-gray-300 dark:placeholder:text-white/20"
+                    />
+                  ) : (
+                    <span className="w-full text-center text-sm font-medium bg-black/5 dark:bg-white/8 rounded-lg py-1.5 text-gray-700 dark:text-white/75">
+                      {val > 0 ? `${val}h` : '-'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {(() => {
+            const total = Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
+            return total > 0 ? (
+              <p className="text-right text-xs text-gray-500 dark:text-white/40 mt-2">합계 <span className="font-semibold text-gray-700 dark:text-white/65">{total}h</span></p>
+            ) : null;
+          })()}
+        </div>
+
         {/* 메모 */}
         <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
           <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2">메모</p>

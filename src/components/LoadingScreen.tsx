@@ -224,7 +224,7 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
               style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.22) inset, 0 4px 14px rgba(37,99,235,0.45)' }}>T</div>
             <div className="leading-snug">
               <p className="text-[9px] font-semibold tracking-[0.18em] text-black/35 dark:text-white/35 uppercase">PIVOT</p>
-              <p className="text-[13px] font-bold text-black/80 dark:text-white/85">Task Manager</p>
+              <p className="text-base font-bold text-black/80 dark:text-white/85">Task Manager</p>
             </div>
           </div>
 

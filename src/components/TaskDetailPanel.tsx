@@ -159,14 +159,23 @@ export default function TaskDetailPanel({
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
 
   return (
+    // width 0→PANEL_W 확장: 왼쪽 라운드 고정, 오른쪽으로 열림 → 패딩 이동과 완벽 동기화
     <div
-      style={{ left: 232, width: PANEL_W, top: 12, bottom: 12, background: '#FFFFFF' }}
-      className={`fixed z-30 flex flex-col
-        rounded-l-[28px]
-        border-r border-[#E5E0F5]
-        overflow-hidden
-        transition-transform duration-260 ease-out
-        ${visible ? 'translate-x-0' : '-translate-x-full'}`}
+      style={{
+        position: 'fixed',
+        left: 232,
+        top: 12,
+        bottom: 12,
+        width: visible ? PANEL_W : 0,
+        transition: 'width 0.26s ease-out',
+        zIndex: 30,
+        borderRadius: '28px 0 0 28px',
+        overflow: 'hidden',
+      }}
+    >
+    <div
+      style={{ width: PANEL_W, height: '100%', background: '#FFFFFF' }}
+      className="flex flex-col border-r border-[#E5E0F5]"
     >
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-black/[0.08] flex-shrink-0">
@@ -499,6 +508,7 @@ export default function TaskDetailPanel({
           </button>
         </div>
       )}
+    </div>
     </div>
   );
 }

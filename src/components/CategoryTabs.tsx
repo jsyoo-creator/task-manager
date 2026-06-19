@@ -1,27 +1,31 @@
-import type { TaskCategory } from '../types';
+import type { TeamPart } from '../types';
 
-const CAT_DOT: Record<string, string> = {
-  '라이브': 'bg-red-500',
-  '복지': 'bg-orange-400',
-  '사업자': 'bg-indigo-500',
-  '기타': 'bg-gray-400',
-};
-const CAT_ACTIVE: Record<string, string> = {
-  '라이브': 'text-red-600 dark:text-red-400',
-  '복지': 'text-orange-600 dark:text-orange-400',
-  '사업자': 'text-indigo-600 dark:text-indigo-400',
-  '기타': 'text-gray-600 dark:text-gray-400',
-};
-
-interface Props {
-  active: TaskCategory | 'all';
-  onChange: (cat: TaskCategory | 'all') => void;
-  categories?: string[];
+// 파트 색상 → active 텍스트 색상 매핑
+function dotToText(bgClass: string): string {
+  const map: Record<string, string> = {
+    'bg-red-500': 'text-red-600 dark:text-red-400',
+    'bg-orange-400': 'text-orange-600 dark:text-orange-400',
+    'bg-yellow-400': 'text-yellow-600 dark:text-yellow-400',
+    'bg-green-500': 'text-green-600 dark:text-green-400',
+    'bg-teal-500': 'text-teal-600 dark:text-teal-400',
+    'bg-blue-500': 'text-blue-600 dark:text-blue-400',
+    'bg-indigo-500': 'text-indigo-600 dark:text-indigo-400',
+    'bg-purple-500': 'text-purple-600 dark:text-purple-400',
+    'bg-pink-500': 'text-pink-600 dark:text-pink-400',
+    'bg-gray-400': 'text-gray-600 dark:text-gray-400',
+  };
+  return map[bgClass] ?? 'text-black/80 dark:text-white/85';
 }
 
-export default function CategoryTabs({ active, onChange, categories = ['라이브', '복지', '사업자'] }: Props) {
+interface Props {
+  active: string;
+  onChange: (cat: string) => void;
+  parts?: TeamPart[];
+}
+
+export default function CategoryTabs({ active, onChange, parts = [] }: Props) {
   return (
-    <div className="flex items-center gap-1 p-1 rounded-[12px] bg-black/5 dark:bg-white/6 border border-black/6 dark:border-white/8 backdrop-blur-sm">
+    <div className="flex items-center gap-1 p-1 rounded-[12px] bg-black/5 dark:bg-white/6 border border-black/6 dark:border-white/8 backdrop-blur-sm flex-wrap">
       <button
         onClick={() => onChange('all')}
         className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
@@ -32,18 +36,18 @@ export default function CategoryTabs({ active, onChange, categories = ['라이�
       >
         전체
       </button>
-      {categories.map(cat => (
+      {parts.map(part => (
         <button
-          key={cat}
-          onClick={() => onChange(cat as TaskCategory)}
+          key={part.id}
+          onClick={() => onChange(part.name)}
           className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
-            active === cat
-              ? `bg-white dark:bg-white/15 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] ${CAT_ACTIVE[cat] ?? 'text-black/80 dark:text-white/85'}`
+            active === part.name
+              ? `bg-white dark:bg-white/15 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)] ${dotToText(part.color)}`
               : 'text-black/50 dark:text-white/45 hover:text-black/70 dark:hover:text-white/65 hover:bg-white/50 dark:hover:bg-white/8'
           }`}
         >
-          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[cat] ?? 'bg-gray-400'}`} />
-          {cat === '복지' ? '복지물' : cat === '사업자' ? '사업자물' : cat}
+          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${part.color}`} />
+          {part.name}
         </button>
       ))}
     </div>

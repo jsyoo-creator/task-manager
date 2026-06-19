@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Task, SubTask, TaskCategory, Member } from '../types';
+import type { Task, SubTask, TaskCategory, Member, TeamPart } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   members: Member[];
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
+  parts?: TeamPart[];
 }
 
 const CAT_PILL: Record<string, string> = {
@@ -43,7 +44,7 @@ function toDate(str: string) {
   return new Date(y, m - 1, d);
 }
 
-export default function WeeklyPage({ tasks, subtasks, members, activeCategory, onCategoryChange }: Props) {
+export default function WeeklyPage({ tasks, subtasks, members, activeCategory, onCategoryChange, parts }: Props) {
   const { start, end, weekNum, now } = useMemo(getWeekBounds, []);
   const weekKey = `week${weekNum}`;
   const weekLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${weekNum}주차`;
@@ -76,7 +77,7 @@ export default function WeeklyPage({ tasks, subtasks, members, activeCategory, o
           <h1 className="page-title">위클리</h1>
           <p className="page-subtitle">{weekLabel} · {start.getMonth() + 1}/{start.getDate()} – {end.getMonth() + 1}/{end.getDate()}</p>
         </div>
-        <CategoryTabs active={activeCategory} onChange={onCategoryChange} />
+        <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

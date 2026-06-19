@@ -22,6 +22,8 @@ interface Props {
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
+  onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
+  onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -697,19 +699,33 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 // 팀 관리 섹션
 // ──────────────────────────────────────────
 // ── 업무 정보 필드 편집기 ──
-function MetaFieldsEditor({ team, onSave }: {
+function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (teamId: string, fields: MetaField[]) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
-  const [fields, setFields] = useState<MetaField[]>(team.metaFields ?? DEFAULT_META_FIELDS);
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [labelInput, setLabelInput] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [newIsUrl, setNewIsUrl] = useState(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
-  useEffect(() => { setFields(team.metaFields ?? DEFAULT_META_FIELDS); }, [team.id]);
+  useEffect(() => { setSelectedTarget('team'); setEditingKey(null); }, [team.id]);
 
-  const save = (next: MetaField[]) => { setFields(next); onSave(team.id, next); };
+  const currentPart = selectedTarget !== 'team' ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = selectedTarget !== 'team' && !currentPart?.metaFields;
+  const fields: MetaField[] = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
+
+  const save = (next: MetaField[]) => {
+    if (selectedTarget === 'team') {
+      onSave(team.id, next);
+    } else {
+      onSavePart(team.id, selectedTarget, next);
+    }
+  };
 
   const onDrop = (toIdx: number) => {
     const from = dragIdxRef.current;
@@ -722,6 +738,18 @@ function MetaFieldsEditor({ team, onSave }: {
     setDragOverIdx(null);
   };
 
+  const saveLabel = (key: string) => {
+    const label = labelInput.trim();
+    if (label) save(fields.map(f => f.key === key ? { ...f, label } : f));
+    setEditingKey(null);
+  };
+
+  const toggleUrl = (key: string) => {
+    save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl } : f));
+  };
+
+  const deleteField = (key: string) => save(fields.filter(f => f.key !== key));
+
   const addField = () => {
     const label = newLabel.trim();
     if (!label) return;
@@ -730,83 +758,146 @@ function MetaFieldsEditor({ team, onSave }: {
     setNewLabel(''); setNewIsUrl(false);
   };
 
-  const deleteField = (key: string) => save(fields.filter(f => f.key !== key));
-
-  const updateLabel = (key: string, label: string) => {
-    save(fields.map(f => f.key === key ? { ...f, label } : f));
-  };
-
-  const toggleUrl = (key: string) => {
-    save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl } : f));
-  };
-
   const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
   return (
-    <div className="space-y-2">
-      <p className="text-[11px] text-gray-400 dark:text-white/35 mb-2">업무 상세 패널에 표시될 항목입니다. 기본값은 9개 필드이며 팀별로 재구성할 수 있습니다.</p>
-      <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5">
-        {fields.map((f, i) => (
-          <div
-            key={f.key}
-            draggable
-            onDragStart={() => { dragIdxRef.current = i; }}
-            onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
-            onDrop={() => onDrop(i)}
-            onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-            className={`flex items-center gap-2 px-3 py-2 hover:bg-black/2 dark:hover:bg-white/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-            <GripVertical size={13} className="text-gray-300 dark:text-white/20 cursor-grab active:cursor-grabbing flex-shrink-0" />
-            <input
-              className={iCls}
-              value={f.label}
-              onChange={e => updateLabel(f.key, e.target.value)}
-              onBlur={e => { if (!e.target.value.trim()) return; }}
-            />
-            <button
-              type="button"
-              onClick={() => toggleUrl(f.key)}
-              title="URL 필드 여부"
-              className={`flex-shrink-0 text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${f.isUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-black/5 text-gray-400 dark:bg-white/8 dark:text-white/35'}`}>
-              URL
-            </button>
-            <button type="button" onClick={() => deleteField(f.key)}
-              className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all">
-              <Trash2 size={11} />
-            </button>
+    <div className="space-y-4">
+      {/* 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeam = target === 'team';
+              const part = isTeam ? null : team.parts.find(p => p.id === target);
+              const hasOwn = !isTeam && !!part?.metaFields;
+              return (
+                <button
+                  key={target}
+                  onClick={() => { setSelectedTarget(target); setEditingKey(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-black/10 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}>
+                  {!isTeam && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeam ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* 상속 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+          <p className="text-xs text-amber-700 dark:text-amber-300">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+          <button onClick={() => onClearPart(team.id, selectedTarget)}
+            className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화
+          </button>
+        </div>
+      )}
+      {!isInherited && selectedTarget !== 'team' && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+          <p className="text-xs text-blue-700 dark:text-blue-300">이 파트의 별도 설정이 적용 중</p>
+          <button onClick={() => { onClearPart(team.id, selectedTarget); setSelectedTarget('team'); }}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />팀 기본으로 초기화
+          </button>
+        </div>
+      )}
+
+      {/* 필드 목록 */}
+      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
+        <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">
+          업무 정보 필드
+          <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+        </p>
+        <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5">
+          {fields.map((f, i) => (
+            <div
+              key={f.key}
+              draggable
+              onDragStart={() => { dragIdxRef.current = i; }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+              onDrop={() => onDrop(i)}
+              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+              className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 dark:hover:bg-white/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+              <GripVertical size={13} className="text-gray-300 dark:text-white/20 cursor-grab active:cursor-grabbing flex-shrink-0" />
+              {editingKey === f.key ? (
+                <input
+                  autoFocus
+                  className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 dark:border-blue-500/60 bg-white dark:bg-white/8 text-gray-800 dark:text-white/80 focus:outline-none"
+                  value={labelInput}
+                  onChange={e => setLabelInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveLabel(f.key); if (e.key === 'Escape') setEditingKey(null); }}
+                  onBlur={() => saveLabel(f.key)}
+                />
+              ) : (
+                <button
+                  type="button"
+                  title="클릭하여 이름 수정"
+                  onClick={() => { setEditingKey(f.key); setLabelInput(f.label); }}
+                  className="flex-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate min-w-0">
+                  {f.label}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleUrl(f.key)}
+                title="URL 필드 여부"
+                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors ${f.isUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-black/5 text-gray-400 dark:bg-white/8 dark:text-white/35'}`}>
+                URL
+              </button>
+              <button type="button" onClick={() => deleteField(f.key)}
+                className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors ml-0.5">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* 필드 추가 */}
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            className={iCls}
+            placeholder="새 항목 이름"
+            value={newLabel}
+            onChange={e => setNewLabel(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addField()}
+          />
+          <button
+            type="button"
+            onClick={() => setNewIsUrl(v => !v)}
+            className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-black/5 text-gray-400 dark:bg-white/8 dark:text-white/35'}`}>
+            URL
+          </button>
+          <button onClick={addField} disabled={!newLabel.trim()}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+            <Plus size={11} />추가
+          </button>
+        </div>
+        {/* 기본값으로 초기화 */}
+        {selectedTarget === 'team' && (
+          <button onClick={() => save(DEFAULT_META_FIELDS)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-white/60 transition-colors mt-1">
+            <RotateCcw size={11} /> 기본값으로 초기화
+          </button>
+        )}
       </div>
-      {/* 필드 추가 */}
-      <div className="flex items-center gap-2 mt-2">
-        <input
-          className={iCls}
-          placeholder="새 항목 이름"
-          value={newLabel}
-          onChange={e => setNewLabel(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addField()}
-        />
-        <button
-          type="button"
-          onClick={() => setNewIsUrl(v => !v)}
-          className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-black/5 text-gray-400 dark:bg-white/8 dark:text-white/35'}`}>
-          URL
-        </button>
-        <button onClick={addField} disabled={!newLabel.trim()}
-          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
-          <Plus size={11} />추가
-        </button>
-      </div>
-      {/* 기본값으로 초기화 */}
-      <button onClick={() => save(DEFAULT_META_FIELDS)}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-white/60 transition-colors mt-1">
-        <RotateCcw size={11} /> 기본값으로 초기화
-      </button>
     </div>
   );
 }
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -816,6 +907,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
+  onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
+  onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -1002,7 +1095,12 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                   {/* 업무 정보 필드 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'meta' && (
                     <div className="px-5 py-4">
-                      <MetaFieldsEditor team={team} onSave={onUpdateMetaFields} />
+                      <MetaFieldsEditor
+                        team={team}
+                        onSave={onUpdateMetaFields}
+                        onSavePart={onUpdatePartMetaFields}
+                        onClearPart={onClearPartMetaFields}
+                      />
                     </div>
                   )}
                 </div>
@@ -1021,7 +1119,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -1249,6 +1347,8 @@ export default function SettingsPage({
           onUpdatePartFormConfig={onUpdatePartFormConfig}
           onClearPartFormConfig={onClearPartFormConfig}
           onUpdateMetaFields={onUpdateMetaFields}
+          onUpdatePartMetaFields={onUpdatePartMetaFields}
+          onClearPartMetaFields={onClearPartMetaFields}
         />
       )}
 

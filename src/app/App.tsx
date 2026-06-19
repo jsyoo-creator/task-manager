@@ -40,7 +40,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields } = useTeams(user?.uid);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
@@ -188,6 +188,8 @@ function App() {
                     onUpdatePartFormConfig={updatePartFormConfig}
                     onClearPartFormConfig={clearPartFormConfig}
                     onUpdateMetaFields={updateMetaFields}
+                    onUpdatePartMetaFields={updatePartMetaFields}
+                    onClearPartMetaFields={clearPartMetaFields}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
@@ -197,7 +199,10 @@ function App() {
 
         {(() => {
           const detailTask = tasks.find(t => t.id === detailTaskId);
-          return detailTask ? (
+          if (!detailTask) return null;
+          const taskPart = activeParts.find(p => p.name === detailTask.category);
+          const resolvedMetaFields = taskPart?.metaFields ?? selectedTeam?.metaFields;
+          return (
             <TaskDetailPanel
               task={detailTask}
               onClose={() => setDetailTaskId(null)}
@@ -206,9 +211,9 @@ function App() {
               assignees={teamAssignees}
               parts={activeParts}
               canManage={permissions.canManageTasks}
-              metaFields={selectedTeam?.metaFields}
+              metaFields={resolvedMetaFields}
             />
-          ) : null;
+          );
         })()}
       </BrowserRouter>
     </>

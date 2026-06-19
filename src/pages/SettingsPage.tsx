@@ -297,13 +297,18 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
   const [type, setType] = useState<FormFieldType>('text');
   const [required, setRequired] = useState(false);
   const [options, setOptions] = useState(['', '']);
+  const [dept, setDept] = useState<Department | ''>('');
 
   const cls = "text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400";
 
   const handleAdd = () => {
     if (!label.trim()) return;
-    onAdd({ label: label.trim(), type, required, options: type === 'select' ? options.filter(o => o.trim()) : undefined });
-    setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setOpen(false);
+    onAdd({
+      label: label.trim(), type, required,
+      options: type === 'select' ? options.filter(o => o.trim()) : undefined,
+      department: type === 'name' && dept ? dept : undefined,
+    });
+    setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setDept(''); setOpen(false);
   };
 
   if (!open) return (
@@ -347,6 +352,15 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
           </button>
         </div>
       )}
+      {type === 'name' && (
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-500 font-medium flex-shrink-0">직군 필터</span>
+          <select className={cls} value={dept} onChange={e => setDept(e.target.value as Department | '')}>
+            <option value="">전체 (직군 무관)</option>
+            {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+          </select>
+        </div>
+      )}
       <div className="flex gap-2 pt-0.5">
         <button onClick={handleAdd} disabled={!label.trim()}
           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
@@ -386,6 +400,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
   const [customLabelInput, setCustomLabelInput] = useState('');
   const [customTypeInput, setCustomTypeInput] = useState<FormFieldType>('text');
+  const [customDeptInput, setCustomDeptInput] = useState<Department | ''>('');
 
   const isTableField = (key: BuiltinFieldKey) => TABLE_FIELD_KEYS.includes(key);
 
@@ -435,7 +450,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const saveCustomField = (id: string) => {
     const newLabel = customLabelInput.trim();
     const updated = customFields.map(cf =>
-      cf.id === id ? { ...cf, label: newLabel || cf.label, type: customTypeInput } : cf
+      cf.id === id ? {
+        ...cf,
+        label: newLabel || cf.label,
+        type: customTypeInput,
+        department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
+      } : cf
     );
     onSaveCustom(updated);
     setEditingCustomId(null);
@@ -544,40 +564,68 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setCDragOverIdx(null); }}
                   onDrop={() => onDropCustom(i)}
                   onDragEnd={() => { cdragIdxRef.current = null; setCDragOverIdx(null); }}
-                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
-                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                  className={`flex ${isEditingCF ? 'items-start' : 'items-center'} gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 mt-0.5" />
                   {isEditingCF ? (
                     <div
-                      className="flex-1 flex items-center gap-1.5 min-w-0"
+                      className="flex-1 flex flex-col gap-1 min-w-0"
                       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}>
-                      <input
-                        autoFocus
-                        className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                        value={customLabelInput}
-                        onChange={e => setCustomLabelInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
-                      />
-                      <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
-                        value={customTypeInput}
-                        onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
-                        {CUSTOM_FIELD_TYPES.map(t => (
-                          <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <input
+                          autoFocus
+                          className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                          value={customLabelInput}
+                          onChange={e => setCustomLabelInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
+                        />
+                        <select
+                          className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
+                          value={customTypeInput}
+                          onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
+                          {CUSTOM_FIELD_TYPES.map(t => (
+                            <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {customTypeInput === 'name' && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-gray-400 flex-shrink-0">직군 필터</span>
+                          <select
+                            className="text-[11px] px-1.5 py-0.5 rounded-md border border-violet-300 bg-violet-50 text-gray-700 focus:outline-none"
+                            value={customDeptInput}
+                            onChange={e => setCustomDeptInput(e.target.value as Department | '')}
+                            onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
+                            <option value="">전체 (직군 무관)</option>
+                            {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <button
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); setCustomTypeInput((cf.type === 'textarea' ? 'name' : cf.type) as FormFieldType); }}
+                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); setCustomTypeInput(cf.type as FormFieldType); setCustomDeptInput(cf.department ?? ''); }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {cf.label}
                     </button>
                   )}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className={`flex items-center gap-1.5 flex-shrink-0 ${isEditingCF ? 'mt-0.5' : ''}`}>
                     {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
+                    {!isEditingCF && cf.type === 'name' && (
+                      <select
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 focus:outline-none cursor-pointer"
+                        value={cf.department ?? ''}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => {
+                          const dept = e.target.value as Department | '';
+                          onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, department: dept || undefined } : f));
+                        }}>
+                        <option value="">직군 전체</option>
+                        {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+                      </select>
+                    )}
                     {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                     <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
                     <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -18,6 +18,7 @@ interface Props {
   canManage: boolean;
   parts?: TeamPart[];
   assignees?: string[];
+  teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
   builtinFields?: BuiltinFieldConfig[];
 }
@@ -78,7 +79,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -206,7 +207,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       </div>
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={onAddTask}
-        projectId={projectId} parts={parts} assignees={assignees} formConfig={formConfig} />
+        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} />
     </div>
   );
 }

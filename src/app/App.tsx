@@ -88,7 +88,7 @@ function App() {
   const activeParts = selectedTeam?.parts ?? [];
   const teamMembers = selectedTeam
     ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id))
-        .map(u => ({ name: u.displayName, department: u.department as string | undefined }))
+        .map(u => ({ name: u.displayName, department: u.department }))
     : [];
   const teamAssignees = teamMembers.map(m => m.name);
 

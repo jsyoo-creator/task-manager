@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department } from '../types';
 import { resolveBuiltinFields } from '../types';
 import DatePicker from './DatePicker';
 
@@ -11,6 +11,7 @@ interface Props {
   projectId: string;
   parts?: TeamPart[];
   assignees?: string[];
+  teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
 }
 
@@ -35,7 +36,7 @@ const FIELD_PAIRS: [BuiltinFieldKey, BuiltinFieldKey][] = [
   ['startDate', 'endDate'],
 ];
 
-export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], formConfig }: Props) {
+export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig }: Props) {
   const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
   const builtinFields = resolveBuiltinFields(formConfig);
   const customFields = formConfig?.customFields ?? [];
@@ -257,13 +258,18 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 <input type="text" required={cf.required} className={cls}
                   value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
               )}
-              {(cf.type === 'name' || cf.type === 'textarea') && (
-                <select required={cf.required} className={cls}
-                  value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
-                  <option value="">선택하세요</option>
-                  {assignees.map(a => <option key={a}>{a}</option>)}
-                </select>
-              )}
+              {cf.type === 'name' && (() => {
+                const opts = teamMembers && cf.department
+                  ? teamMembers.filter(m => m.department === cf.department).map(m => m.name)
+                  : assignees;
+                return (
+                  <select required={cf.required} className={cls}
+                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
+                    <option value="">선택하세요</option>
+                    {opts.map(a => <option key={a}>{a}</option>)}
+                  </select>
+                );
+              })()}
               {cf.type === 'select' && (
                 <select required={cf.required} className={cls}
                   value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>

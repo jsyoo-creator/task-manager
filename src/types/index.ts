@@ -55,6 +55,7 @@ export interface CustomFormField {
   required: boolean;
   enabled?: boolean; // undefined = true (하위 호환)
   options?: string[]; // select 타입일 때 선택지
+  department?: Department; // name 타입: 해당 직군 사람만 표시
 }
 
 export type BuiltinFieldKey =

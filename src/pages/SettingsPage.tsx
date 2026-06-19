@@ -1077,7 +1077,7 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;

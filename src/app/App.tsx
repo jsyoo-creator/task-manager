@@ -18,7 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
 import { getPermissions, resolveBuiltinFields } from '../types';
-import type { TaskCategory } from '../types';
+import type { Task, TaskCategory } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
 function App() {
@@ -84,7 +84,7 @@ function App() {
   }, [projLoading, projects.length]);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
-  const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
+  const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId, activeTeamId);
   const { subtasks } = useAllSubTasks(projectId);
 
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
@@ -99,14 +99,12 @@ function App() {
     : undefined;
   const effectiveFormConfig = activePart?.formConfig ?? selectedTeam?.formConfig;
 
-  // 팀 + 파트 필터링
-  const filteredTasks = tasks.filter(t => {
-    if (t.teamId && activeTeamId && t.teamId !== activeTeamId) return false;
-    if (activeParts.length > 0 && !activeParts.some(p => p.name === t.category)) return false;
-    return true;
-  });
+  // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
+  const filteredTasks = activeParts.length > 0
+    ? tasks.filter(t => activeParts.some(p => p.name === t.category))
+    : tasks;
 
-  const addTaskForTeam = (data: Omit<(typeof tasks)[0], 'id' | 'createdAt' | 'updatedAt'>) =>
+  const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });
 
   if (authLoading || (user && roleLoading)) {

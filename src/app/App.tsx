@@ -225,6 +225,7 @@ function App() {
           if (!detailTask) return null;
           const taskPart = activeParts.find(p => p.name === detailTask.category);
           const resolvedMetaFields = taskPart?.metaFields ?? selectedTeam?.metaFields;
+          const resolvedFormConfig = taskPart?.formConfig ?? selectedTeam?.formConfig;
           return (
             <TaskDetailPanel
               task={detailTask}
@@ -237,6 +238,7 @@ function App() {
               metaFields={resolvedMetaFields}
               subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
               teamMembers={teamMembers}
+              formConfig={resolvedFormConfig}
             />
           );
         })()}

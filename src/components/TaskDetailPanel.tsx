@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department } from '../types';
 import { DEFAULT_META_FIELDS } from '../types';
 import DatePicker from './DatePicker';
 
@@ -80,7 +80,7 @@ function getWeekDays(startDate: string, endDate?: string) {
 
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage,
-  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers,
+  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig,
 }: {
   task: Task;
   onClose: () => void;
@@ -91,7 +91,8 @@ export default function TaskDetailPanel({
   canManage: boolean;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
-  teamMembers?: { name: string; department?: string }[];
+  teamMembers?: { name: string; department?: Department }[];
+  formConfig?: TeamFormConfig;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const [title, setTitle] = useState(task.title);
@@ -479,6 +480,72 @@ export default function TaskDetailPanel({
             </div>
           )}
         </div>
+
+        {/* 커스텀 폼 필드 */}
+        {(() => {
+          const cfs = formConfig?.customFields?.filter(cf => cf.enabled !== false) ?? [];
+          if (cfs.length === 0) return null;
+          const cls = "flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
+          return (
+            <div className="px-5 py-3 border-t border-black/[0.08]">
+              <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">추가 정보</p>
+              <div className="space-y-2">
+                {cfs.map(cf => {
+                  const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const handleBlur = (v: string) => {
+                    onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } });
+                  };
+                  const cfType = cf.type as string;
+                  const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+                  const opts = isNameType
+                    ? (cf.department && teamMembers?.length
+                        ? teamMembers.filter(m => m.department === cf.department).map(m => m.name)
+                        : assignees)
+                    : (cf.options ?? []);
+                  return (
+                    <div key={cf.id} className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
+                      <div className="flex-1 min-w-0">
+                        {(isNameType || cfType === 'select') ? (
+                          <select disabled={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            className={cls}>
+                            <option value="">-</option>
+                            {opts.map(o => <option key={o}>{o}</option>)}
+                          </select>
+                        ) : cfType === 'date' ? (
+                          <input type="date" readOnly={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            className={cls} />
+                        ) : cfType === 'number' ? (
+                          <input type="number" readOnly={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            onBlur={e => handleBlur(e.target.value)}
+                            className={cls} />
+                        ) : cfType === 'link' ? (
+                          <div className="flex items-center gap-1">
+                            <input type="url" readOnly={!canManage} value={val}
+                              onChange={e => handleBlur(e.target.value)}
+                              onBlur={e => handleBlur(e.target.value)}
+                              placeholder="https://"
+                              className={cls} />
+                            {val && <a href={val} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-blue-400 hover:text-blue-500"><ExternalLink size={13} /></a>}
+                          </div>
+                        ) : (
+                          <input type="text" readOnly={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            onBlur={e => handleBlur(e.target.value)}
+                            placeholder="-"
+                            className={cls} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 업무 정보 */}
         <div className="px-5 py-3 border-t border-black/[0.08]">

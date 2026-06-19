@@ -73,6 +73,7 @@ export default function TaskDetailPanel({
   const [title, setTitle] = useState(task.title);
   const [memo, setMemo] = useState(task.memo ?? '');
   const [localHours, setLocalHours] = useState<Record<string, number>>(task.weeklyHours ?? {});
+  const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSub, setNewSub] = useState({ title: '', assignee: task.assignee });
   const [visible, setVisible] = useState(false);
@@ -301,15 +302,17 @@ export default function TaskDetailPanel({
                         {canManage && !disabled ? (
                           <input
                             type="text"
-                            inputMode="numeric"
-                            value={val === 0 ? '' : String(val)}
+                            inputMode="decimal"
+                            value={key in localRaw ? localRaw[key] : (val === 0 ? '' : String(val))}
                             placeholder="-"
                             onChange={e => {
-                              const raw = e.target.value.replace(/[^0-9]/g, '');
-                              const n = Math.min(24, parseInt(raw) || 0);
+                              const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                              setLocalRaw(prev => ({ ...prev, [key]: raw }));
+                              const n = Math.min(24, parseFloat(raw) || 0);
                               setLocalHours(prev => ({ ...prev, [key]: n }));
                             }}
                             onBlur={() => {
+                              setLocalRaw(prev => { const next = { ...prev }; delete next[key]; return next; });
                               const total = Object.values(localHours).reduce((a, b) => a + b, 0);
                               onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
                             }}

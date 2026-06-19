@@ -43,21 +43,28 @@ type SubTaskEntry = {
   totalHours: number;
 };
 
-function getWeekDays(startDate: string) {
+function getWeekDays(startDate: string, endDate?: string) {
   const DAY_NAMES = ['월', '화', '수', '목', '금'];
-  if (!startDate) {
-    return Array.from({ length: 5 }, () => ({
-      weekLabel: '',
-      days: DAY_NAMES.map(name => ({ name, date: '' })),
-    }));
-  }
+  if (!startDate) return [];
+
   const base = new Date(startDate);
   const dow = base.getDay();
   const diff = dow === 0 ? -6 : 1 - dow;
   const monday = new Date(base);
   monday.setDate(base.getDate() + diff);
 
-  return Array.from({ length: 5 }, (_, wi) => {
+  let weekCount = 1;
+  if (endDate) {
+    const end = new Date(endDate);
+    const endDow = end.getDay();
+    const endDiff = endDow === 0 ? -6 : 1 - endDow;
+    const endMonday = new Date(end);
+    endMonday.setDate(end.getDate() + endDiff);
+    const diffMs = endMonday.getTime() - monday.getTime();
+    weekCount = Math.max(1, Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1);
+  }
+
+  return Array.from({ length: weekCount }, (_, wi) => {
     const weekMon = new Date(monday);
     weekMon.setDate(monday.getDate() + wi * 7);
     const weekLabel = `${weekMon.getMonth() + 1}/${weekMon.getDate()}`;
@@ -285,11 +292,14 @@ export default function TaskDetailPanel({
                   : null;
                 const displayAssignees = (filtered && filtered.length > 0) ? filtered : assignees;
 
-                // 시작일 기준 비활성 컬럼 계산
+                // 시작/종료일 기준 비활성 컬럼 계산
                 const sd = entry.startDate ? new Date(entry.startDate) : null;
-                const dow = sd ? sd.getDay() : 1;
-                const startDayIdx = !sd ? 0 : (dow === 0 || dow === 6) ? 0 : dow - 1;
-                const weeks = getWeekDays(entry.startDate ?? '');
+                const sdDow = sd ? sd.getDay() : 1;
+                const startDayIdx = !sd ? 0 : (sdDow === 0 || sdDow === 6) ? 0 : sdDow - 1;
+                const ed = entry.endDate ? new Date(entry.endDate) : null;
+                const edDow = ed ? ed.getDay() : 0;
+                const endDayIdx = !ed ? 4 : (edDow === 0 || edDow === 6) ? 4 : edDow - 1;
+                const weeks = getWeekDays(entry.startDate ?? '', entry.endDate);
 
                 return (
                   <div key={type.id} className="rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-3">
@@ -342,7 +352,11 @@ export default function TaskDetailPanel({
                       />
                     </div>
 
-                    {/* 요일 헤더 */}
+                    {/* 요일 헤더 + 주차 행 */}
+                    {!entry.startDate ? (
+                      <p className="text-[11px] text-gray-400 dark:text-white/20 text-center py-1.5">시작일을 설정하면 주차별 시간을 입력할 수 있습니다</p>
+                    ) : (
+                    <>
                     <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-0.5">
                       <span />
                       {['월', '화', '수', '목', '금'].map(d => (
@@ -350,9 +364,9 @@ export default function TaskDetailPanel({
                       ))}
                     </div>
 
-                    {/* 주차별 행 */}
                     {weeks.map(({ weekLabel, days }, wi) => {
                       const weekNum = wi + 1;
+                      const isLastWeek = wi === weeks.length - 1;
                       return (
                         <div key={wi} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1">
                           <div className="flex flex-col items-center justify-center">
@@ -365,7 +379,7 @@ export default function TaskDetailPanel({
                             const key = `w${weekNum}d${di + 1}`;
                             const rawKey = `${type.id}_${key}`;
                             const val = entry.weeklyHours[key] ?? 0;
-                            const disabled = wi === 0 && di < startDayIdx;
+                            const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && entry.endDate ? di > endDayIdx : false);
                             return (
                               <div key={di} className="flex flex-col items-center gap-0.5">
                                 <span className={`text-[8px] leading-none ${disabled ? 'text-gray-300 dark:text-white/10' : 'text-gray-400 dark:text-white/22'}`}>
@@ -412,6 +426,8 @@ export default function TaskDetailPanel({
                         </div>
                       );
                     })}
+                    </>
+                    )}
                   </div>
                 );
               })}

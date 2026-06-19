@@ -274,50 +274,59 @@ export default function TaskDetailPanel({
           </div>
 
           {/* 주차 행 */}
-          {getWeekDays(task.startDate).map(({ weekLabel, days }, wi) => {
-            const weekNum = wi + 1;
-            const weekTotal = days.reduce((s, _, di) => s + (localHours[`w${weekNum}d${di + 1}`] ?? 0), 0);
-            return (
-              <div key={weekNum} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1.5">
-                {/* 주차 레이블 */}
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-[10px] font-semibold text-gray-500 dark:text-white/45">{weekNum}주</span>
-                  {weekLabel && <span className="text-[8px] text-gray-300 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
-                </div>
+          {(() => {
+            // 1주차에서 시작일 이전 요일 비활성화 계산 (0=월 ~ 4=금)
+            const sd = task.startDate ? new Date(task.startDate) : null;
+            const dow = sd ? sd.getDay() : 1; // 0=일,1=월,...,6=토
+            const startDayIdx = (dow === 0 || dow === 6) ? 0 : dow - 1;
 
-                {/* 일별 입력 */}
-                {days.map(({ date }, di) => {
-                  const key = `w${weekNum}d${di + 1}`;
-                  const val = localHours[key] ?? 0;
-                  return (
-                    <div key={di} className="flex flex-col items-center gap-0.5">
-                      <span className="text-[9px] text-gray-300 dark:text-white/20">{date}</span>
-                      {canManage ? (
-                        <input
-                          type="number" min={0} max={24}
-                          value={val === 0 ? '' : val}
-                          placeholder="-"
-                          onChange={e => {
-                            const n = Math.max(0, Math.min(24, parseInt(e.target.value) || 0));
-                            setLocalHours(prev => ({ ...prev, [key]: n }));
-                          }}
-                          onBlur={() => {
-                            const total = Object.values(localHours).reduce((a, b) => a + b, 0);
-                            onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
-                          }}
-                          className="w-full text-center text-xs bg-black/5 dark:bg-white/8 rounded-md py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-700 dark:text-white/75 placeholder:text-gray-300 dark:placeholder:text-white/15"
-                        />
-                      ) : (
-                        <span className="w-full text-center text-xs bg-black/5 dark:bg-white/8 rounded-md py-1.5 text-gray-600 dark:text-white/55">
-                          {val > 0 ? val : <span className="text-gray-300 dark:text-white/15">-</span>}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+            return getWeekDays(task.startDate).map(({ weekLabel, days }, wi) => {
+              const weekNum = wi + 1;
+              return (
+                <div key={weekNum} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1.5">
+                  {/* 주차 레이블 */}
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-[10px] font-semibold text-gray-500 dark:text-white/45">{weekNum}주</span>
+                    {weekLabel && <span className="text-[8px] text-gray-300 dark:text-white/20 leading-tight text-center">{weekLabel}</span>}
+                  </div>
+
+                  {/* 일별 입력 */}
+                  {days.map(({ date }, di) => {
+                    const key = `w${weekNum}d${di + 1}`;
+                    const val = localHours[key] ?? 0;
+                    const disabled = wi === 0 && di < startDayIdx;
+                    return (
+                      <div key={di} className="flex flex-col items-center gap-0.5">
+                        <span className={`text-[9px] ${disabled ? 'text-gray-200 dark:text-white/12' : 'text-gray-300 dark:text-white/20'}`}>{date}</span>
+                        {canManage && !disabled ? (
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={val === 0 ? '' : String(val)}
+                            placeholder="-"
+                            onChange={e => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '');
+                              const n = Math.min(24, parseInt(raw) || 0);
+                              setLocalHours(prev => ({ ...prev, [key]: n }));
+                            }}
+                            onBlur={() => {
+                              const total = Object.values(localHours).reduce((a, b) => a + b, 0);
+                              onUpdate(task.id, { weeklyHours: localHours, totalHours: total });
+                            }}
+                            className="w-full text-center text-xs bg-black/5 dark:bg-white/8 rounded-md py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 text-gray-700 dark:text-white/75 placeholder:text-gray-300 dark:placeholder:text-white/15"
+                          />
+                        ) : (
+                          <span className={`w-full text-center text-xs rounded-md py-1.5 ${disabled ? 'bg-black/[0.02] dark:bg-white/[0.02] text-gray-200 dark:text-white/10' : 'bg-black/5 dark:bg-white/8 text-gray-600 dark:text-white/55'}`}>
+                            {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            });
+          })()}
         </div>
 
         {/* 메모 */}

@@ -103,7 +103,14 @@ export default function TaskDetailPanel({
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
+    requestAnimationFrame(() => {
+      setVisible(true);
+      // panel width + 12px right gap so main panel clears the detail panel
+      document.documentElement.style.setProperty('--detail-panel-w', `${PANEL_W + 12}px`);
+    });
+    return () => {
+      document.documentElement.style.setProperty('--detail-panel-w', '0px');
+    };
   }, []);
 
   useEffect(() => {
@@ -120,6 +127,7 @@ export default function TaskDetailPanel({
 
   const handleClose = () => {
     setVisible(false);
+    document.documentElement.style.setProperty('--detail-panel-w', '0px');
     setTimeout(onClose, 260);
   };
 
@@ -153,13 +161,12 @@ export default function TaskDetailPanel({
 
   return (
     <div
-      style={{ left: 220, width: PANEL_W, top: 12, bottom: 12 }}
+      style={{ left: 232, width: PANEL_W, top: 12, bottom: 12 }}
       className={`fixed z-30 flex flex-col
-        bg-white/88 backdrop-blur-2xl
+        bg-white
         rounded-[24px]
-        shadow-[0_8px_40px_rgba(108,99,255,0.14),0_2px_8px_rgba(108,99,255,0.08)]
-        border border-white/70
-        transition-transform duration-260 ease-out
+        shadow-[0_8px_40px_rgba(30,34,100,0.18),0_2px_8px_rgba(30,34,100,0.08)]
+        transition-transform duration-260 ease-out overflow-hidden
         ${visible ? 'translate-x-0' : '-translate-x-full'}`}
     >
       {/* 헤더 */}

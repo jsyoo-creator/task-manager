@@ -219,8 +219,8 @@ export default function TaskDetailPanel({
               <p className="text-[10px] font-medium text-gray-400 dark:text-white/28 uppercase tracking-wide mb-1">상태</p>
               {canManage ? (
                 <div className="relative block w-full">
-                  <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
-                    {task.status}<ChevronDown size={9} />
+                  <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
+                    <span>{task.status}</span><ChevronDown size={9} />
                   </div>
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
                     onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
@@ -228,7 +228,7 @@ export default function TaskDetailPanel({
                   </select>
                 </div>
               ) : (
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[task.status]}`}>{task.status}</span>
+                <span className={`flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium ${STATUS_STYLE[task.status]}`}>{task.status}</span>
               )}
             </div>
 

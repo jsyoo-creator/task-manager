@@ -598,24 +598,17 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   )}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
-                    {/* 이름 타입: 편집/비편집 무관하게 항상 직군 선택기 표시 */}
-                    {(isEditingCF ? customTypeInput : cf.type) === 'name' && (
-                      <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-violet-300 bg-violet-50 text-violet-700 focus:outline-none cursor-pointer"
-                        value={isEditingCF ? customDeptInput : (cf.department ?? '')}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => {
-                          const dept = e.target.value as Department | '';
-                          if (isEditingCF) {
-                            setCustomDeptInput(dept);
-                          } else {
-                            onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, department: dept || undefined } : f));
-                          }
-                        }}>
-                        <option value="">직군 전체</option>
-                        {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-                      </select>
-                    )}
+                    {cf.type === 'name' && (['전체', ...DEPARTMENTS] as const).map(d => {
+                      const val = d === '전체' ? undefined : d as Department;
+                      const active = (cf.department ?? undefined) === val;
+                      return (
+                        <button key={d} type="button"
+                          onClick={e => { e.stopPropagation(); onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, department: val } : f)); }}
+                          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
+                          {d}
+                        </button>
+                      );
+                    })}
                     {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                     <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
                     <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>

@@ -25,6 +25,8 @@ interface Props {
   onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
   onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -882,10 +884,13 @@ const SUBTASK_DEPT_COLOR: Record<string, string> = {
   '퍼블': 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
 };
 
-function SubTaskTypesEditor({ team, onSave }: {
+function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [newName, setNewName] = useState('');
@@ -893,10 +898,18 @@ function SubTaskTypesEditor({ team, onSave }: {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
-  useEffect(() => { setEditingId(null); }, [team.id]);
+  useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
-  const types = team.subTaskTypes ?? [];
-  const save = (next: SubTaskType[]) => onSave(team.id, next);
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = !isTeam && !currentPart?.subTaskTypes;
+  const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
+  const types: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
+
+  const save = (next: SubTaskType[]) => {
+    if (isTeam) onSave(team.id, next);
+    else if (currentPart) onSavePart(team.id, currentPart.id, next);
+  };
 
   const onDrop = (toIdx: number) => {
     const from = dragIdxRef.current;
@@ -930,8 +943,60 @@ function SubTaskTypesEditor({ team, onSave }: {
   const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
   return (
-    <div className="space-y-3">
-      <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide">
+    <div className="space-y-4">
+      {/* 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.subTaskTypes;
+              return (
+                <button key={target}
+                  onClick={() => { setSelectedTarget(target); setEditingId(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-black/10 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상속 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+          <p className="text-xs text-amber-700 dark:text-amber-300">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+            className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화
+          </button>
+        </div>
+      )}
+      {!isTeam && !isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+          <p className="text-xs text-blue-700 dark:text-blue-300">이 파트의 별도 설정이 적용 중</p>
+          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />팀 기본으로 초기화
+          </button>
+        </div>
+      )}
+
+      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
+      <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">
         세부 업무 목록
         <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
       </p>
@@ -1007,6 +1072,7 @@ function SubTaskTypesEditor({ team, onSave }: {
           <Plus size={11} />추가
         </button>
       </div>
+      </div>
     </div>
   );
 }
@@ -1024,6 +1090,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
   onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -1225,6 +1293,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                       <SubTaskTypesEditor
                         team={team}
                         onSave={onUpdateSubTaskTypes}
+                        onSavePart={onUpdatePartSubTaskTypes}
+                        onClearPart={onClearPartSubTaskTypes}
                       />
                     </div>
                   )}
@@ -1245,7 +1315,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -1476,6 +1546,8 @@ export default function SettingsPage({
           onUpdatePartMetaFields={onUpdatePartMetaFields}
           onClearPartMetaFields={onClearPartMetaFields}
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
+          onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
+          onClearPartSubTaskTypes={onClearPartSubTaskTypes}
         />
       )}
 

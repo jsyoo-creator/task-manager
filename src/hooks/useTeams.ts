@@ -97,6 +97,24 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { subTaskTypes: types });
   };
 
+  const updatePartSubTaskTypes = async (teamId: string, partId: string, types: SubTaskType[]) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => p.id === partId ? { ...p, subTaskTypes: types } : p);
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  const clearPartSubTaskTypes = async (teamId: string, partId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => {
+      if (p.id !== partId) return p;
+      const { subTaskTypes: _, ...rest } = p;
+      return rest;
+    });
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
   const clearPartMetaFields = async (teamId: string, partId: string) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
@@ -108,5 +126,5 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes };
 }

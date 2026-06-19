@@ -40,7 +40,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes } = useTeams(user?.uid);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
@@ -191,6 +191,8 @@ function App() {
                     onUpdatePartMetaFields={updatePartMetaFields}
                     onClearPartMetaFields={clearPartMetaFields}
                     onUpdateSubTaskTypes={updateSubTaskTypes}
+                    onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
+                    onClearPartSubTaskTypes={clearPartSubTaskTypes}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
@@ -213,7 +215,7 @@ function App() {
               parts={activeParts}
               canManage={permissions.canManageTasks}
               metaFields={resolvedMetaFields}
-              subTaskTypes={selectedTeam?.subTaskTypes ?? []}
+              subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
             />
           );
         })()}

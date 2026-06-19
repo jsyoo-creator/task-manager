@@ -107,7 +107,7 @@ function Smoke() {
       {[0, 1, 2].map(i => (
         <div
           key={i}
-          className="absolute rounded-full bg-gray-300/70"
+          className="absolute rounded-full bg-gray-400/50"
           style={{
             width: 5 - i,
             height: 5 - i,
@@ -207,6 +207,11 @@ export default function LoadingScreen({ done, onFinished }: Props) {
         }`}
         style={{ background: '#F7F8FC' }}
       >
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#b8c8ff] opacity-45 blur-[90px]" />
+          <div className="absolute top-[15%] right-[-80px] w-[520px] h-[520px] rounded-full bg-[#d4b8ff] opacity-38 blur-[90px]" />
+          <div className="absolute bottom-0 left-[20%] w-[480px] h-[480px] rounded-full bg-[#ffb8d4] opacity-30 blur-[90px]" />
+        </div>
 
         <div
           className="relative glass-card px-10 py-7 flex flex-col items-center gap-4 w-[360px]"
@@ -236,7 +241,7 @@ export default function LoadingScreen({ done, onFinished }: Props) {
 
               {/* Shadow */}
               <div
-                className="absolute rounded-full bg-black/12"
+                className="absolute rounded-full bg-black/18"
                 style={{
                   width: 32, height: 6,
                   bottom: 2,
@@ -266,7 +271,7 @@ export default function LoadingScreen({ done, onFinished }: Props) {
             </div>
 
             {/* Progress bar */}
-            <div className="relative h-2.5 bg-gray-200 rounded-full overflow-hidden">
+            <div className="relative h-2.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 rounded-full transition-all duration-150"
                 style={{ width: `${progress}%`, background: 'linear-gradient(90deg,#fb923c,#f97316 60%,#fb7185)' }}

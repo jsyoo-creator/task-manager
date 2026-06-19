@@ -28,7 +28,7 @@ const DEPT_BADGE: Record<string, string> = {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-gray-100 last:border-0">
+    <div className="flex items-start gap-3 py-2.5 border-b border-black/[0.08] last:border-0">
       <span className="text-xs text-gray-500 font-medium w-14 flex-shrink-0 pt-0.5">{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
@@ -169,7 +169,7 @@ export default function TaskDetailPanel({
         ${visible ? 'translate-x-0' : '-translate-x-full'}`}
     >
       {/* 헤더 */}
-      <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
+      <div className="flex items-center gap-2 px-5 pt-4 pb-3 border-b border-black/[0.08] flex-shrink-0">
         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${categoryColor}`} />
         <span className="text-xs text-gray-600 font-medium truncate flex-1">
           {task.category || '파트 없음'} · {task.type}
@@ -199,7 +199,7 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 속성 - 컴팩트 그리드 */}
-        <div className="px-5 pb-1 border-b border-gray-100">
+        <div className="px-5 pb-1 border-b border-black/[0.08]">
           {/* 행 1: 월 / 상태 / 유형 */}
           <div className="grid grid-cols-3 gap-x-3 py-2.5 border-b border-gray-100">
             <div>
@@ -291,7 +291,7 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 세부업무 & 주차별 시간 */}
-        <div className="px-5 py-3 border-t border-gray-100">
+        <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">세부업무 & 주차별 시간</p>
           {subTaskTypes.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-3">팀 설정 → 세부 업무 탭에서 유형을 등록해주세요</p>
@@ -453,7 +453,7 @@ export default function TaskDetailPanel({
         </div>
 
         {/* 업무 정보 */}
-        <div className="px-5 py-3 border-t border-gray-100">
+        <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
             {metaFields.map(({ key, label, isUrl }) => {
@@ -489,7 +489,7 @@ export default function TaskDetailPanel({
 
       {/* 하단 액션 */}
       {canManage && (
-        <div className="px-5 py-3 border-t border-gray-100 flex justify-between items-center flex-shrink-0">
+        <div className="px-5 py-3 border-t border-black/[0.08] flex justify-between items-center flex-shrink-0">
           <span className="text-[11px] text-gray-500">
             {task.updatedAt ? `수정 ${new Date(task.updatedAt).toLocaleDateString('ko-KR')}` : ''}
           </span>

@@ -97,7 +97,7 @@ export default function DatePicker({ value, onChange, compact, disabled }: Props
         <div
           ref={popupRef}
           style={{ ...popupStyle, width: 240 }}
-          className="!rounded-2xl overflow-hidden shadow-2xl border border-gray-200 bg-white"
+          className="!rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-white"
         >
           <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
             <button type="button" onClick={prevMonth}

@@ -265,8 +265,7 @@ export default function Layout({
       <div
         className="flex-1 min-w-0 relative"
         style={{
-          marginLeft: 'calc(220px + var(--detail-panel-w, 0px))',
-          transition: 'margin-left 0.26s ease-out',
+          marginLeft: '220px',
           padding: '12px 12px 12px 0',
           minHeight: '100vh',
           boxSizing: 'border-box',

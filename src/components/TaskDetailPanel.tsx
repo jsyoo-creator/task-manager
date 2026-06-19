@@ -103,13 +103,7 @@ export default function TaskDetailPanel({
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    requestAnimationFrame(() => {
-      setVisible(true);
-      document.documentElement.style.setProperty('--detail-panel-w', `${PANEL_W}px`);
-    });
-    return () => {
-      document.documentElement.style.setProperty('--detail-panel-w', '0px');
-    };
+    requestAnimationFrame(() => setVisible(true));
   }, []);
 
   useEffect(() => {
@@ -126,7 +120,6 @@ export default function TaskDetailPanel({
 
   const handleClose = () => {
     setVisible(false);
-    document.documentElement.style.setProperty('--detail-panel-w', '0px');
     setTimeout(onClose, 260);
   };
 
@@ -160,11 +153,12 @@ export default function TaskDetailPanel({
 
   return (
     <div
-      style={{ left: 220, width: PANEL_W }}
-      className={`fixed top-0 h-screen z-30 flex flex-col
-        bg-[#eef2fb] backdrop-blur-2xl
-        shadow-[inset_2px_0_0_rgba(0,0,0,0.09),4px_0_20px_rgba(0,0,0,0.09)]
-       
+      style={{ left: 220, width: PANEL_W, top: 12, bottom: 12 }}
+      className={`fixed z-30 flex flex-col
+        bg-white/88 backdrop-blur-2xl
+        rounded-[24px]
+        shadow-[0_8px_40px_rgba(108,99,255,0.14),0_2px_8px_rgba(108,99,255,0.08)]
+        border border-white/70
         transition-transform duration-260 ease-out
         ${visible ? 'translate-x-0' : '-translate-x-full'}`}
     >

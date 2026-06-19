@@ -414,10 +414,12 @@ export default function TaskDetailPanel({
                                       if (n === 0) delete newHours[key];
                                       setLocalSubTaskData(prev => {
                                         const cur = prev[type.id] ?? entry;
-                                        return {
+                                        const next = {
                                           ...prev,
                                           [type.id]: { ...cur, weeklyHours: newHours, totalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
                                         };
+                                        localSubTaskDataRef.current = next;
+                                        return next;
                                       });
                                     }}
                                     onBlur={() => {

@@ -215,22 +215,22 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
         </div>
 
         <div
-          className="relative glass-card px-10 py-9 flex flex-col items-center gap-6 w-[380px]"
+          className="relative glass-card px-10 py-7 flex flex-col items-center gap-4 w-[360px]"
           style={{ animation: 'ls-fadein 0.5s ease both' }}
         >
           {/* Logo */}
-          <div className="flex items-center gap-3 select-none">
-            <div className="w-10 h-10 rounded-[11px] bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg"
+          <div className="flex items-center gap-2.5 select-none">
+            <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-base"
               style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.22) inset, 0 4px 14px rgba(37,99,235,0.45)' }}>T</div>
-            <div className="leading-tight">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-black/28 dark:text-white/28 uppercase">PIVOT</p>
-              <p className="text-sm font-bold text-black/80 dark:text-white/85">Task Manager</p>
+            <div className="leading-snug">
+              <p className="text-[9px] font-semibold tracking-[0.18em] text-black/35 dark:text-white/35 uppercase">PIVOT</p>
+              <p className="text-[13px] font-bold text-black/80 dark:text-white/85">Task Manager</p>
             </div>
           </div>
 
           {/* Track */}
           <div className="w-full">
-            <div className="relative h-20 mb-1">
+            <div className="relative h-16 mb-1">
 
               {/* House */}
               <div className="absolute right-0 bottom-2" style={{ zIndex: 2 }}>

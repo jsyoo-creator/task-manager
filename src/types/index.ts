@@ -167,6 +167,7 @@ export interface Task {
   totalHours: number;
   revisionLevel: number;
   customFields?: Record<string, string>;
+  memo?: string;
   createdAt: string;
   updatedAt: string;
 }

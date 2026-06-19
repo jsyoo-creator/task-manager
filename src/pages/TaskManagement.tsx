@@ -4,6 +4,7 @@ import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, Built
 import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
+import TaskDetailPanel from '../components/TaskDetailPanel';
 import { useSubTasks } from '../hooks/useTasks';
 
 interface Props {
@@ -66,6 +67,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
 export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], formConfig, builtinFields: propBuiltinFields }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
   const [assigneeFilter, setAssigneeFilter] = useState('전체');
@@ -159,6 +161,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             onToggle={() => toggleExpand(task.id)}
             onUpdate={onUpdateTask}
             onDelete={onDeleteTask}
+            onOpenDetail={() => setSelectedTaskId(task.id)}
             canManage={canManage}
             assignees={assignees}
             tableFields={tableFields}
@@ -169,6 +172,21 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={onAddTask}
         projectId={projectId} parts={parts} assignees={assignees} formConfig={formConfig} />
+
+      {selectedTaskId && (() => {
+        const task = tasks.find(t => t.id === selectedTaskId);
+        return task ? (
+          <TaskDetailPanel
+            task={task}
+            onClose={() => setSelectedTaskId(null)}
+            onUpdate={onUpdateTask}
+            onDelete={(id) => { onDeleteTask(id); setSelectedTaskId(null); }}
+            assignees={assignees}
+            parts={parts ?? []}
+            canManage={canManage}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }
@@ -187,11 +205,12 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assignees, tableFields, colTemplate }: {
+function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, onOpenDetail, canManage, assignees, tableFields, colTemplate }: {
   task: Task; expanded: boolean;
   onToggle: () => void;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  onOpenDetail: () => void;
   canManage: boolean;
   assignees: string[];
   tableFields: BuiltinFieldConfig[];
@@ -225,10 +244,11 @@ function TaskRow({ task, expanded, onToggle, onUpdate, onDelete, canManage, assi
 
         {tableFields.flatMap(fc => {
           if (fc.key === 'title') return [
-            <span key="title" className="flex items-center gap-1.5 min-w-0 pr-2">
+            <button key="title" onClick={onOpenDetail}
+              className="flex items-center gap-1.5 min-w-0 pr-2 group/title text-left w-full">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
-              <span className="font-semibold text-gray-800 dark:text-white/85 truncate">{task.title}</span>
-            </span>,
+              <span className="font-semibold text-gray-800 dark:text-white/85 truncate group-hover/title:text-blue-600 dark:group-hover/title:text-blue-400 transition-colors">{task.title}</span>
+            </button>,
           ];
           if (fc.key === 'category') return [
             <span key="category" className="text-xs truncate">

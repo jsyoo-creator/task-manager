@@ -265,18 +265,24 @@ export default function Layout({
       <div
         className="flex-1 min-w-0 relative"
         style={{
-          marginLeft: 'calc(220px + var(--detail-panel-w, 0px))',
-          transition: 'margin-left 0.26s ease-out',
+          marginLeft: '220px',
           padding: '12px',
           minHeight: '100vh',
           boxSizing: 'border-box',
         }}
       >
         <div
-          className="rounded-[28px] min-h-[calc(100vh-24px)]"
+          className="rounded-[28px] min-h-[calc(100vh-24px)] overflow-hidden"
           style={{ background: 'linear-gradient(160deg, #FAFAFE 0%, #F0EEFF 100%)' }}
         >
-          <div className="p-6">
+          {/* paddingLeft shifts when detail panel opens — panel stays full size */}
+          <div
+            className="pt-6 pr-6 pb-6"
+            style={{
+              paddingLeft: 'calc(var(--detail-panel-w, 0px) + 24px)',
+              transition: 'padding-left 0.26s ease-out',
+            }}
+          >
             <DepartmentAlert appUser={appUser} />
             <TeamAlert appUser={appUser} teamsLoading={teamsLoading} teams={teams} />
             {children}

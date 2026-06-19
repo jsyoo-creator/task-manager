@@ -105,8 +105,7 @@ export default function TaskDetailPanel({
   useEffect(() => {
     requestAnimationFrame(() => {
       setVisible(true);
-      // panel width + 12px right gap so main panel clears the detail panel
-      document.documentElement.style.setProperty('--detail-panel-w', `${PANEL_W + 12}px`);
+      document.documentElement.style.setProperty('--detail-panel-w', `${PANEL_W}px`);
     });
     return () => {
       document.documentElement.style.setProperty('--detail-panel-w', '0px');
@@ -161,12 +160,12 @@ export default function TaskDetailPanel({
 
   return (
     <div
-      style={{ left: 232, width: PANEL_W, top: 12, bottom: 12 }}
+      style={{ left: 232, width: PANEL_W, top: 12, bottom: 12, background: '#FFFFFF' }}
       className={`fixed z-30 flex flex-col
-        bg-white
-        rounded-[24px]
-        shadow-[0_8px_40px_rgba(30,34,100,0.18),0_2px_8px_rgba(30,34,100,0.08)]
-        transition-transform duration-260 ease-out overflow-hidden
+        rounded-l-[28px]
+        border-r border-[#E5E0F5]
+        overflow-hidden
+        transition-transform duration-260 ease-out
         ${visible ? 'translate-x-0' : '-translate-x-full'}`}
     >
       {/* 헤더 */}

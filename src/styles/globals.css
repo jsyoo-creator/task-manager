@@ -95,13 +95,18 @@ body {
 /* Shiny primary — neon glow border, pink → indigo gradient */
 .btn-shiny-primary {
   position: relative;
-  background: linear-gradient(to right, #8c1a5a 0%, #4a22a8 55%, #1c34a8 100%);
-  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(to right, #d42475 0%, #7030e8 55%, #2840e0 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
   border-radius: 12px;
   overflow: visible;
   transition: all 0.2s ease;
   color: white;
   z-index: 1;
+}
+/* 다크 모드: 더 어둡고 채도 낮춘 버전 */
+.dark .btn-shiny-primary {
+  background: linear-gradient(to right, #8c1a5a 0%, #4a22a8 55%, #1c34a8 100%);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 /* 바깥으로 번지는 그라디언트 글로우 — 라이트 모드: 타이트하게 */
 .btn-shiny-primary::before {

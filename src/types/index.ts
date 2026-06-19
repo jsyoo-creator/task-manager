@@ -146,6 +146,7 @@ export interface MetaField {
 export interface SubTaskType {
   id: string;
   name: string;
+  department?: Department;
 }
 
 export const DEFAULT_META_FIELDS: MetaField[] = [

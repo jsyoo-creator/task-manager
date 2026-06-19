@@ -244,6 +244,13 @@ export default function TaskDetailPanel({
                   <div key={type.id} className="rounded-xl bg-black/[0.04] dark:bg-white/[0.04] p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xs font-semibold text-gray-700 dark:text-white/70 flex-1">{type.name}</span>
+                      {type.department && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${
+                          type.department === '기획' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300' :
+                          type.department === '디자인' ? 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' :
+                          'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300'
+                        }`}>{type.department}</span>
+                      )}
                       <select
                         disabled={!canManage}
                         className="text-xs bg-black/5 dark:bg-white/8 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 dark:text-white/55 cursor-pointer disabled:cursor-default"

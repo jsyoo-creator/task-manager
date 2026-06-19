@@ -876,6 +876,12 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
 // ──────────────────────────────────────────
 // 세부 업무 유형 편집기
 // ──────────────────────────────────────────
+const SUBTASK_DEPT_COLOR: Record<string, string> = {
+  '기획': 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+  '디자인': 'bg-pink-100 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300',
+  '퍼블': 'bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300',
+};
+
 function SubTaskTypesEditor({ team, onSave }: {
   team: Team;
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
@@ -883,6 +889,7 @@ function SubTaskTypesEditor({ team, onSave }: {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [newName, setNewName] = useState('');
+  const [newDept, setNewDept] = useState<Department | ''>('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
@@ -907,21 +914,25 @@ function SubTaskTypesEditor({ team, onSave }: {
     setEditingId(null);
   };
 
+  const toggleDept = (id: string, dept: Department) => {
+    save(types.map(t => t.id === id ? { ...t, department: t.department === dept ? undefined : dept } : t));
+  };
+
   const deleteType = (id: string) => save(types.filter(t => t.id !== id));
 
   const addType = () => {
     const name = newName.trim();
     if (!name) return;
-    save([...types, { id: `st_${Date.now()}`, name }]);
-    setNewName('');
+    save([...types, { id: `st_${Date.now()}`, name, department: newDept || undefined }]);
+    setNewName(''); setNewDept('');
   };
 
-  const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+  const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
   return (
     <div className="space-y-3">
       <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide">
-        세부 업무 유형
+        세부 업무 목록
         <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
       </p>
       {types.length > 0 ? (
@@ -948,21 +959,49 @@ function SubTaskTypesEditor({ team, onSave }: {
                   {t.name}
                 </button>
               )}
+              {/* 직군 토글 버튼 */}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                  <button key={d} type="button"
+                    onClick={() => toggleDept(t.id, d)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                      t.department === d
+                        ? SUBTASK_DEPT_COLOR[d]
+                        : 'bg-black/5 dark:bg-white/8 text-gray-400 dark:text-white/25 hover:bg-black/8 dark:hover:bg-white/12'
+                    }`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
               <button type="button" onClick={() => deleteType(t.id)}
-                className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors">
+                className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors ml-0.5">
                 <X size={11} />
               </button>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-gray-400 dark:text-white/30 text-center py-3">세부 업무 유형이 없습니다</p>
+        <p className="text-xs text-gray-400 dark:text-white/30 text-center py-3">등록된 세부 업무가 없습니다</p>
       )}
+      {/* 추가 폼 */}
       <div className="flex items-center gap-2">
-        <input className={iCls}
-          placeholder="새 유형 이름 (예: 기획, 디자인, 퍼블)"
+        <input className={`${iCls} flex-1 min-w-0`}
+          placeholder="세부업무명 입력"
           value={newName} onChange={e => setNewName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && addType()} />
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+            <button key={d} type="button"
+              onClick={() => setNewDept(prev => prev === d ? '' : d)}
+              className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                newDept === d
+                  ? SUBTASK_DEPT_COLOR[d]
+                  : 'bg-black/5 dark:bg-white/8 text-gray-400 dark:text-white/25 hover:bg-black/8 dark:hover:bg-white/12'
+              }`}>
+              {d}
+            </button>
+          ))}
+        </div>
         <button onClick={addType} disabled={!newName.trim()}
           className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
           <Plus size={11} />추가

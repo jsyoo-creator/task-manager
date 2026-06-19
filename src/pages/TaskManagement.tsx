@@ -260,8 +260,8 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, canManage, assignees,
               {assignees.map(a => <option key={a}>{a}</option>)}
             </select>
           ];
-          if (fc.key === 'startDate') return [<span key="startDate" className="text-xs text-gray-600 dark:text-white/55">{task.startDate?.slice(5).replace('-', '.') ?? '-'}</span>];
-          if (fc.key === 'endDate')   return [<span key="endDate" className="text-xs text-gray-600 dark:text-white/55">{task.endDate?.slice(5).replace('-', '.') ?? '-'}</span>];
+          if (fc.key === 'startDate') return [<span key="startDate" className="text-xs text-gray-600 dark:text-white/55">{task.startDate?.slice(2).replace(/-/g, '.') ?? '-'}</span>];
+          if (fc.key === 'endDate')   return [<span key="endDate" className="text-xs text-gray-600 dark:text-white/55">{task.endDate?.slice(2).replace(/-/g, '.') ?? '-'}</span>];
           if (fc.key === 'weeklyHours') return [
             <span key="total" className="text-center text-xs font-semibold text-gray-700 dark:text-white/60">{totalH > 0 ? `${totalH}h` : '-'}</span>
           ];

@@ -4,6 +4,27 @@ import type { Task, SubTask, TaskStatus, TaskType, TeamPart } from '../types';
 import { useSubTasks } from '../hooks/useTasks';
 
 const PANEL_W = 380;
+
+// 시작일 기준으로 월요일 찾아 5주치 날짜 범위 반환
+function getWeekRanges(startDate: string): { label: string }[] {
+  if (!startDate) return Array(5).fill({ label: '' });
+  const start = new Date(startDate);
+  const dow = start.getDay(); // 0=일,1=월,...,6=토
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(start);
+  monday.setDate(start.getDate() + diffToMon);
+
+  return Array.from({ length: 5 }, (_, i) => {
+    const mon = new Date(monday);
+    mon.setDate(monday.getDate() + i * 7);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    const m1 = mon.getMonth() + 1, d1 = mon.getDate();
+    const m2 = sun.getMonth() + 1, d2 = sun.getDate();
+    const label = m1 === m2 ? `${m1}/${d1}~${d2}` : `${m1}/${d1}~${m2}/${d2}`;
+    return { label };
+  });
+}
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 
@@ -224,12 +245,15 @@ export default function TaskDetailPanel({
         <div className="px-5 py-3 border-t border-black/5 dark:border-white/6">
           <p className="text-[11px] font-semibold text-gray-400 dark:text-white/30 uppercase tracking-wide mb-2.5">주차별 시간</p>
           <div className="grid grid-cols-5 gap-2">
-            {[1,2,3,4,5].map(w => {
+            {[1,2,3,4,5].map((w, i) => {
               const key = `week${w}` as const;
               const val = task.weeklyHours?.[key] ?? 0;
+              const weekRanges = getWeekRanges(task.startDate);
+              const { label } = weekRanges[i];
               return (
                 <div key={w} className="flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-gray-400 dark:text-white/30">{w}주</span>
+                  <span className="text-[10px] font-medium text-gray-500 dark:text-white/40">{w}주</span>
+                  {label && <span className="text-[9px] text-gray-400 dark:text-white/25 leading-tight">{label}</span>}
                   {canManage ? (
                     <input
                       type="number" min={0} max={99}

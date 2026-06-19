@@ -36,48 +36,56 @@ function Pixels({ map, colors, p }: PixelMap) {
   );
 }
 
-/* ── pixel witch (walking 2-frame, P=3) ──────────────────────── */
-function PixelWitch() {
+/* ── pixel cat (orange tabby, walking 2-frame, P=3) ──────────── */
+function PixelCat() {
   const p = 3;
   const colors: Record<string, string> = {
-    P: '#9333ea',  // purple hat
-    B: '#c084fc',  // hat brim (light purple)
-    e: '#60a5fa',  // hat gem (blue)
-    H: '#f472b6',  // pink hair
-    S: '#fde2b5',  // skin
-    E: '#1c1917',  // eyes
-    G: '#4ade80',  // green dress
-    g: '#22c55e',  // dress shadow
-    R: '#fb7185',  // shoes
+    K: '#3d200d',  // dark outline
+    O: '#cc7733',  // orange fur
+    o: '#e09a55',  // light orange / ear fill
+    T: '#a85520',  // dark stripe
+    W: '#f5e0c5',  // white belly
+    B: '#5090d0',  // blue collar
+    b: '#3568b0',  // collar clasp (darker blue)
+    E: '#180a00',  // eye
+    p: '#e0a0a5',  // pink nose
   };
 
-  // 12 cols × 12 rows  →  36 × 36 px (same as old cat)
+  // 12 cols × 12 rows  →  36 × 36 px
+  // cat faces RIGHT, tail on left side curling up
   const body = [
-    '....PP......',   // hat tip
-    '...PePP.....',   // hat body + blue gem
-    '..BBBBBBBB..',   // hat brim
-    '..HHHSSHHH..',   // hair + face
-    '..HHESEHHH..',   // eyes (E=eye, S=nose bridge)
-    '..HHHSSHHH..',   // lower face
-    '.HHGGGGGHHH.',   // dress shoulders
-    '.HgGGGGGgHH.',   // dress (with shadow trim)
-    '..GGGGGGG...',   // dress hem
-    '...GGG.GGG..',   // legs upper
+    '......K..K..',   //  0: ear tips (cols 6, 9)
+    'Ko...KOKKoK.',   //  1: tail tip + ear fills
+    'KoK..KOOOoK.',   //  2: tail + round head
+    '.Ko..KOEoEK.',   //  3: tail + two eyes
+    'KoK..KOOpKK.',   //  4: tail + nose
+    '.Ko.KBBBbK..',   //  5: tail + blue collar
+    'KoKKOOTOOOOK',   //  6: tail base + body top (T=stripe)
+    '.KKWWWWWWK..',   //  7: belly (white)
+    '..KOOOTOOOOK',   //  8: lower body (T=stripe)
   ];
 
-  // frame 1: right foot forward
-  const f1 = [...body, '..GGG...GGG.', '..RR.....RR.'];
-  // frame 2: left foot forward
-  const f2 = [...body, '..GG...GGGG.', '..RR....RRR.'];
+  // frame 1: legs spread (one stride)
+  const f1 = [...body,
+    '..KOK..KOK..',   //  9
+    '..KOK..KKK..',   // 10
+    '..KKK...KK..',   // 11
+  ];
+  // frame 2: legs shifted (other stride)
+  const f2 = [...body,
+    '...KOK.KOK..',   //  9
+    '...KKK.KOK..',   // 10
+    '....KK.KKK..',   // 11
+  ];
 
   const sz = 12 * p; // 36px
 
   return (
     <div style={{ position: 'relative', width: sz, height: sz }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, animation: 'ls-wf1 0.48s steps(1,end) infinite' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, animation: 'ls-wf1 0.42s steps(1,end) infinite' }}>
         <Pixels map={f1} colors={colors} p={p} />
       </div>
-      <div style={{ position: 'absolute', top: 0, left: 0, animation: 'ls-wf2 0.48s steps(1,end) infinite' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, animation: 'ls-wf2 0.42s steps(1,end) infinite' }}>
         <Pixels map={f2} colors={colors} p={p} />
       </div>
     </div>
@@ -267,7 +275,7 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
                 }}
               />
 
-              {/* Witch */}
+              {/* Cat */}
               <div
                 style={{
                   position: 'absolute',
@@ -276,12 +284,12 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
                   transition: 'left 0.15s linear',
                   animation: entering
                     ? 'ls-arrive 0.4s ease-in forwards'
-                    : 'ls-walk 0.48s ease-in-out infinite',
+                    : 'ls-walk 0.42s ease-in-out infinite',
                   transformOrigin: 'bottom center',
                   zIndex: 1,
                 }}
               >
-                <PixelWitch />
+                <PixelCat />
               </div>
             </div>
 

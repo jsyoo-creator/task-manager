@@ -704,10 +704,23 @@ function MetaFieldsEditor({ team, onSave }: {
   const [fields, setFields] = useState<MetaField[]>(team.metaFields ?? DEFAULT_META_FIELDS);
   const [newLabel, setNewLabel] = useState('');
   const [newIsUrl, setNewIsUrl] = useState(false);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
 
   useEffect(() => { setFields(team.metaFields ?? DEFAULT_META_FIELDS); }, [team.id]);
 
   const save = (next: MetaField[]) => { setFields(next); onSave(team.id, next); };
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...fields];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null;
+    setDragOverIdx(null);
+  };
 
   const addField = () => {
     const label = newLabel.trim();
@@ -733,8 +746,17 @@ function MetaFieldsEditor({ team, onSave }: {
     <div className="space-y-2">
       <p className="text-[11px] text-gray-400 dark:text-white/35 mb-2">업무 상세 패널에 표시될 항목입니다. 기본값은 9개 필드이며 팀별로 재구성할 수 있습니다.</p>
       <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5">
-        {fields.map(f => (
-          <div key={f.key} className="flex items-center gap-2 px-3 py-2">
+        {fields.map((f, i) => (
+          <div
+            key={f.key}
+            draggable
+            onDragStart={() => { dragIdxRef.current = i; }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+            onDrop={() => onDrop(i)}
+            onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+            className={`flex items-center gap-2 px-3 py-2 hover:bg-black/2 dark:hover:bg-white/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+            <GripVertical size={13} className="text-gray-300 dark:text-white/20 cursor-grab active:cursor-grabbing flex-shrink-0" />
             <input
               className={iCls}
               value={f.label}

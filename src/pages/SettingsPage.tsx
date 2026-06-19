@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig } from '../types';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -21,6 +21,7 @@ interface Props {
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -695,7 +696,95 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 // ──────────────────────────────────────────
 // 팀 관리 섹션
 // ──────────────────────────────────────────
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
+// ── 업무 정보 필드 편집기 ──
+function MetaFieldsEditor({ team, onSave }: {
+  team: Team;
+  onSave: (teamId: string, fields: MetaField[]) => Promise<void>;
+}) {
+  const [fields, setFields] = useState<MetaField[]>(team.metaFields ?? DEFAULT_META_FIELDS);
+  const [newLabel, setNewLabel] = useState('');
+  const [newIsUrl, setNewIsUrl] = useState(false);
+
+  useEffect(() => { setFields(team.metaFields ?? DEFAULT_META_FIELDS); }, [team.id]);
+
+  const save = (next: MetaField[]) => { setFields(next); onSave(team.id, next); };
+
+  const addField = () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const key = label.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
+    save([...fields, { key, label, isUrl: newIsUrl }]);
+    setNewLabel(''); setNewIsUrl(false);
+  };
+
+  const deleteField = (key: string) => save(fields.filter(f => f.key !== key));
+
+  const updateLabel = (key: string, label: string) => {
+    save(fields.map(f => f.key === key ? { ...f, label } : f));
+  };
+
+  const toggleUrl = (key: string) => {
+    save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl } : f));
+  };
+
+  const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-gray-400 dark:text-white/35 mb-2">업무 상세 패널에 표시될 항목입니다. 기본값은 9개 필드이며 팀별로 재구성할 수 있습니다.</p>
+      <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5">
+        {fields.map(f => (
+          <div key={f.key} className="flex items-center gap-2 px-3 py-2">
+            <input
+              className={iCls}
+              value={f.label}
+              onChange={e => updateLabel(f.key, e.target.value)}
+              onBlur={e => { if (!e.target.value.trim()) return; }}
+            />
+            <button
+              type="button"
+              onClick={() => toggleUrl(f.key)}
+              title="URL 필드 여부"
+              className={`flex-shrink-0 text-[10px] px-2 py-1 rounded-md font-medium transition-colors ${f.isUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-black/5 text-gray-400 dark:bg-white/8 dark:text-white/35'}`}>
+              URL
+            </button>
+            <button type="button" onClick={() => deleteField(f.key)}
+              className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all">
+              <Trash2 size={11} />
+            </button>
+          </div>
+        ))}
+      </div>
+      {/* 필드 추가 */}
+      <div className="flex items-center gap-2 mt-2">
+        <input
+          className={iCls}
+          placeholder="새 항목 이름"
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addField()}
+        />
+        <button
+          type="button"
+          onClick={() => setNewIsUrl(v => !v)}
+          className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsUrl ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300' : 'bg-black/5 text-gray-400 dark:bg-white/8 dark:text-white/35'}`}>
+          URL
+        </button>
+        <button onClick={addField} disabled={!newLabel.trim()}
+          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+          <Plus size={11} />추가
+        </button>
+      </div>
+      {/* 기본값으로 초기화 */}
+      <button onClick={() => save(DEFAULT_META_FIELDS)}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-white/60 transition-colors mt-1">
+        <RotateCcw size={11} /> 기본값으로 초기화
+      </button>
+    </div>
+  );
+}
+
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -704,13 +793,14 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta'>>({});
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -824,7 +914,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015] dark:bg-white/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 dark:border-white/5 px-5">
-                    {(['parts', 'form'] as const).map(tab => (
+                    {(['parts', 'form', 'meta'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -832,7 +922,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                             : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-white/60'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : '폼 설정'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : '업무 정보 필드'}
                       </button>
                     ))}
                   </div>
@@ -886,6 +976,13 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                       />
                     </div>
                   )}
+
+                  {/* 업무 정보 필드 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'meta' && (
+                    <div className="px-5 py-4">
+                      <MetaFieldsEditor team={team} onSave={onUpdateMetaFields} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -902,7 +999,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -1129,6 +1226,7 @@ export default function SettingsPage({
           onUpdateFormConfig={onUpdateFormConfig}
           onUpdatePartFormConfig={onUpdatePartFormConfig}
           onClearPartFormConfig={onClearPartFormConfig}
+          onUpdateMetaFields={onUpdateMetaFields}
         />
       )}
 

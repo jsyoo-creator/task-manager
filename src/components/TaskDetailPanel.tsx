@@ -1,22 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, ChevronDown, Check, ExternalLink } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskType, TeamPart } from '../types';
+import type { Task, SubTask, TaskStatus, TaskType, TeamPart, MetaField } from '../types';
+import { DEFAULT_META_FIELDS } from '../types';
 import { useSubTasks } from '../hooks/useTasks';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 380;
-
-const META_FIELDS: { key: string; label: string; isUrl?: boolean }[] = [
-  { key: '제품군',            label: '제품군' },
-  { key: '컨셉',              label: '컨셉' },
-  { key: '셋팅',              label: '셋팅' },
-  { key: '기획전명',          label: '기획전명' },
-  { key: 'KV모델',            label: 'KV모델' },
-  { key: '히든기획전_url_main', label: '히든기획전 URL 메인', isUrl: true },
-  { key: '히든기획전_url_2',   label: '히든기획전 URL 2',    isUrl: true },
-  { key: '방송안내_url',       label: '방송안내 URL',         isUrl: true },
-  { key: '피그마_url',         label: '피그마 URL',           isUrl: true },
-];
 
 // 시작일 기준 5주 × 5일(월~금) 날짜 계산
 function getWeekDays(startDate: string): { weekLabel: string; days: { name: string; date: string }[] }[] {
@@ -72,7 +61,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function TaskDetailPanel({
-  task, onClose, onUpdate, onDelete, assignees, parts, canManage,
+  task, onClose, onUpdate, onDelete, assignees, parts, canManage, metaFields: metaFieldsProp,
 }: {
   task: Task;
   onClose: () => void;
@@ -81,7 +70,9 @@ export default function TaskDetailPanel({
   assignees: string[];
   parts: TeamPart[];
   canManage: boolean;
+  metaFields?: MetaField[];
 }) {
+  const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const { subtasks, addSubTask, deleteSubTask } = useSubTasks(task.id);
   const [title, setTitle] = useState(task.title);
   const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});

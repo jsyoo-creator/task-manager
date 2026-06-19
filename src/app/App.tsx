@@ -40,7 +40,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields } = useTeams(user?.uid);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
@@ -187,6 +187,7 @@ function App() {
                     onUpdateFormConfig={updateFormConfig}
                     onUpdatePartFormConfig={updatePartFormConfig}
                     onClearPartFormConfig={clearPartFormConfig}
+                    onUpdateMetaFields={updateMetaFields}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
@@ -205,6 +206,7 @@ function App() {
               assignees={teamAssignees}
               parts={activeParts}
               canManage={permissions.canManageTasks}
+              metaFields={selectedTeam?.metaFields}
             />
           ) : null;
         })()}

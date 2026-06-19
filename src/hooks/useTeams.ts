@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Team, TeamPart, TeamFormConfig } from '../types';
+import type { Team, TeamPart, TeamFormConfig, MetaField } from '../types';
 
 export function useTeams(uid?: string) {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -75,5 +75,9 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig };
+  const updateMetaFields = async (teamId: string, fields: MetaField[]) => {
+    await updateDoc(doc(db, 'teams', teamId), { metaFields: fields });
+  };
+
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields };
 }

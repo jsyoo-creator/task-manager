@@ -136,6 +136,24 @@ export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfi
   return fields;
 }
 
+export interface MetaField {
+  key: string;
+  label: string;
+  isUrl?: boolean;
+}
+
+export const DEFAULT_META_FIELDS: MetaField[] = [
+  { key: '제품군',              label: '제품군' },
+  { key: '컨셉',                label: '컨셉' },
+  { key: '셋팅',                label: '셋팅' },
+  { key: '기획전명',            label: '기획전명' },
+  { key: 'KV모델',              label: 'KV모델' },
+  { key: '히든기획전_url_main', label: '히든기획전 URL 메인', isUrl: true },
+  { key: '히든기획전_url_2',   label: '히든기획전 URL 2',    isUrl: true },
+  { key: '방송안내_url',        label: '방송안내 URL',         isUrl: true },
+  { key: '피그마_url',          label: '피그마 URL',           isUrl: true },
+];
+
 export interface Team {
   id: string;
   name: string;
@@ -143,6 +161,7 @@ export interface Team {
   parts: TeamPart[];
   createdAt: string;
   formConfig?: TeamFormConfig;
+  metaFields?: MetaField[];
 }
 
 export interface SubTask {

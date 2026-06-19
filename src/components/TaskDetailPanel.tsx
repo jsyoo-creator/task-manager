@@ -144,7 +144,8 @@ export default function TaskDetailPanel({
   };
 
   const saveSubTaskData = (next: Record<string, SubTaskEntry>) => {
-    onUpdate(task.id, { subTaskData: next });
+    const totalHours = Object.values(next).reduce((sum, e) => sum + e.totalHours, 0);
+    onUpdate(task.id, { subTaskData: next, totalHours });
   };
 
   const handleDelete = () => {

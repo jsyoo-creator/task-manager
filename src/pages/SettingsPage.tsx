@@ -995,7 +995,7 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
         </div>
       )}
 
-      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
+      <div>
       <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">
         세부 업무 목록
         <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>

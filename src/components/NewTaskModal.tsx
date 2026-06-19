@@ -14,7 +14,6 @@ interface Props {
   formConfig?: TeamFormConfig;
 }
 
-const DEFAULT_CATEGORIES = ['라이브', '복지', '사업자', '기타'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const REVISION_OPTIONS = ['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'];
@@ -30,7 +29,7 @@ const FIELD_PAIRS: [BuiltinFieldKey, BuiltinFieldKey][] = [
 ];
 
 export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], formConfig }: Props) {
-  const categories = parts && parts.length > 0 ? parts.map(p => p.name) : DEFAULT_CATEGORIES;
+  const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
   const builtinFields = resolveBuiltinFields(formConfig);
   const customFields = formConfig?.customFields ?? [];
   // 폼에 표시할 필드 순서 (weeklyHours는 폼 입력 없음)
@@ -40,7 +39,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
 
   const [form, setForm] = useState({
     title: '',
-    category: categories[0],
+    category: partNames[0] ?? '',
     type: '신규' as TaskType,
     status: '진행 전' as TaskStatus,
     receiver: assignees[0] ?? '',
@@ -54,7 +53,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   if (!open) return null;
 
   const resetForm = () => {
-    setForm({ title: '', category: categories[0], type: '신규', status: '진행 전', receiver: assignees[0] ?? '', assignee: assignees[0] ?? '', startDate: '', endDate: '', revisionLevel: 0 });
+    setForm({ title: '', category: partNames[0] ?? '', type: '신규', status: '진행 전', receiver: assignees[0] ?? '', assignee: assignees[0] ?? '', startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
   };
 
@@ -138,14 +137,17 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                     value={form.title} onChange={e => setF({ title: e.target.value })} />
                 </div>
               );
-              if (k === 'category') return (
-                <div>
-                  <label className={lbl}>{fieldLabel}</label>
-                  <select className={cls} value={form.category} onChange={e => setF({ category: e.target.value })}>
-                    {categories.map(c => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-              );
+              if (k === 'category') {
+                if (partNames.length === 0) return null;
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.category} onChange={e => setF({ category: e.target.value })}>
+                      {partNames.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                );
+              }
               if (k === 'type') return (
                 <div>
                   <label className={lbl}>{fieldLabel}</label>

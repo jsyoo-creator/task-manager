@@ -1,204 +1,136 @@
-/* Inter font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Pretendard */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 
-/* Override Tailwind font variable + direct property */
 :root {
-  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --color-bg:             #F7F8FC;
+  --color-surface:        #FFFFFF;
+  --color-border:         #E5E7EB;
+  --color-border-light:   #F3F4F6;
+  --color-accent:         #5B5BD6;
+  --color-accent-hover:   #4F4FC4;
+  --color-accent-light:   #EEEEFF;
+  --color-text-primary:   #111827;
+  --color-text-secondary: #6B7280;
+  --color-text-muted:     #9CA3AF;
 }
 
 *, *::before, *::after {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Base body readability */
 body {
   font-size: 14px;
   font-weight: 400;
   line-height: 1.55;
-  color: #1a1f2e;
-}
-.dark body {
-  color: rgba(255, 255, 255, 0.82);
+  color: #111827;
+  background: #F7F8FC;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 9999px; }
-.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); border-radius: 9999px; }
 
-/* ───────────────────────────────────────
-   Glass Card  (light + dark variants)
-─────────────────────────────────────── */
+/* ─────────────────────────────────────
+   Card
+───────────────────────────────────── */
 .glass-card {
-  background: linear-gradient(145deg, rgba(255,255,255,0.52), rgba(255,255,255,0.38));
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  border: 1px solid rgba(255,255,255,0.65);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
   box-shadow:
     0 1px 2px rgba(0,0,0,0.04),
-    0 4px 12px rgba(0,0,0,0.05),
-    0 16px 32px rgba(0,0,0,0.04);
-  border-radius: 16px;
+    0 2px 8px rgba(0,0,0,0.04);
+  border-radius: 12px;
   overflow: hidden;
 }
-.dark .glass-card {
-  background: linear-gradient(145deg, rgba(30,38,60,0.42), rgba(20,28,46,0.32));
-  border-color: rgba(255,255,255,0.07);
-  box-shadow:
-    0 1px 1px rgba(0,0,0,0.3),
-    0 4px 8px rgba(0,0,0,0.22),
-    0 12px 24px rgba(0,0,0,0.16);
-}
 
-/* Glass card — no clip (for horizontally scrollable tables) */
 .glass-card-noclip {
-  background: linear-gradient(145deg, rgba(255,255,255,0.52), rgba(255,255,255,0.38));
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  border: 1px solid rgba(255,255,255,0.65);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 16px 32px rgba(0,0,0,0.04);
-  border-radius: 16px;
-}
-.dark .glass-card-noclip {
-  background: linear-gradient(145deg, rgba(30,38,60,0.42), rgba(20,28,46,0.32));
-  border-color: rgba(255,255,255,0.07);
-  box-shadow: 0 1px 1px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.22), 0 12px 24px rgba(0,0,0,0.16);
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 2px 8px rgba(0,0,0,0.04);
+  border-radius: 12px;
 }
 
-/* ───────────────────────────────────────
-   Shiny button  (matches Figma "Shiny")
-─────────────────────────────────────── */
+/* ─────────────────────────────────────
+   Buttons
+───────────────────────────────────── */
 .btn-shiny {
   position: relative;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.72), rgba(255,255,255,0.52));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.95);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 4px 4px rgba(0,0,0,0.04), 0 10px 10px rgba(0,0,0,0.08);
-  border-radius: 10px;
-  overflow: hidden;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: 8px;
   transition: all 0.15s ease;
 }
 .btn-shiny:hover {
-  box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 6px 8px rgba(0,0,0,0.08), 0 14px 16px rgba(0,0,0,0.1);
-  transform: translateY(-1px);
-}
-.dark .btn-shiny {
-  background: linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
-  border-color: rgba(255,255,255,0.15);
+  border-color: #D1D5DB;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
-/* Shiny primary (blue) */
 .btn-shiny-primary {
   position: relative;
-  background: linear-gradient(to bottom, #3b82f6, #2563eb);
-  border: 1px solid rgba(255,255,255,0.25);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.2) inset,
-    0 4px 8px rgba(37,99,235,0.35),
-    0 10px 20px rgba(37,99,235,0.2);
-  border-radius: 10px;
-  overflow: hidden;
-  transition: all 0.15s ease;
+  background: #5B5BD6;
+  border: none;
+  border-radius: 8px;
   color: white;
+  transition: all 0.15s ease;
+  z-index: 1;
 }
-.btn-shiny-primary::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 50%;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent);
-  pointer-events: none;
-}
-.btn-shiny-primary:hover {
-  background: linear-gradient(to bottom, #60a5fa, #3b82f6);
-  box-shadow:
-    0 1px 0 rgba(255,255,255,0.25) inset,
-    0 6px 12px rgba(37,99,235,0.45),
-    0 14px 28px rgba(37,99,235,0.25);
-  transform: translateY(-1px);
-}
+.btn-shiny-primary:hover  { background: #4F4FC4; }
+.btn-shiny-primary:active { background: #4646B8; }
+.btn-shiny-primary::before { display: none; }
 
-/* ───────────────────────────────────────
-   Gradient text utility
-─────────────────────────────────────── */
+/* ─────────────────────────────────────
+   Gradient text
+───────────────────────────────────── */
 .text-gradient {
-  background: linear-gradient(135deg, #2670e9 0%, #7c3aed 50%, #db2777 100%);
+  background: linear-gradient(135deg, #5B5BD6 0%, #7C3AED 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-.dark .text-gradient {
-  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
 
-/* ───────────────────────────────────────
-   Page header typography
-─────────────────────────────────────── */
+/* ─────────────────────────────────────
+   Page header
+───────────────────────────────────── */
 .page-title {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.5px;
-  color: #0d1221;           /* 더 진한 검정 */
+  letter-spacing: -0.3px;
+  color: #111827;
   line-height: 1.2;
-}
-.dark .page-title {
-  color: rgba(255,255,255,0.95);
 }
 .page-subtitle {
   font-size: 13px;
-  color: rgba(0,0,0,0.55);  /* 0.45 → 0.55 */
-  font-weight: 450;
+  color: #6B7280;
+  font-weight: 400;
   margin-top: 2px;
 }
-.dark .page-subtitle {
-  color: rgba(255,255,255,0.50);  /* 0.35 → 0.50 */
-}
 
-/* ───────────────────────────────────────
-   Readability boosts inside glass cards
-─────────────────────────────────────── */
-
-/* Light mode: bump faint grays one step up */
-.glass-card .text-gray-400,
-.glass-card-noclip .text-gray-400 {
-  color: rgb(107 114 128);   /* gray-500 */
-}
-.glass-card .text-gray-500,
-.glass-card-noclip .text-gray-500 {
-  color: rgb(75 85 99);      /* gray-600 */
-}
-
-/* Dark mode: custom readable class for card inner text */
+/* ─────────────────────────────────────
+   Card inner text
+───────────────────────────────────── */
 .card-label {
-  color: rgba(0, 0, 0, 0.58);
+  color: #6B7280;
   font-size: 12px;
   font-weight: 500;
 }
-.dark .card-label {
-  color: rgba(255, 255, 255, 0.58);
-}
 .card-meta {
-  color: rgba(0, 0, 0, 0.48);
+  color: #9CA3AF;
   font-size: 11px;
 }
-.dark .card-meta {
-  color: rgba(255, 255, 255, 0.48);
-}
 
-/* ───────────────────────────────────────
-   Divider line (radial fade — from Figma)
-─────────────────────────────────────── */
+/* ─────────────────────────────────────
+   Divider
+───────────────────────────────────── */
 .divider-fade {
   height: 1px;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.12) 0%, transparent 70%);
-}
-.dark .divider-fade {
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.12) 0%, transparent 70%);
+  background: #E5E7EB;
 }

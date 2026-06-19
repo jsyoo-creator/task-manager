@@ -12,16 +12,16 @@ interface Props {
 }
 
 const CAT_PILL: Record<string, string> = {
-  '라이브': 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/30',
-  '복지': 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/30',
-  '사업자': 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/30',
-  '기타': 'bg-gray-100 dark:bg-white/8 text-gray-600 dark:text-white/50 border-gray-200 dark:border-white/10',
+  '라이브': 'bg-red-100 text-red-700 border-red-200',
+  '복지': 'bg-orange-100 text-orange-700 border-orange-200',
+  '사업자': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  '기타': 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
 const STATUS_CLS: Record<string, string> = {
-  '진행 전': 'text-blue-500 dark:text-blue-400',
-  '진행 중': 'text-amber-500 dark:text-amber-400',
-  '완료': 'text-green-500 dark:text-green-400',
+  '진행 전': 'text-blue-500',
+  '진행 중': 'text-amber-500',
+  '완료': 'text-green-500',
   '보류': 'text-slate-400',
 };
 
@@ -90,7 +90,7 @@ export default function WeeklyPage({ tasks, subtasks, members, activeCategory, o
           return (
             <div key={member.name} className="glass-card">
               {/* Member header */}
-              <div className="px-4 py-3 border-b border-black/5 dark:border-white/8 flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-black/5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm ${
                     isPL ? 'bg-gradient-to-br from-purple-500 to-purple-600' : 'bg-gradient-to-br from-blue-400 to-blue-500'
@@ -98,19 +98,19 @@ export default function WeeklyPage({ tasks, subtasks, members, activeCategory, o
                     {member.name.slice(0, 1)}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-white/80">{member.name}</p>
-                    <p className="text-[10px] text-gray-400 dark:text-white/30">{member.seatId}</p>
+                    <p className="text-sm font-semibold text-gray-800">{member.name}</p>
+                    <p className="text-[10px] text-gray-400">{member.seatId}</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center gap-1.5 justify-end">
-                    <span className="text-sm font-bold text-gray-800 dark:text-white/80">{weekHours}h</span>
-                    <span className="text-xs text-gray-400 dark:text-white/30">/ {target}h</span>
+                    <span className="text-sm font-bold text-gray-800">{weekHours}h</span>
+                    <span className="text-xs text-gray-400">/ {target}h</span>
                     {isShort && (
-                      <span className="text-[9px] font-semibold bg-red-50 dark:bg-red-500/15 text-red-500 px-1.5 py-0.5 rounded-full border border-red-200 dark:border-red-500/30">부족</span>
+                      <span className="text-[9px] font-semibold bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full border border-red-200">부족</span>
                     )}
                   </div>
-                  <div className="w-24 h-1.5 bg-black/6 dark:bg-white/10 rounded-full mt-1 ml-auto">
+                  <div className="w-24 h-1.5 bg-gray-100 rounded-full mt-1 ml-auto">
                     <div className={`h-1.5 rounded-full transition-all ${isShort ? 'bg-amber-400' : 'bg-green-400'}`}
                       style={{ width: `${pct}%` }} />
                   </div>
@@ -120,7 +120,7 @@ export default function WeeklyPage({ tasks, subtasks, members, activeCategory, o
               {/* Task list */}
               <div className="p-3 space-y-1.5 max-h-52 overflow-y-auto">
                 {myTasks.length === 0 && mySubs.length === 0 ? (
-                  <p className="text-xs text-gray-300 dark:text-white/20 text-center py-4">이번 주 업무 없음</p>
+                  <p className="text-xs text-gray-300 text-center py-4">이번 주 업무 없음</p>
                 ) : (
                   <>
                     {myTasks.map(t => (

@@ -6,14 +6,7 @@ interface Props {
 
 export default function LoginPage({ onSignIn, error }: Props) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#e8eaf6] dark:bg-[#080c18] relative overflow-hidden">
-
-      {/* Background blobs */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#b8c8ff] opacity-50 dark:bg-[#1e40af] dark:opacity-15 blur-[90px]" />
-        <div className="absolute top-[15%] right-[-80px] w-[520px] h-[520px] rounded-full bg-[#d4b8ff] opacity-40 dark:bg-[#6d28d9] dark:opacity-12 blur-[90px]" />
-        <div className="absolute bottom-0 left-[20%] w-[480px] h-[480px] rounded-full bg-[#ffb8d4] opacity-35 dark:bg-[#9d174d] dark:opacity-10 blur-[90px]" />
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#F7F8FC] relative overflow-hidden">
 
       {/* Login card */}
       <div className="relative z-10 w-full max-w-[400px] mx-4">
@@ -21,24 +14,23 @@ export default function LoginPage({ onSignIn, error }: Props) {
 
           {/* Logo */}
           <div className="flex justify-center mb-7">
-            <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-[#3b82f6] to-[#2563eb] flex items-center justify-center text-white font-bold text-2xl
-              shadow-[0_4px_16px_rgba(37,99,235,0.45),0_0_0_1px_rgba(255,255,255,0.2)_inset]">
+            <div className="relative w-14 h-14 rounded-2xl bg-[#5B5BD6] flex items-center justify-center text-white font-bold text-2xl shadow-lg">
               T
             </div>
           </div>
 
           {/* Title */}
           <div className="mb-2">
-            <p className="text-[10px] font-bold tracking-[0.18em] text-black/25 dark:text-white/25 uppercase mb-1.5">PIVOT CREATIVE</p>
-            <h1 className="text-[22px] font-bold text-gray-900 dark:text-white leading-tight">업무 관리 시스템</h1>
+            <p className="text-[10px] font-bold tracking-[0.18em] text-gray-400 uppercase mb-1.5">PIVOT CREATIVE</p>
+            <h1 className="text-[22px] font-bold text-gray-900 leading-tight">업무 관리 시스템</h1>
           </div>
-          <p className="text-sm text-gray-500 dark:text-white/42 mb-8">
+          <p className="text-sm text-gray-500 mb-8">
             pivot-inc.com 계정으로 로그인하세요
           </p>
 
           {/* Error */}
           {error && (
-            <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-sm text-red-600 dark:text-red-400">
+            <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">
               {error}
             </div>
           )}
@@ -47,12 +39,12 @@ export default function LoginPage({ onSignIn, error }: Props) {
           <button
             onClick={onSignIn}
             className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl
-              bg-white dark:bg-white/10 hover:bg-gray-50 dark:hover:bg-white/15
-              border border-black/8 dark:border-white/12
+              bg-white hover:bg-gray-50
+              border border-gray-200
               shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.05)]
               hover:shadow-[0_2px_6px_rgba(0,0,0,0.10),0_8px_20px_rgba(0,0,0,0.07)]
               transition-all active:scale-[0.98] text-sm font-semibold
-              text-gray-700 dark:text-white/80"
+              text-gray-700"
           >
             {/* Google SVG icon */}
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -64,7 +56,7 @@ export default function LoginPage({ onSignIn, error }: Props) {
             Google로 로그인
           </button>
 
-          <p className="mt-6 text-[11px] text-gray-400 dark:text-white/25">
+          <p className="mt-6 text-[11px] text-gray-400">
             접근 권한 문의: js.yoo@pivot-inc.com
           </p>
         </div>

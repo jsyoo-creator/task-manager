@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from 'react';
 interface Props {
   done: boolean;
   onFinished: () => void;
-  isDark: boolean;
 }
 
 const STEPS = [
@@ -79,14 +78,13 @@ function PixelCat() {
 function PixelHouse() {
   const p = 3;
   const colors: Record<string, string> = {
-    R: '#e74c3c',  // roof red
-    r: '#c0392b',  // roof shadow
-    W: '#fde8b4',  // wall
-    D: '#7c3c0d',  // door
-    G: '#9ca3af',  // chimney
-    N: '#93c5fd',  // window
+    R: '#e74c3c',
+    r: '#c0392b',
+    W: '#fde8b4',
+    D: '#7c3c0d',
+    G: '#9ca3af',
+    N: '#93c5fd',
   };
-  // 10×10, chimney at col 1, roof peaks at col 5
   const map = [
     '.G........',
     '.G...R....',
@@ -102,15 +100,14 @@ function PixelHouse() {
   return <Pixels map={map} colors={colors} p={p} />;
 }
 
-/* ── smoke puffs (CSS) ─────────────────────────────── */
+/* ── smoke puffs ───────────────────────────────────── */
 function Smoke() {
-  // chimney is at col 1 → x = 1*3 = 3px
   return (
     <div className="absolute" style={{ top: -12, left: 3 }}>
       {[0, 1, 2].map(i => (
         <div
           key={i}
-          className="absolute rounded-full bg-gray-400/50 dark:bg-white/25"
+          className="absolute rounded-full bg-gray-300/70"
           style={{
             width: 5 - i,
             height: 5 - i,
@@ -124,7 +121,7 @@ function Smoke() {
 }
 
 /* ── main component ────────────────────────────────── */
-export default function LoadingScreen({ done, onFinished, isDark }: Props) {
+export default function LoadingScreen({ done, onFinished }: Props) {
   const [progress, setProgress] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);
@@ -165,7 +162,6 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
     return () => clearInterval(sprint);
   }, [done]);
 
-  // Cat moves 0→82%, then shrinks into house
   const catX = Math.max(0, Math.min(82, progress - 2));
   const entering = progress >= 90;
 
@@ -208,34 +204,29 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
       <div
         className={`fixed inset-0 z-[999] flex items-center justify-center transition-opacity duration-400 ${
           fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        } ${isDark ? 'dark' : ''}`}
-        style={{ background: isDark ? '#080c18' : '#e8eaf6' }}
+        }`}
+        style={{ background: '#F7F8FC' }}
       >
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#b8c8ff] opacity-45 dark:bg-[#1e40af] dark:opacity-12 blur-[90px]" />
-          <div className="absolute top-[15%] right-[-80px] w-[520px] h-[520px] rounded-full bg-[#d4b8ff] opacity-38 dark:bg-[#6d28d9] dark:opacity-10 blur-[90px]" />
-          <div className="absolute bottom-0 left-[20%] w-[480px] h-[480px] rounded-full bg-[#ffb8d4] opacity-30 dark:bg-[#9d174d] dark:opacity-8 blur-[90px]" />
-        </div>
 
         <div
-          className="relative glass-card px-10 py-9 flex flex-col items-center gap-6 w-[380px]"
+          className="relative glass-card px-10 py-7 flex flex-col items-center gap-4 w-[360px]"
           style={{ animation: 'ls-fadein 0.5s ease both' }}
         >
           {/* Logo */}
-          <div className="flex items-center gap-3 select-none">
-            <div className="w-10 h-10 rounded-[11px] bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg"
+          <div className="flex items-center gap-2.5 select-none">
+            <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-base"
               style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.22) inset, 0 4px 14px rgba(37,99,235,0.45)' }}>T</div>
-            <div className="leading-tight">
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-black/28 dark:text-white/28 uppercase">PIVOT</p>
-              <p className="text-sm font-bold text-black/80 dark:text-white/85">Task Manager</p>
+            <div className="leading-snug">
+              <p className="text-[9px] font-semibold tracking-[0.18em] text-gray-400 uppercase">PIVOT</p>
+              <p className="text-base font-bold text-gray-800">Task Manager</p>
             </div>
           </div>
 
           {/* Track */}
           <div className="w-full">
-            <div className="relative h-20 mb-1">
+            <div className="relative h-16 mb-1">
 
-              {/* House — right end */}
+              {/* House */}
               <div className="absolute right-0 bottom-2" style={{ zIndex: 2 }}>
                 <div className="relative">
                   <Smoke />
@@ -243,9 +234,9 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
                 </div>
               </div>
 
-              {/* Cat shadow */}
+              {/* Shadow */}
               <div
-                className="absolute rounded-full bg-black/18 dark:bg-black/30"
+                className="absolute rounded-full bg-black/12"
                 style={{
                   width: 32, height: 6,
                   bottom: 2,
@@ -275,7 +266,7 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
             </div>
 
             {/* Progress bar */}
-            <div className="relative h-2.5 bg-black/8 dark:bg-white/10 rounded-full overflow-hidden">
+            <div className="relative h-2.5 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 rounded-full transition-all duration-150"
                 style={{ width: `${progress}%`, background: 'linear-gradient(90deg,#fb923c,#f97316 60%,#fb7185)' }}
@@ -290,7 +281,7 @@ export default function LoadingScreen({ done, onFinished, isDark }: Props) {
             </div>
 
             <div className="flex items-center justify-between mt-2">
-              <span className="text-[11px] font-medium text-black/50 dark:text-white/45">{STEPS[stepIdx]}</span>
+              <span className="text-[11px] font-medium text-gray-500">{STEPS[stepIdx]}</span>
               <span className="text-[11px] font-bold tabular-nums" style={{ color: '#f97316' }}>{Math.round(progress)}%</span>
             </div>
           </div>

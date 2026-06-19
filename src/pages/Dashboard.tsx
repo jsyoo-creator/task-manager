@@ -9,7 +9,6 @@ interface Props {
   project: Project | null;
   parts?: TeamPart[];
   assignees?: string[];
-  isDark?: boolean;
 }
 
 const STATUS_COLORS_FIXED = { '진행 중': '#3b82f6', '완료': '#10b981' };
@@ -45,8 +44,8 @@ function getMonthKeys() {
 function SectionLabel({ title, meta }: { title: string; meta?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between px-0.5 mb-2.5">
-      <h2 className="text-[13px] font-bold text-gray-600 dark:text-white/55 tracking-tight">{title}</h2>
-      {meta && <div className="text-[11px] text-gray-400 dark:text-white/32">{meta}</div>}
+      <h2 className="text-[13px] font-bold text-gray-600 tracking-tight">{title}</h2>
+      {meta && <div className="text-[11px] text-gray-400">{meta}</div>}
     </div>
   );
 }
@@ -61,14 +60,14 @@ function StatCard({ label, value, sub, subAccent = false, icon, accentColor }: {
       <div className="absolute top-0 left-4 right-4 h-[2.5px] rounded-b-full opacity-55"
         style={{ backgroundColor: accentColor }} />
       <div className="flex items-start justify-between mb-4">
-        <span className="text-[11px] font-semibold text-gray-500 dark:text-white/48 uppercase tracking-wide">{label}</span>
+        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
         <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-sm"
           style={{ backgroundColor: accentColor }}>
           {icon}
         </span>
       </div>
-      <div className="text-[32px] font-bold leading-none text-gray-900 dark:text-white tabular-nums mb-1.5">{value}</div>
-      <div className={`text-xs font-medium ${subAccent ? 'text-blue-500 dark:text-blue-400' : 'text-gray-500 dark:text-white/40'}`}>
+      <div className="text-[32px] font-bold leading-none text-gray-900 tabular-nums mb-1.5">{value}</div>
+      <div className={`text-xs font-medium ${subAccent ? 'text-blue-500' : 'text-gray-500'}`}>
         {sub}
       </div>
     </div>
@@ -81,8 +80,8 @@ function Card({ title, action, children, className = '' }: {
 }) {
   return (
     <div className={`glass-card ${className}`}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07]">
-        <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">{title}</span>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <span className="text-[12.5px] font-bold text-gray-700">{title}</span>
         {action && <div>{action}</div>}
       </div>
       {children}
@@ -90,13 +89,13 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], isDark = false }: Props) {
+export default function Dashboard({ tasks, subtasks, project, parts, assignees = [] }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
   const COLORS = {
-    before: isDark ? '#2e3250' : '#c8ccd4',   // 다크: 배경에 묻히는 짙은 남색, 라이트: 연한 회색(빈 링보다 살짝 진하게)
+    before: '#D1D5DB',
     inProg: '#3b82f6',
     done:   '#10b981',
-    hold:   isDark ? '#30344f' : '#b8bfc9',   // 다크: 배경 근처, 라이트: 보류 전용
+    hold:   '#9CA3AF',
   };
   // 팀 파트가 있으면 파트 기준, 없으면 빈 배열 (하드코딩 제거)
   const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];
@@ -180,7 +179,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           <h1 className="page-title">대시보드</h1>
           <p className="page-subtitle">{project?.name ?? ''} · 전체 업무 현황</p>
         </div>
-        <span className="text-xs text-black/30 dark:text-white/25 font-medium">
+        <span className="text-xs text-gray-400 font-medium">
           {now.getFullYear()}년 {now.getMonth() + 1}월
         </span>
       </div>
@@ -213,25 +212,25 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       <section>
         <div className="glass-card">
           <div className="flex items-center justify-between px-5 pt-4 pb-3">
-            <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">전체 진행 현황</span>
-            <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-white/42">
+            <span className="text-[12.5px] font-bold text-gray-700">전체 진행 현황</span>
+            <div className="flex items-center gap-3 text-[11px] text-gray-500">
               {legendItems.map(s => (
                 <span key={s.l} className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.c }} />
                   {s.l} {s.v}
                 </span>
               ))}
-              <span className="font-bold text-blue-500 dark:text-blue-400 pl-0.5">{completionPct}%</span>
+              <span className="font-bold text-blue-500 pl-0.5">{completionPct}%</span>
             </div>
           </div>
           <div className="px-5 pb-4">
-            <div className="flex h-3 rounded-full overflow-hidden bg-black/6 dark:bg-white/10">
+            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
               {stats.total > 0
                 ? legendItems.map((s, i) => (
                     <div key={i} style={{ width: `${(s.v / stats.total) * 100}%`, backgroundColor: s.c }} />
                   ))
                 : <div className="flex-1 flex items-center justify-center">
-                    <span className="text-[10px] text-black/20 dark:text-white/15">업무 없음</span>
+                    <span className="text-[10px] text-gray-300">업무 없음</span>
                   </div>
               }
             </div>
@@ -249,8 +248,8 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
           {/* 메인 업무 상태 */}
           <div className="glass-card flex flex-col">
-            <div className="px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">메인 업무 상태</span>
+            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <span className="text-[12.5px] font-bold text-gray-700">메인 업무 상태</span>
             </div>
             <div className="flex-1 flex items-center p-5">
               <DonutChart data={mainDonut} items={tasks} colors={COLORS} />
@@ -259,8 +258,8 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
           {/* 세부 업무 상태 */}
           <div className="glass-card flex flex-col">
-            <div className="px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">세부 업무 상태</span>
+            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <span className="text-[12.5px] font-bold text-gray-700">세부 업무 상태</span>
             </div>
             <div className="flex-1 flex items-center p-5">
               <DonutChart data={subDonut} items={subtasks} colors={COLORS} />
@@ -270,11 +269,11 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           {/* 분류별 완료율 — 파트가 있을 때만 표시 */}
           {cats.length > 0 && (
           <div className="glass-card flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] dark:border-white/[0.07] flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700 dark:text-white/70">분류별 완료율</span>
-              <span className="text-[11px] text-gray-400 dark:text-white/32">🗓️ 전체 기간</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
+              <span className="text-[11px] text-gray-400">🗓️ 전체 기간</span>
             </div>
-            <div className="flex-1 grid divide-x divide-black/[0.05] dark:divide-white/[0.07]" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
+            <div className="flex-1 grid divide-x divide-gray-100" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
               {catStats.map(({ cat, total, done, inProg, hold, before, rate }) => (
                 <div key={cat} className="flex flex-col justify-center p-5 gap-3">
                   {/* 카테고리명 + 완료율 */}
@@ -288,20 +287,20 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                     </span>
                   </div>
                   {/* 진행 바 */}
-                  <div className="h-1.5 rounded-full bg-black/6 dark:bg-white/10 overflow-hidden">
+                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: catColor(cat) }} />
                   </div>
                   {/* 4개 수치 */}
                   <div className="grid grid-cols-4 text-center">
                     {[
-                      { l: '총', v: total, c: 'text-gray-700 dark:text-white/65' },
+                      { l: '총', v: total, c: 'text-gray-700' },
                       { l: '완료', v: done, c: 'text-emerald-500' },
                       { l: '진행', v: inProg, c: 'text-blue-500' },
-                      { l: '진행 전', v: before, c: 'text-gray-400 dark:text-white/35' },
+                      { l: '진행 전', v: before, c: 'text-gray-400' },
                     ].map(({ l, v, c }) => (
                       <div key={l}>
                         <div className={`text-base font-bold tabular-nums leading-tight ${c}`}>{v}</div>
-                        <div className="text-[9px] text-gray-400 dark:text-white/28 mt-0.5">{l}</div>
+                        <div className="text-[9px] text-gray-400 mt-0.5">{l}</div>
                       </div>
                     ))}
                   </div>
@@ -322,19 +321,19 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
         <div className="grid grid-cols-2 gap-3">
 
           <Card title="수정 횟수"
-            action={<span className="text-xs text-gray-400 dark:text-white/35">총 {totalRevisions}회</span>}>
+            action={<span className="text-xs text-gray-400">총 {totalRevisions}회</span>}>
             <div className="p-4 space-y-3">
               {revisionStats.map(r => (
                 <div key={r.level} className="flex items-center gap-3">
                   <span className="w-6 h-5 bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[9px] font-bold rounded flex items-center justify-center flex-shrink-0">
                     F{r.level}
                   </span>
-                  <span className="text-xs text-gray-600 dark:text-white/60 flex-1 truncate">{r.label}</span>
-                  <div className="w-24 h-1.5 bg-black/6 dark:bg-white/10 rounded-full overflow-hidden flex-shrink-0">
+                  <span className="text-xs text-gray-600 flex-1 truncate">{r.label}</span>
+                  <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
                     <div className="h-full bg-blue-400 rounded-full" style={{ width: `${r.pct}%` }} />
                   </div>
-                  <span className="text-[11px] text-gray-400 dark:text-white/32 w-7 text-right tabular-nums">{r.pct}%</span>
-                  <span className="text-xs font-bold text-gray-700 dark:text-white/62 w-4 text-right tabular-nums">{r.count}</span>
+                  <span className="text-[11px] text-gray-400 w-7 text-right tabular-nums">{r.pct}%</span>
+                  <span className="text-xs font-bold text-gray-700 w-4 text-right tabular-nums">{r.count}</span>
                 </div>
               ))}
             </div>
@@ -343,13 +342,13 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           <Card
             title="담당자별 세부업무 현황"
             action={
-              <div className="flex gap-0.5 p-0.5 rounded-lg bg-black/5 dark:bg-white/8">
+              <div className="flex gap-0.5 p-0.5 rounded-lg bg-gray-100">
                 {(['count', 'hours'] as const).map((v, i) => (
                   <button key={v} onClick={() => setAssigneeView(v)}
                     className={`text-xs px-2.5 py-0.5 rounded-md transition-all ${
                       assigneeView === v
-                        ? 'bg-white dark:bg-white/15 text-blue-600 dark:text-blue-400 shadow-sm font-semibold'
-                        : 'text-gray-500 dark:text-white/35 hover:text-gray-700'
+                        ? 'bg-white text-blue-600 shadow-sm font-semibold'
+                        : 'text-gray-500 hover:text-gray-700'
                     }`}>
                     {['업무 건수', '업무 시간'][i]}
                   </button>
@@ -361,7 +360,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               {assigneeStats.length > 0 ? (
                 <>
                   <div
-                    className="grid text-[10px] font-semibold text-gray-400 dark:text-white/35 pb-2 mb-1 border-b border-black/5 dark:border-white/7"
+                    className="grid text-[10px] font-semibold text-gray-400 pb-2 mb-1 border-b border-black/5"
                     style={{ gridTemplateColumns: `1fr repeat(${monthKeys.length}, 64px) 44px` }}
                   >
                     <span>담당자</span>
@@ -370,21 +369,21 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                   </div>
                   {assigneeStats.map(({ name, monthCounts, total, totalH }) => (
                     <div key={name}
-                      className="grid items-center py-1.5 rounded-lg hover:bg-black/2.5 dark:hover:bg-white/3.5 -mx-1 px-1 transition-colors"
+                      className="grid items-center py-1.5 rounded-lg hover:bg-gray-50 -mx-1 px-1 transition-colors"
                       style={{ gridTemplateColumns: `1fr repeat(${monthKeys.length}, 64px) 44px` }}
                     >
-                      <span className="text-xs font-semibold text-gray-700 dark:text-white/68 truncate">{name}</span>
+                      <span className="text-xs font-semibold text-gray-700 truncate">{name}</span>
                       {monthKeys.map(mk => {
                         const c = monthCounts[mk] ?? 0;
                         return (
                           <div key={mk} className="flex justify-center">
                             {c > 0
-                              ? <span className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded px-1.5 text-[10px] font-bold">{c}건</span>
-                              : <span className="text-gray-200 dark:text-white/15 text-xs">—</span>}
+                              ? <span className="bg-blue-100 text-blue-700 rounded px-1.5 text-[10px] font-bold">{c}건</span>
+                              : <span className="text-gray-200 text-xs">—</span>}
                           </div>
                         );
                       })}
-                      <div className="text-center text-xs font-bold text-orange-500 dark:text-orange-400 tabular-nums">
+                      <div className="text-center text-xs font-bold text-orange-500 tabular-nums">
                         {assigneeView === 'hours' ? `${totalH}h` : `${total}건`}
                       </div>
                     </div>
@@ -392,8 +391,8 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                 </>
               ) : (
                 <div className="h-20 flex flex-col items-center justify-center gap-2">
-                  <FileText size={18} className="text-gray-200 dark:text-white/15" />
-                  <span className="text-xs text-gray-400 dark:text-white/28">등록된 세부업무 없음</span>
+                  <FileText size={18} className="text-gray-200" />
+                  <span className="text-xs text-gray-400">등록된 세부업무 없음</span>
                 </div>
               )}
             </div>
@@ -424,8 +423,8 @@ function DonutChart({ data, items, colors }: {
           <>
             <div className="empty-ring absolute inset-0 rounded-full"
               style={{ boxShadow: 'inset 0 0 0 12px rgba(0,0,0,0.07)' }} />
-            <style>{`.dark .empty-ring{box-shadow:inset 0 0 0 12px rgba(255,255,255,0.10)!important}`}</style>
-            <span className="text-[10px] text-gray-400 dark:text-white/28 text-center leading-tight z-10">데이터<br/>없음</span>
+            
+            <span className="text-[10px] text-gray-400 text-center leading-tight z-10">데이터<br/>없음</span>
           </>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -443,11 +442,11 @@ function DonutChart({ data, items, colors }: {
           const count = items.filter(t => t.status === s).length;
           return (
             <div key={s} className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-white/55 min-w-0">
+              <span className="flex items-center gap-2 text-xs text-gray-600 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorOf(s) }} />
                 <span className="truncate">{s}</span>
               </span>
-              <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${count > 0 ? 'text-gray-800 dark:text-white/80' : 'text-gray-300 dark:text-white/22'}`}>
+              <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${count > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
                 {count}
               </span>
             </div>

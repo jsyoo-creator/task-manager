@@ -1,7 +1,8 @@
+import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, Sun, Moon, ChevronRight, LogOut, Settings, AlertCircle
+  Grid3X3, ChevronRight, LogOut, Settings, AlertCircle, ChevronDown
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team } from '../types';
@@ -13,13 +14,13 @@ interface Props {
   onProjectChange: (id: string) => void;
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
-  isDark: boolean;
-  onToggleDark: () => void;
   user: User;
   appUser: AppUser | null;
   onSignOut: () => void;
   teams: Team[];
   teamsLoading: boolean;
+  activeTeamId: string | null;
+  onActiveTeamChange: (id: string) => void;
 }
 
 const NAV_ALL = [
@@ -42,11 +43,11 @@ function DepartmentAlert({ appUser }: { appUser: AppUser | null }) {
     <div
       onClick={() => navigate('/settings')}
       className="cursor-pointer flex items-center gap-2.5 px-4 py-2.5
-        bg-orange-500/10 border border-orange-400/30 rounded-xl mb-3
-        hover:bg-orange-500/15 transition-colors group"
+        bg-orange-50 border border-orange-200 rounded-xl mb-3
+        hover:bg-orange-100 transition-colors group"
     >
       <AlertCircle size={15} className="text-orange-500 flex-shrink-0" />
-      <p className="text-xs text-orange-600 dark:text-orange-400 flex-1">
+      <p className="text-xs text-orange-700 flex-1">
         <span className="font-semibold">직군이 설정되지 않았습니다.</span>{' '}
         기획 / 디자인 / 퍼블 중 하나를 선택해주세요.
       </p>
@@ -59,13 +60,12 @@ function TeamAlert({ appUser, teamsLoading, teams }: { appUser: AppUser | null; 
   const navigate = useNavigate();
   if (teamsLoading || !appUser) return null;
 
-  // 팀이 없음 → 관리자에게 생성 요청
   if (teams.length === 0 && appUser.role !== 'user') {
     return (
       <div onClick={() => navigate('/settings')}
-        className="cursor-pointer flex items-center gap-2.5 px-4 py-2.5 bg-blue-500/10 border border-blue-400/30 rounded-xl mb-3 hover:bg-blue-500/15 transition-colors group">
+        className="cursor-pointer flex items-center gap-2.5 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl mb-3 hover:bg-blue-100 transition-colors group">
         <AlertCircle size={15} className="text-blue-500 flex-shrink-0" />
-        <p className="text-xs text-blue-600 dark:text-blue-400 flex-1">
+        <p className="text-xs text-blue-700 flex-1">
           <span className="font-semibold">생성된 팀이 없습니다.</span>{' '}설정에서 팀을 먼저 만들어주세요.
         </p>
         <span className="text-xs text-blue-500 font-medium group-hover:underline flex-shrink-0">팀 만들기</span>
@@ -73,13 +73,12 @@ function TeamAlert({ appUser, teamsLoading, teams }: { appUser: AppUser | null; 
     );
   }
 
-  // 팀은 있는데 선택 안 함 → 모든 사용자에게 알림
-  if (teams.length > 0 && !appUser.selectedTeamId) {
+  if (teams.length > 0 && !appUser.selectedTeamIds?.length) {
     return (
       <div onClick={() => navigate('/settings')}
-        className="cursor-pointer flex items-center gap-2.5 px-4 py-2.5 bg-blue-500/10 border border-blue-400/30 rounded-xl mb-3 hover:bg-blue-500/15 transition-colors group">
+        className="cursor-pointer flex items-center gap-2.5 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl mb-3 hover:bg-blue-100 transition-colors group">
         <AlertCircle size={15} className="text-blue-500 flex-shrink-0" />
-        <p className="text-xs text-blue-600 dark:text-blue-400 flex-1">
+        <p className="text-xs text-blue-700 flex-1">
           <span className="font-semibold">소속 팀이 설정되지 않았습니다.</span>{' '}설정에서 팀을 선택해주세요.
         </p>
         <span className="text-xs text-blue-500 font-medium group-hover:underline flex-shrink-0">팀 선택</span>
@@ -90,61 +89,119 @@ function TeamAlert({ appUser, teamsLoading, teams }: { appUser: AppUser | null; 
   return null;
 }
 
+function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
+  userTeams: Team[];
+  activeTeamId: string | null;
+  onActiveTeamChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const activeTeam = userTeams.find(t => t.id === activeTeamId) ?? userTeams[0] ?? null;
+  const canSwitch = userTeams.length > 1;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => canSwitch && setOpen(o => !o)}
+        className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 -mx-2 transition-colors select-none ${
+          canSwitch ? 'cursor-pointer hover:bg-gray-100' : ''
+        }`}
+      >
+        <div className="w-8 h-8 rounded-[9px] bg-[#5B5BD6] flex items-center justify-center flex-shrink-0 shadow-sm">
+          {activeTeam
+            ? <span className="text-base leading-none">{activeTeam.emoji}</span>
+            : <span className="text-white font-bold text-xs opacity-60">무</span>}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] text-gray-400 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
+          <p className="text-xs font-semibold text-gray-800 truncate leading-tight">
+            {activeTeam?.name ?? <span className="italic text-gray-400 font-normal">무소속</span>}
+          </p>
+        </div>
+        {canSwitch && (
+          <div className="flex items-center gap-0.5 flex-shrink-0 bg-gray-100 rounded-md px-1.5 py-0.5">
+            <span className="text-[9px] font-bold text-gray-400 tabular-nums">{userTeams.length}팀</span>
+            <ChevronDown size={10} className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          </div>
+        )}
+      </div>
+
+      {open && canSwitch && (
+        <div className="absolute top-full left-0 mt-2 w-52 z-50
+          bg-white border border-gray-200
+          rounded-2xl shadow-lg shadow-black/8 overflow-hidden py-1">
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.15em] px-3.5 pt-2 pb-1.5">팀 전환</p>
+          {userTeams.map(t => (
+            <button
+              key={t.id}
+              onClick={() => { onActiveTeamChange(t.id); setOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors ${
+                t.id === activeTeamId
+                  ? 'bg-[#EEEEFF] text-[#5B5BD6]'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span className="text-base leading-none">{t.emoji}</span>
+              <span className="text-[13px] font-medium truncate flex-1">{t.name}</span>
+              {t.id === activeTeamId && (
+                <div className="w-1.5 h-1.5 rounded-full bg-[#5B5BD6] flex-shrink-0" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Layout({
-  children, isDark, onToggleDark, user, appUser, onSignOut, teams, teamsLoading,
+  children, user, appUser, onSignOut, teams, teamsLoading,
+  activeTeamId, onActiveTeamChange,
 }: Props) {
-  const hasTeamSelected = !!appUser?.selectedTeamId;
-  const activeTeam = teams.find(t => t.id === appUser?.selectedTeamId) ?? null;
+  const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
+  const hasTeamSelected = userSelectedTeams.length > 0;
   const NAV = hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY;
 
   return (
-    <div className="flex min-h-screen bg-[#e8eaf6] dark:bg-[#080c18]">
-
-      {/* Decorative background blobs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full
-          bg-[#b8c8ff] opacity-50 dark:bg-[#1e40af] dark:opacity-15 blur-[90px]" />
-        <div className="absolute top-[15%] right-[-80px] w-[520px] h-[520px] rounded-full
-          bg-[#d4b8ff] opacity-40 dark:bg-[#6d28d9] dark:opacity-12 blur-[90px]" />
-        <div className="absolute bottom-0 left-[20%] w-[480px] h-[480px] rounded-full
-          bg-[#ffb8d4] opacity-35 dark:bg-[#9d174d] dark:opacity-10 blur-[90px]" />
-        <div className="absolute top-[45%] left-[35%] w-[380px] h-[380px] rounded-full
-          bg-[#b8e8ff] opacity-30 dark:bg-[#0369a1] dark:opacity-10 blur-[110px]" />
-      </div>
+    <div className="flex min-h-screen bg-[#F7F8FC]">
 
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40
-        bg-gradient-to-b from-white/90 to-white/70 dark:from-[#141c2e]/95 dark:to-[#080c18]/90
-        backdrop-blur-[40px] border-r border-white/90 dark:border-white/8
-        shadow-[1px_0_0_rgba(0,0,0,0.04),2px_0_12px_rgba(0,0,0,0.04)]">
+        bg-white border-r border-gray-200
+        shadow-[1px_0_0_rgba(0,0,0,0.02)]">
 
         {/* Logo + Team */}
         <div className="p-4 pb-3">
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="relative w-8 h-8 rounded-[9px] bg-gradient-to-br from-[#3b82f6] to-[#2563eb] flex items-center justify-center flex-shrink-0
-              shadow-[0_2px_6px_rgba(37,99,235,0.5),0_0_0_1px_rgba(255,255,255,0.2)_inset]
-              before:absolute before:inset-0 before:rounded-[9px] before:bg-gradient-to-b before:from-white/25 before:to-transparent">
-              {activeTeam ? (
-                <span className="text-base leading-none relative z-10">{activeTeam.emoji}</span>
-              ) : (
-                <span className="text-white font-bold text-xs relative z-10 opacity-60">무</span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] text-black/25 dark:text-white/25 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
-              {teamsLoading ? (
-                <p className="text-xs text-black/40 dark:text-white/40 truncate leading-tight">로딩 중...</p>
-              ) : activeTeam ? (
-                <p className="text-xs font-semibold text-black/80 dark:text-white/80 truncate leading-tight">{activeTeam.name}</p>
-              ) : (
-                <p className="text-xs text-black/35 dark:text-white/30 truncate leading-tight italic">무소속</p>
-              )}
-            </div>
+          <div className="mb-3">
+            {teamsLoading ? (
+              <div className="flex items-center gap-2.5 px-2 py-1.5">
+                <div className="w-8 h-8 rounded-[9px] bg-gray-100 animate-pulse flex-shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-1.5 w-7 bg-gray-100 animate-pulse rounded-full" />
+                  <div className="h-2.5 w-24 bg-gray-100 animate-pulse rounded-full" />
+                </div>
+              </div>
+            ) : (
+              <TeamSwitcher
+                userTeams={userSelectedTeams}
+                activeTeamId={activeTeamId}
+                onActiveTeamChange={onActiveTeamChange}
+              />
+            )}
           </div>
         </div>
 
         {/* Divider */}
-        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
+        <div className="mx-3 h-px bg-gray-100" />
 
         {/* Navigation */}
         <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto">
@@ -156,18 +213,15 @@ export default function Layout({
               className={({ isActive }) =>
                 `relative flex items-center gap-2.5 px-3 py-2.5 rounded-[8px] text-[13px] font-medium transition-all group ${
                   isActive
-                    ? 'text-[#2670e9] bg-gradient-to-r from-[#2670e9]/12 to-transparent'
-                    : 'text-black/65 dark:text-white/62 hover:text-black/85 dark:hover:text-white/85 hover:bg-black/5 dark:hover:bg-white/6'
+                    ? 'text-[#5B5BD6] bg-[#EEEEFF]'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
                   {isActive && (
-                    <>
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-[60%] bg-[#2670e9] rounded-r-full" />
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-[60%] bg-[#2670e9] rounded-r-full blur-[3px] opacity-70" />
-                    </>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[55%] bg-[#5B5BD6] rounded-r-full" />
                   )}
                   <Icon size={15} className="flex-shrink-0" />
                   <span>{label}</span>
@@ -178,36 +232,21 @@ export default function Layout({
           ))}
         </nav>
 
-        {/* Dark mode toggle */}
-        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
-        <div className="p-3 pb-1">
-          <button
-            onClick={onToggleDark}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-[8px] bg-black/5 dark:bg-white/5 hover:bg-black/8 dark:hover:bg-white/8 transition-all text-[12px] text-black/50 dark:text-white/50"
-          >
-            {isDark ? <Sun size={14} /> : <Moon size={14} />}
-            <span className="flex-1 text-left">{isDark ? '라이트 모드' : '다크 모드'}</span>
-            <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${isDark ? 'bg-blue-500' : 'bg-black/15'}`}>
-              <div className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow transition-transform ${isDark ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
-            </div>
-          </button>
-        </div>
-
         {/* User profile + sign out */}
-        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-black/10 dark:via-white/10 to-transparent" />
+        <div className="mx-3 h-px bg-gray-100" />
         <div className="p-3">
           <div className="flex items-center gap-2.5 px-2 py-2">
             {user.photoURL
-              ? <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full flex-shrink-0 ring-1 ring-black/10 dark:ring-white/15" />
-              : <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+              ? <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full flex-shrink-0 ring-1 ring-gray-200" />
+              : <div className="w-7 h-7 rounded-full bg-[#5B5BD6] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
                   {user.displayName?.slice(0, 1) ?? '?'}
                 </div>
             }
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold text-black/70 dark:text-white/65 truncate leading-tight">
+              <p className="text-[11px] font-semibold text-gray-700 truncate leading-tight">
                 {appUser?.displayName ?? user.displayName ?? user.email}
               </p>
-              <p className="text-[9px] text-black/35 dark:text-white/30 truncate">
+              <p className="text-[9px] text-gray-400 truncate">
                 {appUser?.role === 'superadmin' ? '최고 관리자' : appUser?.role === 'manager' ? '중간 관리자' : '일반 사용자'}
                 {appUser?.department && ` · ${appUser.department}`}
               </p>
@@ -215,7 +254,7 @@ export default function Layout({
             <button
               onClick={onSignOut}
               title="로그아웃"
-              className="w-6 h-6 rounded-md flex items-center justify-center text-black/30 dark:text-white/30 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all flex-shrink-0"
+              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
             >
               <LogOut size={13} />
             </button>
@@ -224,7 +263,8 @@ export default function Layout({
       </aside>
 
       {/* Main content */}
-      <div className="ml-[220px] flex-1 min-w-0 relative z-10">
+      <div className="flex-1 min-w-0 relative"
+        style={{ marginLeft: 'calc(220px + var(--detail-panel-w, 0px))', transition: 'margin-left 0.26s ease-out' }}>
         <div className="p-5">
           <DepartmentAlert appUser={appUser} />
           <TeamAlert appUser={appUser} teamsLoading={teamsLoading} teams={teams} />

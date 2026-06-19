@@ -1,17 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig } from '../types';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface Props {
   appUser: AppUser;
   onUpdateName: (name: string) => Promise<void>;
   onUpdateDepartment: (dept: Department) => Promise<void>;
-  onUpdateSelectedTeam: (teamId: string | null) => Promise<void>;
+  onUpdateSelectedTeams: (teamIds: string[]) => Promise<void>;
+  onUpdateDefaultTeam: (teamId: string | null) => Promise<void>;
   teams: Team[];
+  teamsLoading: boolean;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
   onSetParts: (teamId: string, parts: TeamPart[]) => Promise<void>;
@@ -19,6 +21,12 @@ interface Props {
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
+  onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
+  onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
+  onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -30,14 +38,14 @@ const ROLE_LABEL: Record<UserRole, string> = {
   user: '일반 사용자',
 };
 const ROLE_COLOR: Record<UserRole, string> = {
-  superadmin: 'text-purple-600 bg-purple-50 dark:text-purple-300 dark:bg-purple-500/15',
-  manager: 'text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-500/15',
-  user: 'text-gray-600 bg-gray-100 dark:text-gray-300 dark:bg-white/8',
+  superadmin: 'text-purple-600 bg-purple-50',
+  manager: 'text-blue-600 bg-blue-50',
+  user: 'text-gray-600 bg-gray-100',
 };
 const DEPT_COLOR: Record<Department, string> = {
-  '기획': 'text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-500/15',
-  '디자인': 'text-pink-600 bg-pink-50 dark:text-pink-300 dark:bg-pink-500/15',
-  '퍼블': 'text-teal-600 bg-teal-50 dark:text-teal-300 dark:bg-teal-500/15',
+  '기획': 'text-violet-600 bg-violet-50',
+  '디자인': 'text-pink-600 bg-pink-50',
+  '퍼블': 'text-teal-600 bg-teal-50',
 };
 const PART_COLORS = [
   { label: '빨강', cls: 'bg-red-500' },
@@ -80,7 +88,7 @@ function DeptSelector({ value, onChange }: { value?: Department; onChange: (d: D
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
             value === d
               ? `border-transparent ${DEPT_COLOR[d]} ring-2 ring-offset-1 ring-current`
-              : 'border-black/10 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
+              : 'border-gray-200 text-gray-500 hover:bg-gray-100'
           }`}>{d}</button>
       ))}
     </div>
@@ -96,7 +104,7 @@ function EmojiPicker({ value, onChange }: { value: string; onChange: (e: string)
       {EMOJIS.map(e => (
         <button key={e} type="button" onClick={() => onChange(e)}
           className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-all hover:scale-110 ${
-            value === e ? 'bg-blue-100 dark:bg-blue-500/20 ring-2 ring-blue-400' : 'hover:bg-black/5 dark:hover:bg-white/8'
+            value === e ? 'bg-blue-100 ring-2 ring-blue-400' : 'hover:bg-gray-100'
           }`}>{e}</button>
       ))}
     </div>
@@ -128,17 +136,17 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
   return (
     <div data-role-dd>
       <button ref={btnRef} onClick={handleOpen}
-        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
         <span className={ROLE_COLOR[u.role].split(' ')[0]}>{ROLE_LABEL[u.role]}</span>
         <ChevronDown size={12} className="text-gray-400" />
       </button>
       {open && (
         <div data-role-dd style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 9999 }}
-          className="w-36 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#1a2240] shadow-xl py-1">
+          className="w-36 rounded-xl border border-gray-200 bg-white shadow-xl py-1">
           {(['manager', 'user'] as UserRole[]).map(r => (
             <button key={r} onClick={() => { onChangeRole(u.uid, r); setOpen(false); }}
-              className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-              <span className="text-gray-800 dark:text-gray-200">{ROLE_LABEL[r]}</span>
+              className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-100 transition-colors">
+              <span className="text-gray-800">{ROLE_LABEL[r]}</span>
               {u.role === r && <Check size={12} className="text-blue-500" />}
             </button>
           ))}
@@ -151,49 +159,74 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
 // ──────────────────────────────────────────
 // 사용자 행
 // ──────────────────────────────────────────
-function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo }: {
+function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
   u: AppUser; viewerRole: UserRole; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
-  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department }) => void;
+  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[] }) => void;
+  teams: Team[];
 }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(u.displayName);
   const [deptInput, setDeptInput] = useState<Department | undefined>(u.department);
+  const [teamInput, setTeamInput] = useState<string[]>(u.selectedTeamIds ?? []);
 
-  const canEdit = !isSelf && (viewerRole === 'superadmin' || (viewerRole === 'manager' && u.role !== 'superadmin'));
+  const canEdit = !isSelf && (viewerRole === 'superadmin' || (viewerRole === 'manager' && u.role === 'user'));
   const canChangeRole = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
-    await onUpdateInfo(u.uid, { displayName: nameInput.trim() || u.displayName, department: deptInput });
+    await onUpdateInfo(u.uid, {
+      displayName: nameInput.trim() || u.displayName,
+      department: deptInput,
+      selectedTeamIds: teamInput,
+    });
     setEditing(false);
   };
 
+  const handleCancel = () => {
+    setEditing(false);
+    setNameInput(u.displayName);
+    setDeptInput(u.department);
+    setTeamInput(u.selectedTeamIds ?? []);
+  };
+
+  const userTeams = teams.filter(t => u.selectedTeamIds?.includes(t.id));
+
   return (
-    <div className="px-4 py-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.03] transition-colors">
+    <div className="px-4 py-3 hover:bg-black/[0.02] transition-colors">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
           {u.displayName?.[0]?.toUpperCase() ?? '?'}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-            {u.displayName}{isSelf && <span className="ml-1.5 text-xs text-gray-400">(나)</span>}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{u.email}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {u.displayName}{isSelf && <span className="ml-1.5 text-xs text-gray-400">(나)</span>}
+            </p>
+            {userTeams.map(t => (
+              <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium flex-shrink-0">
+                {t.emoji} {t.name}
+              </span>
+            ))}
+            {userTeams.length === 0 && (
+              <span className="text-[10px] text-gray-400 italic">무소속</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 truncate">{u.email}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {u.department ? <DeptBadge dept={u.department} /> : (
-            <span className="text-xs text-orange-400 bg-orange-50 dark:bg-orange-500/10 px-2 py-0.5 rounded-full">미설정</span>
+            <span className="text-xs text-orange-400 bg-orange-50 px-2 py-0.5 rounded-full">미설정</span>
           )}
           {canChangeRole ? <RoleDropdown u={u} onChangeRole={onChangeRole} /> : <RoleBadge role={u.role} />}
           {canEdit && !editing && (
             <button onClick={() => setEditing(true)}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all">
+              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-all">
               <Pencil size={12} />
             </button>
           )}
           {editing && (
-            <button onClick={() => { setEditing(false); setNameInput(u.displayName); setDeptInput(u.department); }}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all">
+            <button onClick={handleCancel}
+              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
               <X size={12} />
             </button>
           )}
@@ -202,13 +235,36 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo }: {
       {editing && (
         <div className="mt-3 ml-11 space-y-2.5">
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">이름</label>
+            <label className="block text-xs text-gray-500 mb-1">이름</label>
             <input value={nameInput} onChange={e => setNameInput(e.target.value)}
-              className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
+              className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">직군</label>
+            <label className="block text-xs text-gray-500 mb-1.5">직군</label>
             <DeptSelector value={deptInput} onChange={setDeptInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">소속 팀 <span className="text-gray-400 font-normal">(복수 선택 가능)</span></label>
+            {teams.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">생성된 팀 없음</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {teams.map(t => {
+                  const sel = teamInput.includes(t.id);
+                  return (
+                    <button key={t.id} type="button"
+                      onClick={() => setTeamInput(sel ? teamInput.filter(id => id !== t.id) : [...teamInput, t.id])}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                        sel
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                      }`}>
+                      <span>{t.emoji}</span><span>{t.name}</span>{sel && <Check size={11} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-xs font-semibold btn-shiny-primary">저장</button>
         </div>
@@ -229,7 +285,7 @@ const BUILTIN_FIELD_TYPES: FormFieldType[] = ['text', 'date', 'number', 'name', 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
     <button type="button" onClick={onToggle}
-      className={`w-10 h-6 rounded-full p-0 relative transition-colors flex-shrink-0 ${on ? 'bg-blue-500' : 'bg-gray-200 dark:bg-white/15'}`}>
+      className={`w-10 h-6 rounded-full p-0 relative transition-colors flex-shrink-0 ${on ? 'bg-blue-500' : 'bg-gray-200'}`}>
       <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${on ? 'left-5' : 'left-1'}`} />
     </button>
   );
@@ -242,7 +298,7 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
   const [required, setRequired] = useState(false);
   const [options, setOptions] = useState(['', '']);
 
-  const cls = "text-xs px-2 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-400";
+  const cls = "text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400";
 
   const handleAdd = () => {
     if (!label.trim()) return;
@@ -258,7 +314,7 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
   );
 
   return (
-    <div className="mt-2 p-3 rounded-xl border border-blue-200 dark:border-blue-500/30 bg-blue-50/50 dark:bg-blue-500/5 space-y-2.5">
+    <div className="mt-2 p-3 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2.5">
       <div className="flex gap-2">
         <input className={`${cls} flex-1`} placeholder="필드명 *" value={label} onChange={e => setLabel(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAdd()} autoFocus />
@@ -267,14 +323,14 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
             <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
           ))}
         </select>
-        <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+        <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none">
           <input type="checkbox" checked={required} onChange={e => setRequired(e.target.checked)} className="rounded" />
           필수
         </label>
       </div>
       {type === 'select' && (
         <div className="space-y-1">
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">선택지</p>
+          <p className="text-[11px] text-gray-500 font-medium">선택지</p>
           {options.map((opt, i) => (
             <div key={i} className="flex gap-1.5">
               <input className={`${cls} flex-1`} placeholder={`옵션 ${i + 1}`} value={opt}
@@ -297,7 +353,7 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
           추가
         </button>
         <button onClick={() => { setOpen(false); setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); }}
-          className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+          className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
           취소
         </button>
       </div>
@@ -356,12 +412,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
     setCDragOverIdx(null);
   };
 
-  const updateWidth = (key: BuiltinFieldKey, w: number) => {
-    const updated = fields.map(f => f.key === key ? { ...f, width: w } : f);
-    setFields(updated);
-    onSaveFields(updated);
-  };
-
   const toggleBuiltin = (key: BuiltinFieldKey) => {
     const updated = fields.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f);
     setFields(updated);
@@ -407,11 +457,11 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
     <div className={`space-y-4 ${isInherited ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* 기본 필드 */}
       <div>
-        <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
           기본 필드
-          <span className="text-gray-300 dark:text-white/20 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 이름/속성 수정</span>
+          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 이름/속성 수정</span>
         </p>
-        <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5">
+        <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
           {fields.map((fc, i) => {
             const defaultLabel = BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
             const label = fc.customLabel ?? defaultLabel;
@@ -427,8 +477,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
                 onDrop={() => onDrop(i)}
                 onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 dark:hover:bg-white/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
-                <GripVertical size={13} className="text-gray-300 dark:text-white/20 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
                 {/* 레이블·속성 인라인 편집 */}
                 {editingKey === fc.key ? (
                   <div
@@ -436,7 +486,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveLabel(fc.key); }}>
                     <input
                       autoFocus
-                      className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 dark:border-blue-500/60 bg-white dark:bg-white/8 text-gray-800 dark:text-white/80 focus:outline-none"
+                      className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
                       value={labelInput}
                       placeholder={defaultLabel}
                       onChange={e => setLabelInput(e.target.value)}
@@ -444,7 +494,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     />
                     {!isTypeFixed && (
                       <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-black/10 dark:border-white/12 bg-white dark:bg-white/8 text-gray-700 dark:text-white/70 focus:outline-none flex-shrink-0"
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
                         value={typeInput}
                         onChange={e => setTypeInput(e.target.value as FormFieldType | 'default')}
                         onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}>
@@ -460,43 +510,28 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     type="button"
                     title="클릭하여 이름 · 속성 수정"
                     onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); }}
-                    className="flex-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate min-w-0">
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {label}
                     {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
                     {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                   </button>
                 )}
-                {/* 너비 조절 (title 제외) */}
-                {!isTitle && isTableField(fc.key) && fc.enabled && (
-                  <div className="flex items-center gap-px flex-shrink-0">
-                    <button onClick={() => updateWidth(fc.key, Math.max(50, fc.width - 10))}
-                      className="w-5 h-5 flex items-center justify-center text-gray-300 dark:text-white/25 hover:text-gray-600 dark:hover:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors text-sm leading-none">−</button>
-                    <span className="w-10 text-center text-[11px] text-gray-400 dark:text-white/35 tabular-nums select-none">
-                      {fc.key === 'weeklyHours' ? `${fc.width}×5` : `${fc.width}px`}
-                    </span>
-                    <button onClick={() => updateWidth(fc.key, Math.min(300, fc.width + 10))}
-                      className="w-5 h-5 flex items-center justify-center text-gray-300 dark:text-white/25 hover:text-gray-600 dark:hover:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors text-sm leading-none">+</button>
-                  </div>
-                )}
-                {/* 토글 (title은 항상 활성) */}
-                {isTitle
-                  ? <span className="text-[11px] text-gray-300 dark:text-white/25 italic flex-shrink-0">항상</span>
+                {/* 토글 (taskMonth·title은 고정) */}
+                {(fc.key === 'taskMonth' || isTitle)
+                  ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
                   : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
                 }
               </div>
             );
           })}
         </div>
-        <p className="mt-1.5 text-[11px] text-gray-400 dark:text-white/30">
-          업무 페이지에서 헤더 드래그로 너비 조절 가능 (관리자만)
-        </p>
       </div>
 
       {/* 커스텀 필드 */}
       <div>
-        <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">커스텀 필드</p>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">커스텀 필드</p>
         {customFields.length > 0 && (
-          <div className="rounded-xl border border-black/7 dark:border-white/7 overflow-hidden divide-y divide-black/5 dark:divide-white/5 mb-2">
+          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 mb-2">
             {customFields.map((cf, i) => {
               const isDragOver = cdragOverIdx === i;
               const isEditingCF = editingCustomId === cf.id;
@@ -509,21 +544,21 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setCDragOverIdx(null); }}
                   onDrop={() => onDropCustom(i)}
                   onDragEnd={() => { cdragIdxRef.current = null; setCDragOverIdx(null); }}
-                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 dark:hover:bg-white/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
-                  <GripVertical size={13} className="text-gray-300 dark:text-white/20 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
                   {isEditingCF ? (
                     <div
                       className="flex-1 flex items-center gap-1.5 min-w-0"
                       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}>
                       <input
                         autoFocus
-                        className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 dark:border-blue-500/60 bg-white dark:bg-white/8 text-gray-800 dark:text-white/80 focus:outline-none"
+                        className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
                         value={customLabelInput}
                         onChange={e => setCustomLabelInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
                       />
                       <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-black/10 dark:border-white/12 bg-white dark:bg-white/8 text-gray-700 dark:text-white/70 focus:outline-none flex-shrink-0"
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
                         value={customTypeInput}
                         onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
                         onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
@@ -537,15 +572,15 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
                       onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); setCustomTypeInput((cf.type === 'textarea' ? 'name' : cf.type) as FormFieldType); }}
-                      className="flex-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate min-w-0">
+                      className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {cf.label}
                     </button>
                   )}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {!isEditingCF && <span className="text-[10px] text-gray-400 bg-black/5 dark:bg-white/8 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
+                    {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type] ?? cf.type}</span>}
                     {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                     <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
-                    <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
+                    <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                   </div>
                 </div>
               );
@@ -601,7 +636,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       {/* 적용 대상 선택 */}
       {team.parts.length > 0 && (
         <div>
-          <p className="text-[11px] font-semibold text-gray-400 dark:text-white/35 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
           <div className="flex flex-wrap gap-1.5">
             {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
               const isTeam = target === 'team';
@@ -614,12 +649,12 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     selectedTarget === target
                       ? 'bg-blue-500 text-white border-blue-500'
-                      : 'border-black/10 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
                   }`}>
                   {!isTeam && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
                   {isTeam ? '팀 기본' : part?.name}
                   {hasOwn && (
-                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300'}`}>
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
                       별도
                     </span>
                   )}
@@ -632,21 +667,21 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 
       {/* 상속 안내 + 초기화 */}
       {isInherited && (
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-          <p className="text-xs text-amber-700 dark:text-amber-300">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
           <button
             onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
-            className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 font-medium ml-3 flex-shrink-0">
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
             <RotateCcw size={11} />초기화
           </button>
         </div>
       )}
       {!isInherited && selectedTarget !== 'team' && (
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
-          <p className="text-xs text-blue-700 dark:text-blue-300">이 파트의 별도 설정이 적용 중</p>
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
           <button
             onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 font-medium ml-3 flex-shrink-0">
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
             <RotateCcw size={11} />팀 기본으로 초기화
           </button>
         </div>
@@ -666,7 +701,383 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 // ──────────────────────────────────────────
 // 팀 관리 섹션
 // ──────────────────────────────────────────
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
+// 업무 정보 필드 편집기 (팀 탭 내)
+// ──────────────────────────────────────────
+function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
+  team: Team;
+  onSave: (teamId: string, fields: MetaField[]) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
+}) {
+  // selectedTarget: 'team' | partId
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [labelInput, setLabelInput] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newIsUrl, setNewIsUrl] = useState(false);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  useEffect(() => { setSelectedTarget('team'); setEditingKey(null); }, [team.id]);
+
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = !isTeam && !currentPart?.metaFields;
+  const teamFields: MetaField[] = team.metaFields ?? DEFAULT_META_FIELDS;
+  const fields: MetaField[] = isTeam ? teamFields : (currentPart?.metaFields ?? teamFields);
+
+  const save = (next: MetaField[]) => {
+    if (isTeam) onSave(team.id, next);
+    else if (currentPart) onSavePart(team.id, currentPart.id, next);
+  };
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...fields];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  const saveLabel = (key: string) => {
+    const label = labelInput.trim();
+    if (label) save(fields.map(f => f.key === key ? { ...f, label } : f));
+    setEditingKey(null);
+  };
+
+  const toggleUrl = (key: string) => save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl } : f));
+  const deleteField = (key: string) => save(fields.filter(f => f.key !== key));
+  const addField = () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const key = label.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
+    save([...fields, { key, label, isUrl: newIsUrl }]);
+    setNewLabel(''); setNewIsUrl(false);
+  };
+
+  const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="space-y-4">
+      {/* 적용 대상 — 폼 설정과 동일 구조 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.metaFields;
+              return (
+                <button key={target}
+                  onClick={() => { setSelectedTarget(target); setEditingKey(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상속 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화
+          </button>
+        </div>
+      )}
+      {!isTeam && !isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />팀 기본으로 초기화
+          </button>
+        </div>
+      )}
+
+      {/* 필드 목록 */}
+      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          기본 필드
+          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+        </p>
+        <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+          {fields.map((f, i) => (
+            <div key={f.key} draggable
+              onDragStart={() => { dragIdxRef.current = i; }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+              onDrop={() => onDrop(i)}
+              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+              className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+              <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+              {editingKey === f.key ? (
+                <input autoFocus
+                  className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                  value={labelInput} onChange={e => setLabelInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveLabel(f.key); if (e.key === 'Escape') setEditingKey(null); }}
+                  onBlur={() => saveLabel(f.key)} />
+              ) : (
+                <button type="button" title="클릭하여 이름 수정"
+                  onClick={() => { setEditingKey(f.key); setLabelInput(f.label); }}
+                  className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                  {f.label}
+                </button>
+              )}
+              <button type="button" onClick={() => toggleUrl(f.key)}
+                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors ${f.isUrl ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                URL
+              </button>
+              <button type="button" onClick={() => deleteField(f.key)}
+                className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <input className={iCls} placeholder="새 항목 이름" value={newLabel}
+            onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addField()} />
+          <button type="button" onClick={() => setNewIsUrl(v => !v)}
+            className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsUrl ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+            URL
+          </button>
+          <button onClick={addField} disabled={!newLabel.trim()}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+            <Plus size={11} />추가
+          </button>
+        </div>
+        {isTeam && (
+          <button onClick={() => save(DEFAULT_META_FIELDS)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors mt-1">
+            <RotateCcw size={11} /> 기본값으로 초기화
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
+// 세부 업무 유형 편집기
+// ──────────────────────────────────────────
+const SUBTASK_DEPT_COLOR: Record<string, string> = {
+  '기획': 'bg-violet-100 text-violet-700',
+  '디자인': 'bg-pink-100 text-pink-700',
+  '퍼블': 'bg-teal-100 text-teal-700',
+};
+
+function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
+  team: Team;
+  onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
+}) {
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newDept, setNewDept] = useState<Department | ''>('');
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
+
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = !isTeam && !currentPart?.subTaskTypes;
+  const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
+  const types: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
+
+  const save = (next: SubTaskType[]) => {
+    if (isTeam) onSave(team.id, next);
+    else if (currentPart) onSavePart(team.id, currentPart.id, next);
+  };
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...types];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  const saveName = (id: string) => {
+    const name = nameInput.trim();
+    if (name) save(types.map(t => t.id === id ? { ...t, name } : t));
+    setEditingId(null);
+  };
+
+  const toggleDept = (id: string, dept: Department) => {
+    save(types.map(t => t.id === id ? { ...t, department: t.department === dept ? undefined : dept } : t));
+  };
+
+  const deleteType = (id: string) => save(types.filter(t => t.id !== id));
+
+  const addType = () => {
+    const name = newName.trim();
+    if (!name) return;
+    save([...types, { id: `st_${Date.now()}`, name, department: newDept || undefined }]);
+    setNewName(''); setNewDept('');
+  };
+
+  const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="space-y-4">
+      {/* 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.subTaskTypes;
+              return (
+                <button key={target}
+                  onClick={() => { setSelectedTarget(target); setEditingId(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상속 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화
+          </button>
+        </div>
+      )}
+      {!isTeam && !isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />팀 기본으로 초기화
+          </button>
+        </div>
+      )}
+
+      <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+        세부 업무 목록
+        <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+      </p>
+      {types.length > 0 ? (
+        <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+          {types.map((t, i) => (
+            <div key={t.id} draggable
+              onDragStart={() => { dragIdxRef.current = i; }}
+              onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+              onDrop={() => onDrop(i)}
+              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+              className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+              <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+              {editingId === t.id ? (
+                <input autoFocus
+                  className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                  value={nameInput} onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                  onBlur={() => saveName(t.id)} />
+              ) : (
+                <button type="button"
+                  onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
+                  className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                  {t.name}
+                </button>
+              )}
+              {/* 직군 토글 버튼 */}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                  <button key={d} type="button"
+                    onClick={() => toggleDept(t.id, d)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                      t.department === d
+                        ? SUBTASK_DEPT_COLOR[d]
+                        : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                    }`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => deleteType(t.id)}
+                className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 text-center py-3">등록된 세부 업무가 없습니다</p>
+      )}
+      {/* 추가 폼 */}
+      <div className="flex items-center gap-2">
+        <input className={`${iCls} flex-1 min-w-0`}
+          placeholder="세부업무명 입력"
+          value={newName} onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addType()} />
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+            <button key={d} type="button"
+              onClick={() => setNewDept(prev => prev === d ? '' : d)}
+              className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                newDept === d
+                  ? SUBTASK_DEPT_COLOR[d]
+                  : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+              }`}>
+              {d}
+            </button>
+          ))}
+        </div>
+        <button onClick={addType} disabled={!newName.trim()}
+          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+          <Plus size={11} />추가
+        </button>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -675,13 +1086,19 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
+  onUpdatePartMetaFields: (teamId: string, partId: string, fields: MetaField[]) => Promise<void>;
+  onClearPartMetaFields: (teamId: string, partId: string) => Promise<void>;
+  onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask'>>({});
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -710,10 +1127,10 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 
   return (
     <section className="glass-card">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <Layers size={15} className="text-blue-500" />
-          <span className="text-sm font-semibold text-gray-800 dark:text-white">팀 관리</span>
+          <span className="text-sm font-semibold text-gray-800">팀 관리</span>
           <span className="text-xs text-gray-400">{teams.length}개</span>
         </div>
         {!creating && (
@@ -726,21 +1143,21 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 
       {/* 팀 생성 폼 */}
       {creating && (
-        <div className="px-5 py-4 border-b border-black/[0.04] dark:border-white/[0.04] space-y-3">
-          <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">새 팀 만들기</p>
+        <div className="px-5 py-4 border-b border-black/[0.04] space-y-3">
+          <p className="text-xs font-semibold text-gray-600">새 팀 만들기</p>
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">이모지 선택</label>
-            <div className="p-2 rounded-xl border border-black/8 dark:border-white/8 bg-black/2 dark:bg-white/3">
+            <label className="block text-xs text-gray-500 mb-1.5">이모지 선택</label>
+            <div className="p-2 rounded-xl border border-black/8 bg-black/2">
               <EmojiPicker value={newEmoji} onChange={setNewEmoji} />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">팀 이름</label>
+            <label className="block text-xs text-gray-500 mb-1">팀 이름</label>
             <input
               value={newName} onChange={e => setNewName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               placeholder="팀 이름 입력"
-              className="w-full text-sm px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
           </div>
           <div className="flex gap-2">
@@ -753,7 +1170,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 {saving ? '저장 중...' : '팀 생성'}
               </button>
               <button onClick={() => { setCreating(false); setNewName(''); setNewEmoji('🚀'); }}
-                className="px-3 py-2 rounded-lg text-xs text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                className="px-3 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
                 취소
               </button>
             </div>
@@ -765,26 +1182,26 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
       {teams.length === 0 && !creating ? (
         <p className="px-5 py-6 text-sm text-gray-400 text-center">생성된 팀이 없습니다</p>
       ) : (
-        <div className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
+        <div className="divide-y divide-black/[0.04]">
           {teams.map(team => (
             <div key={team.id}>
               {/* 팀 헤더 */}
-              <div className="flex items-center gap-3 px-5 py-3 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+              <div className="flex items-center gap-3 px-5 py-3 hover:bg-black/[0.02] transition-colors">
                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-lg flex-shrink-0">
                   {team.emoji}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{team.name}</p>
+                  <p className="text-sm font-semibold text-gray-900">{team.name}</p>
                   <p className="text-xs text-gray-400">{team.parts.length}개 파트</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}
-                    className="text-xs text-blue-500 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
+                    className="text-xs text-blue-500 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
                     {expandedTeam === team.id ? '닫기' : '팀 설정'}
                   </button>
                   <button onClick={() => { if (confirm(`"${team.name}" 팀을 삭제하시겠습니까?`)) onDeleteTeam(team.id); }}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all">
+                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -792,18 +1209,18 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 
               {/* 팀 설정 패널 (파트 / 폼 설정 탭) */}
               {expandedTeam === team.id && (
-                <div className="bg-black/[0.015] dark:bg-white/[0.015]">
+                <div className="bg-black/[0.015]">
                   {/* 탭 */}
-                  <div className="flex border-b border-black/5 dark:border-white/5 px-5">
-                    {(['parts', 'form'] as const).map(tab => (
+                  <div className="flex border-b border-black/5 px-5">
+                    {(['parts', 'form', 'meta', 'subtask'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
                           (teamTab[team.id] ?? 'parts') === tab
-                            ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                            : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-white/60'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : '폼 설정'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : '세부 업무'}
                       </button>
                     ))}
                   </div>
@@ -814,11 +1231,11 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                       {team.parts.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {team.parts.map(p => (
-                            <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-white/8 border border-black/8 dark:border-white/8 text-xs">
+                            <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/8 text-xs">
                               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
-                              <span className="text-gray-700 dark:text-gray-300 font-medium">{p.name}</span>
+                              <span className="text-gray-700 font-medium">{p.name}</span>
                               <button onClick={() => handleDeletePart(team, p.id)}
-                                className="text-gray-300 dark:text-gray-600 hover:text-red-400 transition-colors ml-0.5">
+                                className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                                 <X size={10} />
                               </button>
                             </div>
@@ -836,7 +1253,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                           value={partName} onChange={e => setPartName(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && handleAddPart(team)}
                           placeholder="파트 이름"
-                          className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                          className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                         />
                         <button onClick={() => handleAddPart(team)} disabled={!partName.trim()}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
@@ -857,6 +1274,31 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                       />
                     </div>
                   )}
+
+                  {/* 업무 정보 필드 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'meta' && (
+                    <div className="px-5 py-4">
+                      <MetaFieldsEditor
+                        team={team}
+                        onSave={onUpdateMetaFields}
+                        onSavePart={onUpdatePartMetaFields}
+                        onClearPart={onClearPartMetaFields}
+                      />
+                    </div>
+                  )}
+
+                  {/* 세부 업무 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'subtask' && (
+                    <div className="px-5 py-4">
+                      <SubTaskTypesEditor
+                        team={team}
+                        onSave={onUpdateSubTaskTypes}
+                        onSavePart={onUpdatePartSubTaskTypes}
+                        onClearPart={onClearPartSubTaskTypes}
+                      />
+                    </div>
+                  )}
+
                 </div>
               )}
             </div>
@@ -871,9 +1313,9 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 // 메인 페이지
 // ──────────────────────────────────────────
 export default function SettingsPage({
-  appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeam,
-  teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig,
+  appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
+  teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -915,6 +1357,59 @@ export default function SettingsPage({
     }
   };
 
+  const [migratingTeam, setMigratingTeam] = useState(false);
+  const [migrateTeamResult, setMigrateTeamResult] = useState('');
+
+  const runTaskTeamMigration = async () => {
+    setMigratingTeam(true);
+    setMigrateTeamResult('');
+    try {
+      // 파트명 → teamId 맵 구성
+      const partToTeamId: Record<string, string> = {};
+      for (const team of teams) {
+        for (const part of team.parts) {
+          partToTeamId[part.name] = team.id;
+        }
+      }
+
+      // teamId 없는 업무 전체 조회
+      const tasksSnap = await getDocs(collection(db, 'tasks'));
+      const needsMigration = tasksSnap.docs.filter(d => !d.data().teamId);
+
+      if (needsMigration.length === 0) {
+        setMigrateTeamResult('✅ 모든 업무에 이미 teamId가 있습니다.');
+        return;
+      }
+
+      let updated = 0, skipped = 0;
+      // Firestore batch 한도 500건 단위 처리
+      for (let i = 0; i < needsMigration.length; i += 499) {
+        const batch = writeBatch(db);
+        const chunk = needsMigration.slice(i, i + 499);
+        for (const taskDoc of chunk) {
+          const category = taskDoc.data().category as string;
+          const teamId = partToTeamId[category];
+          if (teamId) {
+            batch.update(doc(db, 'tasks', taskDoc.id), { teamId });
+            updated++;
+          } else {
+            skipped++;
+          }
+        }
+        await batch.commit();
+      }
+
+      setMigrateTeamResult(
+        `✅ 완료: ${updated}건 업데이트` +
+        (skipped > 0 ? `, ${skipped}건 매칭 실패 (파트 없음)` : '')
+      );
+    } catch (e) {
+      setMigrateTeamResult(`❌ 오류: ${String(e)}`);
+    } finally {
+      setMigratingTeam(false);
+    }
+  };
+
   const handleSaveName = async () => {
     if (!nameInput.trim()) return;
     await onUpdateName(nameInput.trim());
@@ -931,23 +1426,23 @@ export default function SettingsPage({
 
       {/* 내 프로필 */}
       <section className="glass-card">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <User size={15} className="text-blue-500" />
-          <span className="text-sm font-semibold text-gray-800 dark:text-white">내 프로필</span>
+          <span className="text-sm font-semibold text-gray-800">내 프로필</span>
           <RoleBadge role={appUser.role} />
           {appUser.department && <DeptBadge dept={appUser.department} />}
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">이메일</label>
-            <p className="text-sm text-gray-700 dark:text-gray-300">{appUser.email}</p>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">이메일</label>
+            <p className="text-sm text-gray-700">{appUser.email}</p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">표시 이름</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">표시 이름</label>
             <div className="flex gap-2">
               <input value={nameInput} onChange={e => setNameInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSaveName()}
-                className="flex-1 max-w-xs text-sm px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
+                className="flex-1 max-w-xs text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
               <button onClick={handleSaveName}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${nameSaved ? 'bg-green-500 text-white' : 'btn-shiny-primary'}`}>
                 {nameSaved ? '저장됨' : '저장'}
@@ -955,7 +1450,7 @@ export default function SettingsPage({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">
               직군 <span className="text-orange-500">*</span>
             </label>
             <DeptSelector value={appUser.department} onChange={onUpdateDepartment} />
@@ -964,41 +1459,73 @@ export default function SettingsPage({
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-              소속 팀 <span className="text-orange-500">*</span>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+              소속 팀 <span className="text-gray-400 font-normal">(복수 선택 가능)</span>
             </label>
-            {teams.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">생성된 팀이 없습니다{appUser.role !== 'user' ? ' — 아래에서 팀을 먼저 만들어주세요' : ''}.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {/* 무소속 버튼 */}
-                <button
-                  onClick={() => onUpdateSelectedTeam(null)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-                    !appUser.selectedTeamId
-                      ? 'bg-gray-500 text-white border-gray-500 shadow-md'
-                      : 'border-black/10 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
-                  }`}>
-                  <span className="text-base">🚫</span>
-                  <span>무소속</span>
-                  {!appUser.selectedTeamId && <Check size={13} />}
-                </button>
-                {teams.map(t => (
-                  <button key={t.id} onClick={() => onUpdateSelectedTeam(t.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-                      appUser.selectedTeamId === t.id
-                        ? 'bg-blue-500 text-white border-blue-500 shadow-md'
-                        : 'border-black/10 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}>
-                    <span className="text-base">{t.emoji}</span>
-                    <span>{t.name}</span>
-                    {appUser.selectedTeamId === t.id && <Check size={13} />}
-                  </button>
+            {teamsLoading ? (
+              <div className="flex gap-2">
+                {[1, 2].map(i => (
+                  <div key={i} className="h-9 w-20 rounded-xl bg-gray-100 animate-pulse" />
                 ))}
               </div>
+            ) : teams.length === 0 ? (
+              <p className="text-xs text-gray-400 italic">생성된 팀이 없습니다{appUser.role !== 'user' ? ' — 아래에서 팀을 먼저 만들어주세요' : ''}.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {teams.map(t => {
+                    const isSelected = appUser.selectedTeamIds?.includes(t.id) ?? false;
+                    const isDefault = appUser.defaultTeamId === t.id;
+                    const selectedCount = appUser.selectedTeamIds?.length ?? 0;
+                    const handleToggle = () => {
+                      const current = appUser.selectedTeamIds ?? [];
+                      const next = isSelected
+                        ? current.filter(id => id !== t.id)
+                        : [...current, t.id];
+                      onUpdateSelectedTeams(next);
+                      if (isSelected && isDefault) onUpdateDefaultTeam(null);
+                    };
+                    const handleSetDefault = (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      onUpdateDefaultTeam(isDefault ? null : t.id);
+                    };
+                    return (
+                      <div key={t.id} className="relative">
+                        <button onClick={handleToggle}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                            isSelected
+                              ? 'bg-blue-500 text-white border-blue-500 shadow-md pr-8'
+                              : 'border-gray-200 text-gray-700 hover:bg-gray-100'
+                          }`}>
+                          <span className="text-base">{t.emoji}</span>
+                          <span>{t.name}</span>
+                          {isSelected && !isDefault && <Check size={13} />}
+                        </button>
+                        {isSelected && selectedCount >= 2 && (
+                          <button
+                            onClick={handleSetDefault}
+                            title={isDefault ? '기본 팀 해제' : '기본 팀으로 설정'}
+                            className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded transition-colors ${
+                              isDefault
+                                ? 'text-yellow-300'
+                                : 'text-gray-500 hover:text-yellow-300'
+                            }`}>
+                            <Star size={12} fill={isDefault ? 'currentColor' : 'none'} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {(appUser.selectedTeamIds?.length ?? 0) >= 2 && (
+                  <p className="mt-1.5 text-[11px] text-gray-400">
+                    ★ 를 눌러 접속 시 기본으로 선택될 팀을 지정하세요.
+                  </p>
+                )}
+              </>
             )}
-            {teams.length > 0 && !appUser.selectedTeamId && (
-              <p className="mt-1.5 text-xs text-orange-500">소속 팀을 선택해주세요. 팀을 선택해야 업무 데이터를 볼 수 있습니다.</p>
+            {!teamsLoading && teams.length > 0 && !appUser.selectedTeamIds?.length && (
+              <p className="mt-1.5 text-xs text-orange-500">소속 팀을 하나 이상 선택해주세요. 팀을 선택해야 업무 데이터를 볼 수 있습니다.</p>
             )}
           </div>
         </div>
@@ -1015,18 +1542,24 @@ export default function SettingsPage({
           onUpdateFormConfig={onUpdateFormConfig}
           onUpdatePartFormConfig={onUpdatePartFormConfig}
           onClearPartFormConfig={onClearPartFormConfig}
+          onUpdateMetaFields={onUpdateMetaFields}
+          onUpdatePartMetaFields={onUpdatePartMetaFields}
+          onClearPartMetaFields={onClearPartMetaFields}
+          onUpdateSubTaskTypes={onUpdateSubTaskTypes}
+          onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
+          onClearPartSubTaskTypes={onClearPartSubTaskTypes}
         />
       )}
 
       {/* 사용자 관리 — 중간 관리자 이상 */}
       {canManageUsers && (
         <section className="glass-card">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
             <Users size={15} className="text-purple-500" />
-            <span className="text-sm font-semibold text-gray-800 dark:text-white">사용자 관리</span>
+            <span className="text-sm font-semibold text-gray-800">사용자 관리</span>
             <span className="text-xs text-gray-400">{users.length}명</span>
           </div>
-          <div className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
+          <div className="divide-y divide-black/[0.04]">
             {users.length === 0 ? (
               <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 사용자 없음</p>
             ) : (
@@ -1034,7 +1567,7 @@ export default function SettingsPage({
                 .sort((a, b) => ({ superadmin: 0, manager: 1, user: 2 }[a.role] - { superadmin: 0, manager: 1, user: 2 }[b.role]))
                 .map(u => (
                   <UserRow key={u.uid} u={u} viewerRole={appUser.role} isSelf={u.uid === appUser.uid}
-                    onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} />
+                    onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
                 ))
             )}
           </div>
@@ -1043,16 +1576,16 @@ export default function SettingsPage({
 
       {/* 권한 안내 */}
       <section className="glass-card">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-black/[0.06] dark:border-white/[0.06]">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <Shield size={15} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-800 dark:text-white">권한 안내</span>
+          <span className="text-sm font-semibold text-gray-800">권한 안내</span>
         </div>
         <div className="p-5">
           <div className="grid grid-cols-3 gap-3 text-xs">
             {(['superadmin', 'manager', 'user'] as UserRole[]).map(r => (
               <div key={r} className="space-y-2">
                 <RoleBadge role={r} />
-                <ul className="space-y-1 text-gray-500 dark:text-gray-400">
+                <ul className="space-y-1 text-gray-500">
                   {r !== 'user' && <li>· 팀 / 파트 생성 및 관리</li>}
                   {r !== 'user' && <li>· 업무 등록/수정/삭제</li>}
                   {r === 'superadmin' && <li>· 사용자 권한 관리</li>}
@@ -1070,12 +1603,12 @@ export default function SettingsPage({
       {/* 슈퍼어드민 전용: 데이터 마이그레이션 */}
       {appUser.role === 'superadmin' && (
         <section className="glass-card p-5 space-y-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-white/70 flex items-center gap-1.5">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
             <Shield size={14} className="text-orange-400" />
             데이터 마이그레이션 (관리자 전용)
           </h3>
-          <div className="rounded-xl border border-orange-200 dark:border-orange-500/20 bg-orange-50/50 dark:bg-orange-500/5 p-3 space-y-2">
-            <p className="text-xs text-gray-600 dark:text-white/55">
+          <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-3 space-y-2">
+            <p className="text-xs text-gray-600">
               세부업무(subtask)에 projectId 필드 일괄 추가 — 기존 데이터 마이그레이션용
             </p>
             <div className="flex items-center gap-3">
@@ -1086,7 +1619,23 @@ export default function SettingsPage({
                 {migrating ? '실행 중...' : 'subtask 마이그레이션 실행'}
               </button>
               {migrateResult && (
-                <span className="text-xs text-gray-600 dark:text-white/60">{migrateResult}</span>
+                <span className="text-xs text-gray-600">{migrateResult}</span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-3 space-y-2">
+            <p className="text-xs text-gray-600">
+              기존 업무에 teamId 일괄 추가 — 파트명 기준으로 팀 자동 매칭
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={runTaskTeamMigration}
+                disabled={migratingTeam}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                {migratingTeam ? '실행 중...' : '업무 teamId 마이그레이션 실행'}
+              </button>
+              {migrateTeamResult && (
+                <span className="text-xs text-gray-600">{migrateTeamResult}</span>
               )}
             </div>
           </div>

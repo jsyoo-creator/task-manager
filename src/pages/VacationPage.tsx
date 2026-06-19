@@ -61,24 +61,24 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
           <h1 className="page-title">휴가</h1>
           <p className="page-subtitle">{year}년 연간 휴가 관리</p>
         </div>
-        <span className="text-xs text-black/30 dark:text-white/25 font-medium">연간 {15}일 기준</span>
+        <span className="text-xs text-gray-400 font-medium">연간 {15}일 기준</span>
       </div>
 
     <div className="grid gap-4" style={{ gridTemplateColumns: '320px 1fr' }}>
       {/* Left: Mini calendar */}
       <div className="glass-card">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-black/5 dark:border-white/8">
-          <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-black/6 dark:hover:bg-white/8 text-gray-500 dark:text-white/50">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-black/5">
+          <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500">
             <ChevronLeft size={15} />
           </button>
-          <span className="text-sm font-semibold text-gray-800 dark:text-white/80">{year}년 {month + 1}월</span>
-          <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-black/6 dark:hover:bg-white/8 text-gray-500 dark:text-white/50">
+          <span className="text-sm font-semibold text-gray-800">{year}년 {month + 1}월</span>
+          <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500">
             <ChevronRight size={15} />
           </button>
         </div>
-        <div className="grid grid-cols-7 border-b border-black/3 dark:border-white/5">
+        <div className="grid grid-cols-7 border-b border-black/3">
           {WEEK_DAYS.map((d, i) => (
-            <div key={d} className={`text-center py-1.5 text-[10px] font-medium ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400 dark:text-white/30'}`}>{d}</div>
+            <div key={d} className={`text-center py-1.5 text-[10px] font-medium ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'}`}>{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 p-1.5 gap-0.5">
@@ -88,10 +88,10 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
             const isTd = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
             const isWk = idx % 7 === 0 || idx % 7 === 6;
             return (
-              <div key={idx} className={`aspect-square flex flex-col items-center justify-center rounded-lg ${dayVacs.length > 0 ? 'bg-blue-50 dark:bg-blue-500/15' : ''}`}>
+              <div key={idx} className={`aspect-square flex flex-col items-center justify-center rounded-lg ${dayVacs.length > 0 ? 'bg-blue-50' : ''}`}>
                 {day && (
                   <>
-                    <span className={`text-[11px] font-medium ${isTd ? 'bg-blue-500 text-white w-5 h-5 flex items-center justify-center rounded-full' : isWk ? 'text-gray-400 dark:text-white/25' : 'text-gray-700 dark:text-white/60'}`}>{day}</span>
+                    <span className={`text-[11px] font-medium ${isTd ? 'bg-blue-500 text-white w-5 h-5 flex items-center justify-center rounded-full' : isWk ? 'text-gray-400' : 'text-gray-700'}`}>{day}</span>
                     {dayVacs.length > 0 && (
                       <div className="flex gap-0.5 mt-0.5">
                         {dayVacs.slice(0, 2).map((_, i) => <span key={i} className="w-1 h-1 rounded-full bg-blue-400" />)}
@@ -104,29 +104,29 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
           })}
         </div>
 
-        <div className="p-3 border-t border-black/4 dark:border-white/6">
+        <div className="p-3 border-t border-black/4">
           {showForm ? (
             <form onSubmit={handleSubmit} className="space-y-2">
               {[
-                <select key="member" className="w-full glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700 dark:text-white/70"
+                <select key="member" className="w-full glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
                   value={form.memberName} onChange={e => setForm(f => ({ ...f, memberName: e.target.value }))}>
                   {members.map(m => <option key={m.name}>{m.name}</option>)}
                 </select>,
-                <input key="date" type="date" required className="w-full glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700 dark:text-white/70"
+                <input key="date" type="date" required className="w-full glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
                   value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />,
-                <select key="type" className="w-full glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700 dark:text-white/70"
+                <select key="type" className="w-full glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
                   value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Vacation['type'] }))}>
                   {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>,
               ]}
               <div className="flex gap-2">
                 <button type="submit" className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600 transition-colors">등록</button>
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-black/10 dark:border-white/15 text-gray-500 dark:text-white/50 rounded-lg py-1.5 text-xs hover:bg-black/5 dark:hover:bg-white/5">취소</button>
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-100">취소</button>
               </div>
             </form>
           ) : (
             <button onClick={() => setShowForm(true)}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg border border-blue-100 dark:border-blue-500/25 transition-colors">
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-blue-500 hover:bg-blue-50 rounded-lg border border-blue-100 transition-colors">
               <Plus size={12} /> 휴가 등록
             </button>
           )}
@@ -137,25 +137,25 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
       <div className="space-y-3">
         {/* Annual remaining */}
         <div className="glass-card">
-          <div className="px-4 py-3 border-b border-black/5 dark:border-white/8">
-            <h3 className="text-sm font-semibold text-gray-800 dark:text-white/80">{year}년 연간 잔여 현황</h3>
+          <div className="px-4 py-3 border-b border-black/5">
+            <h3 className="text-sm font-semibold text-gray-800">{year}년 연간 잔여 현황</h3>
           </div>
-          <div className="grid grid-cols-[1fr_80px_80px_80px] text-[11px] text-gray-400 dark:text-white/30 font-medium bg-black/2 dark:bg-white/3 border-b border-black/4 dark:border-white/6 px-4 py-2">
+          <div className="grid grid-cols-[1fr_80px_80px_80px] text-[11px] text-gray-400 font-medium bg-black/2 border-b border-black/4 px-4 py-2">
             <span>이름</span><span className="text-center">총 연차</span><span className="text-center">사용</span><span className="text-center">잔여</span>
           </div>
           {memberStats.map(({ name, role, used, remaining }) => (
-            <div key={name} className="grid grid-cols-[1fr_80px_80px_80px] items-center px-4 py-3 border-b border-black/3 dark:border-white/5 last:border-0 hover:bg-black/2 dark:hover:bg-white/3 transition-colors">
+            <div key={name} className="grid grid-cols-[1fr_80px_80px_80px] items-center px-4 py-3 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors">
               <div className="flex items-center gap-2">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold ${role === 'PL' ? 'bg-purple-400' : 'bg-blue-400'}`}>
                   {name.slice(0, 1)}
                 </div>
-                <span className="text-sm text-gray-700 dark:text-white/70">{name}</span>
+                <span className="text-sm text-gray-700">{name}</span>
               </div>
-              <span className="text-center text-sm text-gray-600 dark:text-white/55">{ANNUAL_TOTAL}일</span>
-              <span className="text-center text-sm text-amber-600 dark:text-amber-400 font-medium">{used}일</span>
+              <span className="text-center text-sm text-gray-600">{ANNUAL_TOTAL}일</span>
+              <span className="text-center text-sm text-amber-600 font-medium">{used}일</span>
               <div className="flex flex-col items-center gap-0.5">
-                <span className={`text-sm font-semibold ${remaining <= 3 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>{remaining}일</span>
-                <div className="w-12 h-1 bg-black/6 dark:bg-white/10 rounded-full">
+                <span className={`text-sm font-semibold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
+                <div className="w-12 h-1 bg-gray-100 rounded-full">
                   <div className={`h-1 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
                     style={{ width: `${Math.round((remaining / ANNUAL_TOTAL) * 100)}%` }} />
                 </div>
@@ -166,20 +166,20 @@ export default function VacationPage({ vacations, members, onAddVacation, onDele
 
         {/* Monthly list */}
         <div className="glass-card">
-          <div className="px-4 py-3 border-b border-black/5 dark:border-white/8">
-            <h4 className="text-sm font-semibold text-gray-800 dark:text-white/80">{month + 1}월 휴가 내역</h4>
+          <div className="px-4 py-3 border-b border-black/5">
+            <h4 className="text-sm font-semibold text-gray-800">{month + 1}월 휴가 내역</h4>
           </div>
           {monthVacations.length === 0 ? (
-            <p className="text-xs text-gray-300 dark:text-white/20 text-center py-6">등록된 휴가 없음</p>
+            <p className="text-xs text-gray-300 text-center py-6">등록된 휴가 없음</p>
           ) : (
-            <div className="divide-y divide-black/3 dark:divide-white/5">
+            <div className="divide-y divide-black/3">
               {monthVacations.sort((a, b) => a.date.localeCompare(b.date)).map(v => (
-                <div key={v.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-black/2 dark:hover:bg-white/3 transition-colors">
-                  <span className="text-xs text-gray-500 dark:text-white/40 w-12">{v.date.slice(5).replace('-', '/')}</span>
-                  <span className="text-xs font-medium text-gray-700 dark:text-white/70 flex-1 px-2">{v.memberName}</span>
-                  <span className="text-xs text-blue-500 dark:text-blue-400">{v.type}</span>
-                  <span className="text-xs text-gray-400 dark:text-white/30 w-8 text-center">{v.days}일</span>
-                  <button onClick={() => onDeleteVacation(v.id)} className="text-gray-200 dark:text-white/15 hover:text-red-400 transition-colors ml-2">
+                <div key={v.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-black/2 transition-colors">
+                  <span className="text-xs text-gray-500 w-12">{v.date.slice(5).replace('-', '/')}</span>
+                  <span className="text-xs font-medium text-gray-700 flex-1 px-2">{v.memberName}</span>
+                  <span className="text-xs text-blue-500">{v.type}</span>
+                  <span className="text-xs text-gray-400 w-8 text-center">{v.days}일</span>
+                  <button onClick={() => onDeleteVacation(v.id)} className="text-gray-200 hover:text-red-400 transition-colors ml-2">
                     <Trash2 size={11} />
                   </button>
                 </div>

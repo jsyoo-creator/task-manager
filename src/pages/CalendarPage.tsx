@@ -11,10 +11,10 @@ interface Props {
 }
 
 const CAT_STYLE: Record<string, { pill: string; dot: string }> = {
-  '라이브': { pill: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400', dot: 'bg-red-500' },
-  '복지': { pill: 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400', dot: 'bg-orange-400' },
-  '사업자': { pill: 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400', dot: 'bg-indigo-500' },
-  '기타': { pill: 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-white/50', dot: 'bg-gray-400' },
+  '라이브': { pill: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+  '복지': { pill: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
+  '사업자': { pill: 'bg-indigo-100 text-indigo-700', dot: 'bg-indigo-500' },
+  '기타': { pill: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' },
 };
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -60,11 +60,11 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
         <div className="flex items-center gap-3">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
           <div className="flex items-center gap-1">
-            <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
+            <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
               <ChevronLeft size={15} />
             </button>
-            <span className="text-sm font-semibold text-black/70 dark:text-white/70 w-14 text-center">{month + 1}월</span>
-            <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-black/40 dark:text-white/40 hover:bg-black/6 dark:hover:bg-white/8 transition-colors">
+            <span className="text-sm font-semibold text-gray-700 w-14 text-center">{month + 1}월</span>
+            <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
               <ChevronRight size={15} />
             </button>
           </div>
@@ -73,10 +73,10 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
 
     <div className="glass-card">
       {/* Day labels */}
-      <div className="grid grid-cols-7 border-b border-black/4 dark:border-white/6">
+      <div className="grid grid-cols-7 border-b border-black/4">
         {DAYS.map((d, i) => (
           <div key={d} className={`text-center py-2 text-xs font-medium ${
-            i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500 dark:text-white/40'
+            i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'
           }`}>{d}</div>
         ))}
       </div>
@@ -87,15 +87,15 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
           const dayTasks = day ? tasksForDay(day) : [];
           const isWknd = idx % 7 === 0 || idx % 7 === 6;
           return (
-            <div key={idx} className={`min-h-[88px] border-r border-b border-black/3 dark:border-white/5 p-1.5 ${
-              !day ? 'bg-black/1 dark:bg-white/1' : ''
-            } ${isWknd && day ? 'bg-black/1.5 dark:bg-white/2' : ''}`}>
+            <div key={idx} className={`min-h-[88px] border-r border-b border-black/3 p-1.5 ${
+              !day ? 'bg-black/1' : ''
+            } ${isWknd && day ? 'bg-black/1.5' : ''}`}>
               {day && (
                 <>
                   <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium mb-1 ${
                     isToday(day)
                       ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
-                      : isWknd ? 'text-gray-400 dark:text-white/30' : 'text-gray-700 dark:text-white/60'
+                      : isWknd ? 'text-gray-400' : 'text-gray-700'
                   }`}>{day}</div>
                   <div className="space-y-0.5">
                     {dayTasks.slice(0, 3).map(t => {
@@ -108,7 +108,7 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
                       );
                     })}
                     {dayTasks.length > 3 && (
-                      <div className="text-[9px] text-gray-400 dark:text-white/30 pl-1">+{dayTasks.length - 3}개</div>
+                      <div className="text-[9px] text-gray-400 pl-1">+{dayTasks.length - 3}개</div>
                     )}
                   </div>
                 </>

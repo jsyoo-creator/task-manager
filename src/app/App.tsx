@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
+
+function RouteWatcher({ onRouteChange }: { onRouteChange: (path: string) => void }) {
+  const location = useLocation();
+  useEffect(() => { onRouteChange(location.pathname); }, [location.pathname]);
+  return null;
+}
 import Layout from '../components/Layout';
 import LoadingScreen from '../components/LoadingScreen';
 import LoginPage from '../pages/LoginPage';
@@ -18,28 +24,47 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
 import { getPermissions, resolveBuiltinFields } from '../types';
-import type { TaskCategory, TeamFormConfig } from '../types';
+import type { Task, TaskCategory } from '../types';
+import TaskDetailPanel from '../components/TaskDetailPanel';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signOut } = useAuth();
-  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeam } = useUserRole(user);
+  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam } = useUserRole(user);
   const { users: allUsers } = useAllUsers();
 
   const { projects, loading: projLoading, addProject } = useProjects();
   const [projectId, setProjectId] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
-  const [isDark, setIsDark] = useState(() =>
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
   const [loadingDone, setLoadingDone] = useState(false);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(() =>
+    localStorage.getItem('activeTeamId') ?? null
+  );
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig } = useTeams();
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes } = useTeams(user?.uid);
 
+  // activeTeamId 유효성 검사 — 선택 팀 목록이 바뀔 때 보정
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark);
-  }, [isDark]);
+    const ids = appUser?.selectedTeamIds ?? [];
+    if (ids.length === 0) {
+      setActiveTeamId(null);
+      localStorage.removeItem('activeTeamId');
+    } else if (!activeTeamId || !ids.includes(activeTeamId)) {
+      const preferred = (appUser?.defaultTeamId && ids.includes(appUser.defaultTeamId))
+        ? appUser.defaultTeamId
+        : ids[0];
+      setActiveTeamId(preferred);
+      localStorage.setItem('activeTeamId', preferred);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appUser?.selectedTeamIds?.join(',')]);
+
+  const handleActiveTeamChange = (id: string) => {
+    setActiveTeamId(id);
+    localStorage.setItem('activeTeamId', id);
+  };
 
   useEffect(() => {
     if (!projLoading && projects.length > 0 && !projectId) {
@@ -58,14 +83,16 @@ function App() {
   }, [projLoading, projects.length]);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
-  const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId);
+  const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId, activeTeamId);
   const { subtasks } = useAllSubTasks(projectId);
 
-  const selectedTeam = teams.find(t => t.id === appUser?.selectedTeamId) ?? null;
+  const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
-  const teamAssignees = selectedTeam
-    ? allUsers.filter(u => u.selectedTeamId === selectedTeam.id).map(u => u.displayName)
+  const teamMembers = selectedTeam
+    ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id))
+        .map(u => ({ name: u.displayName, department: u.department as string | undefined }))
     : [];
+  const teamAssignees = teamMembers.map(m => m.name);
 
   // 활성 카테고리에 해당하는 파트 (없으면 undefined → 팀 기본 설정 사용)
   const activePart = activeCategory !== 'all'
@@ -73,23 +100,16 @@ function App() {
     : undefined;
   const effectiveFormConfig = activePart?.formConfig ?? selectedTeam?.formConfig;
 
-  // 업무 관리 페이지에서 컬럼 너비 조절 시 적절한 레벨에 저장
-  const handleTaskUpdateConfig = (config: TeamFormConfig) => {
-    if (!selectedTeam) return;
-    if (activePart) {
-      updatePartFormConfig(selectedTeam.id, activePart.id, config);
-    } else {
-      updateFormConfig(selectedTeam.id, config);
-    }
-  };
-
-  // 선택된 팀의 파트와 일치하는 업무만 표시 (파트가 있을 때만 필터링)
+  // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
   const filteredTasks = activeParts.length > 0
     ? tasks.filter(t => activeParts.some(p => p.name === t.category))
     : tasks;
 
+  const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
+    addTask({ ...data, teamId: activeTeamId ?? '' });
+
   if (authLoading || (user && roleLoading)) {
-    return <LoadingScreen done={false} onFinished={() => {}} isDark={isDark} />;
+    return <LoadingScreen done={false} onFinished={() => {}} />;
   }
 
   if (!user) {
@@ -104,40 +124,39 @@ function App() {
         <LoadingScreen
           done={!projLoading}
           onFinished={() => setLoadingDone(true)}
-          isDark={isDark}
         />
       )}
 
       <BrowserRouter>
+        <RouteWatcher onRouteChange={path => { if (path !== '/tasks') setDetailTaskId(null); }} />
         <Layout
           project={currentProject}
           projects={projects}
           onProjectChange={setProjectId}
           activeCategory={activeCategory}
           onCategoryChange={setActiveCategory}
-          isDark={isDark}
-          onToggleDark={() => setIsDark(d => !d)}
           user={user}
           appUser={appUser}
           onSignOut={signOut}
           teams={teams}
           teamsLoading={teamsLoading}
+          activeTeamId={activeTeamId}
+          onActiveTeamChange={handleActiveTeamChange}
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} isDark={isDark} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} />
             } />
             <Route path="/tasks" element={
               <TaskManagement
-                tasks={filteredTasks} onAddTask={addTask} onUpdateTask={updateTask}
-                onDeleteTask={deleteTask} projectId={projectId}
+                tasks={filteredTasks} onAddTask={addTaskForTeam} onUpdateTask={updateTask}
+                onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canManage={permissions.canManageTasks}
                 parts={activeParts}
                 assignees={teamAssignees}
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
-                onUpdateConfig={permissions.canManageTasks ? handleTaskUpdateConfig : undefined}
               />
             } />
             <Route path="/calendar" element={
@@ -156,8 +175,10 @@ function App() {
                     appUser={appUser}
                     onUpdateName={updateDisplayName}
                     onUpdateDepartment={updateDepartment}
-                    onUpdateSelectedTeam={(id: string | null) => updateSelectedTeam(id)}
+                    onUpdateSelectedTeams={updateSelectedTeams}
+                    onUpdateDefaultTeam={updateDefaultTeam}
                     teams={teams}
+                    teamsLoading={teamsLoading}
                     onCreateTeam={createTeam}
                     onUpdateTeam={updateTeam}
                     onSetParts={setParts}
@@ -165,12 +186,39 @@ function App() {
                     onUpdateFormConfig={updateFormConfig}
                     onUpdatePartFormConfig={updatePartFormConfig}
                     onClearPartFormConfig={clearPartFormConfig}
+                    onUpdateMetaFields={updateMetaFields}
+                    onUpdatePartMetaFields={updatePartMetaFields}
+                    onClearPartMetaFields={clearPartMetaFields}
+                    onUpdateSubTaskTypes={updateSubTaskTypes}
+                    onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
+                    onClearPartSubTaskTypes={clearPartSubTaskTypes}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
+
+        {(() => {
+          const detailTask = tasks.find(t => t.id === detailTaskId);
+          if (!detailTask) return null;
+          const taskPart = activeParts.find(p => p.name === detailTask.category);
+          const resolvedMetaFields = taskPart?.metaFields ?? selectedTeam?.metaFields;
+          return (
+            <TaskDetailPanel
+              task={detailTask}
+              onClose={() => setDetailTaskId(null)}
+              onUpdate={updateTask}
+              onDelete={(id) => { deleteTask(id); setDetailTaskId(null); }}
+              assignees={teamAssignees}
+              parts={activeParts}
+              canManage={permissions.canManageTasks}
+              metaFields={resolvedMetaFields}
+              subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
+              teamMembers={teamMembers}
+            />
+          );
+        })()}
       </BrowserRouter>
     </>
   );

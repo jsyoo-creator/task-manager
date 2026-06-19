@@ -103,16 +103,16 @@ body {
   color: white;
   z-index: 1;
 }
-/* 바깥으로 번지는 그라디언트 글로우 */
+/* 바깥으로 번지는 그라디언트 글로우 — 라이트 모드: 타이트하게 */
 .btn-shiny-primary::before {
   content: '';
   position: absolute;
-  inset: -2px;
+  inset: -1.5px;
   border-radius: 14px;
   background: linear-gradient(to right, #e040c0 0%, #7040e0 55%, #3050e8 100%);
   z-index: -1;
-  opacity: 0.55;
-  filter: blur(6px);
+  opacity: 0.35;
+  filter: blur(3px);
   transition: opacity 0.2s ease, filter 0.2s ease;
   pointer-events: none;
 }
@@ -121,13 +121,26 @@ body {
   transform: translateY(-1px);
 }
 .btn-shiny-primary:hover::before {
-  opacity: 0.85;
-  filter: blur(9px);
+  opacity: 0.55;
+  filter: blur(4px);
 }
 .btn-shiny-primary:active {
   transform: translateY(0);
 }
 .btn-shiny-primary:active::before {
+  opacity: 0.3;
+  filter: blur(2px);
+}
+/* 다크 모드: 글로우 강하게 */
+.dark .btn-shiny-primary::before {
+  opacity: 0.6;
+  filter: blur(6px);
+}
+.dark .btn-shiny-primary:hover::before {
+  opacity: 0.9;
+  filter: blur(9px);
+}
+.dark .btn-shiny-primary:active::before {
   opacity: 0.5;
   filter: blur(4px);
 }

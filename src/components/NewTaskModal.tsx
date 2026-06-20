@@ -43,7 +43,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const statusConfigs = resolveStatusConfigs(formConfig);
   // 폼에 표시할 필드 순서 (weeklyHours는 폼 입력 없음)
   const formKeys = builtinFields
-    .filter(fc => fc.enabled && fc.key !== 'weeklyHours')
+    .filter(fc => fc.enabled && fc.key !== 'weeklyHours' && fc.key !== 'revisionLevel')
     .map(fc => fc.key);
 
   const getPersonDefault = (key: 'receiver' | 'assignee') => {

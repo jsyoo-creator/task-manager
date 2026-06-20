@@ -233,70 +233,84 @@ export default function TaskDetailPanel({
 
         {/* 속성 - 컴팩트 그리드 */}
         <div className="px-5 pb-1 border-b border-black/[0.08]">
-          {/* 행 1: 월 / 상태 / 유형 */}
-          <div className="grid grid-cols-3 gap-x-3 py-2.5 border-b border-gray-100">
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">월</p>
-              {canManage ? (
-                <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                  value={task.taskMonth ?? ''}
-                  onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
-                  <option value="">-</option>
-                  {Array.from({ length: 12 }, (_, i) => {
-                    const m = String(i + 1).padStart(2, '0');
-                    const year = task.taskMonth?.slice(0, 4) ?? new Date().getFullYear().toString();
-                    return <option key={i} value={`${year}-${m}`}>{i + 1}월</option>;
-                  })}
-                </select>
-              ) : <span className="text-sm text-gray-700">{task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}</span>}
-            </div>
-
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">상태</p>
-              {(() => {
-                const statusField = builtinFields.find(f => f.key === 'status');
-                // 커스텀 드롭다운 옵션 우선
-                if (statusField?.customType === 'select' && statusField.options?.length) {
-                  return canManage ? (
-                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                      value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                      {statusField.options.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  ) : <span className="text-sm text-gray-700">{task.status}</span>;
+          {/* 행 1: 월 / (유형·상태 — formConfig 순서) */}
+          {(() => {
+            const row1Fields = builtinFields.filter(f => f.key === 'type' || f.key === 'status');
+            const renderField = (fc: typeof builtinFields[0]) => {
+              const lbl = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
+              if (fc.key === 'status') {
+                if (fc.customType === 'select' && fc.options?.length) {
+                  return (
+                    <div key="status">
+                      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
+                      {canManage ? (
+                        <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                          value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                          {fc.options.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      ) : <span className="text-sm text-gray-700">{task.status}</span>}
+                    </div>
+                  );
                 }
                 const sc = statusConfigs.find(s => s.key === task.status) ?? statusConfigs[0];
-                return canManage ? (
-                  <div className="relative block w-full">
-                    <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
-                      style={{ backgroundColor: sc?.bg, color: sc?.text }}>
-                      <span>{sc?.label ?? task.status}</span><ChevronDown size={9} />
-                    </div>
-                    <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
-                      onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                      {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                    </select>
+                return (
+                  <div key="status">
+                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
+                    {canManage ? (
+                      <div className="relative block w-full">
+                        <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                          style={{ backgroundColor: sc?.bg, color: sc?.text }}>
+                          <span>{sc?.label ?? task.status}</span><ChevronDown size={9} />
+                        </div>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
+                          onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                          {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <span className="flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium"
+                        style={{ backgroundColor: sc?.bg, color: sc?.text }}>
+                        {sc?.label ?? task.status}
+                      </span>
+                    )}
                   </div>
-                ) : (
-                  <span className="flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium"
-                    style={{ backgroundColor: sc?.bg, color: sc?.text }}>
-                    {sc?.label ?? task.status}
-                  </span>
                 );
-              })()}
-            </div>
-
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">유형</p>
-              {canManage ? (
-                <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                  value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
-                  {(typeField?.customType === 'select' && typeField.options?.length ? typeField.options : TYPES as string[]).map(t =>
-                    <option key={t}>{t}</option>
-                  )}
-                </select>
-              ) : <span className="text-sm text-gray-700">{task.type}</span>}
-            </div>
-          </div>
+              }
+              // type
+              const typeOpts = fc.customType === 'select' && fc.options?.length ? fc.options : TYPES as string[];
+              return (
+                <div key="type">
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
+                  {canManage ? (
+                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                      value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                      {typeOpts.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  ) : <span className="text-sm text-gray-700">{task.type}</span>}
+                </div>
+              );
+            };
+            return (
+              <div className="grid grid-cols-3 gap-x-3 py-2.5 border-b border-gray-100">
+                <div>
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">월</p>
+                  {canManage ? (
+                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                      value={task.taskMonth ?? ''}
+                      onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
+                      <option value="">-</option>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const m = String(i + 1).padStart(2, '0');
+                        const year = task.taskMonth?.slice(0, 4) ?? new Date().getFullYear().toString();
+                        return <option key={i} value={`${year}-${m}`}>{i + 1}월</option>;
+                      })}
+                    </select>
+                  ) : <span className="text-sm text-gray-700">{task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}</span>}
+                </div>
+                {row1Fields.map(fc => renderField(fc))}
+              </div>
+            );
+          })()}
 
           {/* 행 2: 파트 / 담당자(접수자) / 접수자(담당자) — formConfig 순서 반영 */}
           <div className={`grid ${parts.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-x-3 py-2.5 border-b border-gray-100`}>

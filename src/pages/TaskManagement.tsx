@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
@@ -429,13 +429,12 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
         <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
           <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
             title="업무 정보"
-            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all border ${
+            className={`flex items-center justify-center px-2 py-1 rounded-md transition-all border ${
               expanded
                 ? 'bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/30'
                 : 'bg-white text-gray-400 border-gray-200 hover:border-[#6C63FF]/40 hover:text-[#6C63FF]'
             }`}>
-            <span>정보</span>
-            <ChevronDown size={10} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            <Info size={11} />
           </button>
           {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}

@@ -54,15 +54,21 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
   const builtins = resolveBuiltinFields(formConfig);
   const result: { key: string; label: string }[] = [];
   const suitableKeys: BuiltinFieldKey[] = ['status', 'type', 'category', 'assignee', 'receiver'];
+
+  // 커스텀 select/name 필드 (먼저 수집하여 레이블 중복 방지)
+  const cfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && (cf.type === 'select' || cf.type === 'name')) ?? [];
+  const customLabels = new Set(cfs.map(cf => cf.label));
+
   for (const key of suitableKeys) {
     const fc = builtins.find(f => f.key === key);
     if (!fc || !fc.enabled) continue;
     if (key === 'category' && (!parts || parts.length === 0)) continue;
     const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
-    result.push({ key, label: fc.customLabel ?? meta?.label ?? key });
+    const label = fc.customLabel ?? meta?.label ?? key;
+    // 같은 레이블의 커스텀 필드가 있으면 builtin은 제외 (커스텀 우선)
+    if (customLabels.has(label)) continue;
+    result.push({ key, label });
   }
-  // 커스텀 select/name 필드
-  const cfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && (cf.type === 'select' || cf.type === 'name')) ?? [];
   for (const cf of cfs) result.push({ key: cf.id, label: cf.label });
   return result;
 }

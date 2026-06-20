@@ -50,13 +50,15 @@ function getMonthKeys() {
 }
 
 // 선택 가능한 집계 필드 목록 생성
+// 우선순위: 상태/유형/구분(builtin) → 커스텀 name/select → receiver/assignee(builtin, 동일 레이블 커스텀 없을 때만)
 function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
   const builtins = resolveBuiltinFields(formConfig);
   const result: { key: string; label: string }[] = [];
-  const suitableKeys: BuiltinFieldKey[] = ['status', 'type', 'category', 'receiver', 'assignee'];
   const usedLabels = new Set<string>();
 
-  for (const key of suitableKeys) {
+  // 1단계: 상태/유형/구분 — 항상 빌트인 우선
+  const priorityKeys: BuiltinFieldKey[] = ['status', 'type', 'category'];
+  for (const key of priorityKeys) {
     const fc = builtins.find(f => f.key === key);
     if (!fc || !fc.enabled) continue;
     if (key === 'category' && (!parts || parts.length === 0)) continue;
@@ -66,13 +68,27 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
     usedLabels.add(label);
     result.push({ key, label });
   }
-  // 커스텀 select/name 필드 (builtin에 없는 레이블만)
+
+  // 2단계: 커스텀 name/select 필드 (receiver/assignee 빌트인보다 우선)
   const cfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && (cf.type === 'select' || cf.type === 'name')) ?? [];
   for (const cf of cfs) {
     if (usedLabels.has(cf.label)) continue;
     usedLabels.add(cf.label);
     result.push({ key: cf.id, label: cf.label });
   }
+
+  // 3단계: receiver/assignee — 동일 레이블의 커스텀 필드가 없을 때만 추가
+  const personKeys: BuiltinFieldKey[] = ['receiver', 'assignee'];
+  for (const key of personKeys) {
+    const fc = builtins.find(f => f.key === key);
+    if (!fc || !fc.enabled) continue;
+    const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
+    const label = fc.customLabel ?? meta?.label ?? key;
+    if (usedLabels.has(label)) continue;
+    usedLabels.add(label);
+    result.push({ key, label });
+  }
+
   return result;
 }
 

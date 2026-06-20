@@ -5,6 +5,7 @@ import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveSta
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface Props {
   tasks: Task[];
@@ -87,6 +88,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [assigneeFilter, setAssigneeFilter] = useState('전체');
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
@@ -195,6 +197,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               task={task}
               onUpdate={onUpdateTask}
               onDelete={onDeleteTask}
+              onDeleteRequest={(id, title) => setPendingDelete({ id, title })}
               onOpenDetail={() => onOpenDetail(task.id)}
               onCopy={() => handleCopyTask(task)}
               canManage={canManage}
@@ -216,6 +219,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         })}
       </div>
 
+      <ConfirmDialog
+        open={!!pendingDelete}
+        taskTitle={pendingDelete?.title ?? ''}
+        onConfirm={() => { onDeleteTask(pendingDelete!.id); setPendingDelete(null); }}
+        onCancel={() => setPendingDelete(null)}
+      />
+
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={onAddTask}
         projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} />
     </div>
@@ -236,10 +246,11 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  onDeleteRequest: (id: string, title: string) => void;
   onOpenDetail: () => void;
   onCopy: () => void;
   canManage: boolean;
@@ -444,7 +455,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
               className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
               <Copy size={11} />
             </button>
-            <button onClick={e => { e.stopPropagation(); if (confirm(`"${task.title}" 업무를 삭제할까요?`)) onDelete(task.id); }}
+            <button onClick={e => { e.stopPropagation(); onDeleteRequest(task.id, task.title); }}
               title="삭제"
               className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
               <Trash2 size={11} />

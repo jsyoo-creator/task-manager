@@ -56,7 +56,8 @@ export interface CustomFormField {
   enabled?: boolean; // undefined = true (하위 호환)
   options?: string[]; // select 타입일 때 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
-  department?: Department; // name 타입: 해당 직군 사람만 표시
+  department?: Department; // name 타입: 해당 직군 사람만 표시 (구버전 호환)
+  departments?: Department[]; // 복수 직군 선택 (신버전)
 }
 
 export type BuiltinFieldKey =
@@ -71,7 +72,8 @@ export interface BuiltinFieldConfig {
   width: number; // 0 = 1fr (title), weeklyHours는 주당 너비
   customLabel?: string; // 사용자 정의 표시 이름
   customType?: FormFieldType; // 폼 렌더링 속성 오버라이드
-  department?: Department; // 이름 타입: 해당 직군 사람만 표시
+  department?: Department; // 이름 타입: 해당 직군 사람만 표시 (구버전 호환)
+  departments?: Department[]; // 복수 직군 선택 (신버전)
   options?: string[]; // select 타입: 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
 }
@@ -174,6 +176,13 @@ export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfi
     fields.unshift(m);
   }
   return fields;
+}
+
+/** 필드 설정에서 직군 목록을 반환. 구버전 department 단일값도 처리. */
+export function resolveFieldDepts(fc: { department?: Department; departments?: Department[] }): Department[] | null {
+  if (fc.departments?.length) return fc.departments;
+  if (fc.department) return [fc.department];
+  return null;
 }
 
 export interface MetaField {

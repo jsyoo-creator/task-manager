@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
-import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs } from '../types';
+import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 540;
@@ -107,12 +107,12 @@ export default function TaskDetailPanel({
   const assigneeIdx = builtinFields.findIndex(f => f.key === 'assignee');
   const receiverFirst = receiverIdx !== -1 && assigneeIdx !== -1 && receiverIdx < assigneeIdx;
 
-  // department 필터 적용 + 현재 저장값이 목록에 없으면 포함
   const filteredByDept = (key: 'receiver' | 'assignee') => {
     const bf = builtinFields.find(f => f.key === key);
+    const depts = bf ? resolveFieldDepts(bf) : null;
     let opts: string[];
-    if (bf?.department && teamMembers?.length) {
-      const filtered = teamMembers.filter(m => m.department === bf.department).map(m => m.name);
+    if (depts && teamMembers?.length) {
+      const filtered = teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name);
       opts = filtered.length > 0 ? filtered : assignees;
     } else {
       opts = assignees;
@@ -663,9 +663,10 @@ export default function TaskDetailPanel({
                   };
                   const cfType = cf.type as string;
                   const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+                  const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
                   const opts = isNameType
-                    ? (cf.department && teamMembers?.length
-                        ? teamMembers.filter(m => m.department === cf.department).map(m => m.name)
+                    ? (cfDepts && teamMembers?.length
+                        ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
                         : assignees)
                     : (cf.options ?? []);
                   return (

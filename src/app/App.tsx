@@ -23,7 +23,7 @@ import { useVacations } from '../hooks/useVacations';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
-import { getPermissions, resolveBuiltinFields } from '../types';
+import { getPermissions, resolveBuiltinFields, resolveFieldDepts } from '../types';
 import type { Task, TaskCategory, SubTask } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
@@ -96,7 +96,23 @@ function App() {
   const activePart = activeCategory !== 'all'
     ? activeParts.find(p => p.name === activeCategory)
     : undefined;
-  const effectiveFormConfig = activePart?.formConfig ?? selectedTeam?.formConfig;
+  // 파트 formConfig가 있으면 사용하되, 팀 레벨의 department/departments 설정을 필드별로 fallback 병합
+  const effectiveFormConfig = useMemo(() => {
+    const partConfig = activePart?.formConfig;
+    const teamConfig = selectedTeam?.formConfig;
+    if (!partConfig) return teamConfig;
+    if (!teamConfig?.builtinFields?.length) return partConfig;
+    const partFields = resolveBuiltinFields(partConfig);
+    const teamFields = resolveBuiltinFields(teamConfig);
+    const merged = partFields.map(pf => {
+      if (resolveFieldDepts(pf)) return pf;
+      const tf = teamFields.find(f => f.key === pf.key);
+      if (!tf) return pf;
+      return { ...pf, departments: tf.departments, department: tf.department };
+    });
+    return { ...partConfig, builtinFields: merged };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePart?.formConfig, selectedTeam?.formConfig]);
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
   const filteredTasks = activeParts.length > 0

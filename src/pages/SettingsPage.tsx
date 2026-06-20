@@ -494,7 +494,13 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   };
 
   const saveBuiltinDept = (key: BuiltinFieldKey, dept: Department | undefined) => {
-    const updated = fields.map(f => f.key === key ? { ...f, department: dept } : f);
+    const updated = fields.map(f => {
+      if (f.key !== key) return f;
+      if (!dept) return { ...f, departments: undefined, department: undefined }; // 전체 = 초기화
+      const cur = f.departments ?? (f.department ? [f.department] : []);
+      const next = cur.includes(dept) ? cur.filter(d => d !== dept) : [...cur, dept];
+      return { ...f, departments: next.length ? next : undefined, department: undefined };
+    });
     setFields(updated);
     onSaveFields(updated);
   };
@@ -672,7 +678,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {(['전체', ...DEPARTMENTS] as const).map(d => {
                           const val = d === '전체' ? undefined : d as Department;
-                          const active = (fc.department ?? undefined) === val;
+                          const activeDepts = fc.departments ?? (fc.department ? [fc.department] : []);
+                          const active = val === undefined
+                            ? activeDepts.length === 0
+                            : activeDepts.includes(val);
                           return (
                             <button key={d} type="button"
                               onClick={e => { e.stopPropagation(); saveBuiltinDept(fc.key, val); }}
@@ -799,10 +808,20 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
                     {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
                       const val = d === '전체' ? undefined : d as Department;
-                      const active = (cf.department ?? undefined) === val;
+                      const activeDeptsCF = cf.departments ?? (cf.department ? [cf.department] : []);
+                      const active = val === undefined ? activeDeptsCF.length === 0 : activeDeptsCF.includes(val);
                       return (
                         <button key={d} type="button"
-                          onClick={e => { e.stopPropagation(); onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, type: 'name' as FormFieldType, department: val } : f)); }}
+                          onClick={e => {
+                            e.stopPropagation();
+                            onSaveCustom(customFields.map(f => {
+                              if (f.id !== cf.id) return f;
+                              if (!val) return { ...f, departments: undefined, department: undefined };
+                              const cur = f.departments ?? (f.department ? [f.department] : []);
+                              const next = cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val];
+                              return { ...f, departments: next.length ? next : undefined, department: undefined };
+                            }));
+                          }}
                           className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
                           {d}
                         </button>

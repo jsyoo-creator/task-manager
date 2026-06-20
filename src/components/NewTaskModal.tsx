@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department } from '../types';
-import { resolveBuiltinFields, resolveStatusConfigs } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
 interface Props {
@@ -46,11 +46,11 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     .filter(fc => fc.enabled && fc.key !== 'weeklyHours')
     .map(fc => fc.key);
 
-  // department 필터 적용 후 첫 번째 옵션을 기본값으로
   const getPersonDefault = (key: 'receiver' | 'assignee') => {
     const fc = builtinFields.find(f => f.key === key);
-    if (fc?.department && teamMembers?.length) {
-      const filtered = teamMembers.filter(m => m.department === fc.department).map(m => m.name);
+    const depts = fc ? resolveFieldDepts(fc) : null;
+    if (depts && teamMembers?.length) {
+      const filtered = teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name);
       if (filtered.length > 0) return filtered[0];
     }
     return assignees[0] ?? '';
@@ -200,8 +200,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
               }
               if (k === 'receiver') {
                 const rfc = builtinFields.find(f => f.key === 'receiver');
-                const ropts = rfc?.department && teamMembers?.length
-                  ? teamMembers.filter(m => m.department === rfc.department).map(m => m.name)
+                const rdepts = rfc ? resolveFieldDepts(rfc) : null;
+                const ropts = rdepts && teamMembers?.length
+                  ? teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name)
                   : assignees;
                 return (
                   <div>
@@ -214,8 +215,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
               }
               if (k === 'assignee') {
                 const afc = builtinFields.find(f => f.key === 'assignee');
-                const aopts = afc?.department && teamMembers?.length
-                  ? teamMembers.filter(m => m.department === afc.department).map(m => m.name)
+                const adepts = afc ? resolveFieldDepts(afc) : null;
+                const aopts = adepts && teamMembers?.length
+                  ? teamMembers.filter(m => m.department && adepts.includes(m.department)).map(m => m.name)
                   : assignees;
                 return (
                   <div>
@@ -295,9 +297,10 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
           {customFields.filter(cf => cf.enabled !== false).map(cf => {
             const cfType = cf.type as string;
             const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+            const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
             const opts = isNameType
-              ? (teamMembers && cf.department
-                  ? teamMembers.filter(m => m.department === cf.department).map(m => m.name)
+              ? (teamMembers && cfDepts
+                  ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
                   : assignees)
               : [];
             return (

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -402,8 +402,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
           }
           if (fc.key === 'receiver') {
-            const base = fc.department && teamMembers?.length
-              ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)
+            const rdepts = resolveFieldDepts(fc);
+            const base = rdepts && teamMembers?.length
+              ? (teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
             const ropts = base.includes(task.receiver) ? base : (task.receiver ? [task.receiver, ...base] : base);
             return [
@@ -415,8 +416,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
           }
           if (fc.key === 'assignee') {
-            const base = fc.department && teamMembers?.length
-              ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)
+            const adepts = resolveFieldDepts(fc);
+            const base = adepts && teamMembers?.length
+              ? (teamMembers.filter(m => m.department && adepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
             const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
             return [

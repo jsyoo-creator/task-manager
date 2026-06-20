@@ -92,18 +92,18 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
             const dayItems = day ? itemsForDay(day) : [];
             const isWknd = idx % 7 === 0 || idx % 7 === 6;
             return (
-              <div key={idx} className={`min-h-[96px] border-r border-b border-black/3 p-1.5 ${
+              <div key={idx} className={`min-h-[96px] border-r border-b border-black/3 p-1.5 flex flex-col ${
                 !day ? 'bg-black/1' : ''
               } ${isWknd && day ? 'bg-black/1.5' : ''}`}>
                 {day && (
                   <>
-                    <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium mb-1 ${
+                    <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium mb-1 flex-shrink-0 ${
                       isToday(day)
                         ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
                         : isWknd ? 'text-gray-400' : 'text-gray-700'
                     }`}>{day}</div>
-                    <div className="space-y-0.5">
-                      {dayItems.slice(0, 2).map(item => {
+                    <div className="space-y-0.5 overflow-y-auto max-h-[160px]">
+                      {dayItems.map(item => {
                         const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
                         return (
                           <div key={item.id} className={`px-1.5 py-1 rounded-md border text-[10px] leading-tight ${s.pill}`}>
@@ -115,9 +115,6 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                           </div>
                         );
                       })}
-                      {dayItems.length > 2 && (
-                        <div className="text-[9px] text-gray-400 pl-1">+{dayItems.length - 2}개</div>
-                      )}
                     </div>
                   </>
                 )}

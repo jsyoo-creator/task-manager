@@ -598,6 +598,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   )}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
+                    {!isEditingCF && <span className="text-[9px] text-orange-400 font-mono bg-orange-50 px-1 py-0.5 rounded">{String(cf.type)}</span>}
                     {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
                       const val = d === '전체' ? undefined : d as Department;
                       const active = (cf.department ?? undefined) === val;

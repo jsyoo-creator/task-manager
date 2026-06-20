@@ -121,7 +121,7 @@ function App() {
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   const subtasks = useMemo<SubTask[]>(() =>
-    tasks.flatMap(task =>
+    filteredTasks.flatMap(task =>
       Object.entries(task.subTaskData ?? {}).map(([key, entry]) => ({
         id: `${task.id}__${key}`,
         taskId: task.id,
@@ -140,7 +140,7 @@ function App() {
         createdAt: task.createdAt,
       }))
     )
-  , [tasks]);
+  , [filteredTasks]);
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });
@@ -182,7 +182,7 @@ function App() {
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={tasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamMembers={teamMembers} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamMembers={teamMembers} />
             } />
             <Route path="/tasks" element={
               <TaskManagement

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, query, where
+  doc, query, where, writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Task, SubTask } from '../types';
@@ -47,7 +47,18 @@ export function useTasks(projectId: string, teamId: string | null) {
     await deleteDoc(doc(db, 'tasks', id));
   };
 
-  return { tasks, loading, addTask, updateTask, deleteTask };
+  const cleanupOrphanTasks = async (validCategories: string[]): Promise<number> => {
+    const orphans = tasks.filter(t => !validCategories.includes(t.category ?? ''));
+    if (orphans.length === 0) return 0;
+    for (let i = 0; i < orphans.length; i += 499) {
+      const batch = writeBatch(db);
+      orphans.slice(i, i + 499).forEach(t => batch.delete(doc(db, 'tasks', t.id)));
+      await batch.commit();
+    }
+    return orphans.length;
+  };
+
+  return { tasks, loading, addTask, updateTask, deleteTask, cleanupOrphanTasks };
 }
 
 export function useSubTasks(taskId: string) {

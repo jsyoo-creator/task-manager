@@ -27,6 +27,8 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  orphanTaskCount: number;
+  onCleanupOrphanTasks: () => Promise<number>;
 }
 
 // ──────────────────────────────────────────
@@ -1566,6 +1568,7 @@ export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
   onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes,
+  orphanTaskCount, onCleanupOrphanTasks,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -1574,6 +1577,8 @@ export default function SettingsPage({
   const canManageUsers = appUser.role === 'superadmin' || appUser.role === 'manager';
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState('');
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanResult, setCleanResult] = useState('');
 
   const runSubtaskMigration = async () => {
     setMigrating(true);
@@ -1657,6 +1662,20 @@ export default function SettingsPage({
       setMigrateTeamResult(`❌ 오류: ${String(e)}`);
     } finally {
       setMigratingTeam(false);
+    }
+  };
+
+  const runCleanupOrphanTasks = async () => {
+    if (!window.confirm(`파트에 속하지 않는 업무 ${orphanTaskCount}건을 삭제합니다. 복구할 수 없습니다. 계속하시겠습니까?`)) return;
+    setCleaning(true);
+    setCleanResult('');
+    try {
+      const deleted = await onCleanupOrphanTasks();
+      setCleanResult(`✅ ${deleted}건 삭제 완료`);
+    } catch (e) {
+      setCleanResult(`❌ 오류: ${String(e)}`);
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -1820,6 +1839,38 @@ export default function SettingsPage({
                     onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
                 ))
             )}
+          </div>
+        </section>
+      )}
+
+      {/* 데이터 정리 — 중간 관리자 이상 */}
+      {canManageUsers && (
+        <section className="glass-card">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <Trash2 size={15} className="text-red-400" />
+            <span className="text-sm font-semibold text-gray-800">데이터 정리</span>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">유효하지 않은 업무 정리</p>
+                  <p className="text-xs text-gray-500 mt-0.5">등록 실패 등으로 파트 분류 없이 남겨진 업무를 일괄 삭제합니다.</p>
+                </div>
+                <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${orphanTaskCount > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}`}>
+                  {orphanTaskCount}건
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={runCleanupOrphanTasks}
+                  disabled={cleaning || orphanTaskCount === 0}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  {cleaning ? '삭제 중...' : '정리하기'}
+                </button>
+                {cleanResult && <span className="text-xs text-gray-600">{cleanResult}</span>}
+              </div>
+            </div>
           </div>
         </section>
       )}

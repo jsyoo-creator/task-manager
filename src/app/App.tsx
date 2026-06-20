@@ -83,7 +83,7 @@ function App() {
   }, [projLoading, projects.length]);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
-  const { tasks, addTask, updateTask, deleteTask } = useTasks(projectId, activeTeamId);
+  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
   const teamMembers = selectedTeam
@@ -118,6 +118,11 @@ function App() {
   const filteredTasks = activeParts.length > 0
     ? tasks.filter(t => activeParts.some(p => p.name === t.category))
     : tasks;
+
+  const validCategories = activeParts.map(p => p.name);
+  const orphanTaskCount = activeParts.length > 0
+    ? tasks.filter(t => !validCategories.includes(t.category ?? '')).length
+    : 0;
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   const subtasks = useMemo<SubTask[]>(() =>
@@ -231,6 +236,8 @@ function App() {
                     onUpdateSubTaskTypes={updateSubTaskTypes}
                     onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
+                    orphanTaskCount={orphanTaskCount}
+                    onCleanupOrphanTasks={() => cleanupOrphanTasks(validCategories)}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />

@@ -412,6 +412,29 @@ export default function TaskDetailPanel({
               <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />
             </div>
           </div>
+
+          {/* 행 4: 수정단계 (활성화된 경우만) */}
+          {builtinFields.find(f => f.key === 'revisionLevel')?.enabled && (
+            <div className="py-2.5 border-t border-gray-100">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+                {builtinFields.find(f => f.key === 'revisionLevel')?.customLabel ?? '수정단계'}
+              </p>
+              {canManage ? (
+                <select
+                  className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                  value={task.revisionLevel ?? 0}
+                  onChange={e => onUpdate(task.id, { revisionLevel: Number(e.target.value) })}>
+                  {['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'].map((o, idx) => (
+                    <option key={idx} value={idx}>{o}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-sm text-gray-700">
+                  {['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'][task.revisionLevel ?? 0] ?? '없음'}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 세부업무 & 주차별 시간 */}

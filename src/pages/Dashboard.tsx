@@ -301,11 +301,11 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
   const revisionStats = useMemo(() =>
     REVISION_LABELS.map((label, i) => {
-      const count = subtasks.filter(s => s.revisionLevel === i + 1).length;
-      const pct = subtasks.length > 0 ? Math.round((count / subtasks.length) * 100) : 0;
+      const count = tasks.filter(t => t.revisionLevel === i + 1).length;
+      const pct = tasks.length > 0 ? Math.round((count / tasks.length) * 100) : 0;
       return { label, level: i + 1, count, pct };
-    }), [subtasks]);
-  const totalRevisions = revisionStats.reduce((a, b) => a + b.count, 0);
+    }), [tasks]);
+  const totalRevisions = tasks.filter(t => t.revisionLevel > 0).length;
 
   const assigneeStats = useMemo(() => (teamMembers ?? []).map(({ name }) => {
     const mySubs = subtasks.filter(s => s.assignee === name);

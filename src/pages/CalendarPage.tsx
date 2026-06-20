@@ -44,13 +44,12 @@ interface PopoverProps {
   subTitle: string;
   taskMap: Map<string, Task>;
   assignees: string[];
-  rect: DOMRect;
   onClose: () => void;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   userPhotoMap?: Map<string, string>;
 }
 
-function SubTaskPopover({ subId, subTitle, taskMap, assignees, rect, onClose, onUpdateTask, userPhotoMap }: PopoverProps) {
+function SubTaskPopover({ subId, subTitle, taskMap, assignees, onClose, onUpdateTask, userPhotoMap }: PopoverProps) {
   const [taskId, subKey] = subId.split('__');
   const task = taskMap.get(taskId);
   const entry = task?.subTaskData?.[subKey] ?? {};
@@ -92,35 +91,24 @@ function SubTaskPopover({ subId, subTitle, taskMap, assignees, rect, onClose, on
   const inp = "w-full rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30";
   const lbl = "block text-[10px] font-semibold text-gray-400 mb-1";
 
-  const W = 320;
-  const H_EST = 520;
-  const GAP = 8;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = rect.left;
-  let top = rect.bottom + GAP;
-  if (left + W > vw - GAP) left = vw - W - GAP;
-  if (left < GAP) left = GAP;
-  if (top + H_EST > vh - GAP) top = Math.max(GAP, rect.top - H_EST - GAP);
-
   return createPortal(
-    <div className="fixed inset-0 z-[200]" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex justify-end" onClick={onClose}>
     <div
       ref={ref}
-      className="absolute rounded-2xl bg-white border border-black/8 shadow-2xl p-4 flex flex-col gap-3"
-      style={{ left, top, width: W }}
+      className="h-full w-[340px] bg-white border-l border-black/8 shadow-2xl flex flex-col overflow-y-auto animate-in slide-in-from-right duration-200"
       onClick={e => e.stopPropagation()}
     >
       {/* 헤더 */}
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2 px-5 py-4 border-b border-black/5 flex-shrink-0">
         <div>
           <p className="text-[10px] text-gray-400 truncate">{task?.title ?? ''}</p>
           <p className="text-sm font-bold text-gray-800">{subTitle}</p>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-0.5">
-          <X size={14} />
+          <X size={16} />
         </button>
       </div>
+      <div className="flex flex-col gap-4 p-5 flex-1">
 
       {/* 날짜 */}
       <div className="grid grid-cols-2 gap-2">
@@ -193,6 +181,7 @@ function SubTaskPopover({ subId, subTitle, taskMap, assignees, rect, onClose, on
       >
         저장
       </button>
+      </div>
     </div>
     </div>,
     document.body
@@ -206,7 +195,6 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedRect, setExpandedRect] = useState<DOMRect | null>(null);
   const [expandedSubTitle, setExpandedSubTitle] = useState('');
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
@@ -245,7 +233,6 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>, id: string, subTitle: string) => {
     e.stopPropagation();
     if (expandedId === id) { setExpandedId(null); return; }
-    setExpandedRect(e.currentTarget.getBoundingClientRect());
     setExpandedSubTitle(subTitle);
     setExpandedId(id);
   };
@@ -330,13 +317,12 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       </div>
 
       {/* 팝오버 */}
-      {expandedId && expandedRect && onUpdateTask && (
+      {expandedId && onUpdateTask && (
         <SubTaskPopover
           subId={expandedId}
           subTitle={expandedSubTitle}
           taskMap={taskMap}
           assignees={assignees}
-          rect={expandedRect}
           onClose={() => setExpandedId(null)}
           onUpdateTask={onUpdateTask}
           userPhotoMap={userPhotoMap}

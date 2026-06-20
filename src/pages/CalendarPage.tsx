@@ -79,7 +79,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       </div>
 
       <div className="glass-card">
-        <div className="grid grid-cols-7 border-b border-black/4">
+        <div className="grid border-b border-black/4" style={{ gridTemplateColumns: '0.5fr 1fr 1fr 1fr 1fr 1fr 0.5fr' }}>
           {DAYS.map((d, i) => (
             <div key={d} className={`text-center py-2 text-xs font-medium ${
               i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'
@@ -87,7 +87,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
           ))}
         </div>
 
-        <div className="grid grid-cols-7">
+        <div className="grid" style={{ gridTemplateColumns: '0.5fr 1fr 1fr 1fr 1fr 1fr 0.5fr' }}>
           {cells.map((day, idx) => {
             const dayItems = day ? itemsForDay(day) : [];
             const isWknd = idx % 7 === 0 || idx % 7 === 6;

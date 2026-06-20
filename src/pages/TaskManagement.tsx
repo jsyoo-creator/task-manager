@@ -193,6 +193,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             onCopy={() => handleCopyTask(task)}
             canManage={canManage}
             assignees={assignees}
+            teamMembers={teamMembers}
             tableFields={tableFields}
             colTemplate={colTemplate}
             colMinWidth={colMinWidth}
@@ -226,7 +227,7 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, tableFields, colTemplate, colMinWidth, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, colTemplate, colMinWidth, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -234,6 +235,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
   onCopy: () => void;
   canManage: boolean;
   assignees: string[];
+  teamMembers?: { name: string; department?: Department }[];
   tableFields: BuiltinFieldConfig[];
   colTemplate: string;
   colMinWidth: number;
@@ -310,18 +312,28 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
               </select>
             </div>
           ];
-          if (fc.key === 'receiver') return [
-            <select key="receiver" className={`${sel} text-gray-600`} value={task.receiver}
-              onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
-              {assignees.map(a => <option key={a}>{a}</option>)}
-            </select>
-          ];
-          if (fc.key === 'assignee') return [
-            <select key="assignee" className={`${sel} text-gray-700`} value={task.assignee}
-              onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
-              {assignees.map(a => <option key={a}>{a}</option>)}
-            </select>
-          ];
+          if (fc.key === 'receiver') {
+            const ropts = fc.department && teamMembers?.length
+              ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)
+              : assignees;
+            return [
+              <select key="receiver" className={`${sel} text-gray-600`} value={task.receiver}
+                onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
+                {ropts.map(a => <option key={a}>{a}</option>)}
+              </select>
+            ];
+          }
+          if (fc.key === 'assignee') {
+            const aopts = fc.department && teamMembers?.length
+              ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)
+              : assignees;
+            return [
+              <select key="assignee" className={`${sel} text-gray-700`} value={task.assignee}
+                onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
+                {aopts.map(a => <option key={a}>{a}</option>)}
+              </select>
+            ];
+          }
           if (fc.key === 'taskMonth') return [
             <div key="taskMonth" onClick={e => e.stopPropagation()}>
               {canManage ? (

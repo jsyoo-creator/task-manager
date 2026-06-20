@@ -115,7 +115,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const handleCopyTask = (task: Task) => {
     const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = task;
-    onAddTask({ ...rest, title: `${task.title} (복사)`, sortOrder: bottomSortOrder() });
+    const idx = tasks.findIndex(t => t.id === task.id);
+    const sortOrder = task.sortOrder != null ? task.sortOrder + 0.5 : idx + 0.5;
+    onAddTask({ ...rest, title: `${task.title} (복사)`, sortOrder });
   };
 
   const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { Task, SubTask, TaskCategory, TeamPart, TaskStatus } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
@@ -43,12 +44,13 @@ interface PopoverProps {
   subTitle: string;
   taskMap: Map<string, Task>;
   assignees: string[];
+  rect: DOMRect;
   onClose: () => void;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   userPhotoMap?: Map<string, string>;
 }
 
-function SubTaskPopover({ subId, subTitle, taskMap, assignees, onClose, onUpdateTask, userPhotoMap }: PopoverProps) {
+function SubTaskPopover({ subId, subTitle, taskMap, assignees, rect, onClose, onUpdateTask, userPhotoMap }: PopoverProps) {
   const [taskId, subKey] = subId.split('__');
   const task = taskMap.get(taskId);
   const entry = task?.subTaskData?.[subKey] ?? {};
@@ -90,11 +92,23 @@ function SubTaskPopover({ subId, subTitle, taskMap, assignees, onClose, onUpdate
   const inp = "w-full rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30";
   const lbl = "block text-[10px] font-semibold text-gray-400 mb-1";
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+  const W = 320;
+  const H_EST = 520;
+  const GAP = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = rect.left;
+  let top = rect.bottom + GAP;
+  if (left + W > vw - GAP) left = vw - W - GAP;
+  if (left < GAP) left = GAP;
+  if (top + H_EST > vh - GAP) top = Math.max(GAP, rect.top - H_EST - GAP);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200]" onClick={onClose}>
     <div
       ref={ref}
-      className="w-[340px] mx-4 rounded-2xl bg-white border border-black/8 shadow-2xl p-4 flex flex-col gap-3"
+      className="absolute rounded-2xl bg-white border border-black/8 shadow-2xl p-4 flex flex-col gap-3"
+      style={{ left, top, width: W }}
       onClick={e => e.stopPropagation()}
     >
       {/* 헤더 */}
@@ -180,7 +194,8 @@ function SubTaskPopover({ subId, subTitle, taskMap, assignees, onClose, onUpdate
         저장
       </button>
     </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -191,6 +206,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedRect, setExpandedRect] = useState<DOMRect | null>(null);
   const [expandedSubTitle, setExpandedSubTitle] = useState('');
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
@@ -229,6 +245,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>, id: string, subTitle: string) => {
     e.stopPropagation();
     if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedRect(e.currentTarget.getBoundingClientRect());
     setExpandedSubTitle(subTitle);
     setExpandedId(id);
   };
@@ -313,12 +330,13 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       </div>
 
       {/* 팝오버 */}
-      {expandedId && onUpdateTask && (
+      {expandedId && expandedRect && onUpdateTask && (
         <SubTaskPopover
           subId={expandedId}
           subTitle={expandedSubTitle}
           taskMap={taskMap}
           assignees={assignees}
+          rect={expandedRect}
           onClose={() => setExpandedId(null)}
           onUpdateTask={onUpdateTask}
           userPhotoMap={userPhotoMap}

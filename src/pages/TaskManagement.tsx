@@ -58,7 +58,7 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
       cols.push(`${fc.width}px`);
     }
   }
-  cols.push('56px'); // expand + copy + delete
+  cols.push('110px'); // expand + copy + delete
   return cols.join(' ');
 }
 
@@ -70,7 +70,7 @@ function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }
-  w += 56; colCount++; // expand + copy + delete
+  w += 110; colCount++; // expand + copy + delete
   w += (colCount - 1) * 12; // gap-x-3
   w += 24; // px-3 양쪽
   return w;
@@ -426,7 +426,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           return [];
         })}
 
-        <div className="flex items-center justify-end gap-1.5 border-l border-gray-100 pl-3">
+        <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
           <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
             title="업무 정보"
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all border ${
@@ -439,9 +439,15 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           </button>
           {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}
-              title="복사" className="text-gray-300 hover:text-[#6C63FF] transition-colors"><Copy size={11} /></button>
+              title="복사"
+              className="flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
+              <Copy size={11} />
+            </button>
             <button onClick={e => { e.stopPropagation(); onDelete(task.id); }}
-              className="text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
+              title="삭제"
+              className="flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
+              <Trash2 size={11} />
+            </button>
           </>}
         </div>
       </div>

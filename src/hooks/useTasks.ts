@@ -33,7 +33,10 @@ export function useTasks(projectId: string, teamId: string | null) {
 
   const addTask = async (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
-    await addDoc(collection(db, 'tasks'), { ...data, createdAt: now, updatedAt: now });
+    const payload = Object.fromEntries(
+      Object.entries({ ...data, createdAt: now, updatedAt: now }).filter(([, v]) => v !== undefined)
+    );
+    await addDoc(collection(db, 'tasks'), payload);
   };
 
   const updateTask = async (id: string, data: Partial<Task>) => {

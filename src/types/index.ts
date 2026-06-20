@@ -245,7 +245,8 @@ export interface Task {
   endDate: string;
   weeklyHours: Record<string, number>;
   totalHours: number;
-  revisionLevel: number;
+  revisionLevel: number; // deprecated — 하위 호환용
+  revisionCounts?: Record<string, number>; // 'F1'~'F6' → 횟수
   customFields?: Record<string, string>;
   subTaskData?: Record<string, {
     status?: TaskStatus;

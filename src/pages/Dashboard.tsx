@@ -299,13 +299,18 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     return { cat, total, done, inProg, hold, before, rate };
   }), [tasks, cats]);
 
-  const revisionStats = useMemo(() =>
-    REVISION_LABELS.map((label, i) => {
-      const count = tasks.filter(t => t.revisionLevel === i + 1).length;
-      const pct = tasks.length > 0 ? Math.round((count / tasks.length) * 100) : 0;
+  const revisionStats = useMemo(() => {
+    const grandTotal = tasks.reduce((sum, t) =>
+      sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
+    return REVISION_LABELS.map((label, i) => {
+      const key = `F${i + 1}`;
+      const count = tasks.reduce((sum, t) => sum + (t.revisionCounts?.[key] ?? 0), 0);
+      const pct = grandTotal > 0 ? Math.round((count / grandTotal) * 100) : 0;
       return { label, level: i + 1, count, pct };
-    }), [tasks]);
-  const totalRevisions = tasks.filter(t => t.revisionLevel > 0).length;
+    });
+  }, [tasks]);
+  const totalRevisions = tasks.reduce((sum, t) =>
+    sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
 
   const assigneeStats = useMemo(() => (teamMembers ?? []).map(({ name }) => {
     const mySubs = subtasks.filter(s => s.assignee === name);

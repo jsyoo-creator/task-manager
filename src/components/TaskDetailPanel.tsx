@@ -413,26 +413,45 @@ export default function TaskDetailPanel({
             </div>
           </div>
 
-          {/* 행 4: 수정단계 (활성화된 경우만) */}
+          {/* 행 4: 수정단계 항목별 횟수 (활성화된 경우만) */}
           {builtinFields.find(f => f.key === 'revisionLevel')?.enabled && (
             <div className="py-2.5 border-t border-gray-100">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-2">
                 {builtinFields.find(f => f.key === 'revisionLevel')?.customLabel ?? '수정단계'}
               </p>
-              {canManage ? (
-                <select
-                  className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                  value={task.revisionLevel ?? 0}
-                  onChange={e => onUpdate(task.id, { revisionLevel: Number(e.target.value) })}>
-                  {['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'].map((o, idx) => (
-                    <option key={idx} value={idx}>{o}</option>
-                  ))}
-                </select>
-              ) : (
-                <span className="text-sm text-gray-700">
-                  {['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'][task.revisionLevel ?? 0] ?? '없음'}
-                </span>
-              )}
+              <div className="space-y-1.5">
+                {(['KV 크리에이티브 변경', '상세페이지 레이아웃 변동, 신규 상에 추가', '특정 영역 내용·이미지 수정', 'API 제품 교재 20개 이상', 'API 제품 교재 20개 미만', '단순 텍스트·CMS 수정'] as const).map((label, i) => {
+                  const key = `F${i + 1}`;
+                  const count = task.revisionCounts?.[key] ?? 0;
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-white bg-blue-500 rounded px-1.5 py-0.5 flex-shrink-0 w-7 text-center">{key}</span>
+                      <span className="text-xs text-gray-600 flex-1 truncate">{label}</span>
+                      {canManage ? (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button type="button"
+                            className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 text-sm leading-none"
+                            onClick={() => {
+                              if (count <= 0) return;
+                              const next = { ...(task.revisionCounts ?? {}), [key]: count - 1 };
+                              if (next[key] === 0) delete next[key];
+                              onUpdate(task.id, { revisionCounts: next });
+                            }}>−</button>
+                          <span className="text-xs font-semibold text-gray-700 w-6 text-center tabular-nums">{count}</span>
+                          <button type="button"
+                            className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 text-sm leading-none"
+                            onClick={() => {
+                              const next = { ...(task.revisionCounts ?? {}), [key]: count + 1 };
+                              onUpdate(task.id, { revisionCounts: next });
+                            }}>+</button>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-700 w-6 text-center tabular-nums flex-shrink-0">{count}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

@@ -166,7 +166,7 @@ function App() {
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamMembers={teamMembers} />
             } />
             <Route path="/tasks" element={
               <TaskManagement

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { FileText, Zap, CheckCircle2, Calendar } from 'lucide-react';
-import type { Task, SubTask, Project, TeamPart } from '../types';
+import { FileText, Zap, CheckCircle2, Calendar, BarChart2, Users } from 'lucide-react';
+import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META } from '../types';
 
 interface Props {
   tasks: Task[];
@@ -9,9 +10,9 @@ interface Props {
   project: Project | null;
   parts?: TeamPart[];
   assignees?: string[];
+  formConfig?: TeamFormConfig;
+  teamMembers?: { name: string; department?: Department }[];
 }
-
-const STATUS_COLORS_FIXED = { '진행 중': '#3b82f6', '완료': '#10b981' };
 
 // tailwind bg class → hex 변환 (파트 색상용)
 const TW_TO_HEX: Record<string, string> = {
@@ -20,6 +21,14 @@ const TW_TO_HEX: Record<string, string> = {
   'bg-indigo-500': '#6366f1', 'bg-purple-500': '#a855f7', 'bg-pink-500': '#ec4899',
   'bg-gray-400': '#9ca3af',
 };
+
+const PALETTE = [
+  '#3b82f6', '#f59e0b', '#10b981', '#ef4444',
+  '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',
+];
+
+const CARD_ICONS = [FileText, Zap, CheckCircle2, BarChart2, Users, Calendar];
+
 const REVISION_LABELS = [
   'KV 크리에이티브 변경',
   '상세페이지 레이아웃 변동, 신규 상에 추가',
@@ -40,8 +49,90 @@ function getMonthKeys() {
   return keys;
 }
 
+// 선택 가능한 집계 필드 목록 생성
+function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
+  const builtins = resolveBuiltinFields(formConfig);
+  const result: { key: string; label: string }[] = [];
+  const suitableKeys: BuiltinFieldKey[] = ['status', 'type', 'category', 'assignee', 'receiver'];
+  for (const key of suitableKeys) {
+    const fc = builtins.find(f => f.key === key);
+    if (!fc || !fc.enabled) continue;
+    if (key === 'category' && (!parts || parts.length === 0)) continue;
+    const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
+    result.push({ key, label: fc.customLabel ?? meta?.label ?? key });
+  }
+  // 커스텀 select/name 필드
+  const cfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && (cf.type === 'select' || cf.type === 'name')) ?? [];
+  for (const cf of cfs) result.push({ key: cf.id, label: cf.label });
+  return result;
+}
+
+// 필드의 정의된 값 목록 (순서 포함)
+function getDefinedValues(key: string, formConfig?: TeamFormConfig, parts?: TeamPart[], tasks?: Task[]): string[] {
+  const builtins = resolveBuiltinFields(formConfig);
+  const fc = builtins.find(f => f.key === key);
+  const statusConfigs = resolveStatusConfigs(formConfig);
+
+  if (key === 'status') {
+    if (fc?.customType === 'select' && fc.options?.length) return fc.options;
+    return statusConfigs.map(s => s.label);
+  }
+  if (key === 'type') {
+    if (fc?.customType === 'select' && fc.options?.length) return fc.options;
+    return ['신규', '기타', '파생', '기획'];
+  }
+  if (key === 'category') return parts?.map(p => p.name) ?? [];
+  if (key === 'assignee') {
+    const vals = [...new Set((tasks ?? []).map(t => t.assignee).filter(Boolean))];
+    return vals.length ? vals : [];
+  }
+  if (key === 'receiver') {
+    const vals = [...new Set((tasks ?? []).map(t => t.receiver).filter(Boolean))];
+    return vals.length ? vals : [];
+  }
+  const cf = formConfig?.customFields?.find(f => f.id === key);
+  if (cf?.type === 'select' && cf.options?.length) return cf.options;
+  if (cf?.type === 'name') {
+    const vals = [...new Set((tasks ?? []).map(t => t.customFields?.[key]).filter(Boolean) as string[])];
+    return vals.length ? vals : [];
+  }
+  return [];
+}
+
+// 태스크의 필드 값 추출
+function getTaskValue(task: Task, key: string): string {
+  if (key === 'status') return task.status;
+  if (key === 'type') return task.type;
+  if (key === 'category') return task.category;
+  if (key === 'assignee') return task.assignee;
+  if (key === 'receiver') return task.receiver;
+  return task.customFields?.[key] ?? '';
+}
+
+// 값의 표시 색상
+function getValueColor(key: string, value: string, idx: number, formConfig?: TeamFormConfig, parts?: TeamPart[]): string {
+  const builtins = resolveBuiltinFields(formConfig);
+  const fc = builtins.find(f => f.key === key);
+  const statusConfigs = resolveStatusConfigs(formConfig);
+
+  if (key === 'status') {
+    if (fc?.customType === 'select') return fc.optionColors?.[value]?.bg ?? PALETTE[idx % PALETTE.length];
+    return statusConfigs.find(s => s.key === value || s.label === value)?.bg ?? '#e5e7eb';
+  }
+  if (key === 'type') {
+    if (fc?.optionColors?.[value]) return fc.optionColors[value].bg;
+  }
+  if (key === 'category') {
+    const part = parts?.find(p => p.name === value);
+    return part ? (TW_TO_HEX[part.color] ?? '#94a3b8') : '#94a3b8';
+  }
+  const cf = formConfig?.customFields?.find(f => f.id === key);
+  if (cf?.optionColors?.[value]) return cf.optionColors[value].bg;
+  return PALETTE[idx % PALETTE.length];
+}
+
 /* ─── Section label ─── */
-function SectionLabel({ title, meta }: { title: string; meta?: React.ReactNode }) {
+function SectionLabel({ title, meta }: { title: string; meta?: ReactNode }) {
   return (
     <div className="flex items-center justify-between px-0.5 mb-2.5">
       <h2 className="text-[13px] font-bold text-gray-600 tracking-tight">{title}</h2>
@@ -53,15 +144,15 @@ function SectionLabel({ title, meta }: { title: string; meta?: React.ReactNode }
 /* ─── Individual stat card ─── */
 function StatCard({ label, value, sub, subAccent = false, icon, accentColor }: {
   label: string; value: number; sub: string; subAccent?: boolean;
-  icon: React.ReactNode; accentColor: string;
+  icon: ReactNode; accentColor: string;
 }) {
   return (
     <div className="glass-card p-5 relative">
       <div className="absolute top-0 left-4 right-4 h-[2.5px] rounded-b-full opacity-55"
         style={{ backgroundColor: accentColor }} />
       <div className="flex items-start justify-between mb-4">
-        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-sm"
+        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide leading-tight">{label}</span>
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-sm flex-shrink-0"
           style={{ backgroundColor: accentColor }}>
           {icon}
         </span>
@@ -76,7 +167,7 @@ function StatCard({ label, value, sub, subAccent = false, icon, accentColor }: {
 
 /* ─── Card with header ─── */
 function Card({ title, action, children, className = '' }: {
-  title: string; action?: React.ReactNode; children: React.ReactNode; className?: string;
+  title: string; action?: ReactNode; children: ReactNode; className?: string;
 }) {
   return (
     <div className={`glass-card ${className}`}>
@@ -89,48 +180,69 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, parts, assignees = [] }: Props) {
+export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamMembers }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
-  const COLORS = {
-    before: '#D1D5DB',
-    inProg: '#3b82f6',
-    done:   '#10b981',
-    hold:   '#9CA3AF',
-  };
-  // 팀 파트가 있으면 파트 기준, 없으면 빈 배열 (하드코딩 제거)
+
+  const statusConfigs = resolveStatusConfigs(formConfig);
+  const STATUS_COLORS = Object.fromEntries(statusConfigs.map(s => [s.key, s.bg]));
+
   const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];
-  // 파트 이름 → 색상 hex 매핑
   const catColor = (cat: string): string => {
     const part = parts?.find(p => p.name === cat);
     return part ? (TW_TO_HEX[part.color] ?? '#94a3b8') : '#94a3b8';
   };
   const monthKeys = getMonthKeys();
 
+  // ── 집계 필드 선택 ──────────────────────────────
+  const fieldOptions = useMemo(() => buildFieldOptions(formConfig, parts), [formConfig, parts]);
+  const [statField, setStatField] = useState('status');
+
+  // 선택 필드 값 목록
+  const definedValues = useMemo(
+    () => getDefinedValues(statField, formConfig, parts, tasks),
+    [statField, formConfig, parts, tasks]
+  );
+
+  // 집계
+  const fieldStats = useMemo(() => {
+    const total = tasks.length;
+    const countByVal = Object.fromEntries(definedValues.map(v => [v, 0]));
+    tasks.forEach(t => {
+      const v = getTaskValue(t, statField);
+      if (v in countByVal) countByVal[v]++;
+      else countByVal[v] = (countByVal[v] ?? 0) + 1;
+    });
+    // definedValues 순서 유지, 최대 5개
+    const vals = definedValues.length > 0
+      ? definedValues
+      : [...new Set(tasks.map(t => getTaskValue(t, statField)).filter(Boolean))];
+    return { total, countByVal, vals: vals.slice(0, 5) };
+  }, [tasks, statField, definedValues]);
+
   const stats = useMemo(() => {
     const total = tasks.length;
-    const before = tasks.filter(t => t.status === '진행 전').length;
-    const inProgress = tasks.filter(t => t.status === '진행 중').length;
-    const done = tasks.filter(t => t.status === '완료').length;
-    const hold = tasks.filter(t => t.status === '보류').length;
     const monthCount = tasks.filter(t =>
       t.startDate?.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
     ).length;
-    return { total, before, inProgress, done, hold, monthCount, totalSubs: subtasks.length };
-  }, [tasks, subtasks]);
+    // 상태 기반 진행현황 bar 용
+    const statusCounts = Object.fromEntries(statusConfigs.map(s => [s.key, tasks.filter(t => t.status === s.key).length]));
+    const done = statusCounts['완료'] ?? tasks.filter(t => t.status === '완료').length;
+    return { total, monthCount, statusCounts, done, totalSubs: subtasks.length };
+  }, [tasks, subtasks, statusConfigs]);
 
   const completionPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
 
-  const mainDonut = [
-    { name: '진행 전', value: stats.before },
-    { name: '진행 중', value: stats.inProgress },
-    { name: '완료', value: stats.done },
-  ].filter(d => d.value > 0);
+  // 도넛 데이터 (선택 필드 기반)
+  const mainDonut = useMemo(() =>
+    fieldStats.vals
+      .map(v => ({ name: v, value: fieldStats.countByVal[v] ?? 0 }))
+      .filter(d => d.value > 0),
+    [fieldStats]
+  );
 
   const subDonut = useMemo(() => [
-    { name: '진행 전', value: subtasks.filter(s => s.status === '진행 전').length },
-    { name: '진행 중', value: subtasks.filter(s => s.status === '진행 중').length },
-    { name: '완료', value: subtasks.filter(s => s.status === '완료').length },
-  ].filter(d => d.value > 0), [subtasks]);
+    ...statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => st.status === s.key).length })),
+  ].filter(d => d.value > 0), [subtasks, statusConfigs]);
 
   const catStats = useMemo(() => cats.map(cat => {
     const catTasks = tasks.filter(t => t.category === cat);
@@ -151,7 +263,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     }), [subtasks]);
   const totalRevisions = revisionStats.reduce((a, b) => a + b.count, 0);
 
-  const assigneeStats = useMemo(() => assignees.map(name => {
+  const assigneeStats = useMemo(() => (teamMembers ?? []).map(({ name }) => {
     const mySubs = subtasks.filter(s => s.assignee === name);
     const monthCounts: Record<string, number> = {};
     monthKeys.forEach((mk, i) => {
@@ -160,15 +272,15 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       monthCounts[mk] = mySubs.filter(s => s.startDate?.startsWith(prefix)).length;
     });
     return { name, monthCounts, total: mySubs.length, totalH: mySubs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
-  }).filter(a => a.total > 0), [subtasks, monthKeys, assignees]);
+  }).filter(a => a.total > 0 || assignees.includes(a.name)), [subtasks, monthKeys, teamMembers, assignees]);
 
-  /* ─── Legend row (progress bar 위) ─── */
-  const legendItems = [
-    { l: '진행 전', v: stats.before,    c: COLORS.before },
-    { l: '진행 중', v: stats.inProgress, c: COLORS.inProg },
-    { l: '완료',   v: stats.done,        c: COLORS.done },
-    { l: '보류',   v: stats.hold,        c: COLORS.hold },
-  ];
+  // 진행현황 bar 범례 (상태 기반 고정)
+  const legendItems = statusConfigs.map(s => ({
+    l: s.label, v: stats.statusCounts[s.key] ?? 0, c: s.bg,
+  }));
+
+  // 현재 선택 필드 label
+  const activeFieldLabel = fieldOptions.find(f => f.key === statField)?.label ?? '상태';
 
   return (
     <div className="space-y-6">
@@ -185,21 +297,53 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       </div>
 
       {/* ═══════════════════════════════
-          섹션 1: 업무 현황 (5 stat cards)
+          섹션 1: 업무 현황 (동적 stat cards)
       ═══════════════════════════════ */}
       <section>
-        <SectionLabel title="업무 현황" meta={`세부업무 ${stats.totalSubs}개 포함`} />
-        <div className="grid grid-cols-5 gap-3">
+        <SectionLabel
+          title="업무 현황"
+          meta={
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">집계 기준</span>
+              <select
+                className="text-[11px] font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-2 py-0.5 focus:outline-none cursor-pointer"
+                value={statField}
+                onChange={e => setStatField(e.target.value)}
+              >
+                {fieldOptions.map(f => (
+                  <option key={f.key} value={f.key}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          }
+        />
+        <div
+          className="grid gap-3"
+          style={{ gridTemplateColumns: `repeat(${2 + Math.min(fieldStats.vals.length, 5)}, 1fr)` }}
+        >
+          {/* 전체 업무 — 고정 */}
           <StatCard label="전체 업무" value={stats.total} sub={`세부업무 ${stats.totalSubs}개`}
             accentColor="#3b82f6" icon={<FileText size={14} />} />
-          <StatCard label="진행 전" value={stats.before}
-            sub={`전체의 ${stats.total > 0 ? Math.round((stats.before / stats.total) * 100) : 0}%`}
-            accentColor={COLORS.before} icon={<FileText size={14} />} />
-          <StatCard label="진행 중" value={stats.inProgress}
-            sub={`전체의 ${stats.total > 0 ? Math.round((stats.inProgress / stats.total) * 100) : 0}%`}
-            accentColor="#f59e0b" icon={<Zap size={14} />} />
-          <StatCard label="완료" value={stats.done} sub={`완료율 ${completionPct}%`}
-            accentColor="#10b981" icon={<CheckCircle2 size={14} />} />
+
+          {/* 선택 필드 기준 동적 카드 */}
+          {fieldStats.vals.map((val, idx) => {
+            const count = fieldStats.countByVal[val] ?? 0;
+            const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+            const color = getValueColor(statField, val, idx, formConfig, parts);
+            const Icon = CARD_ICONS[idx % CARD_ICONS.length];
+            return (
+              <StatCard
+                key={val}
+                label={val}
+                value={count}
+                sub={`전체의 ${pct}%`}
+                accentColor={color}
+                icon={<Icon size={14} />}
+              />
+            );
+          })}
+
+          {/* 월별 건수 — 고정 */}
           <StatCard label="월별 건수" value={stats.monthCount}
             sub={`${now.getFullYear()}년 ${now.getMonth() + 1}월`}
             accentColor="#ef4444" icon={<Calendar size={14} />} subAccent />
@@ -207,7 +351,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       </section>
 
       {/* ═══════════════════════════════
-          섹션 2: 전체 진행 현황 (progress bar)
+          섹션 2: 전체 진행 현황 (progress bar — 상태 고정)
       ═══════════════════════════════ */}
       <section>
         <div className="glass-card">
@@ -240,19 +384,23 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
       {/* ═══════════════════════════════
           섹션 3: 업무 상태 분석
-          1fr 1fr 2fr: 도넛 25%씩, 분류별 50%
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
         <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
 
-          {/* 메인 업무 상태 */}
+          {/* 메인 업무 — 선택 필드 기준 */}
           <div className="glass-card flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700">메인 업무 상태</span>
+              <span className="text-[12.5px] font-bold text-gray-700">메인 업무 · {activeFieldLabel}</span>
             </div>
             <div className="flex-1 flex items-center p-5">
-              <DonutChart data={mainDonut} items={tasks} colors={COLORS} />
+              <DonutChart
+                data={mainDonut}
+                colorMap={Object.fromEntries(
+                  fieldStats.vals.map((v, i) => [v, getValueColor(statField, v, i, formConfig, parts)])
+                )}
+              />
             </div>
           </div>
 
@@ -262,11 +410,14 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <span className="text-[12.5px] font-bold text-gray-700">세부 업무 상태</span>
             </div>
             <div className="flex-1 flex items-center p-5">
-              <DonutChart data={subDonut} items={subtasks} colors={COLORS} />
+              <DonutChart
+                data={subDonut}
+                colorMap={Object.fromEntries(statusConfigs.map(s => [s.label, s.bg]))}
+              />
             </div>
           </div>
 
-          {/* 분류별 완료율 — 파트가 있을 때만 표시 */}
+          {/* 분류별 완료율 */}
           {cats.length > 0 && (
           <div className="glass-card flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
@@ -276,7 +427,6 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             <div className="flex-1 grid divide-x divide-gray-100" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
               {catStats.map(({ cat, total, done, inProg, hold, before, rate }) => (
                 <div key={cat} className="flex flex-col justify-center p-5 gap-3">
-                  {/* 카테고리명 + 완료율 */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
@@ -286,11 +436,9 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                       {rate}%
                     </span>
                   </div>
-                  {/* 진행 바 */}
                   <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: catColor(cat) }} />
                   </div>
-                  {/* 4개 수치 */}
                   <div className="grid grid-cols-4 text-center">
                     {[
                       { l: '총', v: total, c: 'text-gray-700' },
@@ -314,7 +462,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       </section>
 
       {/* ═══════════════════════════════
-          섹션 4: 상세 현황 (2 detail cards)
+          섹션 4: 상세 현황
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="상세 현황" />
@@ -404,26 +552,22 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   );
 }
 
-/* ─── DonutChart — 좌우 배치, w-full 꽉 채움 ─── */
-function DonutChart({ data, items, colors }: {
+/* ─── DonutChart ─── */
+function DonutChart({ data, colorMap }: {
   data: { name: string; value: number }[];
-  items: { status: string }[];
-  colors: { before: string; inProg: string; done: string; hold: string };
+  colorMap: Record<string, string>;
 }) {
-  const colorOf = (name: string) => ({
-    '진행 전': colors.before, '진행 중': colors.inProg, '완료': colors.done, '보류': colors.hold,
-  }[name] ?? '#e5e7eb');
-
+  const colorOf = (name: string) => colorMap[name] ?? '#e5e7eb';
   const isEmpty = data.length === 0;
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+
   return (
     <div className="flex items-center gap-4 w-full">
-      {/* 도넛 */}
       <div className="w-[100px] h-[100px] flex-shrink-0 relative flex items-center justify-center">
         {isEmpty ? (
           <>
             <div className="empty-ring absolute inset-0 rounded-full"
               style={{ boxShadow: 'inset 0 0 0 12px rgba(0,0,0,0.07)' }} />
-            
             <span className="text-[10px] text-gray-400 text-center leading-tight z-10">데이터<br/>없음</span>
           </>
         ) : (
@@ -436,22 +580,33 @@ function DonutChart({ data, items, colors }: {
           </ResponsiveContainer>
         )}
       </div>
-      {/* 범례 — flex-1로 나머지 폭 채움 */}
       <div className="flex-1 space-y-3 min-w-0">
-        {(['진행 전', '진행 중', '완료'] as const).map(s => {
-          const count = items.filter(t => t.status === s).length;
-          return (
-            <div key={s} className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2 text-xs text-gray-600 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorOf(s) }} />
-                <span className="truncate">{s}</span>
-              </span>
-              <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${count > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
-                {count}
-              </span>
+        {data.length > 0
+          ? data.map(({ name, value }) => (
+              <div key={name} className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-xs text-gray-600 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorOf(name) }} />
+                  <span className="truncate">{name}</span>
+                </span>
+                <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${value > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+                  {value}
+                </span>
+              </div>
+            ))
+          : (
+            <div className="space-y-3">
+              {[1,2,3].map(i => (
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-xs text-gray-300 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-gray-200" />
+                    <span>-</span>
+                  </span>
+                  <span className="text-sm font-bold tabular-nums flex-shrink-0 text-gray-200">0</span>
+                </div>
+              ))}
             </div>
-          );
-        })}
+          )
+        }
       </div>
     </div>
   );

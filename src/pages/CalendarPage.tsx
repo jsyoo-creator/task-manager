@@ -92,7 +92,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
             const dayItems = day ? itemsForDay(day) : [];
             const isWknd = idx % 7 === 0 || idx % 7 === 6;
             return (
-              <div key={idx} className={`min-h-[96px] border-r border-b border-black/3 p-1.5 flex flex-col ${
+              <div key={idx} className={`min-h-[96px] border-r border-b border-black/3 p-1.5 ${
                 !day ? 'bg-black/1' : ''
               } ${isWknd && day ? 'bg-black/1.5' : ''}`}>
                 {day && (
@@ -102,7 +102,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                         ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
                         : isWknd ? 'text-gray-400' : 'text-gray-700'
                     }`}>{day}</div>
-                    <div className="space-y-0.5 overflow-y-auto max-h-[160px]">
+                    <div className="space-y-0.5">
                       {dayItems.map(item => {
                         const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
                         return (

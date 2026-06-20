@@ -18,7 +18,7 @@ export default function ConfirmDialog({ open, taskTitle, onConfirm, onCancel }: 
       <div
         className="w-[300px] rounded-[2rem] flex flex-col"
         style={{
-          background: 'rgba(255, 255, 255, 0.72)',
+          background: 'rgba(255, 255, 255, 0.96)',
           backdropFilter: 'blur(32px)',
           WebkitBackdropFilter: 'blur(32px)',
           border: '1.5px solid rgba(255, 255, 255, 0.9)',

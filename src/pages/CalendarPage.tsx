@@ -44,7 +44,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       .filter(s => s.endDate === d)
       .map(s => {
         const parent = taskMap.get(s.taskId);
-        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, category: s.category };
+        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, assignee: s.assignee, category: s.category };
       });
   };
 
@@ -112,6 +112,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                               <span className="truncate">{item.mainTitle}</span>
                             </div>
                             <div className={`pl-2.5 truncate font-medium mt-0.5 ${s.sub}`}>{item.subTitle}</div>
+                            {item.assignee && <div className="pl-2.5 truncate text-gray-400 mt-0.5">{item.assignee}</div>}
                           </div>
                         );
                       })}

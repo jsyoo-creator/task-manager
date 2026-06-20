@@ -344,8 +344,8 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
               <div className="flex gap-1.5 items-center">
                 <button type="button"
                   onClick={() => setColorPickerIdx(colorPickerIdx === i ? null : i)}
-                  className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-300 hover:scale-110 transition-transform"
-                  style={{ backgroundColor: optionColors[opt]?.bg ?? '#e5e7eb' }}
+                  className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${optionColors[opt] ? 'border border-transparent' : 'border border-dashed border-gray-400'}`}
+                  style={{ backgroundColor: optionColors[opt]?.bg ?? 'white' }}
                 />
                 <input className={`${cls} flex-1`} placeholder={`옵션 ${i + 1}`} value={opt}
                   onChange={e => {
@@ -427,6 +427,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [builtinOptionsInput, setBuiltinOptionsInput] = useState<string[]>(['', '']);
   const [builtinOptionColors, setBuiltinOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [builtinColorPickerIdx, setBuiltinColorPickerIdx] = useState<number | null>(null);
+  const builtinOptionColorsRef = useRef(builtinOptionColors);
+  builtinOptionColorsRef.current = builtinOptionColors;
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -436,6 +438,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [customOptionsInput, setCustomOptionsInput] = useState<string[]>(['', '']);
   const [customOptionColors, setCustomOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [customColorPickerIdx, setCustomColorPickerIdx] = useState<number | null>(null);
+  const customOptionColorsRef = useRef(customOptionColors);
+  customOptionColorsRef.current = customOptionColors;
 
   const isTableField = (key: BuiltinFieldKey) => TABLE_FIELD_KEYS.includes(key);
 
@@ -481,7 +485,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
         customType: resolvedType,
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
         options: isSelect ? validOpts : undefined,
-        optionColors: isSelect && Object.keys(builtinOptionColors).length > 0 ? builtinOptionColors : undefined,
+        optionColors: isSelect && Object.keys(builtinOptionColorsRef.current).length > 0 ? builtinOptionColorsRef.current : undefined,
       } : f
     );
     setFields(updated);
@@ -505,7 +509,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
         type: customTypeInput,
         department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
         options: customTypeInput === 'select' ? validOpts : cf.options,
-        optionColors: customTypeInput === 'select' && Object.keys(customOptionColors).length > 0 ? customOptionColors : undefined,
+        optionColors: customTypeInput === 'select' && Object.keys(customOptionColorsRef.current).length > 0 ? customOptionColorsRef.current : undefined,
       } : cf
     );
     onSaveCustom(updated);
@@ -590,8 +594,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                             <div className="flex gap-1.5 items-center">
                               <button type="button"
                                 onClick={() => setBuiltinColorPickerIdx(builtinColorPickerIdx === idx ? null : idx)}
-                                className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-300 hover:scale-110 transition-transform"
-                                style={{ backgroundColor: builtinOptionColors[opt]?.bg ?? '#e5e7eb' }}
+                                className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${builtinOptionColors[opt] ? 'border border-transparent' : 'border border-dashed border-gray-400'}`}
+                                style={{ backgroundColor: builtinOptionColors[opt]?.bg ?? 'white' }}
                               />
                               <input
                                 className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
@@ -721,8 +725,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                               <div className="flex gap-1.5 items-center">
                                 <button type="button"
                                   onClick={() => setCustomColorPickerIdx(customColorPickerIdx === idx ? null : idx)}
-                                  className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-300 hover:scale-110 transition-transform"
-                                  style={{ backgroundColor: customOptionColors[opt]?.bg ?? '#e5e7eb' }}
+                                  className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt] ? 'border border-transparent' : 'border border-dashed border-gray-400'}`}
+                                  style={{ backgroundColor: customOptionColors[opt]?.bg ?? 'white' }}
                                 />
                                 <input
                                   className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"

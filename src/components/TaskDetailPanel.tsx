@@ -107,14 +107,18 @@ export default function TaskDetailPanel({
   const assigneeIdx = builtinFields.findIndex(f => f.key === 'assignee');
   const receiverFirst = receiverIdx !== -1 && assigneeIdx !== -1 && receiverIdx < assigneeIdx;
 
-  // 직군 필터 적용 헬퍼
+  // department 필터 적용 + 현재 저장값이 목록에 없으면 포함
   const filteredByDept = (key: 'receiver' | 'assignee') => {
     const bf = builtinFields.find(f => f.key === key);
+    let opts: string[];
     if (bf?.department && teamMembers?.length) {
       const filtered = teamMembers.filter(m => m.department === bf.department).map(m => m.name);
-      if (filtered.length > 0) return filtered;
+      opts = filtered.length > 0 ? filtered : assignees;
+    } else {
+      opts = assignees;
     }
-    return assignees;
+    const currentVal = key === 'receiver' ? task.receiver : task.assignee;
+    return currentVal && !opts.includes(currentVal) ? [currentVal, ...opts] : opts;
   };
 
   const [title, setTitle] = useState(task.title);

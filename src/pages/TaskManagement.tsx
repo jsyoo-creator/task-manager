@@ -358,9 +358,10 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
             ];
           }
           if (fc.key === 'receiver') {
-            const ropts = fc.department && teamMembers?.length
+            const base = fc.department && teamMembers?.length
               ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)
               : assignees;
+            const ropts = base.includes(task.receiver) ? base : (task.receiver ? [task.receiver, ...base] : base);
             return [
               <select key="receiver" className={`${sel} text-gray-600`} value={task.receiver}
                 onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
@@ -369,9 +370,10 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
             ];
           }
           if (fc.key === 'assignee') {
-            const aopts = fc.department && teamMembers?.length
+            const base = fc.department && teamMembers?.length
               ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)
               : assignees;
+            const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
             return [
               <select key="assignee" className={`${sel} text-gray-700`} value={task.assignee}
                 onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>

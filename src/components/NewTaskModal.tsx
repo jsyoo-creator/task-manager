@@ -46,14 +46,24 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     .filter(fc => fc.enabled && fc.key !== 'weeklyHours')
     .map(fc => fc.key);
 
+  // department 필터 적용 후 첫 번째 옵션을 기본값으로
+  const getPersonDefault = (key: 'receiver' | 'assignee') => {
+    const fc = builtinFields.find(f => f.key === key);
+    if (fc?.department && teamMembers?.length) {
+      const filtered = teamMembers.filter(m => m.department === fc.department).map(m => m.name);
+      if (filtered.length > 0) return filtered[0];
+    }
+    return assignees[0] ?? '';
+  };
+
   const [form, setForm] = useState({
     taskMonth: DEFAULT_TASK_MONTH,
     title: '',
     category: partNames[0] ?? '',
     type: '신규' as TaskType,
     status: '진행 전' as TaskStatus,
-    receiver: assignees[0] ?? '',
-    assignee: assignees[0] ?? '',
+    receiver: getPersonDefault('receiver'),
+    assignee: getPersonDefault('assignee'),
     startDate: '',
     endDate: '',
     revisionLevel: 0,
@@ -63,7 +73,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   if (!open) return null;
 
   const resetForm = () => {
-    setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '진행 전', receiver: assignees[0] ?? '', assignee: assignees[0] ?? '', startDate: '', endDate: '', revisionLevel: 0 });
+    setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '진행 전', receiver: getPersonDefault('receiver'), assignee: getPersonDefault('assignee'), startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
   };
 

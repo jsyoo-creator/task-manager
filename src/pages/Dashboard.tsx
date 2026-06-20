@@ -267,9 +267,8 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
   const stats = useMemo(() => {
     const total = tasks.length;
-    const monthCount = tasks.filter(t =>
-      t.startDate?.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
-    ).length;
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthCount = tasks.filter(t => t.taskMonth === currentMonth).length;
     const done = statusBarData.find(s => s.label === '완료')?.count ?? 0;
     return { total, monthCount, done, totalSubs: subtasks.length };
   }, [tasks, subtasks, statusBarData]);

@@ -124,15 +124,21 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                     </select>
                   </div>
                 );
-                if (ct === 'name') return (
-                  <div>
-                    <label className={lbl}>{fieldLabel}</label>
-                    <select className={cls} value={strVal} onChange={e => setVal(e.target.value)}>
-                      <option value="">선택하세요</option>
-                      {assignees.map(a => <option key={a}>{a}</option>)}
-                    </select>
-                  </div>
-                );
+                if (ct === 'name') {
+                  const nameDepts = resolveFieldDepts(fc);
+                  const nameOpts = nameDepts && teamMembers?.length
+                    ? teamMembers.filter(m => m.department && nameDepts.includes(m.department)).map(m => m.name)
+                    : assignees;
+                  return (
+                    <div>
+                      <label className={lbl}>{fieldLabel}</label>
+                      <select className={cls} value={strVal} onChange={e => setVal(e.target.value)}>
+                        <option value="">선택하세요</option>
+                        {nameOpts.map(a => <option key={a}>{a}</option>)}
+                      </select>
+                    </div>
+                  );
+                }
                 if (ct === 'date') return (
                   <div>
                     <label className={lbl}>{fieldLabel}</label>

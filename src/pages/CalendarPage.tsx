@@ -12,33 +12,32 @@ interface Props {
   userPhotoMap?: Map<string, string>;
 }
 
-const CAT_STYLE: Record<string, { pill: string; dot: string; sub: string }> = {
-  '라이브': { pill: 'bg-red-50 border-red-100', dot: 'bg-red-500', sub: 'text-red-500' },
-  '복지': { pill: 'bg-orange-50 border-orange-100', dot: 'bg-orange-400', sub: 'text-orange-500' },
-  '사업자': { pill: 'bg-indigo-50 border-indigo-100', dot: 'bg-indigo-500', sub: 'text-indigo-500' },
-  '기타': { pill: 'bg-gray-50 border-gray-100', dot: 'bg-gray-400', sub: 'text-gray-400' },
+const CAT_STYLE: Record<string, { card: string; title: string; dot: string }> = {
+  '라이브': { card: 'bg-red-50',    title: 'text-red-600',    dot: 'bg-red-400' },
+  '복지':   { card: 'bg-orange-50', title: 'text-orange-600', dot: 'bg-orange-400' },
+  '사업자': { card: 'bg-indigo-50', title: 'text-indigo-600', dot: 'bg-indigo-400' },
+  '기타':   { card: 'bg-gray-50',   title: 'text-gray-600',   dot: 'bg-gray-400' },
 };
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function Avatar({ name, photoURL }: { name: string; photoURL?: string }) {
-  const initials = name.slice(0, 1);
   if (photoURL) {
     return (
       <img
         src={photoURL}
         alt={name}
         title={name}
-        className="w-4 h-4 rounded-full object-cover ring-1 ring-white flex-shrink-0"
+        className="w-6 h-6 rounded-full object-cover ring-2 ring-white flex-shrink-0"
       />
     );
   }
   return (
     <div
       title={name}
-      className="w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center text-[8px] font-semibold text-gray-600 ring-1 ring-white flex-shrink-0"
+      className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[9px] font-semibold text-gray-500 ring-2 ring-white flex-shrink-0"
     >
-      {initials}
+      {name.slice(0, 1)}
     </div>
   );
 }
@@ -130,14 +129,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                       {dayItems.map(item => {
                         const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
                         return (
-                          <div key={item.id} className={`px-1.5 py-1 rounded-md border text-[10px] leading-tight ${s.pill}`}>
-                            <div className="flex items-center gap-1 font-semibold text-gray-700 truncate">
-                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} />
-                              <span className="truncate">{item.mainTitle}</span>
-                            </div>
-                            <div className={`pl-2.5 truncate font-medium mt-0.5 ${s.sub}`}>{item.subTitle}</div>
+                          <div key={item.id} className={`rounded-xl p-2 mb-1 flex flex-col gap-1.5 ${s.card}`}>
+                            <div className={`text-[11px] font-bold leading-snug ${s.title}`}>{item.mainTitle}</div>
+                            <div className="text-[10px] text-gray-400 font-medium leading-tight">{item.subTitle}</div>
                             {item.people.length > 0 && (
-                              <div className="pl-2 flex items-center -space-x-1 mt-1">
+                              <div className="flex items-center -space-x-1.5 mt-0.5">
                                 {item.people.map(name => (
                                   <Avatar key={name} name={name} photoURL={userPhotoMap?.get(name)} />
                                 ))}

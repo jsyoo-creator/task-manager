@@ -124,6 +124,14 @@ function App() {
     ? tasks.filter(t => !validCategories.includes(t.category ?? '')).length
     : 0;
 
+  // SubTaskType ID → 이름 맵 (팀 + 파트 전체)
+  const subTaskTypeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    selectedTeam?.subTaskTypes?.forEach(t => map.set(t.id, t.name));
+    activeParts.forEach(p => p.subTaskTypes?.forEach(t => map.set(t.id, t.name)));
+    return map;
+  }, [selectedTeam, activeParts]);
+
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task =>
@@ -131,7 +139,7 @@ function App() {
         id: `${task.id}__${key}`,
         taskId: task.id,
         projectId: task.projectId ?? '',
-        title: key,
+        title: subTaskTypeMap.get(key) ?? key,
         category: task.category,
         type: task.type,
         status: (entry.status ?? '진행 전') as SubTask['status'],

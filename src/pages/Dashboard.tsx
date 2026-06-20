@@ -326,6 +326,19 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   return (
     <div className="space-y-6">
 
+      {/* ── 임시 디버그 패널 (원인 확인 후 삭제 예정) ── */}
+      <details className="glass-card p-3 text-[11px] text-gray-500">
+        <summary className="cursor-pointer font-semibold text-gray-600">🔍 디버그 정보 (개발용 — 확인 후 삭제)</summary>
+        <div className="mt-2 space-y-1 font-mono break-all">
+          <div><b>집계 기준 옵션:</b> {JSON.stringify(fieldOptions)}</div>
+          {tasks.slice(0, 3).map(t => (
+            <div key={t.id}>
+              <b>[{t.title.slice(0, 20)}]</b> receiver={t.receiver} | assignee={t.assignee} | customFields={JSON.stringify(t.customFields ?? {})}
+            </div>
+          ))}
+        </div>
+      </details>
+
       {/* Page header */}
       <div className="flex items-end justify-between">
         <div>

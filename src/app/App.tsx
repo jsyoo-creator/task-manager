@@ -212,7 +212,7 @@ function App() {
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={subtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} />
+              <CalendarPage tasks={filteredTasks} subtasks={subtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} />
             } />
             <Route path="/weekly" element={
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} />

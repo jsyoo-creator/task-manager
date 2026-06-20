@@ -9,6 +9,7 @@ interface Props {
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
   parts?: TeamPart[];
+  userPhotoMap?: Map<string, string>;
 }
 
 const CAT_STYLE: Record<string, { pill: string; dot: string; sub: string }> = {
@@ -20,7 +21,29 @@ const CAT_STYLE: Record<string, { pill: string; dot: string; sub: string }> = {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts }: Props) {
+function Avatar({ name, photoURL }: { name: string; photoURL?: string }) {
+  const initials = name.slice(0, 1);
+  if (photoURL) {
+    return (
+      <img
+        src={photoURL}
+        alt={name}
+        title={name}
+        className="w-4 h-4 rounded-full object-cover ring-1 ring-white flex-shrink-0"
+      />
+    );
+  }
+  return (
+    <div
+      title={name}
+      className="w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center text-[8px] font-semibold text-gray-600 ring-1 ring-white flex-shrink-0"
+    >
+      {initials}
+    </div>
+  );
+}
+
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -44,7 +67,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       .filter(s => s.endDate === d)
       .map(s => {
         const parent = taskMap.get(s.taskId);
-        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, assignee: s.assignee, category: s.category };
+        const people = [s.receiver, s.assignee].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, people, category: s.category };
       });
   };
 
@@ -97,7 +121,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
               } ${isWknd && day ? 'bg-black/1.5' : ''}`}>
                 {day && (
                   <>
-                    <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium mb-1 flex-shrink-0 ${
+                    <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium mb-1 ${
                       isToday(day)
                         ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
                         : isWknd ? 'text-gray-400' : 'text-gray-700'
@@ -112,7 +136,13 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                               <span className="truncate">{item.mainTitle}</span>
                             </div>
                             <div className={`pl-2.5 truncate font-medium mt-0.5 ${s.sub}`}>{item.subTitle}</div>
-                            {item.assignee && <div className="pl-2.5 truncate text-gray-400 mt-0.5">{item.assignee}</div>}
+                            {item.people.length > 0 && (
+                              <div className="pl-2 flex items-center -space-x-1 mt-1">
+                                {item.people.map(name => (
+                                  <Avatar key={name} name={name} photoURL={userPhotoMap?.get(name)} />
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}

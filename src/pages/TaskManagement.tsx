@@ -114,12 +114,25 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
 
   const handleCopyTask = (task: Task) => {
-    const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = task;
     const idx = tasks.findIndex(t => t.id === task.id);
-    // 전체 재인덱싱: null sortOrder 업무들도 정수값 부여
     tasks.forEach((t, i) => { if (t.sortOrder !== i) onUpdateTask(t.id, { sortOrder: i }); });
-    // 원본 바로 아래 삽입
-    onAddTask({ ...rest, title: `${task.title} (복사)`, sortOrder: idx + 0.5 });
+    onAddTask({
+      projectId: task.projectId,
+      teamId: task.teamId,
+      taskMonth: task.taskMonth,
+      category: task.category,
+      title: '',
+      type: '신규',
+      status: '진행 전',
+      receiver: '',
+      assignee: '',
+      startDate: '',
+      endDate: '',
+      weeklyHours: {},
+      totalHours: 0,
+      revisionLevel: 0,
+      sortOrder: idx + 0.5,
+    });
   };
 
   const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {

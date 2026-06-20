@@ -90,6 +90,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
   const statusConfigs = resolveStatusConfigs(formConfig);
+  // DEBUG
+  const _dbgStatus = builtinFields.find(f => f.key === 'status');
+  console.log('[DEBUG status fc]', JSON.stringify({ customType: _dbgStatus?.customType, options: _dbgStatus?.options, optionColors: _dbgStatus?.optionColors }));
   const colTemplate = buildCols(tableFields);
   const colMinWidth = buildMinWidth(tableFields);
 

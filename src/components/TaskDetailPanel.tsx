@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department } from '../types';
-import { DEFAULT_META_FIELDS } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
+import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META } from '../types';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 540;
@@ -95,6 +95,16 @@ export default function TaskDetailPanel({
   formConfig?: TeamFormConfig;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
+  const builtinFields = resolveBuiltinFields(formConfig);
+  const fieldLabel = (key: BuiltinFieldKey) => {
+    const bf = builtinFields.find(f => f.key === key);
+    return bf?.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
+  };
+  // formConfig 순서 기준: receiver와 assignee 중 어느 쪽이 먼저인지
+  const receiverIdx = builtinFields.findIndex(f => f.key === 'receiver');
+  const assigneeIdx = builtinFields.findIndex(f => f.key === 'assignee');
+  const receiverFirst = receiverIdx !== -1 && assigneeIdx !== -1 && receiverIdx < assigneeIdx;
+
   const [title, setTitle] = useState(task.title);
   const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});
   const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
@@ -257,11 +267,11 @@ export default function TaskDetailPanel({
             </div>
           </div>
 
-          {/* 행 2: 파트 / 담당자 / 접수자 */}
+          {/* 행 2: 파트 / 담당자(접수자) / 접수자(담당자) — formConfig 순서 반영 */}
           <div className={`grid ${parts.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-x-3 py-2.5 border-b border-gray-100`}>
             {parts.length > 0 && (
               <div>
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">파트</p>
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('category')}</p>
                 {canManage ? (
                   <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                     value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
@@ -270,24 +280,50 @@ export default function TaskDetailPanel({
                 ) : <span className="text-sm text-gray-700">{task.category}</span>}
               </div>
             )}
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">담당자</p>
-              {canManage ? (
-                <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                  value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                  {assignees.map(a => <option key={a}>{a}</option>)}
-                </select>
-              ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
-            </div>
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">접수자</p>
-              {canManage ? (
-                <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                  value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                  {assignees.map(a => <option key={a}>{a}</option>)}
-                </select>
-              ) : <span className="text-sm text-gray-600">{task.receiver}</span>}
-            </div>
+            {/* receiverFirst면 검수자→담당자 순, 아니면 담당자→검수자 순 */}
+            {receiverFirst ? (
+              <>
+                <div>
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('receiver')}</p>
+                  {canManage ? (
+                    <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                      value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                      {assignees.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  ) : <span className="text-sm text-gray-600">{task.receiver}</span>}
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
+                  {canManage ? (
+                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                      value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                      {assignees.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
+                  {canManage ? (
+                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                      value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                      {assignees.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
+                </div>
+                <div>
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('receiver')}</p>
+                  {canManage ? (
+                    <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                      value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                      {assignees.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  ) : <span className="text-sm text-gray-600">{task.receiver}</span>}
+                </div>
+              </>
+            )}
           </div>
 
           {/* 행 3: 기간 */}

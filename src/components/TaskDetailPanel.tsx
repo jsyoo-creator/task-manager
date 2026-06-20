@@ -365,6 +365,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                      <option value="">-</option>
                       {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-600">{task.receiver}</span>}
@@ -374,6 +375,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                      <option value="">-</option>
                       {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
@@ -386,6 +388,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                      <option value="">-</option>
                       {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
@@ -395,6 +398,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                      <option value="">-</option>
                       {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-600">{task.receiver}</span>}

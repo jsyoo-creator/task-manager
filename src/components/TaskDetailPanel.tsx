@@ -105,6 +105,16 @@ export default function TaskDetailPanel({
   const assigneeIdx = builtinFields.findIndex(f => f.key === 'assignee');
   const receiverFirst = receiverIdx !== -1 && assigneeIdx !== -1 && receiverIdx < assigneeIdx;
 
+  // 직군 필터 적용 헬퍼
+  const filteredByDept = (key: 'receiver' | 'assignee') => {
+    const bf = builtinFields.find(f => f.key === key);
+    if (bf?.department && teamMembers?.length) {
+      const filtered = teamMembers.filter(m => m.department === bf.department).map(m => m.name);
+      if (filtered.length > 0) return filtered;
+    }
+    return assignees;
+  };
+
   const [title, setTitle] = useState(task.title);
   const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});
   const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
@@ -288,7 +298,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                      {assignees.map(a => <option key={a}>{a}</option>)}
+                      {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-600">{task.receiver}</span>}
                 </div>
@@ -297,7 +307,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                      {assignees.map(a => <option key={a}>{a}</option>)}
+                      {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
                 </div>
@@ -309,7 +319,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                      {assignees.map(a => <option key={a}>{a}</option>)}
+                      {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
                 </div>
@@ -318,7 +328,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                       value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                      {assignees.map(a => <option key={a}>{a}</option>)}
+                      {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
                     </select>
                   ) : <span className="text-sm text-gray-600">{task.receiver}</span>}
                 </div>

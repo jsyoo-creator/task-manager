@@ -395,6 +395,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [editingKey, setEditingKey] = useState<BuiltinFieldKey | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [typeInput, setTypeInput] = useState<FormFieldType | 'default'>('default');
+  const [builtinDeptInput, setBuiltinDeptInput] = useState<Department | ''>('');
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -435,16 +436,25 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
 
   const saveLabel = (key: BuiltinFieldKey) => {
     const trimmed = labelInput.trim();
+    const resolvedType = typeInput === 'default' ? undefined : typeInput as FormFieldType;
+    const isName = resolvedType === 'name' || (resolvedType as string) === 'textarea' || (resolvedType as string) === '이름';
     const updated = fields.map(f =>
       f.key === key ? {
         ...f,
         customLabel: trimmed || undefined,
-        customType: typeInput === 'default' ? undefined : typeInput as FormFieldType,
+        customType: resolvedType,
+        department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
       } : f
     );
     setFields(updated);
     onSaveFields(updated);
     setEditingKey(null);
+  };
+
+  const saveBuiltinDept = (key: BuiltinFieldKey, dept: Department | undefined) => {
+    const updated = fields.map(f => f.key === key ? { ...f, department: dept } : f);
+    setFields(updated);
+    onSaveFields(updated);
   };
 
   const saveCustomField = (id: string) => {
@@ -529,12 +539,28 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   <button
                     type="button"
                     title="클릭하여 이름 · 속성 수정"
-                    onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); }}
+                    onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); }}
                     className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {label}
                     {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
                     {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                   </button>
+                )}
+                {/* 이름 타입 직군 pill */}
+                {editingKey !== fc.key && (fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름') && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {(['전체', ...DEPARTMENTS] as const).map(d => {
+                      const val = d === '전체' ? undefined : d as Department;
+                      const active = (fc.department ?? undefined) === val;
+                      return (
+                        <button key={d} type="button"
+                          onClick={e => { e.stopPropagation(); saveBuiltinDept(fc.key, val); }}
+                          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
                 {/* 토글 (taskMonth·title은 고정) */}
                 {(fc.key === 'taskMonth' || isTitle)

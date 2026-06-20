@@ -70,6 +70,7 @@ export interface BuiltinFieldConfig {
   width: number; // 0 = 1fr (title), weeklyHours는 주당 너비
   customLabel?: string; // 사용자 정의 표시 이름
   customType?: FormFieldType; // 폼 렌더링 속성 오버라이드
+  department?: Department; // 이름 타입: 해당 직군 사람만 표시
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [

@@ -176,6 +176,7 @@ function App() {
                 canManage={permissions.canManageTasks}
                 parts={activeParts}
                 assignees={teamAssignees}
+                teamMembers={teamMembers}
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
               />

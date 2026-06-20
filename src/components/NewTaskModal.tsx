@@ -175,22 +175,34 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   </select>
                 </div>
               );
-              if (k === 'receiver') return (
-                <div>
-                  <label className={lbl}>{fieldLabel}</label>
-                  <select className={cls} value={form.receiver} onChange={e => setF({ receiver: e.target.value })}>
-                    {assignees.map(a => <option key={a}>{a}</option>)}
-                  </select>
-                </div>
-              );
-              if (k === 'assignee') return (
-                <div>
-                  <label className={lbl}>{fieldLabel}</label>
-                  <select className={cls} value={form.assignee} onChange={e => setF({ assignee: e.target.value })}>
-                    {assignees.map(a => <option key={a}>{a}</option>)}
-                  </select>
-                </div>
-              );
+              if (k === 'receiver') {
+                const rfc = builtinFields.find(f => f.key === 'receiver');
+                const ropts = rfc?.department && teamMembers?.length
+                  ? teamMembers.filter(m => m.department === rfc.department).map(m => m.name)
+                  : assignees;
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.receiver} onChange={e => setF({ receiver: e.target.value })}>
+                      {ropts.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  </div>
+                );
+              }
+              if (k === 'assignee') {
+                const afc = builtinFields.find(f => f.key === 'assignee');
+                const aopts = afc?.department && teamMembers?.length
+                  ? teamMembers.filter(m => m.department === afc.department).map(m => m.name)
+                  : assignees;
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.assignee} onChange={e => setF({ assignee: e.target.value })}>
+                      {aopts.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  </div>
+                );
+              }
               if (k === 'status') return (
                 <div>
                   <label className={lbl}>{fieldLabel}</label>

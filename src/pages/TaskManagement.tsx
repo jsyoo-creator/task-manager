@@ -110,11 +110,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setDragOverId(null);
   };
 
+  const bottomSortOrder = () =>
+    tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
+
   const handleCopyTask = (task: Task) => {
     const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = task;
-    const idx = tasks.findIndex(t => t.id === task.id);
-    const sortOrder = task.sortOrder != null ? task.sortOrder - 0.5 : idx - 0.5;
-    onAddTask({ ...rest, title: `${task.title} (복사)`, sortOrder });
+    onAddTask({ ...rest, title: `${task.title} (복사)`, sortOrder: bottomSortOrder() });
+  };
+
+  const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+    onAddTask({ ...data, sortOrder: bottomSortOrder() });
   };
 
   const filtered = tasks.filter((t: Task) => {
@@ -226,7 +231,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         onCancel={() => setPendingDelete(null)}
       />
 
-      <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={onAddTask}
+      <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
         projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} />
     </div>
   );

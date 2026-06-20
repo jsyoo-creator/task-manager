@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -186,7 +186,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
         {filtered.map(task => {
           const taskPart = parts?.find(p => p.name === task.category);
-          const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields;
+          const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS;
           return (
             <TaskRow
               key={task.id}
@@ -429,8 +429,9 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
         <div className="flex items-center justify-end gap-1.5">
           <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
             title="업무 정보"
-            className={`transition-all ${expanded ? 'text-[#6C63FF]' : 'text-gray-300 hover:text-[#6C63FF]'}`}>
-            <ChevronDown size={11} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-all ${expanded ? 'bg-[#6C63FF]/12 text-[#6C63FF]' : 'bg-gray-100 text-gray-400 hover:bg-[#6C63FF]/10 hover:text-[#6C63FF]'}`}>
+            <span>정보</span>
+            <ChevronDown size={9} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           </button>
           {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}

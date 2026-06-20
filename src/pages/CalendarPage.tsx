@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Task, TaskCategory, TeamPart } from '../types';
+import type { Task, SubTask, TaskCategory, TeamPart } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 
 interface Props {
   tasks: Task[];
+  subtasks?: SubTask[];
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
   parts?: TeamPart[];
@@ -19,10 +20,11 @@ const CAT_STYLE: Record<string, { pill: string; dot: string }> = {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, activeCategory, onCategoryChange, parts }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const [viewMode, setViewMode] = useState<'main' | 'sub'>('sub');
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
@@ -30,14 +32,31 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  const filtered = useMemo(() =>
+  const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
+
+  const filteredTasks = useMemo(() =>
     tasks.filter(t => activeCategory === 'all' || t.category === activeCategory),
     [tasks, activeCategory]
   );
 
-  const tasksForDay = (day: number) => {
+  const filteredSubtasks = useMemo(() =>
+    subtasks.filter(s => s.endDate && (activeCategory === 'all' || s.category === activeCategory)),
+    [subtasks, activeCategory]
+  );
+
+  const itemsForDay = (day: number) => {
     const d = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return filtered.filter(t => !t.startDate ? false : t.startDate <= d && (t.endDate ?? t.startDate) >= d);
+    if (viewMode === 'main') {
+      return filteredTasks
+        .filter(t => t.startDate && t.startDate <= d && (t.endDate ?? t.startDate) >= d)
+        .map(t => ({ id: t.id, label: t.title, subLabel: '', category: t.category }));
+    }
+    return filteredSubtasks
+      .filter(s => s.endDate === d)
+      .map(s => {
+        const parent = taskMap.get(s.taskId);
+        return { id: s.id, label: parent?.title ?? s.title, subLabel: s.title, category: s.category };
+      });
   };
 
   const isToday = (d: number) =>
@@ -59,6 +78,21 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
         </div>
         <div className="flex items-center gap-3">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
+
+          {/* 뷰 모드 토글 */}
+          <div className="flex items-center rounded-lg border border-black/8 overflow-hidden text-xs font-medium">
+            <button
+              onClick={() => setViewMode('main')}
+              className={`px-3 py-1.5 transition-colors ${viewMode === 'main' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+              메인업무
+            </button>
+            <button
+              onClick={() => setViewMode('sub')}
+              className={`px-3 py-1.5 transition-colors ${viewMode === 'sub' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+              세부업무
+            </button>
+          </div>
+
           <div className="flex items-center gap-1">
             <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
               <ChevronLeft size={15} />
@@ -84,7 +118,7 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
       {/* Grid */}
       <div className="grid grid-cols-7">
         {cells.map((day, idx) => {
-          const dayTasks = day ? tasksForDay(day) : [];
+          const dayItems = day ? itemsForDay(day) : [];
           const isWknd = idx % 7 === 0 || idx % 7 === 6;
           return (
             <div key={idx} className={`min-h-[88px] border-r border-b border-black/3 p-1.5 ${
@@ -98,17 +132,23 @@ export default function CalendarPage({ tasks, activeCategory, onCategoryChange, 
                       : isWknd ? 'text-gray-400' : 'text-gray-700'
                   }`}>{day}</div>
                   <div className="space-y-0.5">
-                    {dayTasks.slice(0, 3).map(t => {
-                      const s = CAT_STYLE[t.category] ?? CAT_STYLE['기타'];
+                    {dayItems.slice(0, 3).map(item => {
+                      const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
                       return (
-                        <div key={t.id} className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium truncate ${s.pill}`}>
+                        <div
+                          key={item.id}
+                          title={item.subLabel ? `${item.label} · ${item.subLabel}` : item.label}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium truncate ${s.pill}`}>
                           <span className={`w-1 h-1 rounded-full flex-shrink-0 ${s.dot}`} />
-                          <span className="truncate">{t.title}</span>
+                          <span className="truncate">{item.label}</span>
+                          {item.subLabel && (
+                            <span className="truncate opacity-60 flex-shrink-0">· {item.subLabel}</span>
+                          )}
                         </div>
                       );
                     })}
-                    {dayTasks.length > 3 && (
-                      <div className="text-[9px] text-gray-400 pl-1">+{dayTasks.length - 3}개</div>
+                    {dayItems.length > 3 && (
+                      <div className="text-[9px] text-gray-400 pl-1">+{dayItems.length - 3}개</div>
                     )}
                   </div>
                 </>

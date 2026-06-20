@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -162,17 +162,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
           <span key="drag-h" />
           {tableFields.flatMap(fc => {
+            const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
             if (fc.key === 'title') return [
-              <span key="title" className="pl-3.5 text-gray-500">
-                {fc.customLabel ?? HEADER_LABEL.title}
-              </span>,
+              <span key="title" className="pl-3.5 text-gray-500">{hLabel}</span>,
             ];
             if (fc.key === 'weeklyHours') {
               return [<span key="h-total" className="text-center">합계</span>];
             }
             return [
               <div key={fc.key} className="flex items-center select-none pl-2">
-                <span>{fc.customLabel ?? HEADER_LABEL[fc.key]}</span>
+                <span>{hLabel}</span>
               </div>,
             ];
           })}

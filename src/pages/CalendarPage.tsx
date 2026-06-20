@@ -130,8 +130,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                         const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
                         return (
                           <div key={item.id} className={`rounded-xl p-2 mb-1 flex flex-col gap-1.5 ${s.card}`}>
-                            <div className={`text-[11px] font-bold leading-snug ${s.title}`}>{item.mainTitle}</div>
-                            <div className="text-[10px] text-gray-400 font-medium leading-tight">{item.subTitle}</div>
+                            <div className="text-[10px] text-gray-400 font-medium leading-tight truncate">{item.mainTitle}</div>
+                            <div className={`text-[12px] font-bold leading-snug ${s.title}`}>{item.subTitle}</div>
                             {item.people.length > 0 && (
                               <div className="flex items-center -space-x-1.5 mt-0.5">
                                 {item.people.map(name => (

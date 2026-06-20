@@ -409,6 +409,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <select key="receiver" className={`${sel} text-gray-600`} value={task.receiver}
                 onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
+                <option value="">-</option>
                 {ropts.map(a => <option key={a}>{a}</option>)}
               </select>
             ];
@@ -421,6 +422,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <select key="assignee" className={`${sel} text-gray-700`} value={task.assignee}
                 onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
+                <option value="">-</option>
                 {aopts.map(a => <option key={a}>{a}</option>)}
               </select>
             ];

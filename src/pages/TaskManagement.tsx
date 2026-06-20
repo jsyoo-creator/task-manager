@@ -429,9 +429,13 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
         <div className="flex items-center justify-end gap-1.5">
           <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
             title="업무 정보"
-            className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-all ${expanded ? 'bg-[#6C63FF]/12 text-[#6C63FF]' : 'bg-gray-100 text-gray-400 hover:bg-[#6C63FF]/10 hover:text-[#6C63FF]'}`}>
+            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all border ${
+              expanded
+                ? 'bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/30'
+                : 'bg-white text-gray-400 border-gray-200 hover:border-[#6C63FF]/40 hover:text-[#6C63FF]'
+            }`}>
             <span>정보</span>
-            <ChevronDown size={9} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            <ChevronDown size={10} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           </button>
           {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}
@@ -443,19 +447,19 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
       </div>
 
       {expanded && (
-        <div className="overflow-x-auto bg-gray-50/70 border-b border-black/4 px-8 py-2.5" style={{ minWidth: colMinWidth }}>
+        <div className="overflow-x-auto bg-gray-50 border-b border-black/6 px-6 py-3" style={{ minWidth: colMinWidth }}>
           {filledMeta.length > 0 ? (
-            <div className="flex items-center gap-5 min-w-max">
+            <div className="flex items-stretch gap-2.5 min-w-max">
               {filledMeta.map(f => {
                 const val = task.customFields![f.key];
                 return (
-                  <div key={f.key} className="flex items-center gap-1.5 text-xs shrink-0">
-                    <span className="text-gray-400">{f.label}</span>
+                  <div key={f.key} className="flex flex-col gap-0.5 bg-white border border-gray-100 rounded-lg px-3 py-2 shrink-0 shadow-sm min-w-[80px]">
+                    <span className="text-[10px] text-gray-400 font-medium">{f.label}</span>
                     {f.isUrl ? (
                       <a href={val} target="_blank" rel="noopener noreferrer"
-                        className="text-blue-500 hover:text-blue-700 underline max-w-[200px] truncate">{val}</a>
+                        className="text-xs text-blue-500 hover:text-blue-700 underline max-w-[200px] truncate">{val}</a>
                     ) : (
-                      <span className="text-gray-700 font-medium">{val}</span>
+                      <span className="text-xs text-gray-800 font-semibold truncate max-w-[160px]">{val}</span>
                     )}
                   </div>
                 );

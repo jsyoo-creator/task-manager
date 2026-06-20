@@ -514,92 +514,98 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                 onDrop={() => onDrop(i)}
                 onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
                 className={`${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
-              <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
-                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                {/* 레이블·속성 인라인 편집 */}
                 {editingKey === fc.key ? (
-                  <div
-                    className="flex-1 flex items-center gap-1.5 min-w-0"
-                    onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveLabel(fc.key); }}>
-                    <input
-                      autoFocus
-                      className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                      value={labelInput}
-                      placeholder={defaultLabel}
-                      onChange={e => setLabelInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}
-                    />
-                    {!isTypeFixed && (
-                      <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
-                        value={typeInput}
-                        onChange={e => setTypeInput(e.target.value as FormFieldType | 'default')}
-                        onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}>
-                        <option value="default">기본값</option>
-                        {BUILTIN_FIELD_TYPES.map(t => (
-                          <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                  /* onBlur 컨테이너: 라벨/속성 행 + 옵션 에디터를 함께 감싸 포커스 이탈 감지 */
+                  <div onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveLabel(fc.key); }}>
+                    <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
+                      <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                      <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                        <input
+                          autoFocus
+                          className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                          value={labelInput}
+                          placeholder={defaultLabel}
+                          onChange={e => setLabelInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}
+                        />
+                        {!isTypeFixed && (
+                          <select
+                            className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
+                            value={typeInput}
+                            onChange={e => setTypeInput(e.target.value as FormFieldType | 'default')}
+                            onKeyDown={e => { if (e.key === 'Enter') saveLabel(fc.key); if (e.key === 'Escape') setEditingKey(null); }}>
+                            <option value="default">기본값</option>
+                            {BUILTIN_FIELD_TYPES.map(t => (
+                              <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      {(fc.key === 'taskMonth' || isTitle)
+                        ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
+                        : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
+                      }
+                    </div>
+                    {/* select 타입 옵션 에디터 — onBlur 컨테이너 내부 */}
+                    {typeInput === 'select' && (
+                      <div className="px-7 pb-2 pt-1 space-y-1 bg-blue-50/40 border-t border-blue-100/60">
+                        <p className="text-[10px] text-gray-500 font-medium mb-1">선택지</p>
+                        {builtinOptionsInput.map((opt, idx) => (
+                          <div key={idx} className="flex gap-1.5">
+                            <input
+                              className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                              placeholder={`옵션 ${idx + 1}`}
+                              value={opt}
+                              onChange={e => setBuiltinOptionsInput(prev => prev.map((v, j) => j === idx ? e.target.value : v))}
+                            />
+                            {builtinOptionsInput.length > 1 && (
+                              <button type="button" onClick={() => setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx))}
+                                className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                            )}
+                          </div>
                         ))}
-                      </select>
+                        <button type="button" onClick={() => setBuiltinOptionsInput(prev => [...prev, ''])}
+                          className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors mt-0.5">
+                          <Plus size={10} />옵션 추가
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    title="클릭하여 이름 · 속성 수정"
-                    onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']); }}
-                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
-                    {label}
-                    {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
-                    {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
-                  </button>
-                )}
-                {/* 이름 타입 직군 pill */}
-                {editingKey !== fc.key && (fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름') && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {(['전체', ...DEPARTMENTS] as const).map(d => {
-                      const val = d === '전체' ? undefined : d as Department;
-                      const active = (fc.department ?? undefined) === val;
-                      return (
-                        <button key={d} type="button"
-                          onClick={e => { e.stopPropagation(); saveBuiltinDept(fc.key, val); }}
-                          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
-                          {d}
-                        </button>
-                      );
-                    })}
+                  <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
+                    <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                    <button
+                      type="button"
+                      title="클릭하여 이름 · 속성 수정"
+                      onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']); }}
+                      className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                      {label}
+                      {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
+                      {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
+                    </button>
+                    {/* 이름 타입 직군 pill */}
+                    {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름') && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {(['전체', ...DEPARTMENTS] as const).map(d => {
+                          const val = d === '전체' ? undefined : d as Department;
+                          const active = (fc.department ?? undefined) === val;
+                          return (
+                            <button key={d} type="button"
+                              onClick={e => { e.stopPropagation(); saveBuiltinDept(fc.key, val); }}
+                              className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
+                              {d}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {(fc.key === 'taskMonth' || isTitle)
+                      ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
+                      : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
+                    }
                   </div>
                 )}
-                {/* 토글 (taskMonth·title은 고정) */}
-                {(fc.key === 'taskMonth' || isTitle)
-                  ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
-                  : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
-                }
               </div>
-              {/* select 타입 옵션 에디터 */}
-              {editingKey === fc.key && typeInput === 'select' && (
-                <div className="px-7 pb-2 pt-1 space-y-1 bg-blue-50/40 border-t border-blue-100/60">
-                  <p className="text-[10px] text-gray-500 font-medium mb-1">선택지</p>
-                  {builtinOptionsInput.map((opt, idx) => (
-                    <div key={idx} className="flex gap-1.5">
-                      <input
-                        className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                        placeholder={`옵션 ${idx + 1}`}
-                        value={opt}
-                        onChange={e => setBuiltinOptionsInput(prev => prev.map((v, j) => j === idx ? e.target.value : v))}
-                      />
-                      {builtinOptionsInput.length > 1 && (
-                        <button type="button" onClick={() => setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx))}
-                          className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setBuiltinOptionsInput(prev => [...prev, ''])}
-                    className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors mt-0.5">
-                    <Plus size={10} />옵션 추가
-                  </button>
-                </div>
-              )}
-            </div>
             );
           })}
         </div>

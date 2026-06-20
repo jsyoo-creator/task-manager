@@ -121,7 +121,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       teamId: task.teamId,
       taskMonth: task.taskMonth,
       category: task.category,
-      title: '',
+      title: task.title,
       type: '신규',
       status: '진행 전',
       receiver: '',

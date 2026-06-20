@@ -89,6 +89,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
@@ -234,6 +235,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               metaFields={resolvedMetaFields}
               isDragging={dragId === task.id}
               isDragOver={dragOverId === task.id}
+              expanded={expandedId === task.id}
+              onToggleExpand={() => setExpandedId(prev => prev === task.id ? null : task.id)}
               onDragStart={() => setDragId(task.id)}
               onDragOver={() => setDragOverId(task.id)}
               onDrop={() => handleDrop(task.id)}
@@ -270,7 +273,7 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -287,12 +290,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   metaFields?: MetaField[];
   isDragging: boolean;
   isDragOver: boolean;
+  expanded: boolean;
+  onToggleExpand: () => void;
   onDragStart: () => void;
   onDragOver: () => void;
   onDrop: () => void;
   onDragEnd: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
 
   const totalH = (() => {
@@ -468,7 +472,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         })}
 
         <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
-          <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+          <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
             title="업무 정보"
             className={`flex items-center justify-center px-2 py-1 rounded-md transition-all border ${
               expanded

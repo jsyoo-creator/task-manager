@@ -216,14 +216,22 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   </div>
                 );
               }
-              if (k === 'status') return (
-                <div>
-                  <label className={lbl}>{fieldLabel}</label>
-                  <select className={cls} value={form.status} onChange={e => setF({ status: e.target.value as TaskStatus })}>
-                    {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                  </select>
-                </div>
-              );
+              if (k === 'status') {
+                const statusOpts = (fc?.customType === 'select' && fc.options?.length)
+                  ? fc.options
+                  : null;
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.status} onChange={e => setF({ status: e.target.value as TaskStatus })}>
+                      {statusOpts
+                        ? statusOpts.map(o => <option key={o}>{o}</option>)
+                        : statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)
+                      }
+                    </select>
+                  </div>
+                );
+              }
               if (k === 'startDate') return (
                 <div>
                   <label className={lbl}>{fieldLabel}</label>

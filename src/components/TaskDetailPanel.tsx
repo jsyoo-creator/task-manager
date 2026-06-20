@@ -254,6 +254,16 @@ export default function TaskDetailPanel({
             <div>
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">상태</p>
               {(() => {
+                const statusField = builtinFields.find(f => f.key === 'status');
+                // 커스텀 드롭다운 옵션 우선
+                if (statusField?.customType === 'select' && statusField.options?.length) {
+                  return canManage ? (
+                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                      value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                      {statusField.options.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  ) : <span className="text-sm text-gray-700">{task.status}</span>;
+                }
                 const sc = statusConfigs.find(s => s.key === task.status) ?? statusConfigs[0];
                 return canManage ? (
                   <div className="relative block w-full">

@@ -307,6 +307,15 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
             ];
           }
           if (fc.key === 'status') {
+            // 커스텀 드롭다운 옵션이 있으면 우선 사용
+            if (fc.customType === 'select' && fc.options?.length) {
+              return [
+                <select key="status" className={`${sel} text-gray-700`} value={task.status}
+                  onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })} onClick={e => e.stopPropagation()}>
+                  {fc.options.map(o => <option key={o}>{o}</option>)}
+                </select>
+              ];
+            }
             const sc = statusConfigs.find(s => s.key === task.status) ?? statusConfigs[0];
             const scLabel = sc?.label ?? task.status;
             return [

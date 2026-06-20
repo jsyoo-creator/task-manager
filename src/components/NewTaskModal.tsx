@@ -249,48 +249,52 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
           })()}
 
           {/* 커스텀 필드 */}
-          {customFields.filter(cf => cf.enabled !== false).map(cf => (
-            <div key={cf.id}>
-              <label className={lbl}>
-                {cf.label}{cf.required && <span className="text-red-400 ml-0.5">*</span>}
-              </label>
-              {cf.type === 'text' && (
-                <input type="text" required={cf.required} className={cls}
-                  value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-              )}
-              {cf.type === 'name' && (() => {
-                const opts = teamMembers && cf.department
+          {customFields.filter(cf => cf.enabled !== false).map(cf => {
+            const cfType = cf.type as string;
+            const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+            const opts = isNameType
+              ? (teamMembers && cf.department
                   ? teamMembers.filter(m => m.department === cf.department).map(m => m.name)
-                  : assignees;
-                return (
+                  : assignees)
+              : [];
+            return (
+              <div key={cf.id}>
+                <label className={lbl}>
+                  {cf.label}{cf.required && <span className="text-red-400 ml-0.5">*</span>}
+                </label>
+                {isNameType && (
                   <select required={cf.required} className={cls}
                     value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
                     <option value="">선택하세요</option>
                     {opts.map(a => <option key={a}>{a}</option>)}
                   </select>
-                );
-              })()}
-              {cf.type === 'select' && (
-                <select required={cf.required} className={cls}
-                  value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
-                  <option value="">선택하세요</option>
-                  {cf.options?.map(o => <option key={o}>{o}</option>)}
-                </select>
-              )}
-              {cf.type === 'date' && (
-                <input type="date" required={cf.required} className={cls}
-                  value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-              )}
-              {cf.type === 'number' && (
-                <input type="number" required={cf.required} className={cls}
-                  value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-              )}
-              {cf.type === 'link' && (
-                <input type="url" required={cf.required} className={cls} placeholder="https://"
-                  value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-              )}
-            </div>
-          ))}
+                )}
+                {cfType === 'text' && (
+                  <input type="text" required={cf.required} className={cls}
+                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                )}
+                {cfType === 'select' && (
+                  <select required={cf.required} className={cls}
+                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
+                    <option value="">선택하세요</option>
+                    {cf.options?.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                )}
+                {cfType === 'date' && (
+                  <input type="date" required={cf.required} className={cls}
+                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                )}
+                {cfType === 'number' && (
+                  <input type="number" required={cf.required} className={cls}
+                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                )}
+                {cfType === 'link' && (
+                  <input type="url" required={cf.required} className={cls} placeholder="https://"
+                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                )}
+              </div>
+            );
+          })}
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}

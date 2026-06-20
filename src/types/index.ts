@@ -55,6 +55,7 @@ export interface CustomFormField {
   required: boolean;
   enabled?: boolean; // undefined = true (하위 호환)
   options?: string[]; // select 타입일 때 선택지
+  optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   department?: Department; // name 타입: 해당 직군 사람만 표시
 }
 
@@ -72,6 +73,7 @@ export interface BuiltinFieldConfig {
   customType?: FormFieldType; // 폼 렌더링 속성 오버라이드
   department?: Department; // 이름 타입: 해당 직군 사람만 표시
   options?: string[]; // select 타입: 선택지
+  optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [

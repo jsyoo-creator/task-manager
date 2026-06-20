@@ -297,6 +297,8 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
   const [type, setType] = useState<FormFieldType>('text');
   const [required, setRequired] = useState(false);
   const [options, setOptions] = useState(['', '']);
+  const [optionColors, setOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
+  const [colorPickerIdx, setColorPickerIdx] = useState<number | null>(null);
   const [dept, setDept] = useState<Department | ''>('');
 
   const cls = "text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400";
@@ -306,9 +308,10 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
     onAdd({
       label: label.trim(), type, required,
       options: type === 'select' ? options.filter(o => o.trim()) : undefined,
+      optionColors: type === 'select' && Object.keys(optionColors).length > 0 ? optionColors : undefined,
       department: type === 'name' && dept ? dept : undefined,
     });
-    setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setDept(''); setOpen(false);
+    setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setOptionColors({}); setDept(''); setOpen(false);
   };
 
   if (!open) return (
@@ -335,14 +338,38 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
       </div>
       {type === 'select' && (
         <div className="space-y-1">
-          <p className="text-[11px] text-gray-500 font-medium">선택지</p>
+          <p className="text-[11px] text-gray-500 font-medium">선택지 <span className="font-normal text-gray-400">· 도트 클릭으로 색상</span></p>
           {options.map((opt, i) => (
-            <div key={i} className="flex gap-1.5">
-              <input className={`${cls} flex-1`} placeholder={`옵션 ${i + 1}`} value={opt}
-                onChange={e => setOptions(o => o.map((v, j) => j === i ? e.target.value : v))} />
-              {options.length > 1 && (
-                <button type="button" onClick={() => setOptions(o => o.filter((_, j) => j !== i))}
-                  className="text-gray-300 hover:text-red-400 transition-colors"><X size={12} /></button>
+            <div key={i}>
+              <div className="flex gap-1.5 items-center">
+                <button type="button"
+                  onClick={() => setColorPickerIdx(colorPickerIdx === i ? null : i)}
+                  className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-300 hover:scale-110 transition-transform"
+                  style={{ backgroundColor: optionColors[opt]?.bg ?? '#e5e7eb' }}
+                />
+                <input className={`${cls} flex-1`} placeholder={`옵션 ${i + 1}`} value={opt}
+                  onChange={e => {
+                    const old = options[i]; const next = e.target.value;
+                    setOptions(o => o.map((v, j) => j === i ? next : v));
+                    if (optionColors[old]) setOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
+                  }} />
+                {options.length > 1 && (
+                  <button type="button" onClick={() => { setOptions(o => o.filter((_, j) => j !== i)); setOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
+                    className="text-gray-300 hover:text-red-400 transition-colors"><X size={12} /></button>
+                )}
+              </div>
+              {colorPickerIdx === i && (
+                <div className="flex gap-0.5 flex-wrap mt-1 ml-5">
+                  <button type="button" title="색상 없음"
+                    onClick={() => { setOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); setColorPickerIdx(null); }}
+                    className="w-4 h-4 rounded-full bg-gray-100 border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center">✕</button>
+                  {STATUS_COLOR_PRESETS.map(p => (
+                    <button key={p.label} type="button" title={p.label}
+                      onClick={() => { setOptionColors(prev => ({ ...prev, [opt]: { bg: p.bg, text: p.text } })); setColorPickerIdx(null); }}
+                      className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${optionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                      style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
+                  ))}
+                </div>
               )}
             </div>
           ))}
@@ -398,6 +425,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [builtinDeptInput, setBuiltinDeptInput] = useState<Department | ''>('');
 
   const [builtinOptionsInput, setBuiltinOptionsInput] = useState<string[]>(['', '']);
+  const [builtinOptionColors, setBuiltinOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
+  const [builtinColorPickerIdx, setBuiltinColorPickerIdx] = useState<number | null>(null);
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -405,6 +434,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [customTypeInput, setCustomTypeInput] = useState<FormFieldType>('text');
   const [customDeptInput, setCustomDeptInput] = useState<Department | ''>('');
   const [customOptionsInput, setCustomOptionsInput] = useState<string[]>(['', '']);
+  const [customOptionColors, setCustomOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
+  const [customColorPickerIdx, setCustomColorPickerIdx] = useState<number | null>(null);
 
   const isTableField = (key: BuiltinFieldKey) => TABLE_FIELD_KEYS.includes(key);
 
@@ -442,13 +473,15 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
     const resolvedType = typeInput === 'default' ? undefined : typeInput as FormFieldType;
     const isName = resolvedType === 'name' || (resolvedType as string) === 'textarea' || (resolvedType as string) === '이름';
     const isSelect = resolvedType === 'select';
+    const validOpts = builtinOptionsInput.filter(o => o.trim());
     const updated = fields.map(f =>
       f.key === key ? {
         ...f,
         customLabel: trimmed || undefined,
         customType: resolvedType,
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
-        options: isSelect ? builtinOptionsInput.filter(o => o.trim()) : undefined,
+        options: isSelect ? validOpts : undefined,
+        optionColors: isSelect && Object.keys(builtinOptionColors).length > 0 ? builtinOptionColors : undefined,
       } : f
     );
     setFields(updated);
@@ -464,13 +497,15 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
 
   const saveCustomField = (id: string) => {
     const newLabel = customLabelInput.trim();
+    const validOpts = customOptionsInput.filter(o => o.trim());
     const updated = customFields.map(cf =>
       cf.id === id ? {
         ...cf,
         label: newLabel || cf.label,
         type: customTypeInput,
         department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
-        options: customTypeInput === 'select' ? customOptionsInput.filter(o => o.trim()) : cf.options,
+        options: customTypeInput === 'select' ? validOpts : cf.options,
+        optionColors: customTypeInput === 'select' && Object.keys(customOptionColors).length > 0 ? customOptionColors : undefined,
       } : cf
     );
     onSaveCustom(updated);
@@ -549,18 +584,45 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     {/* select 타입 옵션 에디터 — onBlur 컨테이너 내부 */}
                     {typeInput === 'select' && (
                       <div className="px-7 pb-2 pt-1 space-y-1 bg-blue-50/40 border-t border-blue-100/60">
-                        <p className="text-[10px] text-gray-500 font-medium mb-1">선택지</p>
+                        <p className="text-[10px] text-gray-500 font-medium mb-1">선택지 <span className="font-normal text-gray-400">· 색상 도트 클릭으로 색상 설정</span></p>
                         {builtinOptionsInput.map((opt, idx) => (
-                          <div key={idx} className="flex gap-1.5">
-                            <input
-                              className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                              placeholder={`옵션 ${idx + 1}`}
-                              value={opt}
-                              onChange={e => setBuiltinOptionsInput(prev => prev.map((v, j) => j === idx ? e.target.value : v))}
-                            />
-                            {builtinOptionsInput.length > 1 && (
-                              <button type="button" onClick={() => setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx))}
-                                className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                          <div key={idx}>
+                            <div className="flex gap-1.5 items-center">
+                              <button type="button"
+                                onClick={() => setBuiltinColorPickerIdx(builtinColorPickerIdx === idx ? null : idx)}
+                                className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-300 hover:scale-110 transition-transform"
+                                style={{ backgroundColor: builtinOptionColors[opt]?.bg ?? '#e5e7eb' }}
+                              />
+                              <input
+                                className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                                placeholder={`옵션 ${idx + 1}`}
+                                value={opt}
+                                onChange={e => {
+                                  const old = builtinOptionsInput[idx];
+                                  const next = e.target.value;
+                                  setBuiltinOptionsInput(prev => prev.map((v, j) => j === idx ? next : v));
+                                  if (builtinOptionColors[old]) {
+                                    setBuiltinOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
+                                  }
+                                }}
+                              />
+                              {builtinOptionsInput.length > 1 && (
+                                <button type="button" onClick={() => { setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx)); setBuiltinOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
+                                  className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                              )}
+                            </div>
+                            {builtinColorPickerIdx === idx && (
+                              <div className="flex gap-0.5 flex-wrap mt-1 ml-5">
+                                <button type="button" title="색상 없음"
+                                  onClick={() => { setBuiltinOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); setBuiltinColorPickerIdx(null); }}
+                                  className="w-4 h-4 rounded-full bg-gray-100 border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center">✕</button>
+                                {STATUS_COLOR_PRESETS.map(p => (
+                                  <button key={p.label} type="button" title={p.label}
+                                    onClick={() => { setBuiltinOptionColors(prev => ({ ...prev, [opt]: { bg: p.bg, text: p.text } })); setBuiltinColorPickerIdx(null); }}
+                                    className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${builtinOptionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                                    style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
+                                ))}
+                              </div>
                             )}
                           </div>
                         ))}
@@ -577,7 +639,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     <button
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']); }}
+                      onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']); setBuiltinOptionColors(fc.optionColors ?? {}); setBuiltinColorPickerIdx(null); }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {label}
                       {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
@@ -655,16 +717,43 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                       {customTypeInput === 'select' && (
                         <div className="mt-1.5 space-y-1">
                           {customOptionsInput.map((opt, idx) => (
-                            <div key={idx} className="flex gap-1.5">
-                              <input
-                                className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                                placeholder={`옵션 ${idx + 1}`}
-                                value={opt}
-                                onChange={e => setCustomOptionsInput(prev => prev.map((v, j) => j === idx ? e.target.value : v))}
-                              />
-                              {customOptionsInput.length > 1 && (
-                                <button type="button" onClick={() => setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx))}
-                                  className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                            <div key={idx}>
+                              <div className="flex gap-1.5 items-center">
+                                <button type="button"
+                                  onClick={() => setCustomColorPickerIdx(customColorPickerIdx === idx ? null : idx)}
+                                  className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-300 hover:scale-110 transition-transform"
+                                  style={{ backgroundColor: customOptionColors[opt]?.bg ?? '#e5e7eb' }}
+                                />
+                                <input
+                                  className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                                  placeholder={`옵션 ${idx + 1}`}
+                                  value={opt}
+                                  onChange={e => {
+                                    const old = customOptionsInput[idx];
+                                    const next = e.target.value;
+                                    setCustomOptionsInput(prev => prev.map((v, j) => j === idx ? next : v));
+                                    if (customOptionColors[old]) {
+                                      setCustomOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
+                                    }
+                                  }}
+                                />
+                                {customOptionsInput.length > 1 && (
+                                  <button type="button" onClick={() => { setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx)); setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
+                                    className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                                )}
+                              </div>
+                              {customColorPickerIdx === idx && (
+                                <div className="flex gap-0.5 flex-wrap mt-1 ml-5">
+                                  <button type="button" title="색상 없음"
+                                    onClick={() => { setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); setCustomColorPickerIdx(null); }}
+                                    className="w-4 h-4 rounded-full bg-gray-100 border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center">✕</button>
+                                  {STATUS_COLOR_PRESETS.map(p => (
+                                    <button key={p.label} type="button" title={p.label}
+                                      onClick={() => { setCustomOptionColors(prev => ({ ...prev, [opt]: { bg: p.bg, text: p.text } })); setCustomColorPickerIdx(null); }}
+                                      className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                                      style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
+                                  ))}
+                                </div>
                               )}
                             </div>
                           ))}
@@ -679,7 +768,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     <button
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); }}
+                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {cf.label}
                     </button>

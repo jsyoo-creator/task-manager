@@ -240,14 +240,28 @@ export default function TaskDetailPanel({
               const lbl = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
               if (fc.key === 'status') {
                 if (fc.customType === 'select' && fc.options?.length) {
+                  const custColor = fc.optionColors?.[task.status];
                   return (
                     <div key="status">
                       <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
                       {canManage ? (
-                        <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                          value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                          {fc.options.map(o => <option key={o}>{o}</option>)}
-                        </select>
+                        custColor ? (
+                          <div className="relative block w-full">
+                            <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                              style={{ backgroundColor: custColor.bg, color: custColor.text }}>
+                              <span>{task.status}</span><ChevronDown size={9} />
+                            </div>
+                            <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
+                              onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                              {fc.options.map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                            value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                            {fc.options.map(o => <option key={o}>{o}</option>)}
+                          </select>
+                        )
                       ) : <span className="text-sm text-gray-700">{task.status}</span>}
                     </div>
                   );
@@ -278,14 +292,28 @@ export default function TaskDetailPanel({
               }
               // type
               const typeOpts = fc.customType === 'select' && fc.options?.length ? fc.options : TYPES as string[];
+              const typeColor = fc.optionColors?.[task.type];
               return (
                 <div key="type">
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
                   {canManage ? (
-                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                      value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
-                      {typeOpts.map(t => <option key={t}>{t}</option>)}
-                    </select>
+                    typeColor ? (
+                      <div className="relative block w-full">
+                        <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                          style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
+                          <span>{task.type}</span><ChevronDown size={9} />
+                        </div>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.type}
+                          onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                          {typeOpts.map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
+                        value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                        {typeOpts.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    )
                   ) : <span className="text-sm text-gray-700">{task.type}</span>}
                 </div>
               );
@@ -594,7 +622,19 @@ export default function TaskDetailPanel({
                     <div key={cf.id} className="flex items-center gap-2">
                       <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
                       <div className="flex-1 min-w-0">
-                        {(isNameType || cfType === 'select') ? (
+                        {cfType === 'select' && cf.optionColors?.[val] ? (
+                          <div className="relative block w-full">
+                            <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                              style={{ backgroundColor: cf.optionColors[val].bg, color: cf.optionColors[val].text }}>
+                              <span>{val || '-'}</span><ChevronDown size={9} />
+                            </div>
+                            <select disabled={!canManage} value={val} onChange={e => handleBlur(e.target.value)}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default">
+                              <option value="">-</option>
+                              {(cf.options ?? []).map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </div>
+                        ) : (isNameType || cfType === 'select') ? (
                           <select disabled={!canManage} value={val}
                             onChange={e => handleBlur(e.target.value)}
                             className={cls}>

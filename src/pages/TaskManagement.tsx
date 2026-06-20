@@ -299,6 +299,19 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           ];
           if (fc.key === 'type') {
             const typeOpts = (fc.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+            const typeColor = fc.optionColors?.[task.type];
+            if (typeColor) return [
+              <div key="type" onClick={e => e.stopPropagation()}
+                className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer"
+                style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
+                <span className="text-xs font-medium whitespace-nowrap">{task.type}</span>
+                <ChevronDown size={10} />
+                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                  {typeOpts.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+            ];
             return [
               <select key="type" className={`${sel} text-gray-700`} value={task.type}
                 onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
@@ -309,6 +322,19 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           if (fc.key === 'status') {
             // 커스텀 드롭다운 옵션이 있으면 우선 사용
             if (fc.customType === 'select' && fc.options?.length) {
+              const custColor = fc.optionColors?.[task.status];
+              if (custColor) return [
+                <div key="status" onClick={e => e.stopPropagation()}
+                  className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer"
+                  style={{ backgroundColor: custColor.bg, color: custColor.text }}>
+                  <span className="text-xs font-medium whitespace-nowrap">{task.status}</span>
+                  <ChevronDown size={10} />
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                    {fc.options.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
+              ];
               return [
                 <select key="status" className={`${sel} text-gray-700`} value={task.status}
                   onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })} onClick={e => e.stopPropagation()}>

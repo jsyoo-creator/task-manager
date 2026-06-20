@@ -109,25 +109,29 @@ function getTaskValue(task: Task, key: string): string {
   return task.customFields?.[key] ?? '';
 }
 
-// 값의 표시 색상
-function getValueColor(key: string, value: string, idx: number, formConfig?: TeamFormConfig, parts?: TeamPart[]): string {
+// 차트/카드 accent용 진한 색 (bg보다 text가 진함)
+function getChartColor(key: string, value: string, idx: number, formConfig?: TeamFormConfig, parts?: TeamPart[]): string {
   const builtins = resolveBuiltinFields(formConfig);
   const fc = builtins.find(f => f.key === key);
   const statusConfigs = resolveStatusConfigs(formConfig);
 
   if (key === 'status') {
-    if (fc?.customType === 'select') return fc.optionColors?.[value]?.bg ?? PALETTE[idx % PALETTE.length];
-    return statusConfigs.find(s => s.key === value || s.label === value)?.bg ?? '#e5e7eb';
+    if (fc?.customType === 'select' && fc.optionColors?.[value]?.text) return fc.optionColors[value].text;
+    const sc = statusConfigs.find(s => s.key === value || s.label === value);
+    return sc?.text ?? PALETTE[idx % PALETTE.length];
   }
   if (key === 'type') {
-    if (fc?.optionColors?.[value]) return fc.optionColors[value].bg;
+    if (fc?.optionColors?.[value]?.text) return fc.optionColors[value].text;
+    const TYPE_DARK = ['#2563eb', '#d97706', '#059669', '#dc2626'];
+    const i = ['신규', '기타', '파생', '기획'].indexOf(value);
+    return i >= 0 ? TYPE_DARK[i] : PALETTE[idx % PALETTE.length];
   }
   if (key === 'category') {
     const part = parts?.find(p => p.name === value);
     return part ? (TW_TO_HEX[part.color] ?? '#94a3b8') : '#94a3b8';
   }
   const cf = formConfig?.customFields?.find(f => f.id === key);
-  if (cf?.optionColors?.[value]) return cf.optionColors[value].bg;
+  if (cf?.optionColors?.[value]?.text) return cf.optionColors[value].text;
   return PALETTE[idx % PALETTE.length];
 }
 
@@ -184,7 +188,6 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
 
   const statusConfigs = resolveStatusConfigs(formConfig);
-  const STATUS_COLORS = Object.fromEntries(statusConfigs.map(s => [s.key, s.bg]));
 
   const cats = (parts && parts.length > 0) ? parts.map(p => p.name) : [];
   const catColor = (cat: string): string => {
@@ -219,16 +222,32 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     return { total, countByVal, vals: vals.slice(0, 5) };
   }, [tasks, statField, definedValues]);
 
+  // 진행 현황 bar: 실제 task.status 값 기준 (custom 옵션 대응)
+  const statusBarData = useMemo(() => {
+    const builtins = resolveBuiltinFields(formConfig);
+    const statusFc = builtins.find(f => f.key === 'status');
+    if (statusFc?.customType === 'select' && statusFc.options?.length) {
+      return statusFc.options.map((opt, i) => ({
+        label: opt,
+        count: tasks.filter(t => t.status === opt).length,
+        color: statusFc.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
+      }));
+    }
+    return statusConfigs.map(s => ({
+      label: s.label,
+      count: tasks.filter(t => t.status === s.key).length,
+      color: s.text,
+    }));
+  }, [tasks, formConfig, statusConfigs]);
+
   const stats = useMemo(() => {
     const total = tasks.length;
     const monthCount = tasks.filter(t =>
       t.startDate?.startsWith(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
     ).length;
-    // 상태 기반 진행현황 bar 용
-    const statusCounts = Object.fromEntries(statusConfigs.map(s => [s.key, tasks.filter(t => t.status === s.key).length]));
-    const done = statusCounts['완료'] ?? tasks.filter(t => t.status === '완료').length;
-    return { total, monthCount, statusCounts, done, totalSubs: subtasks.length };
-  }, [tasks, subtasks, statusConfigs]);
+    const done = statusBarData.find(s => s.label === '완료')?.count ?? 0;
+    return { total, monthCount, done, totalSubs: subtasks.length };
+  }, [tasks, subtasks, statusBarData]);
 
   const completionPct = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
 
@@ -274,10 +293,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     return { name, monthCounts, total: mySubs.length, totalH: mySubs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
   }).filter(a => a.total > 0 || assignees.includes(a.name)), [subtasks, monthKeys, teamMembers, assignees]);
 
-  // 진행현황 bar 범례 (상태 기반 고정)
-  const legendItems = statusConfigs.map(s => ({
-    l: s.label, v: stats.statusCounts[s.key] ?? 0, c: s.bg,
-  }));
+  const legendItems = statusBarData.map(s => ({ l: s.label, v: s.count, c: s.color }));
 
   // 현재 선택 필드 label
   const activeFieldLabel = fieldOptions.find(f => f.key === statField)?.label ?? '상태';
@@ -329,7 +345,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           {fieldStats.vals.map((val, idx) => {
             const count = fieldStats.countByVal[val] ?? 0;
             const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
-            const color = getValueColor(statField, val, idx, formConfig, parts);
+            const color = getChartColor(statField, val, idx, formConfig, parts);
             const Icon = CARD_ICONS[idx % CARD_ICONS.length];
             return (
               <StatCard
@@ -398,7 +414,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <DonutChart
                 data={mainDonut}
                 colorMap={Object.fromEntries(
-                  fieldStats.vals.map((v, i) => [v, getValueColor(statField, v, i, formConfig, parts)])
+                  fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
                 )}
               />
             </div>
@@ -412,7 +428,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             <div className="flex-1 flex items-center p-5">
               <DonutChart
                 data={subDonut}
-                colorMap={Object.fromEntries(statusConfigs.map(s => [s.label, s.bg]))}
+                colorMap={Object.fromEntries(statusConfigs.map(s => [s.label, s.text]))}
               />
             </div>
           </div>

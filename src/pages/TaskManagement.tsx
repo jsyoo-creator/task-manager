@@ -9,7 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 interface Props {
   tasks: Task[];
-  onAddTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onAddTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
   onOpenDetail: (id: string) => void;
@@ -136,7 +136,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   };
 
   const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
-    onAddTask({ ...data, sortOrder: bottomSortOrder() });
+    onAddTask({ ...data, sortOrder: bottomSortOrder() }).catch((e: unknown) => {
+      alert(`업무 등록 실패: ${e instanceof Error ? e.message : String(e)}`);
+    });
   };
 
   const filtered = tasks.filter((t: Task) => {

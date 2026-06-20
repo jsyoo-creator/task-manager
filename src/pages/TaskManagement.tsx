@@ -440,12 +440,12 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}
               title="복사"
-              className="flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
+              className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
               <Copy size={11} />
             </button>
             <button onClick={e => { e.stopPropagation(); onDelete(task.id); }}
               title="삭제"
-              className="flex items-center justify-center w-6 h-6 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
+              className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
               <Trash2 size={11} />
             </button>
           </>}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department } from '../types';
-import { resolveBuiltinFields } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs } from '../types';
 import DatePicker from './DatePicker';
 
 interface Props {
@@ -40,6 +40,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
   const builtinFields = resolveBuiltinFields(formConfig);
   const customFields = formConfig?.customFields ?? [];
+  const statusConfigs = resolveStatusConfigs(formConfig);
   // 폼에 표시할 필드 순서 (weeklyHours는 폼 입력 없음)
   const formKeys = builtinFields
     .filter(fc => fc.enabled && fc.key !== 'weeklyHours')
@@ -104,6 +105,15 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 const ct = fc.customType;
                 const strVal = String(form[k as keyof typeof form] ?? '');
                 const setVal = (v: string) => setForm(f => ({ ...f, [k]: v }));
+                if (ct === 'select') return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={strVal} onChange={e => setVal(e.target.value)}>
+                      <option value="">선택하세요</option>
+                      {(fc.options ?? []).map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </div>
+                );
                 if (ct === 'name') return (
                   <div>
                     <label className={lbl}>{fieldLabel}</label>
@@ -167,14 +177,17 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   </div>
                 );
               }
-              if (k === 'type') return (
-                <div>
-                  <label className={lbl}>{fieldLabel}</label>
-                  <select className={cls} value={form.type} onChange={e => setF({ type: e.target.value as TaskType })}>
-                    {TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-              );
+              if (k === 'type') {
+                const typeOpts = (fc?.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.type} onChange={e => setF({ type: e.target.value as TaskType })}>
+                      {typeOpts.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                );
+              }
               if (k === 'receiver') {
                 const rfc = builtinFields.find(f => f.key === 'receiver');
                 const ropts = rfc?.department && teamMembers?.length
@@ -207,7 +220,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 <div>
                   <label className={lbl}>{fieldLabel}</label>
                   <select className={cls} value={form.status} onChange={e => setF({ status: e.target.value as TaskStatus })}>
-                    {STATUSES.map(s => <option key={s}>{s}</option>)}
+                    {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                 </div>
               );

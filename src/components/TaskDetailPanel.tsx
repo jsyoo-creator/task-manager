@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
-import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META } from '../types';
+import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs } from '../types';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 540;
@@ -96,6 +96,8 @@ export default function TaskDetailPanel({
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const builtinFields = resolveBuiltinFields(formConfig);
+  const statusConfigs = resolveStatusConfigs(formConfig);
+  const typeField = builtinFields.find(f => f.key === 'type');
   const fieldLabel = (key: BuiltinFieldKey) => {
     const bf = builtinFields.find(f => f.key === key);
     return bf?.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
@@ -251,19 +253,26 @@ export default function TaskDetailPanel({
 
             <div>
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">상태</p>
-              {canManage ? (
-                <div className="relative block w-full">
-                  <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer ${STATUS_STYLE[task.status]}`}>
-                    <span>{task.status}</span><ChevronDown size={9} />
+              {(() => {
+                const sc = statusConfigs.find(s => s.key === task.status) ?? statusConfigs[0];
+                return canManage ? (
+                  <div className="relative block w-full">
+                    <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                      style={{ backgroundColor: sc?.bg, color: sc?.text }}>
+                      <span>{sc?.label ?? task.status}</span><ChevronDown size={9} />
+                    </div>
+                    <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
+                      onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                      {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                    </select>
                   </div>
-                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
-                    onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                    {STATUSES.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-              ) : (
-                <span className={`flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium ${STATUS_STYLE[task.status]}`}>{task.status}</span>
-              )}
+                ) : (
+                  <span className="flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium"
+                    style={{ backgroundColor: sc?.bg, color: sc?.text }}>
+                    {sc?.label ?? task.status}
+                  </span>
+                );
+              })()}
             </div>
 
             <div>
@@ -271,7 +280,9 @@ export default function TaskDetailPanel({
               {canManage ? (
                 <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
                   value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
-                  {TYPES.map(t => <option key={t}>{t}</option>)}
+                  {(typeField?.customType === 'select' && typeField.options?.length ? typeField.options : TYPES as string[]).map(t =>
+                    <option key={t}>{t}</option>
+                  )}
                 </select>
               ) : <span className="text-sm text-gray-700">{task.type}</span>}
             </div>
@@ -384,23 +395,30 @@ export default function TaskDetailPanel({
                         </span>
                       )}
                       {/* 세부업무 상태 선택 */}
-                      <div className="relative flex-shrink-0">
-                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium cursor-pointer ${STATUS_STYLE[entry.status ?? '진행 전']}`}>
-                          <span>{entry.status ?? '진행 전'}</span>
-                          <ChevronDown size={9} />
-                        </div>
-                        <select
-                          disabled={!canManage}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default"
-                          value={entry.status ?? '진행 전'}
-                          onChange={e => {
-                            const next = { ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
-                            setLocalSubTaskData(next);
-                            saveSubTaskData(next);
-                          }}>
-                          {STATUSES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      </div>
+                      {(() => {
+                        const subKey = (entry.status ?? '진행 전') as TaskStatus;
+                        const subSc = statusConfigs.find(s => s.key === subKey) ?? statusConfigs[0];
+                        return (
+                          <div className="relative flex-shrink-0">
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium cursor-pointer"
+                              style={{ backgroundColor: subSc?.bg, color: subSc?.text }}>
+                              <span>{subSc?.label ?? subKey}</span>
+                              <ChevronDown size={9} />
+                            </div>
+                            <select
+                              disabled={!canManage}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default"
+                              value={subKey}
+                              onChange={e => {
+                                const next = { ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
+                                setLocalSubTaskData(next);
+                                saveSubTaskData(next);
+                              }}>
+                              {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })()}
                       <select
                         disabled={!canManage}
                         className="text-xs bg-gray-100 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 cursor-pointer disabled:cursor-default max-w-[120px]"

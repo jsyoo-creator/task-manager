@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -89,6 +89,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
+  const statusConfigs = resolveStatusConfigs(formConfig);
   const colTemplate = buildCols(tableFields);
   const colMinWidth = buildMinWidth(tableFields);
 
@@ -194,6 +195,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             assignees={assignees}
             teamMembers={teamMembers}
             tableFields={tableFields}
+            statusConfigs={statusConfigs}
             colTemplate={colTemplate}
             colMinWidth={colMinWidth}
             isDragging={dragId === task.id}
@@ -226,7 +228,7 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, colTemplate, colMinWidth, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -236,6 +238,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
   assignees: string[];
   teamMembers?: { name: string; department?: Department }[];
   tableFields: BuiltinFieldConfig[];
+  statusConfigs: StatusConfig[];
   colTemplate: string;
   colMinWidth: number;
   isDragging: boolean;
@@ -294,23 +297,31 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
               </span>
             </span>
           ];
-          if (fc.key === 'type') return [
-            <select key="type" className={`${sel} text-gray-700`} value={task.type}
-              onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
-              {TYPES.map(t => <option key={t}>{t}</option>)}
-            </select>
-          ];
-          if (fc.key === 'status') return [
-            <div key="status" onClick={e => e.stopPropagation()}
-              className={`relative flex items-center justify-between w-full rounded-full pl-2 pr-2 py-0.5 cursor-pointer ${STATUS_BG[task.status]}`}>
-              <span className={`text-xs font-medium whitespace-nowrap ${STATUS_TEXT[task.status]}`}>{task.status}</span>
-              <ChevronDown size={10} className={STATUS_TEXT[task.status]} />
-              <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                {STATUSES.map(s => <option key={s}>{s}</option>)}
+          if (fc.key === 'type') {
+            const typeOpts = (fc.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+            return [
+              <select key="type" className={`${sel} text-gray-700`} value={task.type}
+                onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
+                {typeOpts.map(t => <option key={t}>{t}</option>)}
               </select>
-            </div>
-          ];
+            ];
+          }
+          if (fc.key === 'status') {
+            const sc = statusConfigs.find(s => s.key === task.status) ?? statusConfigs[0];
+            const scLabel = sc?.label ?? task.status;
+            return [
+              <div key="status" onClick={e => e.stopPropagation()}
+                className="relative flex items-center justify-between w-full rounded-full pl-2 pr-2 py-0.5 cursor-pointer"
+                style={{ backgroundColor: sc?.bg, color: sc?.text }}>
+                <span className="text-xs font-medium whitespace-nowrap">{scLabel}</span>
+                <ChevronDown size={10} />
+                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                  {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              </div>
+            ];
+          }
           if (fc.key === 'receiver') {
             const ropts = fc.department && teamMembers?.length
               ? (teamMembers.filter(m => m.department === fc.department).map(m => m.name) || assignees)

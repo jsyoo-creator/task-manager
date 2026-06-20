@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType } from '../types';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, StatusConfig, TaskStatus } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, resolveStatusConfigs } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -280,7 +280,7 @@ const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   text: '텍스트', select: '드롭다운', date: '날짜', number: '숫자', name: '이름', link: '링크', textarea: '이름',
 };
 const CUSTOM_FIELD_TYPES: FormFieldType[] = ['text', 'select', 'date', 'number', 'name', 'link'];
-const BUILTIN_FIELD_TYPES: FormFieldType[] = ['text', 'date', 'number', 'name', 'link'];
+const BUILTIN_FIELD_TYPES: FormFieldType[] = ['text', 'select', 'date', 'number', 'name', 'link'];
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -397,11 +397,14 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   const [typeInput, setTypeInput] = useState<FormFieldType | 'default'>('default');
   const [builtinDeptInput, setBuiltinDeptInput] = useState<Department | ''>('');
 
+  const [builtinOptionsInput, setBuiltinOptionsInput] = useState<string[]>(['', '']);
+
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
   const [customLabelInput, setCustomLabelInput] = useState('');
   const [customTypeInput, setCustomTypeInput] = useState<FormFieldType>('text');
   const [customDeptInput, setCustomDeptInput] = useState<Department | ''>('');
+  const [customOptionsInput, setCustomOptionsInput] = useState<string[]>(['', '']);
 
   const isTableField = (key: BuiltinFieldKey) => TABLE_FIELD_KEYS.includes(key);
 
@@ -438,12 +441,14 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
     const trimmed = labelInput.trim();
     const resolvedType = typeInput === 'default' ? undefined : typeInput as FormFieldType;
     const isName = resolvedType === 'name' || (resolvedType as string) === 'textarea' || (resolvedType as string) === '이름';
+    const isSelect = resolvedType === 'select';
     const updated = fields.map(f =>
       f.key === key ? {
         ...f,
         customLabel: trimmed || undefined,
         customType: resolvedType,
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
+        options: isSelect ? builtinOptionsInput.filter(o => o.trim()) : undefined,
       } : f
     );
     setFields(updated);
@@ -465,6 +470,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
         label: newLabel || cf.label,
         type: customTypeInput,
         department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
+        options: customTypeInput === 'select' ? customOptionsInput.filter(o => o.trim()) : cf.options,
       } : cf
     );
     onSaveCustom(updated);
@@ -507,7 +513,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
                 onDrop={() => onDrop(i)}
                 onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+                className={`${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+              <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
                 <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
                 {/* 레이블·속성 인라인 편집 */}
                 {editingKey === fc.key ? (
@@ -539,7 +546,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   <button
                     type="button"
                     title="클릭하여 이름 · 속성 수정"
-                    onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); }}
+                    onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']); }}
                     className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {label}
                     {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
@@ -568,6 +575,31 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
                 }
               </div>
+              {/* select 타입 옵션 에디터 */}
+              {editingKey === fc.key && typeInput === 'select' && (
+                <div className="px-7 pb-2 pt-1 space-y-1 bg-blue-50/40 border-t border-blue-100/60">
+                  <p className="text-[10px] text-gray-500 font-medium mb-1">선택지</p>
+                  {builtinOptionsInput.map((opt, idx) => (
+                    <div key={idx} className="flex gap-1.5">
+                      <input
+                        className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                        placeholder={`옵션 ${idx + 1}`}
+                        value={opt}
+                        onChange={e => setBuiltinOptionsInput(prev => prev.map((v, j) => j === idx ? e.target.value : v))}
+                      />
+                      {builtinOptionsInput.length > 1 && (
+                        <button type="button" onClick={() => setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx))}
+                          className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setBuiltinOptionsInput(prev => [...prev, ''])}
+                    className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors mt-0.5">
+                    <Plus size={10} />옵션 추가
+                  </button>
+                </div>
+              )}
+            </div>
             );
           })}
         </div>
@@ -593,31 +625,55 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                   className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
                   <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
                   {isEditingCF ? (
-                    <div
-                      className="flex-1 flex items-center gap-1.5 min-w-0"
-                      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}>
-                      <input
-                        autoFocus
-                        className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                        value={customLabelInput}
-                        onChange={e => setCustomLabelInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
-                      />
-                      <select
-                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
-                        value={customTypeInput}
-                        onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
-                        {CUSTOM_FIELD_TYPES.map(t => (
-                          <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
-                        ))}
-                      </select>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="flex items-center gap-1.5"
+                        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}>
+                        <input
+                          autoFocus
+                          className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                          value={customLabelInput}
+                          onChange={e => setCustomLabelInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
+                        />
+                        <select
+                          className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
+                          value={customTypeInput}
+                          onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
+                          {CUSTOM_FIELD_TYPES.map(t => (
+                            <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {customTypeInput === 'select' && (
+                        <div className="mt-1.5 space-y-1">
+                          {customOptionsInput.map((opt, idx) => (
+                            <div key={idx} className="flex gap-1.5">
+                              <input
+                                className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                                placeholder={`옵션 ${idx + 1}`}
+                                value={opt}
+                                onChange={e => setCustomOptionsInput(prev => prev.map((v, j) => j === idx ? e.target.value : v))}
+                              />
+                              {customOptionsInput.length > 1 && (
+                                <button type="button" onClick={() => setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx))}
+                                  className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                              )}
+                            </div>
+                          ))}
+                          <button type="button" onClick={() => setCustomOptionsInput(prev => [...prev, ''])}
+                            className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors">
+                            <Plus size={10} />옵션 추가
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <button
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); }}
+                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {cf.label}
                     </button>
@@ -650,6 +706,54 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   );
 }
 
+// ── 진행 상태 편집기 ──
+function StatusEditor({ statusConfigs, onSave }: {
+  statusConfigs: StatusConfig[];
+  onSave: (configs: StatusConfig[]) => void;
+}) {
+  const [configs, setConfigs] = useState<StatusConfig[]>(statusConfigs);
+  useEffect(() => setConfigs(statusConfigs), [JSON.stringify(statusConfigs)]);
+
+  const update = (key: TaskStatus, patch: Partial<StatusConfig>) => {
+    const updated = configs.map(c => c.key === key ? { ...c, ...patch } : c);
+    setConfigs(updated);
+    onSave(updated);
+  };
+
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">진행 상태 설정</p>
+      <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+        {configs.map(cfg => (
+          <div key={cfg.key} className="flex items-center gap-2 py-2 px-2.5">
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 min-w-[56px] text-center"
+              style={{ backgroundColor: cfg.bg, color: cfg.text }}>
+              {cfg.label}
+            </span>
+            <input
+              className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-800 focus:outline-none focus:border-blue-400 w-24 flex-shrink-0"
+              value={cfg.label}
+              onChange={e => update(cfg.key, { label: e.target.value })}
+            />
+            <div className="flex items-center gap-0.5 flex-wrap">
+              {STATUS_COLOR_PRESETS.map(preset => {
+                const isActive = cfg.bg === preset.bg;
+                return (
+                  <button key={preset.label} type="button" title={preset.label}
+                    onClick={() => update(cfg.key, { bg: preset.bg, text: preset.text })}
+                    className={`w-4 h-4 rounded-full flex-shrink-0 transition-all ${isActive ? 'ring-2 ring-offset-1 ring-gray-500 scale-110' : 'hover:scale-110'}`}
+                    style={{ backgroundColor: preset.bg, border: `1.5px solid ${preset.text}` }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
   team: Team;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
@@ -669,23 +773,31 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 
   const fields = resolveBuiltinFields(rawConfig);
   const customFields = rawConfig?.customFields ?? [];
+  const currentStatusConfigs = resolveStatusConfigs(rawConfig);
+
+  const makeConfig = (overrides: Partial<TeamFormConfig>): TeamFormConfig => ({
+    builtinFields: fields,
+    customFields,
+    statusConfigs: rawConfig?.statusConfigs,
+    ...overrides,
+  });
 
   const saveFields = (newFields: BuiltinFieldConfig[]) => {
-    const config: TeamFormConfig = { builtinFields: newFields, customFields };
-    if (selectedTarget === 'team') {
-      onUpdateFormConfig(team.id, config);
-    } else {
-      onUpdatePartFormConfig(team.id, selectedTarget, config);
-    }
+    const config = makeConfig({ builtinFields: newFields });
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
   };
 
   const saveCustom = (newCustom: CustomFormField[]) => {
-    const config: TeamFormConfig = { builtinFields: fields, customFields: newCustom };
-    if (selectedTarget === 'team') {
-      onUpdateFormConfig(team.id, config);
-    } else {
-      onUpdatePartFormConfig(team.id, selectedTarget, config);
-    }
+    const config = makeConfig({ customFields: newCustom });
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
+  };
+
+  const saveStatusConfigs = (newStatusConfigs: StatusConfig[]) => {
+    const config = makeConfig({ statusConfigs: newStatusConfigs });
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
   };
 
   return (
@@ -751,6 +863,9 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
       />
+      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
+        <StatusEditor statusConfigs={currentStatusConfigs} onSave={saveStatusConfigs} />
+      </div>
     </div>
   );
 }

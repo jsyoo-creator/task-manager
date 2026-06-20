@@ -71,6 +71,7 @@ export interface BuiltinFieldConfig {
   customLabel?: string; // 사용자 정의 표시 이름
   customType?: FormFieldType; // 폼 렌더링 속성 오버라이드
   department?: Department; // 이름 타입: 해당 직군 사람만 표시
+  options?: string[]; // select 타입: 선택지
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
@@ -110,10 +111,43 @@ export const DEFAULT_BUILTIN_FIELD_CONFIGS: BuiltinFieldConfig[] = [
   { key: 'revisionLevel', enabled: false, width: 90 },
 ];
 
+export interface StatusConfig {
+  key: TaskStatus;
+  label: string;
+  bg: string;   // hex background
+  text: string; // hex text color
+}
+
+export const STATUS_COLOR_PRESETS: { bg: string; text: string; label: string }[] = [
+  { label: '파랑',  bg: '#dbeafe', text: '#2563eb' },
+  { label: '하늘',  bg: '#e0f2fe', text: '#0284c7' },
+  { label: '초록',  bg: '#dcfce7', text: '#16a34a' },
+  { label: '청록',  bg: '#ccfbf1', text: '#0d9488' },
+  { label: '노랑',  bg: '#fef9c3', text: '#a16207' },
+  { label: '주황',  bg: '#ffedd5', text: '#ea580c' },
+  { label: '빨강',  bg: '#fee2e2', text: '#dc2626' },
+  { label: '분홍',  bg: '#fce7f3', text: '#db2777' },
+  { label: '보라',  bg: '#f3e8ff', text: '#7c3aed' },
+  { label: '회색',  bg: '#e2e8f0', text: '#475569' },
+];
+
+export const DEFAULT_STATUS_CONFIGS: StatusConfig[] = [
+  { key: '진행 전', label: '진행 전', bg: '#dbeafe', text: '#2563eb' },
+  { key: '진행 중', label: '진행 중', bg: '#fef3c7', text: '#d97706' },
+  { key: '완료',   label: '완료',   bg: '#dcfce7', text: '#16a34a' },
+  { key: '보류',   label: '보류',   bg: '#e2e8f0', text: '#475569' },
+];
+
 export interface TeamFormConfig {
   builtinFields?: BuiltinFieldConfig[]; // 새 포맷 (순서 + 너비 포함)
   enabledBuiltins?: BuiltinFieldKey[];  // 구버전 호환용
   customFields: CustomFormField[];
+  statusConfigs?: StatusConfig[];
+}
+
+export function resolveStatusConfigs(config?: TeamFormConfig): StatusConfig[] {
+  if (!config?.statusConfigs?.length) return DEFAULT_STATUS_CONFIGS;
+  return DEFAULT_STATUS_CONFIGS.map(d => config.statusConfigs!.find(s => s.key === d.key) ?? d);
 }
 
 export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfig[] {

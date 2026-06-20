@@ -668,7 +668,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                     </button>
                     {/* 이름 타입 직군 pill */}
-                    {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름') && (
+                    {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {(['전체', ...DEPARTMENTS] as const).map(d => {
                           const val = d === '전체' ? undefined : d as Department;

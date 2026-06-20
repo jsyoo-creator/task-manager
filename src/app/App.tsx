@@ -179,6 +179,7 @@ function App() {
                 teamMembers={teamMembers}
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
+                metaFields={selectedTeam?.metaFields}
               />
             } />
             <Route path="/calendar" element={

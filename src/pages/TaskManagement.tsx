@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -21,6 +21,7 @@ interface Props {
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
   builtinFields?: BuiltinFieldConfig[];
+  metaFields?: MetaField[];
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -57,7 +58,7 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
       cols.push(`${fc.width}px`);
     }
   }
-  cols.push('48px'); // copy + delete
+  cols.push('56px'); // expand + copy + delete
   return cols.join(' ');
 }
 
@@ -69,7 +70,7 @@ function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }
-  w += 48; colCount++; // copy + delete
+  w += 56; colCount++; // expand + copy + delete
   w += (colCount - 1) * 12; // gap-x-3
   w += 24; // px-3 양쪽
   return w;
@@ -79,7 +80,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -183,29 +184,34 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <div className="py-14 text-center text-sm text-gray-400">등록된 업무가 없습니다</div>
         )}
 
-        {filtered.map(task => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            onUpdate={onUpdateTask}
-            onDelete={onDeleteTask}
-            onOpenDetail={() => onOpenDetail(task.id)}
-            onCopy={() => handleCopyTask(task)}
-            canManage={canManage}
-            assignees={assignees}
-            teamMembers={teamMembers}
-            tableFields={tableFields}
-            statusConfigs={statusConfigs}
-            colTemplate={colTemplate}
-            colMinWidth={colMinWidth}
-            isDragging={dragId === task.id}
-            isDragOver={dragOverId === task.id}
-            onDragStart={() => setDragId(task.id)}
-            onDragOver={() => setDragOverId(task.id)}
-            onDrop={() => handleDrop(task.id)}
-            onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-          />
-        ))}
+        {filtered.map(task => {
+          const taskPart = parts?.find(p => p.name === task.category);
+          const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields;
+          return (
+            <TaskRow
+              key={task.id}
+              task={task}
+              onUpdate={onUpdateTask}
+              onDelete={onDeleteTask}
+              onOpenDetail={() => onOpenDetail(task.id)}
+              onCopy={() => handleCopyTask(task)}
+              canManage={canManage}
+              assignees={assignees}
+              teamMembers={teamMembers}
+              tableFields={tableFields}
+              statusConfigs={statusConfigs}
+              colTemplate={colTemplate}
+              colMinWidth={colMinWidth}
+              metaFields={resolvedMetaFields}
+              isDragging={dragId === task.id}
+              isDragOver={dragOverId === task.id}
+              onDragStart={() => setDragId(task.id)}
+              onDragOver={() => setDragOverId(task.id)}
+              onDrop={() => handleDrop(task.id)}
+              onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+            />
+          );
+        })}
       </div>
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={onAddTask}
@@ -228,7 +234,7 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -241,6 +247,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
   statusConfigs: StatusConfig[];
   colTemplate: string;
   colMinWidth: number;
+  metaFields?: MetaField[];
   isDragging: boolean;
   isDragOver: boolean;
   onDragStart: () => void;
@@ -248,6 +255,8 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
   onDrop: () => void;
   onDragEnd: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
 
   const totalH = (() => {
     if (task.subTaskData && Object.keys(task.subTaskData).length > 0) {
@@ -417,15 +426,45 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           return [];
         })}
 
-        {canManage ? (
-          <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-end gap-1.5">
+          <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+            title="업무 정보"
+            className={`transition-all ${expanded ? 'text-[#6C63FF]' : 'text-gray-300 hover:text-[#6C63FF]'}`}>
+            <ChevronDown size={11} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+          </button>
+          {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}
               title="복사" className="text-gray-300 hover:text-[#6C63FF] transition-colors"><Copy size={11} /></button>
-            <button onClick={() => onDelete(task.id)}
+            <button onClick={e => { e.stopPropagation(); onDelete(task.id); }}
               className="text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={11} /></button>
-          </div>
-        ) : <span />}
+          </>}
+        </div>
       </div>
+
+      {expanded && (
+        <div className="overflow-x-auto bg-gray-50/70 border-b border-black/4 px-8 py-2.5" style={{ minWidth: colMinWidth }}>
+          {filledMeta.length > 0 ? (
+            <div className="flex items-center gap-5 min-w-max">
+              {filledMeta.map(f => {
+                const val = task.customFields![f.key];
+                return (
+                  <div key={f.key} className="flex items-center gap-1.5 text-xs shrink-0">
+                    <span className="text-gray-400">{f.label}</span>
+                    {f.isUrl ? (
+                      <a href={val} target="_blank" rel="noopener noreferrer"
+                        className="text-blue-500 hover:text-blue-700 underline max-w-[200px] truncate">{val}</a>
+                    ) : (
+                      <span className="text-gray-700 font-medium">{val}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <span className="text-xs text-gray-400">업무 정보 없음</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

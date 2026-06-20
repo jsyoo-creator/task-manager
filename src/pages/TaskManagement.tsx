@@ -426,7 +426,7 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
           return [];
         })}
 
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 border-l border-gray-100 pl-3">
           <button onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
             title="업무 정보"
             className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all border ${
@@ -447,26 +447,32 @@ function TaskRow({ task, onUpdate, onDelete, onOpenDetail, onCopy, canManage, as
       </div>
 
       {expanded && (
-        <div className="overflow-x-auto bg-gray-50 border-b border-black/6 px-6 py-3" style={{ minWidth: colMinWidth }}>
+        <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: colMinWidth }}>
           {filledMeta.length > 0 ? (
-            <div className="flex items-stretch gap-2.5 min-w-max">
-              {filledMeta.map(f => {
-                const val = task.customFields![f.key];
-                return (
-                  <div key={f.key} className="flex flex-col gap-0.5 bg-white border border-gray-100 rounded-lg px-3 py-2 shrink-0 shadow-sm min-w-[80px]">
-                    <span className="text-[10px] text-gray-400 font-medium">{f.label}</span>
-                    {f.isUrl ? (
-                      <a href={val} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:text-blue-700 underline max-w-[200px] truncate">{val}</a>
-                    ) : (
-                      <span className="text-xs text-gray-800 font-semibold truncate max-w-[160px]">{val}</span>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto">
+              <div className="flex divide-x divide-gray-100 min-w-max pl-8">
+                {filledMeta.map(f => {
+                  const val = task.customFields![f.key];
+                  return (
+                    <div key={f.key} className="flex flex-col px-5 py-3 shrink-0">
+                      <span className="text-[10px] text-gray-400 font-medium mb-1">{f.label}</span>
+                      {f.isUrl ? (
+                        <a href={val} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:text-blue-700 max-w-[220px] truncate">
+                          {val}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
-            <span className="text-xs text-gray-400">업무 정보 없음</span>
+            <div className="px-8 py-3">
+              <span className="text-xs text-gray-400">업무 정보 없음</span>
+            </div>
           )}
         </div>
       )}

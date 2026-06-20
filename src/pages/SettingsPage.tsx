@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, StatusConfig, TaskStatus } from '../types';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, resolveStatusConfigs } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -646,7 +646,22 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
                     <button
                       type="button"
                       title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingKey(fc.key); setLabelInput(fc.customLabel ?? ''); setTypeInput(fc.customType ?? 'default'); setBuiltinDeptInput(fc.department ?? ''); setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']); setBuiltinOptionColors(fc.optionColors ?? {}); setBuiltinColorPickerIdx(null); }}
+                      onClick={() => {
+                        setEditingKey(fc.key);
+                        setLabelInput(fc.customLabel ?? '');
+                        setBuiltinDeptInput(fc.department ?? '');
+                        setBuiltinColorPickerIdx(null);
+                        // 상태 필드: 옵션 없으면 기본 4가지 상태로 자동 채움 + 드롭다운 모드 강제
+                        if (fc.key === 'status' && !fc.options?.length) {
+                          setTypeInput('select');
+                          setBuiltinOptionsInput([...DEFAULT_STATUS_CONFIGS.map(s => s.label), '']);
+                          setBuiltinOptionColors(Object.fromEntries(DEFAULT_STATUS_CONFIGS.map(s => [s.label, { bg: s.bg, text: s.text }])));
+                        } else {
+                          setTypeInput(fc.customType ?? 'default');
+                          setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']);
+                          setBuiltinOptionColors(fc.optionColors ?? {});
+                        }
+                      }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {label}
                       {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
@@ -808,54 +823,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   );
 }
 
-// ── 진행 상태 편집기 ──
-function StatusEditor({ statusConfigs, onSave }: {
-  statusConfigs: StatusConfig[];
-  onSave: (configs: StatusConfig[]) => void;
-}) {
-  const [configs, setConfigs] = useState<StatusConfig[]>(statusConfigs);
-  useEffect(() => setConfigs(statusConfigs), [JSON.stringify(statusConfigs)]);
-
-  const update = (key: TaskStatus, patch: Partial<StatusConfig>) => {
-    const updated = configs.map(c => c.key === key ? { ...c, ...patch } : c);
-    setConfigs(updated);
-    onSave(updated);
-  };
-
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">진행 상태 설정</p>
-      <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
-        {configs.map(cfg => (
-          <div key={cfg.key} className="flex items-center gap-2 py-2 px-2.5">
-            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 min-w-[56px] text-center"
-              style={{ backgroundColor: cfg.bg, color: cfg.text }}>
-              {cfg.label}
-            </span>
-            <input
-              className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-800 focus:outline-none focus:border-blue-400 w-24 flex-shrink-0"
-              value={cfg.label}
-              onChange={e => update(cfg.key, { label: e.target.value })}
-            />
-            <div className="flex items-center gap-0.5 flex-wrap">
-              {STATUS_COLOR_PRESETS.map(preset => {
-                const isActive = cfg.bg === preset.bg;
-                return (
-                  <button key={preset.label} type="button" title={preset.label}
-                    onClick={() => update(cfg.key, { bg: preset.bg, text: preset.text })}
-                    className={`w-4 h-4 rounded-full flex-shrink-0 transition-all ${isActive ? 'ring-2 ring-offset-1 ring-gray-500 scale-110' : 'hover:scale-110'}`}
-                    style={{ backgroundColor: preset.bg, border: `1.5px solid ${preset.text}` }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
   team: Team;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
@@ -875,7 +842,6 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 
   const fields = resolveBuiltinFields(rawConfig);
   const customFields = rawConfig?.customFields ?? [];
-  const currentStatusConfigs = resolveStatusConfigs(rawConfig);
 
   const makeConfig = (overrides: Partial<TeamFormConfig>): TeamFormConfig => ({
     builtinFields: fields,
@@ -892,12 +858,6 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 
   const saveCustom = (newCustom: CustomFormField[]) => {
     const config = makeConfig({ customFields: newCustom });
-    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
-    else onUpdatePartFormConfig(team.id, selectedTarget, config);
-  };
-
-  const saveStatusConfigs = (newStatusConfigs: StatusConfig[]) => {
-    const config = makeConfig({ statusConfigs: newStatusConfigs });
     if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
     else onUpdatePartFormConfig(team.id, selectedTarget, config);
   };
@@ -965,9 +925,6 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
       />
-      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
-        <StatusEditor statusConfigs={currentStatusConfigs} onSave={saveStatusConfigs} />
-      </div>
     </div>
   );
 }

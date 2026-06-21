@@ -78,9 +78,16 @@ function getWeekDays(startDate: string, endDate?: string) {
   });
 }
 
+function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
+  if (!name) return null;
+  return photoURL
+    ? <img src={photoURL} alt={name} className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
+    : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
+}
+
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage,
-  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig,
+  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
 }: {
   task: Task;
   onClose: () => void;
@@ -93,6 +100,7 @@ export default function TaskDetailPanel({
   subTaskTypes?: SubTaskType[];
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
+  userPhotoMap?: Map<string, string>;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const builtinFields = resolveBuiltinFields(formConfig);
@@ -373,12 +381,15 @@ export default function TaskDetailPanel({
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
                   {canManage ? (
-                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                      value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                      <option value="">-</option>
-                      {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
-                    </select>
-                  ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
+                    <div className="flex items-center gap-1.5">
+                      <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
+                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate"
+                        value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                        <option value="">-</option>
+                        {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
+                      </select>
+                    </div>
+                  ) : <span className="flex items-center gap-1.5"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
                 </div>
               </>
             ) : (
@@ -386,12 +397,15 @@ export default function TaskDetailPanel({
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
                   {canManage ? (
-                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                      value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                      <option value="">-</option>
-                      {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
-                    </select>
-                  ) : <span className="text-sm text-gray-700">{task.assignee}</span>}
+                    <div className="flex items-center gap-1.5">
+                      <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
+                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate"
+                        value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                        <option value="">-</option>
+                        {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
+                      </select>
+                    </div>
+                  ) : <span className="flex items-center gap-1.5"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('receiver')}</p>

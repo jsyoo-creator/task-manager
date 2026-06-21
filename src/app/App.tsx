@@ -276,6 +276,7 @@ function App() {
                 metaFields={selectedTeam?.metaFields}
                 currentUserName={currentUserName}
                 canSeeAll={canSeeAll}
+                userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
               />
             } />
             <Route path="/calendar" element={
@@ -341,6 +342,7 @@ function App() {
               subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
               teamMembers={teamMembers}
               formConfig={resolvedFormConfig}
+              userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
             />
           );
         })()}

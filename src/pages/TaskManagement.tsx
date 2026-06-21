@@ -25,6 +25,7 @@ interface Props {
   metaFields?: MetaField[];
   currentUserName?: string;
   canSeeAll?: boolean;
+  userPhotoMap?: Map<string, string>;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -83,7 +84,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -246,6 +247,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               onDragOver={() => setDragOverId(task.id)}
               onDrop={() => handleDrop(task.id)}
               onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+              userPhotoMap={userPhotoMap}
             />
           );
         })}
@@ -278,7 +280,14 @@ function FilterSelect({ label, value, onChange, children }: {
   );
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd }: {
+function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
+  if (!name) return null;
+  return photoURL
+    ? <img src={photoURL} alt={name} className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
+    : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
+}
+
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -301,6 +310,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   onDragOver: () => void;
   onDrop: () => void;
   onDragEnd: () => void;
+  userPhotoMap?: Map<string, string>;
 }) {
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
 
@@ -433,11 +443,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
             return [
-              <select key="assignee" className={`${sel} text-gray-700`} value={task.assignee}
-                onChange={e => onUpdate(task.id, { assignee: e.target.value })} onClick={e => e.stopPropagation()}>
-                <option value="">-</option>
-                {aopts.map(a => <option key={a}>{a}</option>)}
-              </select>
+              <div key="assignee" className="flex items-center gap-1.5 min-w-0" onClick={e => e.stopPropagation()}>
+                <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
+                <select className={`${sel} text-gray-700 flex-1 min-w-0`} value={task.assignee}
+                  onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                  <option value="">-</option>
+                  {aopts.map(a => <option key={a}>{a}</option>)}
+                </select>
+              </div>
             ];
           }
           if (fc.key === 'taskMonth') return [

@@ -101,11 +101,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
 
-  // 엑셀 컬럼 매핑 (label → key)
-  const excelFields = excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
-  const labelToKey = Object.fromEntries(excelFields.map(f => [f.label, f.key]));
-
-  // customLabel 반영 — 폼설정에서 명칭 변경 시 엑셀 컬럼도 동기화
+  // customLabel 반영 — 폼설정 명칭 변경 시 엑셀 컬럼도 동기화
   const bLabel = (key: string, fallback: string) =>
     builtinFields.find(f => f.key === key)?.customLabel ?? fallback;
 
@@ -120,6 +116,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     startDate: bLabel('startDate', '시작일'),
     endDate:   bLabel('endDate', '종료일'),
   };
+
+  // excelConfig의 구 레이블을 builtinLabels 기준으로 동기화
+  const excelFields = (excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
+    .map(f => ({ ...f, label: builtinLabels[f.key] ?? f.label }));
+  const labelToKey = Object.fromEntries(excelFields.map(f => [f.label, f.key]));
 
   const getExcelHeaders = () =>
     excelFields.length > 0

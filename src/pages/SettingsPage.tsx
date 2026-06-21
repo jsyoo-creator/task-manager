@@ -542,7 +542,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSa
   };
 
   return (
-    <div className={`space-y-4 ${isInherited ? 'opacity-60 pointer-events-none' : ''}`}>
+    <div className="space-y-4">
       {/* 기본 필드 */}
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
@@ -1070,7 +1070,7 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
       )}
 
       {/* 필드 목록 */}
-      <div className={isInherited ? 'opacity-60 pointer-events-none' : ''}>
+      <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
           기본 필드
           <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>

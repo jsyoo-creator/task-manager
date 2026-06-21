@@ -99,13 +99,26 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[]; dupes: number[] } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
+  const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
+
   // 엑셀 컬럼 매핑 (label → key)
   const excelFields = excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
   const labelToKey = Object.fromEntries(excelFields.map(f => [f.label, f.key]));
 
+  // customLabel 반영 — 폼설정에서 명칭 변경 시 엑셀 컬럼도 동기화
+  const bLabel = (key: string, fallback: string) =>
+    builtinFields.find(f => f.key === key)?.customLabel ?? fallback;
+
   const builtinLabels: Record<string, string> = {
-    taskMonth: '월', title: '업무명', category: '파트', type: '유형', status: '상태',
-    receiver: '접수자', assignee: '담당자', startDate: '시작일', endDate: '종료일',
+    taskMonth: bLabel('taskMonth', '월'),
+    title:     bLabel('title', '업무명'),
+    category:  bLabel('category', '파트'),
+    type:      bLabel('type', '유형'),
+    status:    bLabel('status', '상태'),
+    receiver:  bLabel('receiver', '접수자'),
+    assignee:  bLabel('assignee', '담당자'),
+    startDate: bLabel('startDate', '시작일'),
+    endDate:   bLabel('endDate', '종료일'),
   };
 
   const getExcelHeaders = () =>
@@ -131,11 +144,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       });
       return row;
     }
-    return {
-      '월': t.taskMonth ?? '', '업무명': t.title, '파트': t.category,
-      '유형': t.type, '상태': t.status, '접수자': t.receiver,
-      '담당자': t.assignee, '시작일': t.startDate, '종료일': t.endDate,
-    };
+    return Object.fromEntries(
+      Object.entries(builtinLabels).map(([key, label]) => {
+        const val: Record<string, string | undefined> = {
+          taskMonth: t.taskMonth, title: t.title, category: t.category,
+          type: t.type, status: t.status, receiver: t.receiver,
+          assignee: t.assignee, startDate: t.startDate, endDate: t.endDate,
+        };
+        return [label, val[key] ?? ''];
+      })
+    );
   };
 
   const handleExcelExport = () => {
@@ -164,11 +182,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         };
         const keyMap = excelFields.length > 0
           ? Object.fromEntries(excelFields.map(f => [f.key, row[f.label] ?? '']))
-          : {
-              taskMonth: row['월'], title: row['업무명'], category: row['파트'],
-              type: row['유형'], status: row['상태'], receiver: row['접수자'],
-              assignee: row['담당자'], startDate: row['시작일'], endDate: row['종료일'],
-            };
+          : Object.fromEntries(Object.entries(builtinLabels).map(([key, label]) => [key, row[label] ?? '']));
 
         const customFields: Record<string, string> = {};
         if (excelFields.length > 0) {
@@ -222,7 +236,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setImportPreview(null);
   };
 
-  const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
   const statusConfigs = resolveStatusConfigs(formConfig);
   const colTemplate = buildCols(tableFields);

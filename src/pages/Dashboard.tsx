@@ -223,6 +223,10 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
   // ── 집계 필드 선택 ──────────────────────────────
   const fieldOptions = useMemo(() => buildFieldOptions(formConfig, parts), [formConfig, parts]);
+  const assigneeLabel = useMemo(() => {
+    const bf = resolveBuiltinFields(formConfig).find(f => f.key === 'assignee');
+    return bf?.customLabel ?? '담당자';
+  }, [formConfig]);
   const [statField, setStatField] = useState('status');
 
   // 선택 필드 값 목록
@@ -553,7 +557,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           </Card>
 
           <Card
-            title="담당자별 세부업무 현황"
+            title={`${assigneeLabel}별 세부업무 현황`}
             action={
               <div className="flex gap-0.5 p-0.5 rounded-lg bg-gray-100">
                 {(['count', 'hours'] as const).map((v, i) => (
@@ -576,7 +580,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                     className="grid text-[10px] font-semibold text-gray-400 pb-2 mb-1 border-b border-black/5"
                     style={{ gridTemplateColumns: `1fr repeat(${activeMonthKeys.length}, 64px) 44px` }}
                   >
-                    <span>담당자</span>
+                    <span>{assigneeLabel}</span>
                     {activeMonthKeys.map(k => <span key={k} className="text-center">{k}</span>)}
                     <span className="text-center">합계</span>
                   </div>

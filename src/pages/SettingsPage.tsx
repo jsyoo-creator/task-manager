@@ -6,6 +6,7 @@ import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinField
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import DatePicker from '../components/DatePicker';
 
 interface Props {
   appUser: AppUser;
@@ -1409,8 +1410,8 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
         <div>
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">추가 휴일 등록</p>
           <div className="flex items-center gap-2">
-            <input type="date" className={iCls}
-              value={dateInput} onChange={e => setDateInput(e.target.value)} />
+            <DatePicker value={dateInput} onChange={setDateInput}
+              btnClassName="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-32" />
             <input className={`${iCls} flex-1 min-w-0`}
               placeholder="휴일명 입력"
               value={nameInput} onChange={e => setNameInput(e.target.value)}

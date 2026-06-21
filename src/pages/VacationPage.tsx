@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
-import type { Vacation, AppUser } from '../types';
+import type { Vacation, VacationType, AppUser } from '../types';
 
 interface Props {
   vacations: Vacation[];
@@ -11,8 +11,14 @@ interface Props {
   onDeleteVacation: (id: string) => void;
 }
 
-const VACATION_TYPES: Vacation['type'][] = ['연차', '반차', '오반반차', '공온반차'];
-const VACATION_DAYS: Record<Vacation['type'], number> = { '연차': 1, '반차': 0.5, '오반반차': 0.5, '공온반차': 0.5 };
+const VACATION_TYPES: VacationType[] = ['연차', '오전반반차', '오전반차', '오후반반차', '오후반차'];
+const VACATION_DAYS: Record<VacationType, number> = {
+  '연차': 1,
+  '오전반반차': 0.25,
+  '오전반차': 0.5,
+  '오후반반차': 0.25,
+  '오후반차': 0.5,
+};
 const ANNUAL_TOTAL = 15;
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -35,8 +41,12 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const [form, setForm] = useState({
     memberName: currentUserName || teamMembers[0]?.displayName || '',
     date: '',
-    type: '연차' as Vacation['type'],
+    type: '연차' as VacationType,
   });
+
+  // 내 휴가 신청 폼
+  const [showMyForm, setShowMyForm] = useState(false);
+  const [myForm, setMyForm] = useState({ date: '', type: '연차' as VacationType, annualDays: 1 });
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
@@ -82,6 +92,16 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     onAddVacation({ memberId: member?.uid ?? '', memberName: form.memberName, date: form.date, type: form.type, days: VACATION_DAYS[form.type] });
     setForm(f => ({ ...f, date: '' }));
     setShowForm(false);
+  };
+
+  const handleMySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!myForm.date) return;
+    const me = teamMembers.find(m => m.displayName === currentUserName);
+    const days = myForm.type === '연차' ? myForm.annualDays : VACATION_DAYS[myForm.type];
+    onAddVacation({ memberId: me?.uid ?? '', memberName: currentUserName, date: myForm.date, type: myForm.type, days });
+    setMyForm({ date: '', type: '연차', annualDays: 1 });
+    setShowMyForm(false);
   };
 
   const mePhotoURL = userPhotoMap?.get(currentUserName) || teamMembers.find(m => m.displayName === currentUserName)?.photoURL;
@@ -209,11 +229,49 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                   <div key={v.id} className="flex items-center gap-1.5 bg-black/3 rounded-lg px-2 py-1 group">
                     <span className="text-[11px] text-gray-500">{v.date.slice(5).replace('-', '/')}</span>
                     <span className={`text-[11px] font-medium ${v.type === '연차' ? 'text-blue-500' : 'text-amber-500'}`}>{v.type}</span>
+                    {v.type === '연차' && v.days > 1 && <span className="text-[11px] text-gray-400">{v.days}일</span>}
                     <button onClick={() => onDeleteVacation(v.id)} className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={10} /></button>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* 내 휴가 신청 */}
+            <div className="mt-3 pt-3 border-t border-black/5">
+              {showMyForm ? (
+                <form onSubmit={handleMySubmit} className="space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      className="flex-1 glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
+                      value={myForm.type}
+                      onChange={e => setMyForm(f => ({ ...f, type: e.target.value as VacationType }))}>
+                      {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                    {myForm.type === '연차' && (
+                      <div className="flex items-center gap-1 glass-card !rounded-lg px-2.5 py-1.5 shrink-0">
+                        <button type="button" onClick={() => setMyForm(f => ({ ...f, annualDays: Math.max(1, f.annualDays - 1) }))}
+                          className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">−</button>
+                        <span className="text-xs text-gray-700 w-6 text-center">{myForm.annualDays}일</span>
+                        <button type="button" onClick={() => setMyForm(f => ({ ...f, annualDays: f.annualDays + 1 }))}
+                          className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">+</button>
+                      </div>
+                    )}
+                  </div>
+                  <input type="date" required
+                    className="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
+                    value={myForm.date} onChange={e => setMyForm(f => ({ ...f, date: e.target.value }))} />
+                  <div className="flex gap-2">
+                    <button type="submit" className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600">신청</button>
+                    <button type="button" onClick={() => setShowMyForm(false)} className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
+                  </div>
+                </form>
+              ) : (
+                <button onClick={() => setShowMyForm(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-blue-500 hover:bg-blue-50 rounded-lg border border-blue-100 transition-colors">
+                  <Plus size={12} /> 휴가 신청
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 팀 전체 현황 */}

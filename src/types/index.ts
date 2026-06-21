@@ -314,12 +314,14 @@ export interface Member {
   createdAt: string;
 }
 
+export type VacationType = '연차' | '오전반반차' | '오전반차' | '오후반반차' | '오후반차';
+
 export interface Vacation {
   id: string;
   memberId: string;
   memberName: string;
-  date: string; // YYYY-MM-DD
-  type: '연차' | '반차' | '오반반차' | '공온반차';
-  days: number; // 1 or 0.5
+  date: string; // YYYY-MM-DD (연차 다일 경우 시작일)
+  type: VacationType;
+  days: number;
   createdAt: string;
 }

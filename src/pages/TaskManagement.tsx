@@ -127,33 +127,31 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       ? excelFields.map(f => f.label)
       : Object.values(builtinLabels);
 
+  // 2026-06 → 6월 변환
+  const fmtMonth = (v?: string) => {
+    if (!v) return '';
+    const m = v.match(/^\d{4}-(\d{2})$/);
+    return m ? `${parseInt(m[1])}월` : v;
+  };
+
+  const taskVal = (t: Task, key: string): string => {
+    if (key === 'taskMonth') return fmtMonth(t.taskMonth);
+    const map: Record<string, string | undefined> = {
+      title: t.title, category: t.category, type: t.type,
+      status: t.status, receiver: t.receiver, assignee: t.assignee,
+      startDate: t.startDate, endDate: t.endDate,
+    };
+    return map[key] ?? t.customFields?.[key] ?? '';
+  };
+
   const taskToRow = (t: Task): Record<string, string> => {
     if (excelFields.length > 0) {
       const row: Record<string, string> = {};
-      excelFields.forEach(f => {
-        const bLabel = builtinLabels[f.key];
-        if (bLabel !== undefined) {
-          const val: Record<string, string | undefined> = {
-            taskMonth: t.taskMonth, title: t.title, category: t.category,
-            type: t.type, status: t.status, receiver: t.receiver,
-            assignee: t.assignee, startDate: t.startDate, endDate: t.endDate,
-          };
-          row[f.label] = val[f.key] ?? '';
-        } else {
-          row[f.label] = t.customFields?.[f.key] ?? '';
-        }
-      });
+      excelFields.forEach(f => { row[f.label] = taskVal(t, f.key); });
       return row;
     }
     return Object.fromEntries(
-      Object.entries(builtinLabels).map(([key, label]) => {
-        const val: Record<string, string | undefined> = {
-          taskMonth: t.taskMonth, title: t.title, category: t.category,
-          type: t.type, status: t.status, receiver: t.receiver,
-          assignee: t.assignee, startDate: t.startDate, endDate: t.endDate,
-        };
-        return [label, val[key] ?? ''];
-      })
+      Object.entries(builtinLabels).map(([key, label]) => [label, taskVal(t, key)])
     );
   };
 

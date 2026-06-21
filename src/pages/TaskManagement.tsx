@@ -429,11 +429,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const ropts = base.includes(task.receiver) ? base : (task.receiver ? [task.receiver, ...base] : base);
             return [
-              <select key="receiver" className={`${sel} text-gray-600`} value={task.receiver}
-                onChange={e => onUpdate(task.id, { receiver: e.target.value })} onClick={e => e.stopPropagation()}>
-                <option value="">-</option>
-                {ropts.map(a => <option key={a}>{a}</option>)}
-              </select>
+              <div key="receiver" className="flex items-center gap-1 min-w-0" onClick={e => e.stopPropagation()}>
+                <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
+                <select className={`${sel} text-gray-600 flex-1 min-w-0`} value={task.receiver}
+                  onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                  <option value="">-</option>
+                  {ropts.map(a => <option key={a}>{a}</option>)}
+                </select>
+              </div>
             ];
           }
           if (fc.key === 'assignee') {
@@ -443,7 +446,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
             return [
-              <div key="assignee" className="flex items-center gap-1.5 min-w-0" onClick={e => e.stopPropagation()}>
+              <div key="assignee" className="flex items-center gap-1 min-w-0" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
                 <select className={`${sel} text-gray-700 flex-1 min-w-0`} value={task.assignee}
                   onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
@@ -548,10 +551,11 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   );
 }
 
-function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
+function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap }: {
   sub: SubTask; onDelete: () => void;
   tableFields: BuiltinFieldConfig[];
   colTemplate: string;
+  userPhotoMap?: Map<string, string>;
 }) {
   const totalH = Object.values(sub.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
   const SUB_STATUS: Record<string, string> = {
@@ -581,8 +585,8 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate }: {
         ];
         if (fc.key === 'type')      return [<span key="type" className="text-xs text-gray-400">{sub.type}</span>];
         if (fc.key === 'status')    return [<span key="status" className={`text-xs font-medium px-1.5 py-0.5 rounded-full w-fit whitespace-nowrap ${SUB_STATUS[sub.status]}`}>{sub.status}</span>];
-        if (fc.key === 'receiver')  return [<span key="receiver" className="text-xs text-gray-400">{sub.receiver}</span>];
-        if (fc.key === 'assignee')  return [<span key="assignee" className="text-xs text-gray-600">{sub.assignee}</span>];
+        if (fc.key === 'receiver')  return [<span key="receiver" className="flex items-center gap-1"><MiniAvatar name={sub.receiver} photoURL={userPhotoMap?.get(sub.receiver)} /><span className="text-xs text-gray-400 truncate">{sub.receiver}</span></span>];
+        if (fc.key === 'assignee')  return [<span key="assignee" className="flex items-center gap-1"><MiniAvatar name={sub.assignee} photoURL={userPhotoMap?.get(sub.assignee)} /><span className="text-xs text-gray-600 truncate">{sub.assignee}</span></span>];
         if (fc.key === 'startDate') return [<span key="startDate" className="text-xs text-gray-400">{sub.startDate?.slice(5).replace('-', '.') ?? '-'}</span>];
         if (fc.key === 'endDate')   return [<span key="endDate" className="text-xs text-gray-400">{sub.endDate?.slice(5).replace('-', '.') ?? '-'}</span>];
         if (fc.key === 'weeklyHours') return [

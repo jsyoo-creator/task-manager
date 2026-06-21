@@ -185,9 +185,6 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                   <span className={`text-sm font-bold leading-none ${
                     isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-700'
                   }`}>{month}/{date}</span>
-                  {holidayName && (
-                    <span className="w-1 h-1 rounded-full bg-red-400 mt-1.5" />
-                  )}
                 </div>
               );
             })}

@@ -222,7 +222,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const lines      = [`[${task.type}] ${taskDate} ${task.title}`];
                 subs.forEach(s => {
                   const sd = fmtSub(s.endDate || s.startDate);
-                  lines.push(`└ ${s.title}${sd ? ` (${sd})` : ''}`);
+                  lines.push(`- ${s.title}${sd ? ` (${sd})` : ''}`);
                 });
                 const desc = lines.length > 1
                   ? `"${lines.join('\n').replace(/"/g, '""')}"`

@@ -252,29 +252,32 @@ export default function TaskDetailPanel({
               const lbl = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
               if (fc.key === 'status') {
                 if (fc.customType === 'select' && fc.options?.length) {
-                  const custColor = fc.optionColors?.[task.status];
+                  const firstOpt = fc.options[0] ?? '';
+                  const effStatus = (task.status as string) || firstOpt;
+                  const custColor = fc.optionColors?.[effStatus];
+                  const fallbackSc = statusConfigs.find(s => s.key.replace(/\s/g,'') === effStatus.replace(/\s/g,'')) ?? statusConfigs[0];
+                  const bg = custColor?.bg ?? fallbackSc?.bg;
+                  const textColor = custColor?.text ?? fallbackSc?.text;
                   return (
                     <div key="status">
                       <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
                       {canManage ? (
-                        custColor ? (
-                          <div className="relative block w-full">
-                            <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
-                              style={{ backgroundColor: custColor.bg, color: custColor.text }}>
-                              <span>{task.status}</span><ChevronDown size={9} />
-                            </div>
-                            <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.status}
-                              onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                              {fc.options.map(o => <option key={o}>{o}</option>)}
-                            </select>
+                        <div className="relative block w-full">
+                          <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                            style={{ backgroundColor: bg, color: textColor }}>
+                            <span>{effStatus}</span><ChevronDown size={9} />
                           </div>
-                        ) : (
-                          <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                            value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                          <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={effStatus}
+                            onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
                             {fc.options.map(o => <option key={o}>{o}</option>)}
                           </select>
-                        )
-                      ) : <span className="text-sm text-gray-700">{task.status}</span>}
+                        </div>
+                      ) : (
+                        <span className="flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium"
+                          style={{ backgroundColor: bg, color: textColor }}>
+                          {effStatus}
+                        </span>
+                      )}
                     </div>
                   );
                 }

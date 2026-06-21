@@ -90,6 +90,13 @@ function fmtSub(dateStr: string) {
   const [, m, d] = dateStr.split('-');
   return `${m}. ${d}`;
 }
+// 시작일이 이번 주 월요일 이전이면 월요일로 대체
+function effectiveStart(dateStr: string, weekMonday: Date): string {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt < weekMonday ? fmtMain(`${weekMonday.getFullYear()}-${String(weekMonday.getMonth()+1).padStart(2,'0')}-${String(weekMonday.getDate()).padStart(2,'0')}`) : fmtMain(dateStr);
+}
 
 export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [] }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
@@ -218,10 +225,16 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const isNew      = task.type === '신규'  ? 1 : 0;
                 const isDerived  = task.type === '파생'  ? 1 : 0;
                 const isOther    = (task.type !== '신규' && task.type !== '파생') ? 1 : 0;
-                const taskDate   = fmtMain(task.endDate || task.startDate);
-                const lines      = [`[${task.type}] ${taskDate} ${task.title}`];
+                const dateRange = (rawStart: string, rawEnd: string) => {
+                  const s = effectiveStart(rawStart, start);
+                  const e = fmtMain(rawEnd || rawStart);
+                  if (!s && !e) return '';
+                  return s && e && s !== e ? `${s}~${e}` : (e || s);
+                };
+                const taskDate = dateRange(task.startDate, task.endDate || task.startDate);
+                const lines = [`[${task.type}] ${taskDate} ${task.title}`];
                 subs.forEach(s => {
-                  const sd = fmtSub(s.endDate || s.startDate);
+                  const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
                   lines.push(`- ${s.title}${sd ? ` (${sd})` : ''}`);
                 });
                 const desc = lines.length > 1

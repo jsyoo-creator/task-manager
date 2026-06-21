@@ -181,7 +181,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                   <span className="text-[9px] text-red-400 leading-tight mt-0.5 max-w-[52px] truncate" title={holidayName}>{holidayName}</span>
                 )}
               </div>
-            );}}
+            );
+            })}
           </div>
         </div>
         <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />

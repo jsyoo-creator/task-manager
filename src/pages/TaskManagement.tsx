@@ -230,7 +230,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       const r = toAdd[i];
       await onAddTask({
         projectId, teamId: '',
-        title: r.title ?? '', taskMonth: r.taskMonth ?? '',
+        title: r.title ?? '',
+        taskMonth: r.taskMonth || `${yearFilter}-${String(monthFilter).padStart(2, '0')}`,
         category: (r.category as TaskCategory) || (parts?.[0]?.name as TaskCategory) || '' as TaskCategory,
         type: (r.type as TaskType) || '신규',
         status: (r.status as TaskStatus) || '진행 전',

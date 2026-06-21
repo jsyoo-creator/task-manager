@@ -28,7 +28,8 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
-  onUpdateHolidays: (teamId: string, holidays: CustomHoliday[]) => Promise<void>;
+  customHolidays: CustomHoliday[];
+  onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
   orphanTaskCount: number;
   onCleanupOrphanTasks: () => Promise<number>;
 }
@@ -1343,9 +1344,9 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
-function HolidayEditor({ team, onSave, canEdit }: {
-  team: Team;
-  onSave: (teamId: string, holidays: CustomHoliday[]) => Promise<void>;
+function HolidayEditor({ customHolidays, onSave, canEdit }: {
+  customHolidays: CustomHoliday[];
+  onSave: (holidays: CustomHoliday[]) => Promise<void>;
   canEdit: boolean;
 }) {
   const currentYear = new Date().getFullYear();
@@ -1353,18 +1354,16 @@ function HolidayEditor({ team, onSave, canEdit }: {
   const [dateInput, setDateInput] = useState('');
   const [nameInput, setNameInput] = useState('');
 
-  const customHolidays = team.holidays ?? [];
-
   const addHoliday = () => {
     const date = dateInput.trim();
     const name = nameInput.trim();
     if (!date || !name) return;
     const newH: CustomHoliday = { id: `h_${Date.now()}`, date, name, createdAt: new Date().toISOString() };
-    onSave(team.id, [...customHolidays, newH]);
+    onSave([...customHolidays, newH]);
     setDateInput(''); setNameInput('');
   };
 
-  const deleteHoliday = (id: string) => onSave(team.id, customHolidays.filter(h => h.id !== id));
+  const deleteHoliday = (id: string) => onSave(customHolidays.filter(h => h.id !== id));
 
   const allHolidays = [
     ...publicHolidays.map(h => ({ date: h.date, name: h.name, isCustom: false, id: '' })),
@@ -1431,7 +1430,7 @@ function HolidayEditor({ team, onSave, canEdit }: {
   );
 }
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateHolidays, canManageHolidays }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -1446,15 +1445,13 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
-  onUpdateHolidays: (teamId: string, holidays: CustomHoliday[]) => Promise<void>;
-  canManageHolidays: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'holiday'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask'>>({});
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -1568,7 +1565,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5">
-                    {(['parts', 'form', 'meta', 'subtask', 'holiday'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -1576,7 +1573,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : '휴일 관리'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : '세부 업무'}
                       </button>
                     ))}
                   </div>
@@ -1655,17 +1652,6 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                     </div>
                   )}
 
-                  {/* 휴일 관리 탭 */}
-                  {(teamTab[team.id] ?? 'parts') === 'holiday' && (
-                    <div className="px-5 py-4">
-                      <HolidayEditor
-                        team={team}
-                        onSave={onUpdateHolidays}
-                        canEdit={canManageHolidays}
-                      />
-                    </div>
-                  )}
-
                 </div>
               )}
             </div>
@@ -1683,6 +1669,7 @@ export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
   onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes,
+  customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
@@ -1915,6 +1902,24 @@ export default function SettingsPage({
         </div>
       </section>
 
+      {/* 휴일 관리 — 중간 관리자 이상 */}
+      {canManageUsers && (
+        <section className="glass-card">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <CalendarDays size={15} className="text-red-400" />
+            <span className="text-sm font-semibold text-gray-800">휴일 관리</span>
+            <span className="text-xs text-gray-400">캘린더·위클리 전체 반영</span>
+          </div>
+          <div className="px-5 py-4">
+            <HolidayEditor
+              customHolidays={customHolidays}
+              onSave={onUpdateHolidays}
+              canEdit={canManageUsers}
+            />
+          </div>
+        </section>
+      )}
+
       {/* 팀 관리 — 중간 관리자 이상 */}
       {canManageUsers && (
         <TeamSection
@@ -1932,8 +1937,6 @@ export default function SettingsPage({
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
-          onUpdateHolidays={onUpdateHolidays}
-          canManageHolidays={canManageUsers}
         />
       )}
 

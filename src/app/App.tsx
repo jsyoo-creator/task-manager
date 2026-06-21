@@ -23,6 +23,7 @@ import { useVacations } from '../hooks/useVacations';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
+import { useHolidays } from '../hooks/useHolidays';
 import { getPermissions, resolveBuiltinFields, resolveFieldDepts } from '../types';
 import type { Task, TaskCategory, SubTask } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
@@ -43,7 +44,8 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes } = useTeams(user?.uid);
+  const { customHolidays, updateHolidays } = useHolidays();
 
   // activeTeamId 유효성 검사 — 선택 팀 목록이 바뀔 때 보정
   useEffect(() => {
@@ -261,10 +263,10 @@ function App() {
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={appUser?.displayName ?? ''} customHolidays={selectedTeam?.holidays ?? []} />
+              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={appUser?.displayName ?? ''} customHolidays={customHolidays} />
             } />
             <Route path="/weekly" element={
-              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={selectedTeam?.holidays ?? []} />
+              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} />
             } />
             <Route path="/vacation" element={
               <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
@@ -293,6 +295,7 @@ function App() {
                     onUpdateSubTaskTypes={updateSubTaskTypes}
                     onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
+                    customHolidays={customHolidays}
                     onUpdateHolidays={updateHolidays}
                     orphanTaskCount={orphanTaskCount}
                     onCleanupOrphanTasks={() => cleanupOrphanTasks(validCategories)}

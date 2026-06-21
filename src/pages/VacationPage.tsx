@@ -170,9 +170,9 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
           <div className="glass-card p-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">내 휴가현황 — {year}년</p>
             <div className="flex items-center gap-4">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${getDeptColor(teamMembers.find(m => m.displayName === currentUserName) ?? {} as AppUser)}`}>
-                {currentUserName.slice(0, 1)}
-              </div>
+              {(() => { const me = teamMembers.find(m => m.displayName === currentUserName); return me?.photoURL
+                ? <img src={me.photoURL} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                : <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${getDeptColor(me ?? {} as AppUser)}`}>{currentUserName.slice(0, 1)}</div>; })()}
               <div className="flex-1">
                 <p className="text-sm font-semibold text-gray-800 mb-1">{currentUserName}</p>
                 <div className="w-full h-2 bg-gray-100 rounded-full">

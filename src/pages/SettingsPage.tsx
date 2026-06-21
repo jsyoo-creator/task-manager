@@ -1902,24 +1902,6 @@ export default function SettingsPage({
         </div>
       </section>
 
-      {/* 휴일 관리 — 중간 관리자 이상 */}
-      {canManageUsers && (
-        <section className="glass-card">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-            <CalendarDays size={15} className="text-red-400" />
-            <span className="text-sm font-semibold text-gray-800">휴일 관리</span>
-            <span className="text-xs text-gray-400">캘린더·위클리 전체 반영</span>
-          </div>
-          <div className="px-5 py-4">
-            <HolidayEditor
-              customHolidays={customHolidays}
-              onSave={onUpdateHolidays}
-              canEdit={canManageUsers}
-            />
-          </div>
-        </section>
-      )}
-
       {/* 팀 관리 — 중간 관리자 이상 */}
       {canManageUsers && (
         <TeamSection
@@ -1988,6 +1970,24 @@ export default function SettingsPage({
           </div>
         </div>
       </section>
+
+      {/* 휴일 관리 — 중간 관리자 이상 */}
+      {canManageUsers && (
+        <section className="glass-card">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <CalendarDays size={15} className="text-red-400" />
+            <span className="text-sm font-semibold text-gray-800">휴일 관리</span>
+            <span className="text-xs text-gray-400">캘린더·위클리 전체 반영</span>
+          </div>
+          <div className="px-5 py-4">
+            <HolidayEditor
+              customHolidays={customHolidays}
+              onSave={onUpdateHolidays}
+              canEdit={canManageUsers}
+            />
+          </div>
+        </section>
+      )}
 
       {/* 슈퍼어드민 전용: 데이터 마이그레이션 */}
       {appUser.role === 'superadmin' && (

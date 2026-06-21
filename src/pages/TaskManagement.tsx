@@ -240,10 +240,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         };
       }).filter(r => r.title);
 
-      const existingKeysInit = new Set(tasks.map(t => `${t.title.trim()}||${t.category}`));
+      const currentMonth = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
+      const existingKeysInit = new Set(tasks.map(t => `${t.title.trim()}||${t.category}||${t.taskMonth}`));
       const initDupes = new Set(parsed.map((r, i) => {
         const cat = r.category ?? '';
-        return existingKeysInit.has(`${(r.title ?? '').trim()}||${cat}`) ? i : -1;
+        const month = r.taskMonth || currentMonth;
+        return existingKeysInit.has(`${(r.title ?? '').trim()}||${cat}||${month}`) ? i : -1;
       }).filter(i => i >= 0));
       setPreviewCats({});
       setPreviewSkipped(initDupes);
@@ -467,11 +469,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {
-        const existingKeys = new Set(tasks.map(t => `${t.title.trim()}||${t.category}`));
-        // 중복으로 감지된 인덱스 집합
+        const currentMonthStr = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
+        const existingKeys = new Set(tasks.map(t => `${t.title.trim()}||${t.category}||${t.taskMonth}`));
+        // 중복으로 감지된 인덱스 집합 (같은 월+파트+제목)
         const dupeSet = new Set(importPreview.rows.map((r, i) => {
           const cat = previewCats[i] ?? r.category ?? '';
-          return existingKeys.has(`${(r.title ?? '').trim()}||${cat}`) ? i : -1;
+          const month = r.taskMonth || currentMonthStr;
+          return existingKeys.has(`${(r.title ?? '').trim()}||${cat}||${month}`) ? i : -1;
         }).filter(i => i >= 0));
         const registerCount = importPreview.rows.length - previewSkipped.size;
         const close = () => { setImportPreview(null); setPreviewCats({}); setPreviewSkipped(new Set()); };

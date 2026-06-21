@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useHolidayMap } from '../contexts/HolidaysContext';
 
 const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const DAY_LABELS = ['일','월','화','수','목','금','토'];
@@ -13,9 +14,12 @@ interface Props {
   /** 인라인 모드: 버튼 대신 텍스트로 표시 (업무 목록용) */
   compact?: boolean;
   disabled?: boolean;
+  /** 버튼 className 오버라이드 */
+  btnClassName?: string;
 }
 
-export default function DatePicker({ value, onChange, compact, disabled }: Props) {
+export default function DatePicker({ value, onChange, compact, disabled, btnClassName }: Props) {
+  const holidayMap = useHolidayMap();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -76,7 +80,9 @@ export default function DatePicker({ value, onChange, compact, disabled }: Props
 
   const btnClass = compact
     ? 'flex items-center gap-1 text-xs text-gray-600 hover:text-blue-500 transition-colors cursor-pointer'
-    : `${cls} flex items-center justify-between cursor-pointer`;
+    : btnClassName
+      ? `${btnClassName} flex items-center justify-between cursor-pointer`
+      : `${cls} flex items-center justify-between cursor-pointer`;
 
   return (
     <>
@@ -127,14 +133,20 @@ export default function DatePicker({ value, onChange, compact, disabled }: Props
               const dateStr = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
               const isSelected = dateStr === value;
               const isToday = dateStr === todayStr;
+              const holidayName = holidayMap.get(dateStr);
               return (
                 <button key={day} type="button" onClick={() => select(day)}
-                  className={`text-[11px] py-1.5 rounded-lg font-medium transition-colors ${
+                  title={holidayName}
+                  className={`relative text-[11px] py-1.5 rounded-lg font-medium transition-colors ${
                     isSelected ? 'bg-blue-500 text-white' :
                     isToday ? 'bg-blue-50 text-blue-600' :
+                    holidayName ? 'text-red-500 hover:bg-red-50' :
                     'text-gray-700 hover:bg-gray-100'
                   }`}>
                   {day}
+                  {holidayName && !isSelected && (
+                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-red-400" />
+                  )}
                 </button>
               );
             })}

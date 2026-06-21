@@ -24,6 +24,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
+import { usePublicHolidays } from '../hooks/usePublicHolidays';
+import { HolidaysContext } from '../contexts/HolidaysContext';
 import { getPermissions, resolveBuiltinFields, resolveFieldDepts } from '../types';
 import type { Task, TaskCategory, SubTask } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
@@ -46,6 +48,15 @@ function App() {
   const { vacations, addVacation, deleteVacation } = useVacations();
   const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
+  const currentYear = new Date().getFullYear();
+  const { holidays: publicHolidays } = usePublicHolidays(currentYear);
+  const { holidays: nextYearHolidays } = usePublicHolidays(currentYear + 1);
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    [...publicHolidays, ...nextYearHolidays].forEach(h => map.set(h.date, h.name));
+    customHolidays.forEach(h => map.set(h.date, h.name));
+    return map;
+  }, [publicHolidays, nextYearHolidays, customHolidays]);
 
   // activeTeamId 유효성 검사 — 선택 팀 목록이 바뀔 때 보정
   useEffect(() => {
@@ -220,6 +231,7 @@ function App() {
   const permissions = getPermissions(appUser?.role ?? 'user');
 
   return (
+    <HolidaysContext.Provider value={holidayMap}>
     <>
       {!loadingDone && (
         <LoadingScreen
@@ -330,6 +342,7 @@ function App() {
         })()}
       </BrowserRouter>
     </>
+    </HolidaysContext.Provider>
   );
 }
 

@@ -63,7 +63,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const myRemaining = Math.max(0, ANNUAL_TOTAL - myUsed);
 
   const memberStats = useMemo(
-    () => teamMembers.map(m => {
+    () => teamMembers.filter(m => m.displayName !== currentUserName).map(m => {
       const used = vacations.filter(v => v.memberName === m.displayName && v.date.startsWith(yearPrefix)).reduce((a, v) => a + v.days, 0);
       return { user: m, used, remaining: Math.max(0, ANNUAL_TOTAL - used) };
     }),

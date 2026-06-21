@@ -91,6 +91,14 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
     return map;
   }, [publicHolidays, customHolidays]);
 
+  // 이번 주 평일 중 공휴일 수 → 목표시간 조정 (40h - 휴일수 × 8h)
+  const weekHolidayCount = useMemo(() =>
+    weekdays.filter(({ month, date }) =>
+      holidayMap.has(`${now.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`)
+    ).length,
+  [weekdays, holidayMap, now]);
+  const targetH = 40 - weekHolidayCount * 8;
+
   const partColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     parts?.forEach(p => { map[p.name] = TW_TO_HEX[p.color] ?? '#9ca3af'; });
@@ -158,30 +166,30 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
             <p className="page-subtitle">{weekLabel}</p>
           </div>
           {/* 월~금 날짜 카드 */}
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             {weekdays.map(({ name, date, month, isToday }) => {
               const dateStr = `${now.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
               const holidayName = holidayMap.get(dateStr) ?? null;
               return (
-              <div key={name}
-                className={`flex flex-col items-center px-2.5 py-1.5 rounded-xl border text-center transition-colors min-w-[44px] ${
-                  isToday
-                    ? 'border-[#5B5BD6] bg-[#5B5BD6]/5'
-                    : holidayName
-                    ? 'border-red-200 bg-red-50/60'
-                    : 'border-gray-200 bg-white'
-                }`}>
-                <span className={`text-[10px] font-medium leading-none mb-0.5 ${isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-400' : 'text-gray-400'}`}>
-                  {name}
-                </span>
-                <span className={`text-sm font-bold leading-none ${isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-700'}`}>
-                  {month}/{date}
-                </span>
-                {holidayName && (
-                  <span className="text-[9px] text-red-400 leading-tight mt-0.5 max-w-[52px] truncate" title={holidayName}>{holidayName}</span>
-                )}
-              </div>
-            );
+                <div key={name}
+                  className={`flex flex-col items-center w-[72px] px-2 py-2.5 rounded-2xl border text-center ${
+                    isToday
+                      ? 'border-[#5B5BD6] bg-[#5B5BD6]/8'
+                      : holidayName
+                      ? 'border-red-200 bg-red-50'
+                      : 'border-gray-200 bg-white'
+                  }`}>
+                  <span className={`text-[11px] font-semibold leading-none mb-1.5 ${
+                    isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-400' : 'text-gray-400'
+                  }`}>{name}</span>
+                  <span className={`text-base font-bold leading-none ${
+                    isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-800'
+                  }`}>{month}/{date}</span>
+                  {holidayName && (
+                    <span className="text-[10px] text-red-400 font-medium leading-tight mt-1.5 break-keep" style={{ wordBreak: 'keep-all' }}>{holidayName}</span>
+                  )}
+                </div>
+              );
             })}
           </div>
         </div>
@@ -214,13 +222,14 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                     <>
                       <span className="text-gray-200">·</span>
                       <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
-                      {totalH < 40 && (
+                      <span className="text-xs text-gray-300">/ {targetH}h</span>
+                      {totalH < targetH && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500 border border-amber-200">미달</span>
                       )}
-                      {totalH === 40 && (
+                      {totalH === targetH && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">정상</span>
                       )}
-                      {totalH > 40 && (
+                      {totalH > targetH && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">초과</span>
                       )}
                     </>

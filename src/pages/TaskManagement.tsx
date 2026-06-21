@@ -98,6 +98,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
+  const [previewSkipped, setPreviewSkipped] = useState<Set<number>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
 
   const partColor = (cat: string) => parts?.find(p => p.name === cat)?.color ?? 'bg-gray-400';
@@ -239,7 +240,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         };
       }).filter(r => r.title);
 
+      const existingKeysInit = new Set(tasks.map(t => `${t.title.trim()}||${t.category}`));
+      const initDupes = new Set(parsed.map((r, i) => {
+        const cat = r.category ?? '';
+        return existingKeysInit.has(`${(r.title ?? '').trim()}||${cat}`) ? i : -1;
+      }).filter(i => i >= 0));
       setPreviewCats({});
+      setPreviewSkipped(initDupes);
       setImportPreview({ rows: parsed });
     };
     reader.readAsBinaryString(file);
@@ -248,31 +255,27 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const handleImportConfirm = async () => {
     if (!importPreview) return;
-    const existingKeys = new Set(tasks.map(t => `${t.title.trim()}||${t.category}`));
-    const dupeIdxs = new Set(importPreview.rows.map((r, i) => {
-      const cat = previewCats[i] ?? r.category ?? '';
-      return existingKeys.has(`${(r.title ?? '').trim()}||${cat}`) ? i : -1;
-    }).filter(i => i >= 0));
-    const toAdd = importPreview.rows.filter((_, i) => !dupeIdxs.has(i));
+    // previewSkipped에 없는 항목만 등록
+    const toAdd = importPreview.rows.map((r, i) => ({ r, i })).filter(({ i }) => !previewSkipped.has(i));
     const bottom = tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1);
-    for (let i = 0; i < toAdd.length; i++) {
-      const r = toAdd[i];
-      const origIdx = importPreview.rows.indexOf(r);
+    for (let idx = 0; idx < toAdd.length; idx++) {
+      const { r, i } = toAdd[idx];
       await onAddTask({
         projectId, teamId: '',
         title: r.title ?? '',
         taskMonth: r.taskMonth || `${yearFilter}-${String(monthFilter).padStart(2, '0')}`,
-        category: (previewCats[origIdx] ?? r.category as TaskCategory) || (parts?.[0]?.name as TaskCategory) || '' as TaskCategory,
+        category: (previewCats[i] ?? r.category as TaskCategory) || (parts?.[0]?.name as TaskCategory) || '' as TaskCategory,
         type: (r.type as TaskType) || '신규',
-        status: (r.status as TaskStatus) || '진행 전',
+        status: (r.status as TaskStatus) || '',
         receiver: r.receiver ?? '', assignee: r.assignee ?? '',
         startDate: r.startDate ?? '', endDate: r.endDate ?? '',
         weeklyHours: {}, totalHours: 0, revisionLevel: 0,
-        sortOrder: bottom + 1 + i,
+        sortOrder: bottom + 1 + idx,
         ...(r.customFields ? { customFields: r.customFields } : {}),
       });
     }
     setImportPreview(null);
+    setPreviewSkipped(new Set());
   };
 
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
@@ -465,12 +468,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {
         const existingKeys = new Set(tasks.map(t => `${t.title.trim()}||${t.category}`));
+        // 중복으로 감지된 인덱스 집합
         const dupeSet = new Set(importPreview.rows.map((r, i) => {
           const cat = previewCats[i] ?? r.category ?? '';
           return existingKeys.has(`${(r.title ?? '').trim()}||${cat}`) ? i : -1;
         }).filter(i => i >= 0));
-        const newCount = importPreview.rows.length - dupeSet.size;
-        const close = () => { setImportPreview(null); setPreviewCats({}); };
+        const registerCount = importPreview.rows.length - previewSkipped.size;
+        const close = () => { setImportPreview(null); setPreviewCats({}); setPreviewSkipped(new Set()); };
+        const toggleSkip = (i: number) => {
+          setPreviewSkipped(prev => {
+            const next = new Set(prev);
+            if (next.has(i)) next.delete(i); else next.add(i);
+            return next;
+          });
+        };
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
@@ -478,7 +489,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 <div>
                   <h2 className="text-sm font-bold text-gray-800">엑셀 업무 등록 미리보기</h2>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    총 {importPreview.rows.length}건 · 중복 {dupeSet.size}건 제외 · <span className="text-green-600 font-medium">{newCount}건 등록 예정</span>
+                    총 {importPreview.rows.length}건 · 중복 {dupeSet.size}건 ·{' '}
+                    <span className="text-green-600 font-medium">{registerCount}건 등록 예정</span>
+                    {dupeSet.size > 0 && <span className="text-gray-400"> (중복 항목 클릭하면 포함 가능)</span>}
                   </p>
                 </div>
                 <button onClick={close} className="text-gray-400 hover:text-gray-600 transition-colors">✕</button>
@@ -486,24 +499,38 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               <div className="overflow-y-auto flex-1 px-6 py-3 space-y-1.5">
                 {importPreview.rows.map((row, i) => {
                   const isDupe = dupeSet.has(i);
+                  const isSkipped = previewSkipped.has(i);
                   const catVal = previewCats[i] ?? row.category ?? '';
                   const needsCat = !catVal && parts && parts.length > 0;
                   return (
-                    <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs ${isDupe ? 'bg-red-50 text-red-400' : 'bg-gray-50 text-gray-700'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isDupe ? 'bg-red-400' : 'bg-green-400'}`} />
-                      <span className="font-medium flex-1 truncate">{row.title}</span>
+                    <div key={i}
+                      onClick={isDupe ? () => toggleSkip(i) : undefined}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors ${
+                        isSkipped ? 'bg-red-50 text-red-400 cursor-pointer hover:bg-red-100' :
+                        isDupe ? 'bg-green-50 text-green-700 cursor-pointer hover:bg-green-100' :
+                        'bg-gray-50 text-gray-700'
+                      }`}>
+                      {isDupe ? (
+                        <span className={`w-4 h-4 rounded flex-shrink-0 border text-[9px] flex items-center justify-center font-bold ${isSkipped ? 'border-red-300 text-red-400' : 'border-green-400 bg-green-400 text-white'}`}>
+                          {isSkipped ? '✕' : '✓'}
+                        </span>
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-400" />
+                      )}
+                      <span className={`font-medium flex-1 truncate ${isSkipped ? 'line-through opacity-60' : ''}`}>{row.title}</span>
                       {needsCat ? (
                         <select
                           className="text-xs border border-orange-300 rounded-lg px-2 py-0.5 bg-orange-50 text-orange-700 focus:outline-none cursor-pointer"
                           value={previewCats[i] ?? ''}
+                          onClick={e => e.stopPropagation()}
                           onChange={e => setPreviewCats(prev => ({ ...prev, [i]: e.target.value }))}>
                           <option value="">파트 선택</option>
                           {parts.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                         </select>
                       ) : (
-                        catVal && <span className="text-gray-400 text-[11px]">{catVal}</span>
+                        catVal && <span className="text-[11px] opacity-60">{catVal}</span>
                       )}
-                      {isDupe && <span className="text-red-400 text-[10px] font-semibold">중복</span>}
+                      {isDupe && <span className={`text-[10px] font-semibold ${isSkipped ? 'text-red-400' : 'text-green-600'}`}>{isSkipped ? '중복제외' : '포함'}</span>}
                     </div>
                   );
                 })}
@@ -513,9 +540,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
                   취소
                 </button>
-                <button onClick={handleImportConfirm} disabled={newCount === 0}
+                <button onClick={handleImportConfirm} disabled={registerCount === 0}
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 transition-colors">
-                  {newCount}건 등록
+                  {registerCount}건 등록
                 </button>
               </div>
             </div>

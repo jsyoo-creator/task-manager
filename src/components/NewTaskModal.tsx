@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department } from '../types';
 import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts } from '../types';
@@ -71,6 +71,14 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   });
   const [custom, setCustom] = useState<Record<string, string>>({});
 
+  // parts가 늦게 로드될 경우 category 동기화
+  useEffect(() => {
+    if (partNames[0] && !form.category) {
+      setForm(f => ({ ...f, category: partNames[0] }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partNames[0]]);
+
   if (!open) return null;
 
   const resetForm = () => {
@@ -81,7 +89,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.taskMonth) { alert('월을 선택해 주세요.'); return; }
-    onSubmit({ ...form, projectId, weeklyHours: {}, totalHours: 0, customFields: Object.keys(custom).length > 0 ? custom : undefined });
+    const category = form.category || partNames[0] || '';
+    if (!category) { alert('파트를 선택해 주세요.'); return; }
+    onSubmit({ ...form, category: category as Task['category'], projectId, weeklyHours: {}, totalHours: 0, customFields: Object.keys(custom).length > 0 ? custom : undefined });
     resetForm();
     onClose();
   };

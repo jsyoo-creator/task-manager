@@ -410,10 +410,9 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
 }
 
 // ── 필드 설정 빌더 (드래그 앤 드롭 + 너비 조절) ──
-function FieldConfigEditor({ fields: fieldsProp, customFields, isInherited, onSaveFields, onSaveCustom }: {
+function FieldConfigEditor({ fields: fieldsProp, customFields, onSaveFields, onSaveCustom }: {
   fields: BuiltinFieldConfig[];
   customFields: CustomFormField[];
-  isInherited?: boolean;
   onSaveFields: (f: BuiltinFieldConfig[]) => void;
   onSaveCustom: (f: CustomFormField[]) => void;
 }) {
@@ -925,7 +924,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       {/* 상속 안내 + 초기화 */}
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+          <p className="text-xs text-amber-700">팀 기본 설정 상속 중 — 아래 필드를 수정하면 이 파트만 다르게 저장됩니다</p>
           <button
             onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
             className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
@@ -947,7 +946,6 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       <FieldConfigEditor
         fields={fields}
         customFields={customFields}
-        isInherited={isInherited}
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
       />

@@ -300,19 +300,22 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     const builtins = resolveBuiltinFields(formConfig);
     const statusFc = builtins.find(f => f.key === 'status');
     const isCustom = statusFc?.customType === 'select' && !!statusFc.options?.length;
+    // 공백 유무 차이 ('진행 전' ↔ '진행전') 허용 비교
+    const sameStatus = (a: string, b: string) =>
+      a === b || a.replace(/\s/g, '') === b.replace(/\s/g, '');
     const effSt = (st: { status?: string }) => (st.status as string) || firstStatusOption;
     if (isCustom) {
       const opts = statusFc!.options!;
-      const data = opts.map((opt, i) => ({
+      const data = opts.map((opt) => ({
         name: opt,
-        value: subtasks.filter(st => effSt(st) === opt).length,
+        value: subtasks.filter(st => sameStatus(effSt(st), opt)).length,
       }));
       const colorMap = Object.fromEntries(
         opts.map((opt, i) => [opt, statusFc!.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length]])
       );
       return { subDonut: data, subDonutColorMap: colorMap };
     }
-    const data = statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => effSt(st) === s.key).length }));
+    const data = statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => sameStatus(effSt(st), s.key)).length }));
     const colorMap = Object.fromEntries(statusConfigs.map(s => [s.label, s.text]));
     return { subDonut: data, subDonutColorMap: colorMap };
   }, [subtasks, statusConfigs, formConfig, firstStatusOption]);

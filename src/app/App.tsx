@@ -39,6 +39,9 @@ function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConfig: Tea
     return {
       ...pf,
       customLabel: pf.customLabel ?? tf.customLabel,
+      customType: pf.customType ?? tf.customType,
+      options: pf.options ?? tf.options,
+      optionColors: pf.optionColors ?? tf.optionColors,
       ...(resolveFieldDepts(pf) ? {} : { departments: tf.departments, department: tf.department }),
     };
   });
@@ -201,7 +204,7 @@ function App() {
           title: subTaskTypeMap.get(key) ?? key,
           category: task.category,
           type: task.type,
-          status: (entry.status ?? '진행 전') as SubTask['status'],
+          status: (entry.status || '진행 전') as SubTask['status'],
           assignee:  entry.assignee ?? '',
           receiver:  '',
           startDate: entry.startDate ?? '',

@@ -235,36 +235,45 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     [statField, formConfig, parts, tasks]
   );
 
+  // 빈 status를 첫 번째 상태 옵션으로 정규화
+  const firstStatusOption = useMemo(() => {
+    const builtins = resolveBuiltinFields(formConfig);
+    const statusFc = builtins.find(f => f.key === 'status');
+    const isCustom = statusFc?.customType === 'select' && !!statusFc.options?.length;
+    return isCustom ? (statusFc!.options![0] ?? '') : (statusConfigs[0]?.key ?? '');
+  }, [formConfig, statusConfigs]);
+
   // 집계
   const fieldStats = useMemo(() => {
     const total = tasks.length;
     const countByVal = Object.fromEntries(definedValues.map(v => [v, 0]));
     tasks.forEach(t => {
-      const v = getTaskValue(t, statField);
+      let v = getTaskValue(t, statField);
+      if (statField === 'status' && !v) v = firstStatusOption;
       if (v in countByVal) countByVal[v]++;
       else countByVal[v] = (countByVal[v] ?? 0) + 1;
     });
-    // definedValues 순서 유지, 최대 5개
     const vals = definedValues.length > 0
       ? definedValues
       : [...new Set(tasks.map(t => getTaskValue(t, statField)).filter(Boolean))];
     return { total, countByVal, vals: vals.slice(0, 5) };
-  }, [tasks, statField, definedValues]);
+  }, [tasks, statField, definedValues, firstStatusOption]);
 
   // 진행 현황 bar: 실제 task.status 값 기준 (custom 옵션 대응)
   const statusBarData = useMemo(() => {
     const builtins = resolveBuiltinFields(formConfig);
     const statusFc = builtins.find(f => f.key === 'status');
-    if (statusFc?.customType === 'select' && statusFc.options?.length) {
-      return statusFc.options.map((opt, i) => ({
+    const effStatus = (t: { status?: string }) => (t.status as string) || firstStatusOption;
+    if (statusFc?.customType === 'select' && !!statusFc.options?.length) {
+      return statusFc!.options!.map((opt, i) => ({
         label: opt,
-        count: tasks.filter(t => t.status === opt).length,
+        count: tasks.filter(t => effStatus(t) === opt).length,
         color: statusFc.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
       }));
     }
     return statusConfigs.map(s => ({
       label: s.label,
-      count: tasks.filter(t => t.status === s.key).length,
+      count: tasks.filter(t => effStatus(t) === s.key).length,
       color: s.text,
     }));
   }, [tasks, formConfig, statusConfigs]);
@@ -287,9 +296,26 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     [fieldStats]
   );
 
-  const subDonut = useMemo(() =>
-    statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => st.status === s.key).length })),
-  [subtasks, statusConfigs]);
+  const { subDonut, subDonutColorMap } = useMemo(() => {
+    const builtins = resolveBuiltinFields(formConfig);
+    const statusFc = builtins.find(f => f.key === 'status');
+    const isCustom = statusFc?.customType === 'select' && !!statusFc.options?.length;
+    const effSt = (st: { status?: string }) => (st.status as string) || firstStatusOption;
+    if (isCustom) {
+      const opts = statusFc!.options!;
+      const data = opts.map((opt, i) => ({
+        name: opt,
+        value: subtasks.filter(st => effSt(st) === opt).length,
+      }));
+      const colorMap = Object.fromEntries(
+        opts.map((opt, i) => [opt, statusFc!.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length]])
+      );
+      return { subDonut: data, subDonutColorMap: colorMap };
+    }
+    const data = statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => effSt(st) === s.key).length }));
+    const colorMap = Object.fromEntries(statusConfigs.map(s => [s.label, s.text]));
+    return { subDonut: data, subDonutColorMap: colorMap };
+  }, [subtasks, statusConfigs, formConfig, firstStatusOption]);
 
   const catStats = useMemo(() => cats.map(cat => {
     const catTasks = tasks.filter(t => t.category === cat);
@@ -301,15 +327,17 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     const catStatusFc = catBuiltins.find(f => f.key === 'status');
     const hasCustomOpts = !!(catStatusFc?.customType === 'select' && catStatusFc.options?.length);
 
+    const catFirstStatus = hasCustomOpts ? catStatusFc!.options![0] : (statusConfigs[0]?.key ?? '');
+    const effSt = (t: { status?: string }) => (t.status as string) || catFirstStatus;
     const statusBreakdown = hasCustomOpts
       ? catStatusFc!.options!.map((opt, i) => ({
           key: opt, label: opt,
           color: catStatusFc!.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
-          count: catTasks.filter(t => t.status === opt).length,
+          count: catTasks.filter(t => effSt(t) === opt).length,
         }))
       : statusConfigs.map(s => ({
           key: s.key, label: s.label, color: s.text,
-          count: catTasks.filter(t => t.status === s.key).length,
+          count: catTasks.filter(t => effSt(t) === s.key).length,
         }));
 
     const done = statusBreakdown.find(s => s.key === '완료' || s.label === '완료')?.count ?? 0;
@@ -330,16 +358,23 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   const totalRevisions = tasks.reduce((sum, t) =>
     sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
 
-  const assigneeStats = useMemo(() => (teamMembers ?? []).map(({ name }) => {
-    const mySubs = subtasks.filter(s => s.assignee === name);
-    const monthCounts: Record<string, number> = {};
-    monthKeys.forEach((mk, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (monthKeys.length - 1 - i), 1);
-      const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthCounts[mk] = mySubs.filter(s => s.startDate?.startsWith(prefix)).length;
-    });
-    return { name, monthCounts, total: mySubs.length, totalH: mySubs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
-  }).filter(a => a.total > 0), [subtasks, monthKeys, teamMembers]);
+  const assigneeStats = useMemo(() => {
+    const buildEntry = (name: string, subs: SubTask[]) => {
+      const monthCounts: Record<string, number> = {};
+      monthKeys.forEach((mk, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (monthKeys.length - 1 - i), 1);
+        const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthCounts[mk] = subs.filter(s => s.startDate?.startsWith(prefix)).length;
+      });
+      return { name, monthCounts, total: subs.length, totalH: subs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
+    };
+    const result = (teamMembers ?? [])
+      .map(({ name }) => buildEntry(name, subtasks.filter(s => s.assignee === name)))
+      .filter(a => a.total > 0);
+    const unassigned = subtasks.filter(s => !s.assignee);
+    if (unassigned.length > 0) result.push(buildEntry('미배정', unassigned));
+    return result;
+  }, [subtasks, monthKeys, teamMembers]);
 
   // 실제 데이터가 있는 월만 표시
   const activeMonthKeys = useMemo(
@@ -482,7 +517,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             <div className="flex-1 flex items-center p-5">
               <DonutChart
                 data={subDonut}
-                colorMap={Object.fromEntries(statusConfigs.map(s => [s.label, s.text]))}
+                colorMap={subDonutColorMap}
               />
             </div>
           </div>

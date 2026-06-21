@@ -229,6 +229,8 @@ function App() {
   }
 
   const permissions = getPermissions(appUser?.role ?? 'user');
+  const canSeeAll = appUser?.role === 'manager' || appUser?.role === 'superadmin';
+  const currentUserName = appUser?.displayName ?? '';
 
   return (
     <HolidaysContext.Provider value={holidayMap}>
@@ -272,13 +274,15 @@ function App() {
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
                 metaFields={selectedTeam?.metaFields}
+                currentUserName={currentUserName}
+                canSeeAll={canSeeAll}
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={appUser?.displayName ?? ''} customHolidays={customHolidays} />
+              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} />
             } />
             <Route path="/weekly" element={
-              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} />
+              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} currentUserName={currentUserName} canSeeAll={canSeeAll} />
             } />
             <Route path="/vacation" element={
               <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />

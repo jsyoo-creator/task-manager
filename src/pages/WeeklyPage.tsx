@@ -13,6 +13,8 @@ interface Props {
   parts?: TeamPart[];
   userPhotoMap?: Map<string, string>;
   customHolidays?: CustomHoliday[];
+  currentUserName?: string;
+  canSeeAll?: boolean;
 }
 
 const TW_TO_HEX: Record<string, string> = {
@@ -96,7 +98,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [] }: Props) {
+export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], currentUserName = '', canSeeAll = false }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const { start, end, weekNum, now, weekdays } = useMemo(getWeekBounds, []);
   const { holidays: publicHolidays } = usePublicHolidays(now.getFullYear());
@@ -154,7 +156,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
   }, [subtasks, weekTasks, start, end]);
 
   const personData = useMemo(() => {
-    const people = [...new Set(weekSubtasks.map(s => s.assignee).filter(Boolean))].sort();
+    const allPeople = [...new Set(weekSubtasks.map(s => s.assignee).filter(Boolean))].sort();
+    const people = canSeeAll ? allPeople : allPeople.filter(p => p === currentUserName);
 
     return people.map(person => {
       const mySubs = weekSubtasks.filter(s => s.assignee === person);

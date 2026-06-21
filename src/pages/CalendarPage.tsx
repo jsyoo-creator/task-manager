@@ -16,6 +16,7 @@ interface Props {
   assignees?: string[];
   assigneesPerSubTaskType?: Map<string, string[]>;
   currentUserName?: string;
+  canSeeAll?: boolean;
   customHolidays?: CustomHoliday[];
 }
 
@@ -54,7 +55,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', customHolidays = [] }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [] }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -73,8 +74,12 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
 
   const filteredSubtasks = useMemo(() =>
-    subtasks.filter(s => s.endDate && (activeCategory === 'all' || s.category === activeCategory)),
-    [subtasks, activeCategory]
+    subtasks.filter(s =>
+      s.endDate &&
+      (activeCategory === 'all' || s.category === activeCategory) &&
+      (canSeeAll || s.assignee === currentUserName)
+    ),
+    [subtasks, activeCategory, canSeeAll, currentUserName]
   );
 
   const itemsForDay = (day: number) => {

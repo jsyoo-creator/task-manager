@@ -23,6 +23,8 @@ interface Props {
   formConfig?: TeamFormConfig;
   builtinFields?: BuiltinFieldConfig[];
   metaFields?: MetaField[];
+  currentUserName?: string;
+  canSeeAll?: boolean;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -81,7 +83,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -144,7 +146,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
-    if (assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
+    if (!canSeeAll && t.assignee !== currentUserName) return false;
+    if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
       if (t.taskMonth) return t.taskMonth === prefix;
@@ -179,10 +182,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
-        <FilterSelect label="담당자" value={assigneeFilter} onChange={v => setAssigneeFilter(v)}>
-          <option>전체</option>
-          {assignees.map(a => <option key={a}>{a}</option>)}
-        </FilterSelect>
+        {canSeeAll && (
+          <FilterSelect label="담당자" value={assigneeFilter} onChange={v => setAssigneeFilter(v)}>
+            <option>전체</option>
+            {assignees.map(a => <option key={a}>{a}</option>)}
+          </FilterSelect>
+        )}
         <div className="flex-1" />
         <span className="text-xs text-gray-400">총 {filtered.length}건</span>
       </div>

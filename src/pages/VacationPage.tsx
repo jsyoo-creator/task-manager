@@ -6,6 +6,7 @@ interface Props {
   vacations: Vacation[];
   teamMembers: AppUser[];
   currentUserName: string;
+  userPhotoMap?: Map<string, string>;
   onAddVacation: (data: Omit<Vacation, 'id' | 'createdAt'>) => void;
   onDeleteVacation: (id: string) => void;
 }
@@ -15,17 +16,18 @@ const VACATION_DAYS: Record<Vacation['type'], number> = { '연차': 1, '반차':
 const ANNUAL_TOTAL = 15;
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-function Avatar({ user, size = 'sm' }: { user?: AppUser; name?: string; size?: 'sm' | 'md' }) {
+function Avatar({ photoURL, name, size = 'sm' }: { photoURL?: string; name?: string; size?: 'sm' | 'md' }) {
   const dim = size === 'md' ? 'w-10 h-10 text-sm' : 'w-6 h-6 text-[10px]';
-  if (user?.photoURL) return <img src={user.photoURL} className={`${dim} rounded-full object-cover shrink-0`} />;
+  const initial = (name || '?').slice(0, 1);
+  if (photoURL) return <img src={photoURL} className={`${dim} rounded-full object-cover shrink-0`} />;
   return (
     <div className={`${dim} rounded-full flex items-center justify-center text-white font-bold shrink-0 bg-blue-400`}>
-      {(user?.displayName ?? '?').slice(0, 1)}
+      {initial}
     </div>
   );
 }
 
-export default function VacationPage({ vacations, teamMembers, currentUserName, onAddVacation, onDeleteVacation }: Props) {
+export default function VacationPage({ vacations, teamMembers, currentUserName, userPhotoMap, onAddVacation, onDeleteVacation }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -82,7 +84,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     setShowForm(false);
   };
 
-  const meUser = teamMembers.find(m => m.displayName === currentUserName);
+  const mePhotoURL = userPhotoMap?.get(currentUserName) || teamMembers.find(m => m.displayName === currentUserName)?.photoURL;
 
   return (
     <div className="space-y-4">
@@ -179,7 +181,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
           <div className="glass-card p-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">내 휴가현황 — {year}년</p>
             <div className="flex items-center gap-4">
-              <Avatar user={meUser} size="md" />
+              <Avatar photoURL={mePhotoURL} name={currentUserName} size="md" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-800 mb-1.5 truncate">{currentUserName || '—'}</p>
                 <div className="w-full h-2 bg-gray-100 rounded-full">
@@ -227,8 +229,8 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
               : memberStats.map(({ user, used, remaining }) => (
                 <div key={user.uid} className={`grid grid-cols-[1fr_72px_72px_100px] items-center px-4 py-3 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/50' : ''}`}>
                   <div className="flex items-center gap-2">
-                    <Avatar user={user} size="sm" />
-                    <span className="text-sm text-gray-700">{user.displayName}</span>
+                    <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
+                    <span className="text-sm text-gray-700">{user.displayName || user.email || '—'}</span>
                     {user.displayName === currentUserName && <span className="text-[10px] text-blue-500 font-medium">나</span>}
                   </div>
                   <span className="text-center text-sm text-amber-600 font-medium">{used}일</span>

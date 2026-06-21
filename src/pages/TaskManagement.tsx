@@ -336,7 +336,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
         {canSeeAll && (
-          <FilterSelect label="담당자" value={assigneeFilter} onChange={v => setAssigneeFilter(v)}>
+          <FilterSelect label={bLabel('assignee', '담당자')} value={assigneeFilter} onChange={v => setAssigneeFilter(v)}>
             <option>전체</option>
             {assignees.map(a => <option key={a}>{a}</option>)}
           </FilterSelect>

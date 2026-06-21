@@ -239,7 +239,7 @@ export default function TaskDetailPanel({
             readOnly={!canManage}
             rows={1}
             className="w-full text-[17px] font-bold text-gray-900 bg-transparent border-none resize-none focus:outline-none leading-snug placeholder:text-gray-300"
-            placeholder="업무명"
+            placeholder={fieldLabel('title')}
           />
         </div>
 
@@ -554,7 +554,7 @@ export default function TaskDetailPanel({
                           setLocalSubTaskData(next);
                           saveSubTaskData(next);
                         }}>
-                        <option value="">담당자</option>
+                        <option value="">{fieldLabel('assignee')}</option>
                         {displayAssignees.map(a => <option key={a}>{a}</option>)}
                       </select>
                       {total > 0 && (
@@ -564,7 +564,7 @@ export default function TaskDetailPanel({
 
                     {/* 시작일 / 종료일 */}
                     <div className="flex items-center gap-2 mb-2.5">
-                      <span className="text-[11px] text-gray-500 flex-shrink-0">시작</span>
+                      <span className="text-[11px] text-gray-500 flex-shrink-0">{fieldLabel('startDate')}</span>
                       <DatePicker
                         value={entry.startDate ?? ''}
                         onChange={v => {
@@ -588,7 +588,7 @@ export default function TaskDetailPanel({
 
                     {/* 요일 헤더 + 주차 행 */}
                     {!entry.startDate ? (
-                      <p className="text-[11px] text-gray-400 text-center py-1.5">시작일을 설정하면 주차별 시간을 입력할 수 있습니다</p>
+                      <p className="text-[11px] text-gray-400 text-center py-1.5">{fieldLabel('startDate')}을 설정하면 {fieldLabel('weeklyHours')}을 입력할 수 있습니다</p>
                     ) : (
                     <>
                     <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-0.5">

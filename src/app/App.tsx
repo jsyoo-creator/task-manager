@@ -27,7 +27,24 @@ import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
 import { getPermissions, resolveBuiltinFields, resolveFieldDepts } from '../types';
-import type { Task, TaskCategory, SubTask } from '../types';
+/** 파트 formConfig와 팀 formConfig를 병합. customLabel, departments 등은 팀에서 상속. */
+function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConfig: TeamFormConfig | undefined): TeamFormConfig | undefined {
+  if (!partConfig) return teamConfig;
+  if (!teamConfig?.builtinFields?.length) return partConfig;
+  const partFields = resolveBuiltinFields(partConfig);
+  const teamFields = resolveBuiltinFields(teamConfig);
+  const merged = partFields.map(pf => {
+    const tf = teamFields.find(f => f.key === pf.key);
+    if (!tf) return pf;
+    return {
+      ...pf,
+      customLabel: pf.customLabel ?? tf.customLabel,
+      ...(resolveFieldDepts(pf) ? {} : { departments: tf.departments, department: tf.department }),
+    };
+  });
+  return { ...partConfig, builtinFields: merged };
+}
+import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
 function App() {
@@ -110,22 +127,11 @@ function App() {
     ? activeParts.find(p => p.name === activeCategory)
     : undefined;
   // 파트 formConfig가 있으면 사용하되, 팀 레벨의 department/departments 설정을 필드별로 fallback 병합
-  const effectiveFormConfig = useMemo(() => {
-    const partConfig = activePart?.formConfig;
-    const teamConfig = selectedTeam?.formConfig;
-    if (!partConfig) return teamConfig;
-    if (!teamConfig?.builtinFields?.length) return partConfig;
-    const partFields = resolveBuiltinFields(partConfig);
-    const teamFields = resolveBuiltinFields(teamConfig);
-    const merged = partFields.map(pf => {
-      if (resolveFieldDepts(pf)) return pf;
-      const tf = teamFields.find(f => f.key === pf.key);
-      if (!tf) return pf;
-      return { ...pf, departments: tf.departments, department: tf.department };
-    });
-    return { ...partConfig, builtinFields: merged };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePart?.formConfig, selectedTeam?.formConfig]);
+  const effectiveFormConfig = useMemo(
+    () => mergeFormConfig(activePart?.formConfig, selectedTeam?.formConfig),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activePart?.formConfig, selectedTeam?.formConfig],
+  );
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
   const filteredTasks = activeParts.length > 0
@@ -331,7 +337,7 @@ function App() {
           if (!detailTask) return null;
           const taskPart = activeParts.find(p => p.name === detailTask.category);
           const resolvedMetaFields = taskPart?.metaFields ?? selectedTeam?.metaFields;
-          const resolvedFormConfig = taskPart?.formConfig ?? selectedTeam?.formConfig;
+          const resolvedFormConfig = mergeFormConfig(taskPart?.formConfig, selectedTeam?.formConfig);
           return (
             <TaskDetailPanel
               task={detailTask}

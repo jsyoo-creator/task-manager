@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
@@ -79,7 +80,19 @@ function getSubWeekHours(sub: SubTask, currentWeekMonday: Date): number {
   return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (sub.weeklyHours?.[`w${relWeek}d${d}`] ?? 0), 0);
 }
 
+function fmtMain(dateStr: string) {
+  if (!dateStr) return '';
+  const [, m, d] = dateStr.split('-');
+  return `${parseInt(m)}/${parseInt(d)}`;
+}
+function fmtSub(dateStr: string) {
+  if (!dateStr) return '';
+  const [, m, d] = dateStr.split('-');
+  return `${m}. ${d}`;
+}
+
 export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [] }: Props) {
+  const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const { start, end, weekNum, now, weekdays } = useMemo(getWeekBounds, []);
   const { holidays: publicHolidays } = usePublicHolidays(now.getFullYear());
   const weekLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${weekNum}주차`;
@@ -199,7 +212,29 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {personData.map(({ person, groups, totalH }) => (
+          {personData.map(({ person, groups, totalH }) => {
+            const copyToClipboard = () => {
+              const rows = groups.map(({ task, subs, taskH }) => {
+                const isNew      = task.type === '신규'  ? 1 : 0;
+                const isDerived  = task.type === '파생'  ? 1 : 0;
+                const isOther    = (task.type !== '신규' && task.type !== '파생') ? 1 : 0;
+                const taskDate   = fmtMain(task.endDate || task.startDate);
+                const lines      = [`[${task.type}] ${taskDate} ${task.title}`];
+                subs.forEach(s => {
+                  const sd = fmtSub(s.endDate || s.startDate);
+                  lines.push(`└ ${s.title}${sd ? ` (${sd})` : ''}`);
+                });
+                const desc = lines.length > 1
+                  ? `"${lines.join('\n').replace(/"/g, '""')}"`
+                  : lines[0];
+                return [isNew, isDerived, isOther, taskH, '', '', desc].join('\t');
+              });
+              navigator.clipboard.writeText(rows.join('\n'));
+              setCopiedPerson(person);
+              setTimeout(() => setCopiedPerson(null), 2000);
+            };
+
+            return (
             <div key={person} className="glass-card overflow-hidden">
 
               {/* 담당자 헤더 */}
@@ -214,6 +249,14 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 )}
                 <span className="text-sm font-bold text-gray-800 flex-1">{person}</span>
                 <div className="flex items-center gap-2">
+                  <button onClick={copyToClipboard}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                    {copiedPerson === person
+                      ? <><Check size={12} className="text-green-500" /><span className="text-green-500">복사됨</span></>
+                      : <><Copy size={12} /><span>복사</span></>
+                    }
+                  </button>
+                  <span className="text-gray-200">|</span>
                   <span className="text-xs text-gray-400">{groups.length}개 업무</span>
                   {totalH > 0 && (
                     <>
@@ -278,7 +321,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
               </div>
 
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

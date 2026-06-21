@@ -327,7 +327,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       ? task.totalHours
       : Object.values(task.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
   })();
-  const sel = "bg-transparent border-none focus:outline-none cursor-pointer text-xs w-full";
+  const sel = "bg-transparent border-none focus:outline-none cursor-pointer text-xs w-full pl-0";
 
   return (
     <div

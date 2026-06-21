@@ -373,7 +373,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <div className="flex items-center gap-px">
                       <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
-                      <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate"
+                      <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate pl-0"
                         value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
                         <option value="">-</option>
                         {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
@@ -386,7 +386,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <div className="flex items-center gap-px">
                       <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
-                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate"
+                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate pl-0"
                         value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
                         <option value="">-</option>
                         {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
@@ -402,7 +402,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <div className="flex items-center gap-px">
                       <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
-                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate"
+                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate pl-0"
                         value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
                         <option value="">-</option>
                         {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
@@ -415,7 +415,7 @@ export default function TaskDetailPanel({
                   {canManage ? (
                     <div className="flex items-center gap-px">
                       <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
-                      <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate"
+                      <select className="text-sm text-gray-600 bg-transparent border-none focus:outline-none cursor-pointer w-full truncate pl-0"
                         value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
                         <option value="">-</option>
                         {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}

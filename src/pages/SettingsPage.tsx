@@ -1464,6 +1464,13 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // team.formConfig가 바뀌면 label 동기화 (폼설정에서 명칭 변경 후 즉시 반영)
+  useEffect(() => {
+    const labelMap = Object.fromEntries(defaultFields.map(f => [f.key, f.label]));
+    setFields(fs => fs.map(f => ({ ...f, label: labelMap[f.key] ?? f.label })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team.formConfig]);
+
   const toggle = (key: string) => setFields(fs => fs.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f));
 
   const handleDrop = (toIdx: number) => {

@@ -419,7 +419,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                             >
                               <div className="px-3 pt-3 pb-2 border-b border-white/8">
                                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
-                                  <MessageCircle size={10} />메모
+                                  <MessageCircle size={10} />코멘트
                                   {activeMemos.length > 0 && (
                                     <span className="ml-auto bg-white/10 text-gray-300 rounded-full px-1.5 text-[9px]">{activeMemos.length}</span>
                                   )}
@@ -428,7 +428,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
 
                               <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2 max-h-64">
                                 {activeMemos.length === 0 ? (
-                                  <p className="text-[10px] text-gray-600 text-center py-4">메모가 없습니다</p>
+                                  <p className="text-[10px] text-gray-600 text-center py-4">코멘트가 없습니다</p>
                                 ) : (
                                   activeMemos.map(memo => (
                                     <div key={memo.id} className="group bg-white/6 rounded-xl p-2">
@@ -451,7 +451,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     rows={1}
                                     value={newMemoText}
                                     onChange={e => setNewMemoText(e.target.value)}
-                                    placeholder="메모 입력..."
+                                    placeholder="코멘트 입력..."
                                     className="flex-1 resize-none rounded-xl bg-white/8 text-white text-[11px] px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/20 placeholder-gray-600 leading-snug"
                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddMemo(e as unknown as React.MouseEvent); } }}
                                   />

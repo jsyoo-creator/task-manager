@@ -428,15 +428,11 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               ? (teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
             const ropts = base.includes(task.receiver) ? base : (task.receiver ? [task.receiver, ...base] : base);
-            const rPhoto = userPhotoMap?.get(task.receiver);
             return [
-              <div key="receiver" style={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }} onClick={e => e.stopPropagation()}>
-                {task.receiver ? (
-                  rPhoto
-                    ? <img src={rPhoto} alt={task.receiver} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                    : <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg,#a5b4fc,#c084fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{task.receiver.slice(0, 1)}</div>
-                ) : null}
-                <select className={`${sel} text-gray-600`} style={{ flex: 1, minWidth: 0 }} value={task.receiver}
+              <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
+                <span className="text-xs text-gray-600 truncate">{task.receiver || '-'}</span>
+                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
                   onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
                   <option value="">-</option>
                   {ropts.map(a => <option key={a}>{a}</option>)}
@@ -451,9 +447,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
             return [
-              <div key="assignee" className="flex items-center gap-px min-w-0" onClick={e => e.stopPropagation()}>
+              <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
-                <select className={`${sel} text-gray-700 flex-1 min-w-0`} value={task.assignee}
+                <span className="text-xs text-gray-700 truncate">{task.assignee || '-'}</span>
+                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
                   onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
                   <option value="">-</option>
                   {aopts.map(a => <option key={a}>{a}</option>)}

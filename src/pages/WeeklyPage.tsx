@@ -160,21 +160,19 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-8">
           <div>
             <h1 className="page-title">위클리</h1>
             <p className="page-subtitle">{weekLabel}</p>
           </div>
           {/* 월~금 날짜 카드 */}
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {weekdays.map(({ name, date, month, isToday }) => {
               const dateStr = `${now.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
               const holidayName = holidayMap.get(dateStr) ?? null;
               return (
-                <div key={name}
-                  className={`flex flex-col items-center px-3 py-2 rounded-xl border text-center ${
-                    holidayName ? 'w-[100px]' : 'w-[56px]'
-                  } ${
+                <div key={name} title={holidayName ?? undefined}
+                  className={`flex flex-col items-center w-[46px] py-1.5 rounded-xl border text-center ${
                     isToday
                       ? 'border-[#5B5BD6] bg-[#5B5BD6]/8'
                       : holidayName
@@ -188,7 +186,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                     isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-700'
                   }`}>{month}/{date}</span>
                   {holidayName && (
-                    <span className="text-[10px] text-red-400 font-medium leading-none mt-1 w-full truncate">{holidayName}</span>
+                    <span className="w-1 h-1 rounded-full bg-red-400 mt-1.5" />
                   )}
                 </div>
               );

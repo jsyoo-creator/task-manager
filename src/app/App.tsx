@@ -130,11 +130,23 @@ function App() {
     ? activeParts.find(p => p.name === activeCategory)
     : undefined;
   // 파트 formConfig가 있으면 사용하되, 팀 레벨의 department/departments 설정을 필드별로 fallback 병합
-  const effectiveFormConfig = useMemo(
-    () => mergeFormConfig(activePart?.formConfig, selectedTeam?.formConfig),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activePart?.formConfig, selectedTeam?.formConfig],
-  );
+  // 'all' 뷰에서 팀 config에 customType이 없으면 파트 중 하나에서 상속
+  const effectiveFormConfig = useMemo(() => {
+    const base = mergeFormConfig(activePart?.formConfig, selectedTeam?.formConfig);
+    if (activePart) return base;
+    // 팀 config에 status customType이 없으면 activeParts에서 찾아 보충
+    const baseBuiltins = resolveBuiltinFields(base);
+    const baseStatusFc = baseBuiltins.find(f => f.key === 'status');
+    if (baseStatusFc?.customType === 'select' && baseStatusFc.options?.length) return base;
+    const partWithStatus = activeParts.find(p => {
+      const pBuiltins = resolveBuiltinFields(p.formConfig);
+      const pSt = pBuiltins.find(f => f.key === 'status');
+      return pSt?.customType === 'select' && pSt.options?.length;
+    });
+    if (partWithStatus) return mergeFormConfig(partWithStatus.formConfig, base);
+    return base;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig]);
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
   const filteredTasks = activeParts.length > 0

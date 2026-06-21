@@ -231,8 +231,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                   if (!s && !e) return '';
                   return s && e && s !== e ? `${s}~${e}` : (e || s);
                 };
-                const taskDate = dateRange(task.startDate, task.endDate || task.startDate);
-                const lines = [`[${task.type}] ${taskDate} ${task.title}`];
+                const lines = [`[${task.type}] ${task.title}`];
                 subs.forEach(s => {
                   const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
                   lines.push(`- ${s.title}${sd ? ` (${sd})` : ''}`);

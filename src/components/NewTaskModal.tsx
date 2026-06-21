@@ -48,6 +48,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
 
   const getPersonDefault = (key: 'receiver' | 'assignee') => {
     const fc = builtinFields.find(f => f.key === key);
+    if (fc?.customType) return ''; // customType 필드는 선택하세요로 시작
     const depts = fc ? resolveFieldDepts(fc) : null;
     if (depts && teamMembers?.length) {
       const filtered = teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name);
@@ -61,7 +62,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     title: '',
     category: partNames[0] ?? '',
     type: '신규' as TaskType,
-    status: '진행 전' as TaskStatus,
+    status: '' as TaskStatus,
     receiver: getPersonDefault('receiver'),
     assignee: getPersonDefault('assignee'),
     startDate: '',
@@ -73,7 +74,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   if (!open) return null;
 
   const resetForm = () => {
-    setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '진행 전', receiver: getPersonDefault('receiver'), assignee: getPersonDefault('assignee'), startDate: '', endDate: '', revisionLevel: 0 });
+    setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '' as TaskStatus, receiver: getPersonDefault('receiver'), assignee: getPersonDefault('assignee'), startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
   };
 
@@ -109,6 +110,23 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
             const renderField = (k: BuiltinFieldKey): JSX.Element | null => {
               const fc = builtinFields.find(f => f.key === k);
               const fieldLabel = fc?.customLabel ?? DEFAULT_LABELS[k] ?? k;
+
+              // status는 항상 전용 핸들러로 처리 (customType보다 우선)
+              if (k === 'status') {
+                const statusOpts = (fc?.customType === 'select' && fc.options?.length) ? fc.options : null;
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.status} onChange={e => setF({ status: e.target.value as TaskStatus })}>
+                      <option value="">선택하세요</option>
+                      {statusOpts
+                        ? statusOpts.map(o => <option key={o}>{o}</option>)
+                        : statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)
+                      }
+                    </select>
+                  </div>
+                );
+              }
 
               // 속성(customType) 오버라이드가 있으면 해당 타입으로 렌더링
               if (fc?.customType) {
@@ -214,6 +232,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   <div>
                     <label className={lbl}>{fieldLabel}</label>
                     <select className={cls} value={form.receiver} onChange={e => setF({ receiver: e.target.value })}>
+                      <option value="">선택하세요</option>
                       {ropts.map(a => <option key={a}>{a}</option>)}
                     </select>
                   </div>
@@ -229,23 +248,8 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   <div>
                     <label className={lbl}>{fieldLabel}</label>
                     <select className={cls} value={form.assignee} onChange={e => setF({ assignee: e.target.value })}>
+                      <option value="">선택하세요</option>
                       {aopts.map(a => <option key={a}>{a}</option>)}
-                    </select>
-                  </div>
-                );
-              }
-              if (k === 'status') {
-                const statusOpts = (fc?.customType === 'select' && fc.options?.length)
-                  ? fc.options
-                  : null;
-                return (
-                  <div>
-                    <label className={lbl}>{fieldLabel}</label>
-                    <select className={cls} value={form.status} onChange={e => setF({ status: e.target.value as TaskStatus })}>
-                      {statusOpts
-                        ? statusOpts.map(o => <option key={o}>{o}</option>)
-                        : statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)
-                      }
                     </select>
                   </div>
                 );

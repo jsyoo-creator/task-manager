@@ -34,8 +34,8 @@ interface Props {
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 
-const CAT_DOT: Record<string, string> = {
-  '라이브': 'bg-red-500', '복지': 'bg-orange-400', '사업자': 'bg-indigo-500', '기타': 'bg-gray-400',
+const STATUS_SPACE_MAP: Record<string, string> = {
+  '진행전': '진행 전', '진행중': '진행 중',
 };
 const STATUS_BG: Record<TaskStatus, string> = {
   '진행 전': 'bg-blue-100',
@@ -99,6 +99,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
   const importRef = useRef<HTMLInputElement>(null);
+
+  const partColor = (cat: string) => parts?.find(p => p.name === cat)?.color ?? 'bg-gray-400';
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
 
@@ -202,12 +204,25 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         const parseMonth = (raw: string): string => {
           const s = raw.trim();
           if (!s) return '';
-          if (/^\d{4}-\d{2}$/.test(s)) return s; // 2026-07
-          const m1 = s.match(/^(\d{1,2})월$/);   // 7월, 10월
+          if (/^\d{4}-\d{2}$/.test(s)) return s;
+          const m1 = s.match(/^(\d{1,2})월$/);
           if (m1) return `${yearFilter}-${String(parseInt(m1[1])).padStart(2, '0')}`;
-          const m2 = s.match(/^(\d{4})[-/](\d{1,2})$/); // 2026-7, 2026/7
+          const m2 = s.match(/^(\d{4})[-/](\d{1,2})$/);
           if (m2) return `${m2[1]}-${String(parseInt(m2[2])).padStart(2, '0')}`;
           return s;
+        };
+
+        const statusFc = builtinFields.find(f => f.key === 'status');
+        const availableStatuses: string[] = (statusFc?.customType === 'select' && statusFc.options?.length)
+          ? statusFc.options
+          : statusConfigs.map(s => s.key);
+        const parseStatus = (raw: string): string => {
+          const s = raw.trim();
+          if (!s) return '';
+          if (availableStatuses.includes(s)) return s;
+          const normalized = STATUS_SPACE_MAP[s] ?? s;
+          if (availableStatuses.includes(normalized)) return normalized;
+          return '';
         };
 
         return {
@@ -215,7 +230,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           taskMonth: parseMonth(String(keyMap.taskMonth ?? '')),
           category: String(keyMap.category ?? get('파트') ?? '').trim() as TaskCategory,
           type: String(keyMap.type ?? get('유형') ?? '신규').trim() as TaskType,
-          status: String(keyMap.status ?? get('상태') ?? '진행 전').trim() as TaskStatus,
+          status: parseStatus(String(keyMap.status ?? get('상태') ?? '')) as TaskStatus,
           receiver: String(keyMap.receiver ?? get('접수자') ?? '').trim(),
           assignee: String(keyMap.assignee ?? get('담당자') ?? '').trim(),
           startDate: String(keyMap.startDate ?? get('시작일') ?? '').trim(),
@@ -312,7 +327,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
-    if (!canSeeAll && t.assignee !== currentUserName) return false;
+    if (!canSeeAll && t.assignee && t.assignee !== currentUserName) return false;
     if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
@@ -431,6 +446,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               onDrop={() => handleDrop(task.id)}
               onDragEnd={() => { setDragId(null); setDragOverId(null); }}
               userPhotoMap={userPhotoMap}
+              partColor={partColor}
             />
           );
         })}
@@ -531,7 +547,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -555,6 +571,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   onDrop: () => void;
   onDragEnd: () => void;
   userPhotoMap?: Map<string, string>;
+  partColor: (cat: string) => string;
 }) {
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
 
@@ -594,14 +611,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'title') return [
             <button key="title" onClick={onOpenDetail}
               className="flex items-center gap-1.5 min-w-0 pr-2 group/title text-left w-full">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
               <span className="text-xs font-semibold text-gray-800 truncate group-hover/title:text-blue-600 transition-colors">{task.title}</span>
             </button>,
           ];
           if (fc.key === 'category') return [
             <span key="category" className="text-xs truncate">
               <span className={`inline-flex items-center gap-1.5`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[task.category] ?? 'bg-gray-400'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
                 <span className="text-gray-700 truncate">{task.category}</span>
               </span>
             </span>
@@ -629,39 +646,25 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
           }
           if (fc.key === 'status') {
-            // 커스텀 드롭다운 옵션이 있으면 우선 사용
-            if (fc.customType === 'select' && fc.options?.length) {
-              const custColor = fc.optionColors?.[task.status];
-              if (custColor) return [
-                <div key="status" onClick={e => e.stopPropagation()}
-                  className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer"
-                  style={{ backgroundColor: custColor.bg, color: custColor.text }}>
-                  <span className="text-xs font-medium whitespace-nowrap">{task.status}</span>
-                  <ChevronDown size={10} />
-                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                    {fc.options.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                </div>
-              ];
-              return [
-                <select key="status" className={`${sel} text-gray-700`} value={task.status}
-                  onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })} onClick={e => e.stopPropagation()}>
-                  {fc.options.map(o => <option key={o}>{o}</option>)}
-                </select>
-              ];
-            }
-            const sc = statusConfigs.find(s => s.key === task.status) ?? statusConfigs[0];
-            const scLabel = sc?.label ?? task.status;
+            const isCustom = fc.customType === 'select' && !!fc.options?.length;
+            const firstStatus = isCustom ? (fc.options![0] ?? '') : (statusConfigs[0]?.key ?? '');
+            const effectiveStatus = (task.status as string) || firstStatus;
+            const custColor = isCustom ? fc.optionColors?.[effectiveStatus] : undefined;
+            const sc = statusConfigs.find(s => s.key === effectiveStatus) ?? statusConfigs[0];
+            const bg = custColor?.bg ?? sc?.bg;
+            const text = custColor?.text ?? sc?.text;
             return [
               <div key="status" onClick={e => e.stopPropagation()}
                 className="relative flex items-center justify-between w-full rounded-full pl-2 pr-2 py-0.5 cursor-pointer"
-                style={{ backgroundColor: sc?.bg, color: sc?.text }}>
-                <span className="text-xs font-medium whitespace-nowrap">{scLabel}</span>
+                style={{ backgroundColor: bg, color: text }}>
+                <span className="text-xs font-medium whitespace-nowrap">{effectiveStatus}</span>
                 <ChevronDown size={10} />
                 <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  value={task.status} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                  {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                  value={effectiveStatus} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                  {isCustom
+                    ? fc.options!.map(o => <option key={o}>{o}</option>)
+                    : statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)
+                  }
                 </select>
               </div>
             ];
@@ -797,11 +800,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   );
 }
 
-function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap }: {
+function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap, partColor }: {
   sub: SubTask; onDelete: () => void;
   tableFields: BuiltinFieldConfig[];
   colTemplate: string;
   userPhotoMap?: Map<string, string>;
+  partColor: (cat: string) => string;
 }) {
   const totalH = Object.values(sub.weeklyHours ?? {}).reduce((a, b) => a + b, 0);
   const SUB_STATUS: Record<string, string> = {
@@ -817,14 +821,14 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap }: {
         if (fc.key === 'title') return [
           <span key="title" className="flex items-center gap-1.5 min-w-0 pr-2">
             <span className="text-gray-300 text-[10px] mr-0.5">└</span>
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(sub.category)}`} />
             <span className="text-xs text-gray-700 truncate">{sub.title}</span>
           </span>
         ];
         if (fc.key === 'category')  return [
           <span key="category" className="text-xs truncate">
             <span className="inline-flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${CAT_DOT[sub.category] ?? 'bg-gray-300'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(sub.category)}`} />
               <span className="text-gray-500 truncate">{sub.category}</span>
             </span>
           </span>

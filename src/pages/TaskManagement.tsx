@@ -430,7 +430,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const ropts = base.includes(task.receiver) ? base : (task.receiver ? [task.receiver, ...base] : base);
             const rPhoto = userPhotoMap?.get(task.receiver);
             return [
-              <div key="receiver" style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }} onClick={e => e.stopPropagation()}>
+              <div key="receiver" style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }} onClick={e => e.stopPropagation()}>
                 {task.receiver ? (
                   rPhoto
                     ? <img src={rPhoto} alt={task.receiver} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
@@ -451,7 +451,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
             return [
-              <div key="assignee" className="flex items-center gap-1 min-w-0" onClick={e => e.stopPropagation()}>
+              <div key="assignee" className="flex items-center gap-0.5 min-w-0" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
                 <select className={`${sel} text-gray-700 flex-1 min-w-0`} value={task.assignee}
                   onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
@@ -590,8 +590,8 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap }: {
         ];
         if (fc.key === 'type')      return [<span key="type" className="text-xs text-gray-400">{sub.type}</span>];
         if (fc.key === 'status')    return [<span key="status" className={`text-xs font-medium px-1.5 py-0.5 rounded-full w-fit whitespace-nowrap ${SUB_STATUS[sub.status]}`}>{sub.status}</span>];
-        if (fc.key === 'receiver')  return [<span key="receiver" className="flex items-center gap-1"><MiniAvatar name={sub.receiver} photoURL={userPhotoMap?.get(sub.receiver)} /><span className="text-xs text-gray-400 truncate">{sub.receiver}</span></span>];
-        if (fc.key === 'assignee')  return [<span key="assignee" className="flex items-center gap-1"><MiniAvatar name={sub.assignee} photoURL={userPhotoMap?.get(sub.assignee)} /><span className="text-xs text-gray-600 truncate">{sub.assignee}</span></span>];
+        if (fc.key === 'receiver')  return [<span key="receiver" className="flex items-center gap-0.5"><MiniAvatar name={sub.receiver} photoURL={userPhotoMap?.get(sub.receiver)} /><span className="text-xs text-gray-400 truncate">{sub.receiver}</span></span>];
+        if (fc.key === 'assignee')  return [<span key="assignee" className="flex items-center gap-0.5"><MiniAvatar name={sub.assignee} photoURL={userPhotoMap?.get(sub.assignee)} /><span className="text-xs text-gray-600 truncate">{sub.assignee}</span></span>];
         if (fc.key === 'startDate') return [<span key="startDate" className="text-xs text-gray-400">{sub.startDate?.slice(5).replace('-', '.') ?? '-'}</span>];
         if (fc.key === 'endDate')   return [<span key="endDate" className="text-xs text-gray-400">{sub.endDate?.slice(5).replace('-', '.') ?? '-'}</span>];
         if (fc.key === 'weeklyHours') return [

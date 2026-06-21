@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import type { Task, SubTask, TaskCategory, TeamPart, TaskStatus } from '../types';
+import { useState, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, MessageCircle, Send } from 'lucide-react';
+import type { Task, SubTask, TaskCategory, TeamPart, TaskStatus, SubTaskMemo, CustomHoliday } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
+import DatePicker from '../components/DatePicker';
+import { usePublicHolidays } from '../hooks/usePublicHolidays';
 
 interface Props {
   tasks: Task[];
@@ -13,6 +14,9 @@ interface Props {
   userPhotoMap?: Map<string, string>;
   onUpdateTask?: (id: string, data: Partial<Task>) => void;
   assignees?: string[];
+  assigneesPerSubTaskType?: Map<string, string[]>;
+  currentUserName?: string;
+  customHolidays?: CustomHoliday[];
 }
 
 const CAT_STYLE: Record<string, { card: string; title: string; dot: string; hover: string }> = {
@@ -36,166 +40,29 @@ function Avatar({ name, photoURL }: { name: string; photoURL?: string }) {
 }
 
 function getWeekTotal(weeklyHours: Record<string, number>, weekNum: number): number {
-  return [1,2,3,4,5].reduce((sum, d) => sum + (weeklyHours[`w${weekNum}d${d}`] ?? 0), 0);
+  return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (weeklyHours[`w${weekNum}d${d}`] ?? 0), 0);
 }
 
-interface PopoverProps {
-  subId: string;
-  subTitle: string;
-  taskMap: Map<string, Task>;
-  assignees: string[];
-  onClose: () => void;
-  onUpdateTask: (id: string, data: Partial<Task>) => void;
-  userPhotoMap?: Map<string, string>;
-}
-
-function SubTaskPopover({ subId, subTitle, taskMap, assignees, onClose, onUpdateTask, userPhotoMap }: PopoverProps) {
-  const [taskId, subKey] = subId.split('__');
-  const task = taskMap.get(taskId);
-  const entry = task?.subTaskData?.[subKey] ?? {};
-
-  const [startDate, setStartDate] = useState(entry.startDate ?? '');
-  const [endDate, setEndDate] = useState(entry.endDate ?? '');
-  const [assignee, setAssignee] = useState(entry.assignee ?? '');
-  const [status, setStatus] = useState<string>(entry.status ?? '진행 전');
-  const [weekHours, setWeekHours] = useState<number[]>(
-    [1,2,3,4,5].map(w => getWeekTotal(entry.weeklyHours ?? {}, w))
-  );
-
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    setTimeout(() => document.addEventListener('mousedown', handler), 0);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  const handleSave = () => {
-    if (!task) return;
-    const newWeeklyHours: Record<string, number> = {};
-    weekHours.forEach((total, wi) => {
-      [1,2,3,4,5].forEach(d => { newWeeklyHours[`w${wi+1}d${d}`] = d === 1 ? total : 0; });
-    });
-    const totalHours = weekHours.reduce((a, b) => a + b, 0);
-    onUpdateTask(taskId, {
-      subTaskData: {
-        ...task.subTaskData,
-        [subKey]: { ...entry, startDate, endDate, assignee, status, weeklyHours: newWeeklyHours, totalHours },
-      },
-    });
-    onClose();
-  };
-
-  const inp = "w-full rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30";
-  const lbl = "block text-[10px] font-semibold text-gray-400 mb-1";
-
-  return createPortal(
-    <div className="fixed inset-0 z-[200] flex justify-end" onClick={onClose}>
-    <div
-      ref={ref}
-      className="h-full w-[340px] bg-white border-l border-black/8 shadow-2xl flex flex-col overflow-y-auto animate-in slide-in-from-right duration-200"
-      onClick={e => e.stopPropagation()}
-    >
-      {/* 헤더 */}
-      <div className="flex items-start justify-between gap-2 px-5 py-4 border-b border-black/5 flex-shrink-0">
-        <div>
-          <p className="text-[10px] text-gray-400 truncate">{task?.title ?? ''}</p>
-          <p className="text-sm font-bold text-gray-800">{subTitle}</p>
-        </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-0.5">
-          <X size={16} />
-        </button>
-      </div>
-      <div className="flex flex-col gap-4 p-5 flex-1">
-
-      {/* 날짜 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className={lbl}>시작일</label>
-          <input type="date" className={inp} value={startDate} onChange={e => setStartDate(e.target.value)} />
-        </div>
-        <div>
-          <label className={lbl}>종료일</label>
-          <input type="date" className={inp} value={endDate} onChange={e => setEndDate(e.target.value)} />
-        </div>
-      </div>
-
-      {/* 담당자 */}
-      <div>
-        <label className={lbl}>담당자</label>
-        <select className={inp} value={assignee} onChange={e => setAssignee(e.target.value)}>
-          <option value="">선택</option>
-          {assignees.map(a => <option key={a}>{a}</option>)}
-        </select>
-      </div>
-
-      {/* 상태 */}
-      <div>
-        <label className={lbl}>상태</label>
-        <select className={inp} value={status} onChange={e => setStatus(e.target.value)}>
-          {STATUSES.map(s => <option key={s}>{s}</option>)}
-        </select>
-      </div>
-
-      {/* 주차별 업무시간 */}
-      <div>
-        <label className={lbl}>주차별 업무시간 (h)</label>
-        <div className="grid grid-cols-5 gap-1">
-          {weekHours.map((h, i) => (
-            <div key={i} className="flex flex-col items-center gap-0.5">
-              <span className="text-[9px] text-gray-400">{i+1}주</span>
-              <input
-                type="number"
-                min={0}
-                className="w-full rounded-md border border-black/10 bg-white px-1 py-1 text-xs text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-                value={h || ''}
-                placeholder="0"
-                onChange={e => {
-                  const next = [...weekHours];
-                  next[i] = Number(e.target.value) || 0;
-                  setWeekHours(next);
-                }}
-              />
-            </div>
-          ))}
-        </div>
-        <p className="text-[10px] text-gray-400 mt-1 text-right">
-          합계 {weekHours.reduce((a, b) => a + b, 0)}h
-        </p>
-      </div>
-
-      {/* 담당자 아바타 미리보기 */}
-      {assignee && userPhotoMap && (
-        <div className="flex items-center gap-1.5">
-          <Avatar name={assignee} photoURL={userPhotoMap.get(assignee)} />
-          <span className="text-xs text-gray-500">{assignee}</span>
-        </div>
-      )}
-
-      {/* 저장 */}
-      <button
-        onClick={handleSave}
-        className="w-full py-2 rounded-xl bg-[#6C63FF] text-white text-xs font-semibold hover:bg-[#5b53e6] transition-colors"
-      >
-        저장
-      </button>
-      </div>
-    </div>
-    </div>,
-    document.body
-  );
+interface EditState {
+  startDate: string;
+  endDate: string;
+  assignee: string;
+  status: string;
+  weekHours: number[];
+  weekHoursRaw: string[];
 }
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [] }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', customHolidays = [] }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const { holidays: publicHolidays } = usePublicHolidays(year);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedSubTitle, setExpandedSubTitle] = useState('');
+  const [expandedSubKey, setExpandedSubKey] = useState('');
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [newMemoText, setNewMemoText] = useState('');
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
@@ -216,13 +83,27 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       .filter(s => s.endDate === d)
       .map(s => {
         const parent = taskMap.get(s.taskId);
+        const [, subKey] = s.id.split('__');
         const people = [s.receiver, s.assignee].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
-        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, people, category: s.category };
+        const memoCount = parent?.subTaskData?.[subKey]?.memos?.length ?? 0;
+        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, people, category: s.category, status: s.status, memoCount };
       });
   };
 
   const isToday = (d: number) =>
     year === today.getFullYear() && month === today.getMonth() && d === today.getDate();
+
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    publicHolidays.forEach(h => map.set(h.date, h.name));
+    customHolidays.forEach(h => map.set(h.date, h.name));
+    return map;
+  }, [publicHolidays, customHolidays]);
+
+  const getHolidayName = (d: number): string | null => {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    return holidayMap.get(key) ?? null;
+  };
 
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
@@ -230,12 +111,94 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>, id: string, subTitle: string) => {
+  const handleCardClick = (e: React.MouseEvent, itemId: string) => {
     e.stopPropagation();
-    if (expandedId === id) { setExpandedId(null); return; }
-    setExpandedSubTitle(subTitle);
-    setExpandedId(id);
+    if (expandedId === itemId) {
+      setExpandedId(null);
+      setExpandedSubKey('');
+      setEditState(null);
+      return;
+    }
+    const [taskId, subKey] = itemId.split('__');
+    const task = taskMap.get(taskId);
+    const entry = task?.subTaskData?.[subKey] ?? {};
+    const wh = [1, 2, 3, 4, 5].map(w => getWeekTotal(entry.weeklyHours ?? {}, w));
+    setEditState({
+      startDate: entry.startDate ?? '',
+      endDate: entry.endDate ?? '',
+      assignee: entry.assignee ?? '',
+      status: entry.status ?? '진행 전',
+      weekHours: wh,
+      weekHoursRaw: wh.map(v => v === 0 ? '' : String(v)),
+    });
+    setExpandedSubKey(subKey);
+    setExpandedId(itemId);
   };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!expandedId || !editState || !onUpdateTask) return;
+    const [taskId, subKey] = expandedId.split('__');
+    const task = taskMap.get(taskId);
+    if (!task) return;
+    const newWeeklyHours: Record<string, number> = {};
+    editState.weekHours.forEach((total, wi) => {
+      [1, 2, 3, 4, 5].forEach(d => { newWeeklyHours[`w${wi + 1}d${d}`] = d === 1 ? total : 0; });
+    });
+    onUpdateTask(taskId, {
+      subTaskData: {
+        ...task.subTaskData,
+        [subKey]: {
+          ...task.subTaskData?.[subKey],
+          startDate: editState.startDate,
+          endDate: editState.endDate,
+          assignee: editState.assignee,
+          status: editState.status,
+          weeklyHours: newWeeklyHours,
+          totalHours: editState.weekHours.reduce((a, b) => a + b, 0),
+        },
+      },
+    });
+    setExpandedId(null);
+    setExpandedSubKey('');
+    setEditState(null);
+  };
+
+  const handleAddMemo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!newMemoText.trim() || !expandedId || !onUpdateTask) return;
+    const [taskId, subKey] = expandedId.split('__');
+    const task = taskMap.get(taskId);
+    if (!task) return;
+    const prevMemos: SubTaskMemo[] = task.subTaskData?.[subKey]?.memos ?? [];
+    const newMemo: SubTaskMemo = {
+      id: `m_${Date.now()}`,
+      text: newMemoText.trim(),
+      author: currentUserName,
+      createdAt: new Date().toISOString(),
+    };
+    const entry = task.subTaskData?.[subKey] ?? { weeklyHours: {}, totalHours: 0 };
+    onUpdateTask(taskId, {
+      subTaskData: { ...task.subTaskData, [subKey]: { ...entry, memos: [...prevMemos, newMemo] } },
+    });
+    setNewMemoText('');
+  };
+
+  const handleDeleteMemo = (memoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!expandedId || !onUpdateTask) return;
+    const [taskId, subKey] = expandedId.split('__');
+    const task = taskMap.get(taskId);
+    if (!task) return;
+    const entry = task.subTaskData?.[subKey] ?? { weeklyHours: {}, totalHours: 0 };
+    const filtered = (entry.memos ?? []).filter(m => m.id !== memoId);
+    onUpdateTask(taskId, {
+      subTaskData: { ...task.subTaskData, [subKey]: { ...entry, memos: filtered } },
+    });
+  };
+
+  const inp = 'w-full rounded-lg border border-black/10 bg-white/80 px-2 py-1 text-[11px] text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40';
+  const lbl = 'block text-[9px] font-semibold text-gray-400 mb-0.5 uppercase tracking-wide';
 
   return (
     <div className="space-y-4">
@@ -271,39 +234,233 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
           {cells.map((day, idx) => {
             const dayItems = day ? itemsForDay(day) : [];
             const isWknd = idx % 7 === 0 || idx % 7 === 6;
+            const flipMemo = idx % 7 >= 5; // 금/토요일은 메모 패널을 왼쪽으로
+            const holidayName = day ? getHolidayName(day) : null;
             return (
               <div key={idx} className={`min-h-[96px] border-r border-b border-black/3 p-1.5 ${
                 !day ? 'bg-black/1' : ''
-              } ${isWknd && day ? 'bg-black/1.5' : ''}`}>
+              } ${isWknd && day ? 'bg-black/1.5' : ''} ${holidayName && !isWknd ? 'bg-red-50/40' : ''}`}>
                 {day && (
                   <>
-                    <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium mb-1 ${
-                      isToday(day)
-                        ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
-                        : isWknd ? 'text-gray-400' : 'text-gray-700'
-                    }`}>{day}</div>
-                    <div className="space-y-0.5">
+                    <div className="mb-1">
+                      <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium ${
+                        isToday(day)
+                          ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
+                          : holidayName ? 'text-red-500 font-semibold' : isWknd ? 'text-gray-400' : 'text-gray-700'
+                      }`}>{day}</div>
+                      {holidayName && (
+                        <p className="text-[9px] leading-tight text-red-400 truncate mt-0.5" title={holidayName}>{holidayName}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
                       {dayItems.map(item => {
                         const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
                         const isActive = expandedId === item.id;
+                        const isDone = item.status === '완료';
+                        const activeMemos = isActive
+                          ? (() => { const [tid, sk] = item.id.split('__'); return taskMap.get(tid)?.subTaskData?.[sk]?.memos ?? []; })()
+                          : [];
                         return (
                           <div
                             key={item.id}
-                            onClick={e => handleCardClick(e, item.id, item.subTitle)}
-                            className={`rounded-xl p-3 mb-1.5 flex flex-col gap-2 cursor-pointer transition-all duration-150 select-none
-                              ${s.card} ${s.hover}
-                              ${isActive ? 'ring-2 ring-[#6C63FF]/40 shadow-md scale-[1.02]' : 'hover:shadow-md hover:scale-[1.01]'}
+                            className={`relative transition-all duration-200 ${isActive ? 'z-20' : 'rounded-xl z-0'}`}
+                          >
+                          {/* 카드 + 메모 패널 전체를 감싸는 ring 오버레이 */}
+                          {isActive && (
+                            <div
+                              className={`absolute pointer-events-none ring-2 ring-[#6C63FF]/40 ${flipMemo ? 'rounded-l-2xl rounded-r-xl' : 'rounded-l-xl rounded-r-2xl'}`}
+                              style={flipMemo
+                                ? { top: 0, bottom: 0, left: '-176px', right: 0, zIndex: 30 }
+                                : { top: 0, bottom: 0, left: 0, right: '-176px', zIndex: 30 }}
+                            />
+                          )}
+                          <div
+                            onClick={e => handleCardClick(e, item.id)}
+                            className={`p-2.5 flex flex-col gap-1 cursor-pointer select-none relative
+                              ${s.card}
+                              ${isDone && !isActive ? 'opacity-40' : ''}
+                              ${isActive
+                                ? 'rounded-xl shadow-lg z-10'
+                                : `rounded-xl ${s.hover} hover:shadow-md hover:scale-[1.01]`}
                             `}
                           >
-                            <div className="text-[10px] text-gray-400 font-medium leading-tight truncate">{item.mainTitle}</div>
-                            <div className={`text-[12px] font-bold leading-snug ${s.title}`}>{item.subTitle}</div>
-                            {item.people.length > 0 && (
-                              <div className="flex items-center -space-x-1.5 mt-0.5">
-                                {item.people.map(name => (
-                                  <Avatar key={name} name={name} photoURL={userPhotoMap?.get(name)} />
-                                ))}
+                            {/* 요약 */}
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                <div className="text-[10px] text-gray-400 font-medium leading-tight truncate">{item.mainTitle}</div>
+                                <div className={`text-[11px] font-bold leading-snug ${s.title}`}>{item.subTitle}</div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0 self-center">
+                                {item.memoCount > 0 && !isActive && (
+                                  <div className="flex items-center gap-0.5 bg-[#6C63FF] text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                                    <MessageCircle size={8} />
+                                    <span>{item.memoCount}</span>
+                                  </div>
+                                )}
+                                {item.people.length > 0 && (
+                                  <div className="flex flex-col -space-y-1.5">
+                                    {item.people.map(name => (
+                                      <Avatar key={name} name={name} photoURL={userPhotoMap?.get(name)} />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* 인라인 편집 폼 */}
+                            {isActive && editState && (
+                              <div
+                                onClick={e => e.stopPropagation()}
+                                className="mt-2 pt-2.5 border-t border-black/8 flex flex-col gap-2"
+                              >
+                                {/* 날짜 */}
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <div>
+                                    <label className={lbl}>시작일</label>
+                                    <DatePicker
+                                      value={editState.startDate}
+                                      onChange={v => setEditState(st => st && ({ ...st, startDate: v }))}
+                                      btnClassName={inp}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className={lbl}>종료일</label>
+                                    <DatePicker
+                                      value={editState.endDate}
+                                      onChange={v => setEditState(st => st && ({ ...st, endDate: v }))}
+                                      btnClassName={inp}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* 담당자 */}
+                                <div>
+                                  <label className={lbl}>담당자</label>
+                                  <select
+                                    className={inp}
+                                    value={editState.assignee}
+                                    onChange={e => setEditState(st => st && ({ ...st, assignee: e.target.value }))}
+                                  >
+                                    <option value="">선택</option>
+                                    {(assigneesPerSubTaskType?.get(expandedSubKey) ?? assignees).map(a => <option key={a}>{a}</option>)}
+                                  </select>
+                                </div>
+
+                                {/* 상태 */}
+                                <div>
+                                  <label className={lbl}>상태</label>
+                                  <select
+                                    className={inp}
+                                    value={editState.status}
+                                    onChange={e => setEditState(st => st && ({ ...st, status: e.target.value }))}
+                                  >
+                                    {STATUSES.map(st => <option key={st}>{st}</option>)}
+                                  </select>
+                                </div>
+
+                                {/* 주차별 업무시간 */}
+                                <div>
+                                  <label className={lbl}>주차별 업무시간 (h)</label>
+                                  <div className="grid grid-cols-5 gap-1">
+                                    {editState.weekHoursRaw.map((raw, i) => (
+                                      <div key={i} className="flex flex-col items-center gap-0.5">
+                                        <span className="text-[9px] text-gray-400">{i + 1}주</span>
+                                        <input
+                                          type="text"
+                                          inputMode="decimal"
+                                          className="w-full rounded-md border border-black/10 bg-white/80 px-1 py-1 text-[11px] text-center text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40"
+                                          value={raw}
+                                          placeholder="0"
+                                          onChange={e => {
+                                            const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                            const newRaw = [...editState.weekHoursRaw];
+                                            newRaw[i] = v;
+                                            const newNums = [...editState.weekHours];
+                                            newNums[i] = parseFloat(v) || 0;
+                                            setEditState(st => st && ({ ...st, weekHoursRaw: newRaw, weekHours: newNums }));
+                                          }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <p className="text-[9px] text-gray-400 mt-0.5 text-right">
+                                    합계 {editState.weekHours.reduce((a, b) => a + b, 0)}h
+                                  </p>
+                                </div>
+
+                                {/* 저장 / 취소 */}
+                                <div className="flex gap-1.5 mt-1">
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setExpandedId(null); setExpandedSubKey(''); setEditState(null); }}
+                                    className="flex-1 py-1.5 rounded-lg border border-black/10 text-[11px] text-gray-500 hover:bg-black/5 transition-colors"
+                                  >취소</button>
+                                  <button
+                                    onClick={handleSave}
+                                    className="flex-1 py-1.5 rounded-lg bg-[#6C63FF] text-white text-[11px] font-semibold hover:bg-[#5b53e6] transition-colors"
+                                  >저장</button>
+                                </div>
                               </div>
                             )}
+                          </div>
+
+                          {/* 우측 메모 패널 */}
+                          {isActive && (
+                            <div
+                              onClick={e => e.stopPropagation()}
+                              className={`absolute top-0 bg-gray-900 shadow-lg z-0 flex flex-col ${flipMemo ? 'rounded-l-2xl' : 'rounded-r-2xl'}`}
+                              style={flipMemo
+                                ? { right: 'calc(100% - 10px)', paddingRight: '10px', minHeight: '100%', width: '186px' }
+                                : { left: 'calc(100% - 10px)', paddingLeft: '10px', minHeight: '100%', width: '186px' }}
+                            >
+                              <div className="px-3 pt-3 pb-2 border-b border-white/8">
+                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
+                                  <MessageCircle size={10} />메모
+                                  {activeMemos.length > 0 && (
+                                    <span className="ml-auto bg-white/10 text-gray-300 rounded-full px-1.5 text-[9px]">{activeMemos.length}</span>
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-2 max-h-64">
+                                {activeMemos.length === 0 ? (
+                                  <p className="text-[10px] text-gray-600 text-center py-4">메모가 없습니다</p>
+                                ) : (
+                                  activeMemos.map(memo => (
+                                    <div key={memo.id} className="group bg-white/6 rounded-xl p-2">
+                                      <p className="text-[11px] text-gray-200 leading-snug whitespace-pre-wrap">{memo.text}</p>
+                                      <div className="flex items-center justify-between mt-1.5">
+                                        <p className="text-[9px] text-gray-500">{memo.author} · {memo.createdAt.slice(0,10)}</p>
+                                        <button
+                                          onClick={e => handleDeleteMemo(memo.id, e)}
+                                          className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 text-[9px]"
+                                        >삭제</button>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+
+                              <div className="px-2.5 py-2.5 border-t border-white/8">
+                                <div className="flex items-center gap-1.5">
+                                  <textarea
+                                    rows={1}
+                                    value={newMemoText}
+                                    onChange={e => setNewMemoText(e.target.value)}
+                                    placeholder="메모 입력..."
+                                    className="flex-1 resize-none rounded-xl bg-white/8 text-white text-[11px] px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/20 placeholder-gray-600 leading-snug"
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddMemo(e as unknown as React.MouseEvent); } }}
+                                  />
+                                  <button
+                                    onClick={handleAddMemo}
+                                    disabled={!newMemoText.trim()}
+                                    className="w-7 h-7 flex items-center justify-center rounded-xl bg-[#6C63FF] text-white disabled:opacity-30 hover:bg-[#5b53e6] transition-colors flex-shrink-0"
+                                  >
+                                    <Send size={11} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           </div>
                         );
                       })}
@@ -315,19 +472,6 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
           })}
         </div>
       </div>
-
-      {/* 팝오버 */}
-      {expandedId && onUpdateTask && (
-        <SubTaskPopover
-          subId={expandedId}
-          subTitle={expandedSubTitle}
-          taskMap={taskMap}
-          assignees={assignees}
-          onClose={() => setExpandedId(null)}
-          onUpdateTask={onUpdateTask}
-          userPhotoMap={userPhotoMap}
-        />
-      )}
     </div>
   );
 }

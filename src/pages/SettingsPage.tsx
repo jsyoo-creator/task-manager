@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus } from '../types';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays } from 'lucide-react';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday } from '../types';
+import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
@@ -27,6 +28,7 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdateHolidays: (teamId: string, holidays: CustomHoliday[]) => Promise<void>;
   orphanTaskCount: number;
   onCleanupOrphanTasks: () => Promise<number>;
 }
@@ -1290,6 +1292,18 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
                   </button>
                 ))}
               </div>
+              {/* 캘린더 표시 토글 */}
+              <button
+                type="button"
+                title={t.showInCalendar === false ? '캘린더 미표시 (클릭하여 표시)' : '캘린더 표시 (클릭하여 숨김)'}
+                onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInCalendar: x.showInCalendar === false ? true : false } : x))}
+                className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                  t.showInCalendar === false
+                    ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                    : 'bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600'
+                }`}>
+                <CalendarDays size={11} />
+              </button>
               <button type="button" onClick={() => deleteType(t.id)}
                 className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                 <X size={11} />
@@ -1329,7 +1343,95 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes }: {
+function HolidayEditor({ team, onSave, canEdit }: {
+  team: Team;
+  onSave: (teamId: string, holidays: CustomHoliday[]) => Promise<void>;
+  canEdit: boolean;
+}) {
+  const currentYear = new Date().getFullYear();
+  const { holidays: publicHolidays, loading } = usePublicHolidays(currentYear);
+  const [dateInput, setDateInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
+
+  const customHolidays = team.holidays ?? [];
+
+  const addHoliday = () => {
+    const date = dateInput.trim();
+    const name = nameInput.trim();
+    if (!date || !name) return;
+    const newH: CustomHoliday = { id: `h_${Date.now()}`, date, name, createdAt: new Date().toISOString() };
+    onSave(team.id, [...customHolidays, newH]);
+    setDateInput(''); setNameInput('');
+  };
+
+  const deleteHoliday = (id: string) => onSave(team.id, customHolidays.filter(h => h.id !== id));
+
+  const allHolidays = [
+    ...publicHolidays.map(h => ({ date: h.date, name: h.name, isCustom: false, id: '' })),
+    ...customHolidays.map(h => ({ date: h.date, name: h.name, isCustom: true, id: h.id })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          {currentYear}년 휴일 목록
+          {loading && <span className="text-gray-300 font-normal ml-1">불러오는 중…</span>}
+        </p>
+        {allHolidays.length > 0 ? (
+          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 max-h-60 overflow-y-auto">
+            {allHolidays.map((h, i) => (
+              <div key={h.isCustom ? h.id : `pub_${i}`}
+                className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors">
+                <span className="text-xs text-gray-500 font-mono w-24 flex-shrink-0">{h.date}</span>
+                <span className="text-xs text-gray-700 flex-1 truncate">{h.name}</span>
+                {h.isCustom ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-medium flex-shrink-0">추가</span>
+                ) : (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-400 font-medium flex-shrink-0">공휴일</span>
+                )}
+                {h.isCustom && canEdit && (
+                  <button type="button" onClick={() => deleteHoliday(h.id)}
+                    className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          !loading && <p className="text-xs text-gray-400 text-center py-3">공휴일 정보를 불러올 수 없습니다</p>
+        )}
+      </div>
+
+      {canEdit && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">추가 휴일 등록</p>
+          <div className="flex items-center gap-2">
+            <input type="date" className={iCls}
+              value={dateInput} onChange={e => setDateInput(e.target.value)} />
+            <input className={`${iCls} flex-1 min-w-0`}
+              placeholder="휴일명 입력"
+              value={nameInput} onChange={e => setNameInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addHoliday()} />
+            <button onClick={addHoliday} disabled={!dateInput || !nameInput.trim()}
+              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+              <Plus size={11} />추가
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!canEdit && (
+        <p className="text-xs text-gray-400 text-center py-1">추가 휴일 등록은 중간 관리자 이상만 가능합니다</p>
+      )}
+    </div>
+  );
+}
+
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateHolidays, canManageHolidays }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -1344,13 +1446,15 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdateHolidays: (teamId: string, holidays: CustomHoliday[]) => Promise<void>;
+  canManageHolidays: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'holiday'>>({});
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -1464,7 +1568,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5">
-                    {(['parts', 'form', 'meta', 'subtask'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'holiday'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -1472,7 +1576,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : '세부 업무'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : '휴일 관리'}
                       </button>
                     ))}
                   </div>
@@ -1547,6 +1651,17 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                         onSave={onUpdateSubTaskTypes}
                         onSavePart={onUpdatePartSubTaskTypes}
                         onClearPart={onClearPartSubTaskTypes}
+                      />
+                    </div>
+                  )}
+
+                  {/* 휴일 관리 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'holiday' && (
+                    <div className="px-5 py-4">
+                      <HolidayEditor
+                        team={team}
+                        onSave={onUpdateHolidays}
+                        canEdit={canManageHolidays}
                       />
                     </div>
                   )}
@@ -1817,6 +1932,8 @@ export default function SettingsPage({
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
+          onUpdateHolidays={onUpdateHolidays}
+          canManageHolidays={canManageUsers}
         />
       )}
 
@@ -1843,38 +1960,6 @@ export default function SettingsPage({
         </section>
       )}
 
-      {/* 데이터 정리 — 중간 관리자 이상 */}
-      {canManageUsers && (
-        <section className="glass-card">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-            <Trash2 size={15} className="text-red-400" />
-            <span className="text-sm font-semibold text-gray-800">데이터 정리</span>
-          </div>
-          <div className="p-5 space-y-3">
-            <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-700">유효하지 않은 업무 정리</p>
-                  <p className="text-xs text-gray-500 mt-0.5">등록 실패 등으로 파트 분류 없이 남겨진 업무를 일괄 삭제합니다.</p>
-                </div>
-                <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${orphanTaskCount > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}`}>
-                  {orphanTaskCount}건
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={runCleanupOrphanTasks}
-                  disabled={cleaning || orphanTaskCount === 0}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  {cleaning ? '삭제 중...' : '정리하기'}
-                </button>
-                {cleanResult && <span className="text-xs text-gray-600">{cleanResult}</span>}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* 권한 안내 */}
       <section className="glass-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
@@ -1884,13 +1969,13 @@ export default function SettingsPage({
         <div className="p-5">
           <div className="grid grid-cols-3 gap-3 text-xs">
             {(['superadmin', 'manager', 'user'] as UserRole[]).map(r => (
-              <div key={r} className="space-y-2">
-                <RoleBadge role={r} />
-                <ul className="space-y-1 text-gray-500">
+              <div key={r} className="flex flex-col gap-3">
+                <div><RoleBadge role={r} /></div>
+                <ul className="space-y-1.5 text-gray-500">
                   {r !== 'user' && <li>· 팀 / 파트 생성 및 관리</li>}
-                  {r !== 'user' && <li>· 업무 등록/수정/삭제</li>}
                   {r === 'superadmin' && <li>· 사용자 권한 관리</li>}
                   {r !== 'user' && <li>· 구성원 이름/직군 수정</li>}
+                  <li>· 업무 등록/수정/삭제</li>
                   <li>· 휴가 등록</li>
                   <li>· 세부업무 시간 입력</li>
                   <li>· 시작일/종료일 변경</li>
@@ -1906,7 +1991,7 @@ export default function SettingsPage({
         <section className="glass-card p-5 space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
             <Shield size={14} className="text-orange-400" />
-            데이터 마이그레이션 (관리자 전용)
+            데이터 마이그레이션
           </h3>
           <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-3 space-y-2">
             <p className="text-xs text-gray-600">
@@ -1938,6 +2023,38 @@ export default function SettingsPage({
               {migrateTeamResult && (
                 <span className="text-xs text-gray-600">{migrateTeamResult}</span>
               )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 데이터 정리 — 최고 관리자 전용 */}
+      {appUser.role === 'superadmin' && (
+        <section className="glass-card">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <Trash2 size={15} className="text-red-400" />
+            <span className="text-sm font-semibold text-gray-800">데이터 정리</span>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">유효하지 않은 업무 정리</p>
+                  <p className="text-xs text-gray-500 mt-0.5">등록 실패 등으로 파트 분류 없이 남겨진 업무를 일괄 삭제합니다.</p>
+                </div>
+                <span className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${orphanTaskCount > 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}`}>
+                  {orphanTaskCount}건
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={runCleanupOrphanTasks}
+                  disabled={cleaning || orphanTaskCount === 0}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  {cleaning ? '삭제 중...' : '정리하기'}
+                </button>
+                {cleanResult && <span className="text-xs text-gray-600">{cleanResult}</span>}
+              </div>
             </div>
           </div>
         </section>

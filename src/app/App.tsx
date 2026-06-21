@@ -43,7 +43,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays } = useTeams(user?.uid);
 
   // activeTeamId 유효성 검사 — 선택 팀 목록이 바뀔 때 보정
   useEffect(() => {
@@ -124,6 +124,24 @@ function App() {
     ? tasks.filter(t => !validCategories.includes(t.category ?? '')).length
     : 0;
 
+  // 세부업무 타입 ID별 담당자 목록 (SubTaskType.department 기준 필터)
+  const assigneesPerSubTaskType = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const allTypes = [
+      ...(selectedTeam?.subTaskTypes ?? []),
+      ...activeParts.flatMap(p => p.subTaskTypes ?? []),
+    ];
+    allTypes.forEach(type => {
+      if (type.department) {
+        map.set(type.id, teamMembers.filter(m => m.department === type.department).map(m => m.name));
+      } else {
+        map.set(type.id, teamAssignees);
+      }
+    });
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeam?.subTaskTypes, activeParts, teamMembers, teamAssignees]);
+
   // SubTaskType ID → 이름 맵 (팀 + 파트 전체)
   const subTaskTypeMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -132,28 +150,59 @@ function App() {
     return map;
   }, [selectedTeam, activeParts]);
 
+  // SubTaskType ID → 순서 인덱스 (subTaskTypes 정의 순서 유지용)
+  const subTaskTypeOrder = useMemo(() => {
+    const map = new Map<string, number>();
+    let idx = 0;
+    selectedTeam?.subTaskTypes?.forEach(t => map.set(t.id, idx++));
+    activeParts.forEach(p => p.subTaskTypes?.forEach(t => { if (!map.has(t.id)) map.set(t.id, idx++); }));
+    return map;
+  }, [selectedTeam?.subTaskTypes, activeParts]);
+
+  // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID)
+  const calendarVisibleTypeIds = useMemo(() => {
+    const set = new Set<string>();
+    const allTypes = [
+      ...(selectedTeam?.subTaskTypes ?? []),
+      ...activeParts.flatMap(p => p.subTaskTypes ?? []),
+    ];
+    allTypes.forEach(t => { if (t.showInCalendar !== false) set.add(t.id); });
+    return set;
+  }, [selectedTeam?.subTaskTypes, activeParts]);
+
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task =>
-      Object.entries(task.subTaskData ?? {}).map(([key, entry]) => ({
-        id: `${task.id}__${key}`,
-        taskId: task.id,
-        projectId: task.projectId ?? '',
-        title: subTaskTypeMap.get(key) ?? key,
-        category: task.category,
-        type: task.type,
-        status: (entry.status ?? '진행 전') as SubTask['status'],
-        assignee:  entry.assignee ?? '',
-        receiver:  '',
-        startDate: entry.startDate ?? '',
-        endDate:   entry.endDate   ?? '',
-        weeklyHours: entry.weeklyHours,
-        totalHours:  entry.totalHours,
-        revisionLevel: 0,
-        createdAt: task.createdAt,
-      }))
+      Object.entries(task.subTaskData ?? {})
+        .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
+        .map(([key, entry]) => ({
+          id: `${task.id}__${key}`,
+          taskId: task.id,
+          projectId: task.projectId ?? '',
+          title: subTaskTypeMap.get(key) ?? key,
+          category: task.category,
+          type: task.type,
+          status: (entry.status ?? '진행 전') as SubTask['status'],
+          assignee:  entry.assignee ?? '',
+          receiver:  '',
+          startDate: entry.startDate ?? '',
+          endDate:   entry.endDate   ?? '',
+          weeklyHours: entry.weeklyHours,
+          totalHours:  entry.totalHours,
+          revisionLevel: 0,
+          createdAt: task.createdAt,
+        }))
     )
-  , [filteredTasks]);
+  , [filteredTasks, subTaskTypeOrder]);
+
+  // 캘린더 전용 서브태스크: showInCalendar !== false 인 타입만 포함
+  const calendarSubtasks = useMemo(
+    () => subtasks.filter(s => {
+      const subKey = s.id.split('__')[1];
+      return calendarVisibleTypeIds.has(subKey);
+    }),
+    [subtasks, calendarVisibleTypeIds]
+  );
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });
@@ -212,10 +261,10 @@ function App() {
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={subtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} />
+              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={appUser?.displayName ?? ''} customHolidays={selectedTeam?.holidays ?? []} />
             } />
             <Route path="/weekly" element={
-              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} />
+              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={selectedTeam?.holidays ?? []} />
             } />
             <Route path="/vacation" element={
               <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
@@ -244,6 +293,7 @@ function App() {
                     onUpdateSubTaskTypes={updateSubTaskTypes}
                     onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
+                    onUpdateHolidays={updateHolidays}
                     orphanTaskCount={orphanTaskCount}
                     onCleanupOrphanTasks={() => cleanupOrphanTasks(validCategories)}
                   />

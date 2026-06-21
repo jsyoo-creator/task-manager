@@ -23,7 +23,7 @@ export interface UserPermissions {
 
 export function getPermissions(role: UserRole): UserPermissions {
   return {
-    canManageTasks: role === 'superadmin' || role === 'manager',
+    canManageTasks: true,
     canManageUsers: role === 'superadmin',
     canInputTime: true,
     canAddVacation: true,
@@ -191,10 +191,18 @@ export interface MetaField {
   isUrl?: boolean;
 }
 
+export interface SubTaskMemo {
+  id: string;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface SubTaskType {
   id: string;
   name: string;
   department?: Department;
+  showInCalendar?: boolean; // undefined = true (기본 표시)
 }
 
 export const DEFAULT_META_FIELDS: MetaField[] = [
@@ -209,6 +217,13 @@ export const DEFAULT_META_FIELDS: MetaField[] = [
   { key: '피그마_url',          label: '피그마 URL',           isUrl: true },
 ];
 
+export interface CustomHoliday {
+  id: string;
+  date: string;   // YYYY-MM-DD
+  name: string;
+  createdAt: string;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -218,6 +233,7 @@ export interface Team {
   formConfig?: TeamFormConfig;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
+  holidays?: CustomHoliday[];
 }
 
 export interface SubTask {
@@ -264,6 +280,7 @@ export interface Task {
     endDate?: string;
     weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)
     totalHours: number;
+    memos?: SubTaskMemo[];
   }>;
   memo?: string;
   createdAt: string;

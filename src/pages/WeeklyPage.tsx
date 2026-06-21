@@ -172,21 +172,23 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
               const holidayName = holidayMap.get(dateStr) ?? null;
               return (
                 <div key={name}
-                  className={`flex flex-col items-center w-[72px] px-2 py-2.5 rounded-2xl border text-center ${
+                  className={`flex flex-col items-center px-3 py-2 rounded-xl border text-center ${
+                    holidayName ? 'w-[100px]' : 'w-[56px]'
+                  } ${
                     isToday
                       ? 'border-[#5B5BD6] bg-[#5B5BD6]/8'
                       : holidayName
                       ? 'border-red-200 bg-red-50'
                       : 'border-gray-200 bg-white'
                   }`}>
-                  <span className={`text-[11px] font-semibold leading-none mb-1.5 ${
+                  <span className={`text-[10px] font-medium leading-none mb-1 ${
                     isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-400' : 'text-gray-400'
                   }`}>{name}</span>
-                  <span className={`text-base font-bold leading-none ${
-                    isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-800'
+                  <span className={`text-sm font-bold leading-none ${
+                    isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-700'
                   }`}>{month}/{date}</span>
                   {holidayName && (
-                    <span className="text-[10px] text-red-400 font-medium leading-tight mt-1.5 break-keep" style={{ wordBreak: 'keep-all' }}>{holidayName}</span>
+                    <span className="text-[10px] text-red-400 font-medium leading-none mt-1 w-full truncate">{holidayName}</span>
                   )}
                 </div>
               );

@@ -1433,16 +1433,20 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
 }
 
 function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: string, config: ExcelFieldConfig[]) => Promise<void> }) {
-  const builtinLabels: Record<string, string> = {
-    taskMonth: '월', title: '업무명', category: '파트', type: '유형', status: '상태',
-    receiver: '접수자', assignee: '담당자', startDate: '시작일', endDate: '종료일',
-  };
+  // formConfig의 customLabel 반영 (설정에서 명칭 변경한 경우 적용)
+  const resolvedBuiltins = resolveBuiltinFields(team.formConfig);
+  const BUILTIN_EXCEL_KEYS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
+  const builtinExcelFields = BUILTIN_EXCEL_KEYS.map((key, i) => {
+    const bf = resolvedBuiltins.find(f => f.key === key);
+    const defaultLabel = BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
+    return { key, label: bf?.customLabel ?? defaultLabel, enabled: true, order: i };
+  });
   const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
 
   // 기본 필드 목록 생성 (builtins + meta)
   const defaultFields: ExcelFieldConfig[] = [
-    ...Object.entries(builtinLabels).map(([key, label], i) => ({ key, label, enabled: true, order: i })),
-    ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: Object.keys(builtinLabels).length + i })),
+    ...builtinExcelFields,
+    ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: builtinExcelFields.length + i })),
   ];
 
   const saved = team.excelConfig;
@@ -1451,7 +1455,10 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
     // saved 기준 정렬, 저장 안된 새 필드는 뒤에 추가
     const savedKeys = new Set(saved.map(f => f.key));
     const extra = defaultFields.filter(f => !savedKeys.has(f.key)).map((f, i) => ({ ...f, order: saved.length + i }));
-    return [...saved, ...extra].sort((a, b) => a.order - b.order);
+    // saved의 label을 최신 customLabel로 동기화 (설정에서 명칭 변경 반영)
+    const labelMap = Object.fromEntries(defaultFields.map(f => [f.key, f.label]));
+    const synced = saved.map(f => ({ ...f, label: labelMap[f.key] ?? f.label }));
+    return [...synced, ...extra].sort((a, b) => a.order - b.order);
   });
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);

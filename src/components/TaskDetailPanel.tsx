@@ -81,8 +81,8 @@ function getWeekDays(startDate: string, endDate?: string) {
 function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
   if (!name) return null;
   return photoURL
-    ? <img src={photoURL} alt={name} className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
-    : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
+    ? <img src={photoURL} alt={name} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+    : <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg,#a5b4fc,#c084fc)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{name.slice(0, 1)}</div>;
 }
 
 export default function TaskDetailPanel({

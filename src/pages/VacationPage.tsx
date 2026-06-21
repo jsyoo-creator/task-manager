@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, User, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import type { Vacation, AppUser } from '../types';
 
 interface Props {
@@ -23,7 +23,6 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [showForm, setShowForm] = useState(false);
-  const [tab, setTab] = useState<'me' | 'team'>('me');
   const [form, setForm] = useState({
     memberName: currentUserName || teamMembers[0]?.displayName || '',
     date: '',
@@ -165,119 +164,90 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
           </div>
         </div>
 
-        {/* Right: Tabs */}
+        {/* Right: 내 현황 + 팀 전체 현황 */}
         <div className="space-y-3">
-          {/* Tab header */}
-          <div className="flex gap-1 bg-black/4 rounded-xl p-1 w-fit">
-            <button onClick={() => setTab('me')}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${tab === 'me' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
-              <User size={12} /> 내 휴가현황
-            </button>
-            <button onClick={() => setTab('team')}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${tab === 'team' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
-              <Users size={12} /> 팀 전체 현황
-            </button>
+          {/* 내 연간 현황 카드 */}
+          <div className="glass-card p-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">내 휴가현황 — {year}년</p>
+            <div className="flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${getDeptColor(teamMembers.find(m => m.displayName === currentUserName) ?? {} as AppUser)}`}>
+                {currentUserName.slice(0, 1)}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-800 mb-1">{currentUserName}</p>
+                <div className="w-full h-2 bg-gray-100 rounded-full">
+                  <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${Math.min(100, Math.round((myUsed / ANNUAL_TOTAL) * 100))}%` }} />
+                </div>
+              </div>
+              <div className="flex gap-5 text-center shrink-0">
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">총 연차</p>
+                  <p className="text-base font-bold text-gray-700">{ANNUAL_TOTAL}<span className="text-xs font-normal text-gray-400">일</span></p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">사용</p>
+                  <p className="text-base font-bold text-amber-500">{myUsed}<span className="text-xs font-normal text-gray-400">일</span></p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 mb-0.5">잔여</p>
+                  <p className={`text-base font-bold ${myRemaining <= 3 ? 'text-red-500' : 'text-green-500'}`}>{myRemaining}<span className="text-xs font-normal text-gray-400">일</span></p>
+                </div>
+              </div>
+            </div>
+            {/* 내 연간 휴가 내역 */}
+            {myVacations.filter(v => v.date.startsWith(yearPrefix)).length > 0 && (
+              <div className="mt-3 pt-3 border-t border-black/5 flex flex-wrap gap-1.5">
+                {myVacations.filter(v => v.date.startsWith(yearPrefix)).sort((a, b) => a.date.localeCompare(b.date)).map(v => (
+                  <div key={v.id} className="flex items-center gap-1.5 bg-black/3 rounded-lg px-2 py-1 group">
+                    <span className="text-[11px] text-gray-500">{v.date.slice(5).replace('-', '/')}</span>
+                    <span className={`text-[11px] font-medium ${v.type === '연차' ? 'text-blue-500' : 'text-amber-500'}`}>{v.type}</span>
+                    <button onClick={() => onDeleteVacation(v.id)} className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {tab === 'me' && (
-            <div className="space-y-3">
-              {/* 내 연간 현황 카드 */}
-              <div className="glass-card p-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">{year}년 내 휴가 현황</p>
-                <div className="flex items-center gap-4">
-                  {/* 아바타 */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${getDeptColor(teamMembers.find(m => m.displayName === currentUserName) ?? {} as AppUser)}`}>
-                    {currentUserName.slice(0, 1)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-800 mb-1">{currentUserName}</p>
-                    <div className="w-full h-2 bg-gray-100 rounded-full">
-                      <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${Math.min(100, Math.round((myUsed / ANNUAL_TOTAL) * 100))}%` }} />
-                    </div>
-                  </div>
-                  <div className="flex gap-4 text-center shrink-0">
-                    <div>
-                      <p className="text-[10px] text-gray-400 mb-0.5">총 연차</p>
-                      <p className="text-base font-bold text-gray-700">{ANNUAL_TOTAL}<span className="text-xs font-normal text-gray-400">일</span></p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 mb-0.5">사용</p>
-                      <p className="text-base font-bold text-amber-500">{myUsed}<span className="text-xs font-normal text-gray-400">일</span></p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-gray-400 mb-0.5">잔여</p>
-                      <p className={`text-base font-bold ${myRemaining <= 3 ? 'text-red-500' : 'text-green-500'}`}>{myRemaining}<span className="text-xs font-normal text-gray-400">일</span></p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 내 휴가 목록 */}
-              <div className="glass-card">
-                <div className="px-4 py-3 border-b border-black/5">
-                  <h3 className="text-sm font-semibold text-gray-800">{year}년 내 휴가 내역</h3>
-                </div>
-                {myVacations.filter(v => v.date.startsWith(yearPrefix)).length === 0 ? (
-                  <p className="text-xs text-gray-300 text-center py-8">등록된 휴가 없음</p>
-                ) : (
-                  <div className="divide-y divide-black/3">
-                    {myVacations.filter(v => v.date.startsWith(yearPrefix)).sort((a, b) => a.date.localeCompare(b.date)).map(v => (
-                      <div key={v.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-black/2 transition-colors">
-                        <span className="text-xs text-gray-400 w-16 shrink-0">{v.date.slice(5).replace('-', '/')}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                          v.type === '연차' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
-                        }`}>{v.type}</span>
-                        <span className="text-xs text-gray-500 flex-1">{v.days}일</span>
-                        <button onClick={() => onDeleteVacation(v.id)} className="text-gray-200 hover:text-red-400 transition-colors">
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {/* 팀 전체 현황 */}
+          <div className="glass-card">
+            <div className="px-4 py-3 border-b border-black/5">
+              <h3 className="text-sm font-semibold text-gray-800">팀 전체 현황 — {year}년</h3>
             </div>
-          )}
-
-          {tab === 'team' && (
-            <div className="glass-card">
-              <div className="px-4 py-3 border-b border-black/5">
-                <h3 className="text-sm font-semibold text-gray-800">{year}년 팀 연간 잔여 현황</h3>
-              </div>
-              <div className="grid grid-cols-[1fr_72px_72px_100px] text-[11px] text-gray-400 font-medium bg-black/2 border-b border-black/4 px-4 py-2">
-                <span>이름</span>
-                <span className="text-center">사용</span>
-                <span className="text-center">잔여</span>
-                <span className="text-center">사용률</span>
-              </div>
-              {memberStats.length === 0 ? (
-                <p className="text-xs text-gray-300 text-center py-8">팀원이 없습니다</p>
-              ) : memberStats.map(({ user, used, remaining }) => (
-                <div key={user.uid} className={`grid grid-cols-[1fr_72px_72px_100px] items-center px-4 py-3 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/50' : ''}`}>
-                  <div className="flex items-center gap-2">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} className="w-6 h-6 rounded-full object-cover" />
-                    ) : (
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold ${getDeptColor(user)}`}>
-                        {user.displayName.slice(0, 1)}
-                      </div>
-                    )}
-                    <span className="text-sm text-gray-700">{user.displayName}</span>
-                    {user.displayName === currentUserName && <span className="text-[10px] text-blue-500 font-medium">나</span>}
-                  </div>
-                  <span className="text-center text-sm text-amber-600 font-medium">{used}일</span>
-                  <span className={`text-center text-sm font-semibold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
-                  <div className="flex flex-col items-center gap-1 px-2">
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                      <div className={`h-1.5 rounded-full transition-all ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
-                        style={{ width: `${Math.min(100, Math.round((used / ANNUAL_TOTAL) * 100))}%` }} />
-                    </div>
-                    <span className="text-[10px] text-gray-400">{Math.round((used / ANNUAL_TOTAL) * 100)}%</span>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-[1fr_72px_72px_100px] text-[11px] text-gray-400 font-medium bg-black/2 border-b border-black/4 px-4 py-2">
+              <span>이름</span>
+              <span className="text-center">사용</span>
+              <span className="text-center">잔여</span>
+              <span className="text-center">사용률</span>
             </div>
-          )}
+            {memberStats.length === 0 ? (
+              <p className="text-xs text-gray-300 text-center py-8">팀원이 없습니다</p>
+            ) : memberStats.map(({ user, used, remaining }) => (
+              <div key={user.uid} className={`grid grid-cols-[1fr_72px_72px_100px] items-center px-4 py-3 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/50' : ''}`}>
+                <div className="flex items-center gap-2">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} className="w-6 h-6 rounded-full object-cover" />
+                  ) : (
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold ${getDeptColor(user)}`}>
+                      {user.displayName.slice(0, 1)}
+                    </div>
+                  )}
+                  <span className="text-sm text-gray-700">{user.displayName}</span>
+                  {user.displayName === currentUserName && <span className="text-[10px] text-blue-500 font-medium">나</span>}
+                </div>
+                <span className="text-center text-sm text-amber-600 font-medium">{used}일</span>
+                <span className={`text-center text-sm font-semibold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
+                <div className="flex flex-col items-center gap-1 px-2">
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full">
+                    <div className={`h-1.5 rounded-full transition-all ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
+                      style={{ width: `${Math.min(100, Math.round((used / ANNUAL_TOTAL) * 100))}%` }} />
+                  </div>
+                  <span className="text-[10px] text-gray-400">{Math.round((used / ANNUAL_TOTAL) * 100)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

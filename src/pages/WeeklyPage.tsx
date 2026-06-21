@@ -80,22 +80,20 @@ function getSubWeekHours(sub: SubTask, currentWeekMonday: Date): number {
   return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (sub.weeklyHours?.[`w${relWeek}d${d}`] ?? 0), 0);
 }
 
-function fmtMain(dateStr: string) {
+function fmtDate(dateStr: string) {
   if (!dateStr) return '';
   const [, m, d] = dateStr.split('-');
-  return `${parseInt(m)}/${parseInt(d)}`;
-}
-function fmtSub(dateStr: string) {
-  if (!dateStr) return '';
-  const [, m, d] = dateStr.split('-');
-  return `${m}. ${d}`;
+  return `${parseInt(m)}.${parseInt(d)}`;
 }
 // 시작일이 이번 주 월요일 이전이면 월요일로 대체
 function effectiveStart(dateStr: string, weekMonday: Date): string {
   if (!dateStr) return '';
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  return dt < weekMonday ? fmtMain(`${weekMonday.getFullYear()}-${String(weekMonday.getMonth()+1).padStart(2,'0')}-${String(weekMonday.getDate()).padStart(2,'0')}`) : fmtMain(dateStr);
+  if (dt < weekMonday) {
+    return fmtDate(`${weekMonday.getFullYear()}-${String(weekMonday.getMonth()+1).padStart(2,'0')}-${String(weekMonday.getDate()).padStart(2,'0')}`);
+  }
+  return fmtDate(dateStr);
 }
 
 export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [] }: Props) {
@@ -227,14 +225,14 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const isOther    = (task.type !== '신규' && task.type !== '파생') ? 1 : 0;
                 const dateRange = (rawStart: string, rawEnd: string) => {
                   const s = effectiveStart(rawStart, start);
-                  const e = fmtMain(rawEnd || rawStart);
+                  const e = fmtDate(rawEnd || rawStart);
                   if (!s && !e) return '';
-                  return s && e && s !== e ? `${s}~${e}` : (e || s);
+                  return s && e && s !== e ? `(${s} ~ ${e})` : `(${e || s})`;
                 };
                 const lines = [`[${task.type}] ${task.title}`];
                 subs.forEach(s => {
                   const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
-                  lines.push(`- ${s.title}${sd ? ` (${sd})` : ''}`);
+                  lines.push(`- ${s.title}${sd ? ` ${sd}` : ''}`);
                 });
                 const desc = lines.length > 1
                   ? `"${lines.join('\n').replace(/"/g, '""')}"`

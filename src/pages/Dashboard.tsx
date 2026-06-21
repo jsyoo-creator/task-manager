@@ -244,12 +244,23 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   }, [formConfig, statusConfigs]);
 
   // 집계
+  // 공백 유무 차이('진행 전' ↔ '진행전') 허용 비교
+  const sameStatus = (a: string, b: string) =>
+    a === b || a.replace(/\s/g, '') === b.replace(/\s/g, '');
+
   const fieldStats = useMemo(() => {
     const total = tasks.length;
     const countByVal = Object.fromEntries(definedValues.map(v => [v, 0]));
     tasks.forEach(t => {
       let v = getTaskValue(t, statField);
-      if (statField === 'status' && !v) v = firstStatusOption;
+      if (statField === 'status') {
+        if (!v) v = firstStatusOption;
+        // '진행 전' → '진행전' 공백 정규화
+        if (v && !(v in countByVal)) {
+          const normalized = Object.keys(countByVal).find(k => sameStatus(k, v));
+          if (normalized) v = normalized;
+        }
+      }
       if (v in countByVal) countByVal[v]++;
       else countByVal[v] = (countByVal[v] ?? 0) + 1;
     });
@@ -267,13 +278,13 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     if (statusFc?.customType === 'select' && !!statusFc.options?.length) {
       return statusFc!.options!.map((opt, i) => ({
         label: opt,
-        count: tasks.filter(t => effStatus(t) === opt).length,
+        count: tasks.filter(t => sameStatus(effStatus(t), opt)).length,
         color: statusFc.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
       }));
     }
     return statusConfigs.map(s => ({
       label: s.label,
-      count: tasks.filter(t => effStatus(t) === s.key).length,
+      count: tasks.filter(t => sameStatus(effStatus(t), s.key)).length,
       color: s.text,
     }));
   }, [tasks, formConfig, statusConfigs]);
@@ -336,11 +347,11 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       ? catStatusFc!.options!.map((opt, i) => ({
           key: opt, label: opt,
           color: catStatusFc!.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
-          count: catTasks.filter(t => effSt(t) === opt).length,
+          count: catTasks.filter(t => sameStatus(effSt(t), opt)).length,
         }))
       : statusConfigs.map(s => ({
           key: s.key, label: s.label, color: s.text,
-          count: catTasks.filter(t => effSt(t) === s.key).length,
+          count: catTasks.filter(t => sameStatus(effSt(t), s.key)).length,
         }));
 
     const done = statusBreakdown.find(s => s.key === '완료' || s.label === '완료')?.count ?? 0;

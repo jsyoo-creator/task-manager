@@ -648,7 +648,11 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'status') {
             const isCustom = fc.customType === 'select' && !!fc.options?.length;
             const firstStatus = isCustom ? (fc.options![0] ?? '') : (statusConfigs[0]?.key ?? '');
-            const effectiveStatus = (task.status as string) || firstStatus;
+            const rawStatus = (task.status as string) || firstStatus;
+            // '진행 전' ↔ '진행전' 공백 차이 정규화 — 커스텀 옵션과 매핑
+            const effectiveStatus = isCustom
+              ? (fc.options!.find(o => o === rawStatus || o.replace(/\s/g,'') === rawStatus.replace(/\s/g,'')) ?? rawStatus)
+              : rawStatus;
             const custColor = isCustom ? fc.optionColors?.[effectiveStatus] : undefined;
             const sc = statusConfigs.find(s => s.key === effectiveStatus) ?? statusConfigs[0];
             const bg = custColor?.bg ?? sc?.bg;

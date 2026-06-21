@@ -308,14 +308,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         <div className="flex items-center gap-2">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
           <button onClick={handleExcelExport}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
-            <Download size={13} /> 엑셀 내보내기
+            className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold">
+            <Download size={14} /> 엑셀 내보내기
           </button>
           {canManage && (
             <>
               <button onClick={() => importRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
-                <Upload size={13} /> 엑셀 업무 등록
+                className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold">
+                <Upload size={14} /> 엑셀 업무 등록
               </button>
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelImport} />
               <button onClick={() => setModalOpen(true)}

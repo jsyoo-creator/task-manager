@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, CustomHoliday } from '../types';
+import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, CustomHoliday, ExcelFieldConfig } from '../types';
 
 export function useTeams(uid?: string) {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -130,5 +130,9 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { holidays });
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays };
+  const updateExcelConfig = async (teamId: string, config: ExcelFieldConfig[]) => {
+    await updateDoc(doc(db, 'teams', teamId), { excelConfig: config });
+  };
+
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays, updateExcelConfig };
 }

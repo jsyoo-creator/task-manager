@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField } from '../types';
+import { useState, useRef } from 'react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info, Upload, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -26,6 +27,8 @@ interface Props {
   currentUserName?: string;
   canSeeAll?: boolean;
   userPhotoMap?: Map<string, string>;
+  excelConfig?: ExcelFieldConfig[];
+  allMetaFields?: MetaField[];
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -84,7 +87,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -93,6 +96,131 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[]; dupes: number[] } | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  // 엑셀 컬럼 매핑 (label → key)
+  const excelFields = excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
+  const labelToKey = Object.fromEntries(excelFields.map(f => [f.label, f.key]));
+
+  const builtinLabels: Record<string, string> = {
+    taskMonth: '월', title: '업무명', category: '파트', type: '유형', status: '상태',
+    receiver: '접수자', assignee: '담당자', startDate: '시작일', endDate: '종료일',
+  };
+
+  const getExcelHeaders = () =>
+    excelFields.length > 0
+      ? excelFields.map(f => f.label)
+      : Object.values(builtinLabels);
+
+  const taskToRow = (t: Task): Record<string, string> => {
+    if (excelFields.length > 0) {
+      const row: Record<string, string> = {};
+      excelFields.forEach(f => {
+        const bLabel = builtinLabels[f.key];
+        if (bLabel !== undefined) {
+          const val: Record<string, string | undefined> = {
+            taskMonth: t.taskMonth, title: t.title, category: t.category,
+            type: t.type, status: t.status, receiver: t.receiver,
+            assignee: t.assignee, startDate: t.startDate, endDate: t.endDate,
+          };
+          row[f.label] = val[f.key] ?? '';
+        } else {
+          row[f.label] = t.customFields?.[f.key] ?? '';
+        }
+      });
+      return row;
+    }
+    return {
+      '월': t.taskMonth ?? '', '업무명': t.title, '파트': t.category,
+      '유형': t.type, '상태': t.status, '접수자': t.receiver,
+      '담당자': t.assignee, '시작일': t.startDate, '종료일': t.endDate,
+    };
+  };
+
+  const handleExcelExport = () => {
+    const rows = filtered.map(taskToRow);
+    const ws = XLSX.utils.json_to_sheet(rows, { header: getExcelHeaders() });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '업무목록');
+    XLSX.writeFile(wb, `업무목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const data = ev.target?.result;
+      const wb = XLSX.read(data, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, string>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      const parsed: Partial<Task>[] = rows.map(row => {
+        const get = (label: string) => {
+          // excelConfig label 우선, 없으면 builtinLabels 역방향 매핑
+          if (labelToKey[label] !== undefined) return row[label] ?? '';
+          return row[label] ?? '';
+        };
+        const keyMap = excelFields.length > 0
+          ? Object.fromEntries(excelFields.map(f => [f.key, row[f.label] ?? '']))
+          : {
+              taskMonth: row['월'], title: row['업무명'], category: row['파트'],
+              type: row['유형'], status: row['상태'], receiver: row['접수자'],
+              assignee: row['담당자'], startDate: row['시작일'], endDate: row['종료일'],
+            };
+
+        const customFields: Record<string, string> = {};
+        if (excelFields.length > 0) {
+          excelFields.forEach(f => {
+            if (!builtinLabels[f.key]) customFields[f.key] = row[f.label] ?? '';
+          });
+        }
+
+        return {
+          title: String(keyMap.title ?? get('업무명') ?? '').trim(),
+          taskMonth: String(keyMap.taskMonth ?? get('월') ?? '').trim(),
+          category: String(keyMap.category ?? get('파트') ?? '').trim() as TaskCategory,
+          type: String(keyMap.type ?? get('유형') ?? '신규').trim() as TaskType,
+          status: String(keyMap.status ?? get('상태') ?? '진행 전').trim() as TaskStatus,
+          receiver: String(keyMap.receiver ?? get('접수자') ?? '').trim(),
+          assignee: String(keyMap.assignee ?? get('담당자') ?? '').trim(),
+          startDate: String(keyMap.startDate ?? get('시작일') ?? '').trim(),
+          endDate: String(keyMap.endDate ?? get('종료일') ?? '').trim(),
+          ...(Object.keys(customFields).length > 0 ? { customFields } : {}),
+        };
+      }).filter(r => r.title);
+
+      const existingTitles = new Set(tasks.map(t => t.title.trim()));
+      const dupes = parsed.map((r, i) => existingTitles.has(r.title ?? '') ? i : -1).filter(i => i >= 0);
+      setImportPreview({ rows: parsed, dupes: new Set(dupes) as unknown as number[] });
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = '';
+  };
+
+  const handleImportConfirm = async () => {
+    if (!importPreview) return;
+    const dupeSet = new Set(importPreview.dupes);
+    const toAdd = importPreview.rows.filter((_, i) => !dupeSet.has(i));
+    const bottom = tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1);
+    for (let i = 0; i < toAdd.length; i++) {
+      const r = toAdd[i];
+      await onAddTask({
+        projectId, teamId: '',
+        title: r.title ?? '', taskMonth: r.taskMonth ?? '',
+        category: (r.category as TaskCategory) || (parts?.[0]?.name as TaskCategory) || '' as TaskCategory,
+        type: (r.type as TaskType) || '신규',
+        status: (r.status as TaskStatus) || '진행 전',
+        receiver: r.receiver ?? '', assignee: r.assignee ?? '',
+        startDate: r.startDate ?? '', endDate: r.endDate ?? '',
+        weeklyHours: {}, totalHours: 0, revisionLevel: 0,
+        sortOrder: bottom + 1 + i,
+        ...(r.customFields ? { customFields: r.customFields } : {}),
+      });
+    }
+    setImportPreview(null);
+  };
 
   const builtinFields = propBuiltinFields ?? resolveBuiltinFields(formConfig);
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
@@ -164,13 +292,24 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <h1 className="page-title">업무 관리</h1>
           <p className="page-subtitle">업무 목록 · {filtered.length}건</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
+          <button onClick={handleExcelExport}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+            <Download size={13} /> 엑셀 내보내기
+          </button>
           {canManage && (
-            <button onClick={() => setModalOpen(true)}
-              className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold">
-              <Plus size={14} /> 새 업무
-            </button>
+            <>
+              <button onClick={() => importRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
+                <Upload size={13} /> 엑셀 업무 등록
+              </button>
+              <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelImport} />
+              <button onClick={() => setModalOpen(true)}
+                className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold">
+                <Plus size={14} /> 새 업무
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -262,6 +401,47 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
         projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} />
+
+      {/* 엑셀 가져오기 미리보기 모달 */}
+      {importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-sm font-bold text-gray-800">엑셀 업무 등록 미리보기</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  총 {importPreview.rows.length}건 · 중복 {importPreview.dupes.length}건 제외 · <span className="text-green-600 font-medium">{importPreview.rows.length - importPreview.dupes.length}건 등록 예정</span>
+                </p>
+              </div>
+              <button onClick={() => setImportPreview(null)} className="text-gray-400 hover:text-gray-600 transition-colors">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-3 space-y-1.5">
+              {importPreview.rows.map((row, i) => {
+                const isDupe = (importPreview.dupes as unknown as Set<number>).has(i);
+                return (
+                  <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs ${isDupe ? 'bg-red-50 text-red-400' : 'bg-gray-50 text-gray-700'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isDupe ? 'bg-red-400' : 'bg-green-400'}`} />
+                    <span className="font-medium flex-1 truncate">{row.title}</span>
+                    {row.assignee && <span className="text-gray-400">{row.assignee}</span>}
+                    {isDupe && <span className="text-red-400 text-[10px] font-semibold">중복</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setImportPreview(null)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                취소
+              </button>
+              <button onClick={handleImportConfirm}
+                disabled={importPreview.rows.length - importPreview.dupes.length === 0}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 transition-colors">
+                {importPreview.rows.length - importPreview.dupes.length}건 등록
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

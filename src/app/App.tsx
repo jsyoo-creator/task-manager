@@ -46,7 +46,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateExcelConfig } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
@@ -274,6 +274,8 @@ function App() {
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
                 metaFields={selectedTeam?.metaFields}
+                excelConfig={selectedTeam?.excelConfig}
+                allMetaFields={selectedTeam?.metaFields}
                 currentUserName={currentUserName}
                 canSeeAll={canSeeAll}
                 userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
@@ -312,6 +314,7 @@ function App() {
                     onUpdateSubTaskTypes={updateSubTaskTypes}
                     onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
+                    onUpdateExcelConfig={updateExcelConfig}
                     customHolidays={customHolidays}
                     onUpdateHolidays={updateHolidays}
                     orphanTaskCount={orphanTaskCount}

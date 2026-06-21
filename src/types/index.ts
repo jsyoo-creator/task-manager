@@ -224,6 +224,13 @@ export interface CustomHoliday {
   createdAt: string;
 }
 
+export interface ExcelFieldConfig {
+  key: string;       // builtin key 또는 metaField key
+  label: string;     // 컬럼 헤더
+  enabled: boolean;
+  order: number;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -234,6 +241,7 @@ export interface Team {
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
   holidays?: CustomHoliday[];
+  excelConfig?: ExcelFieldConfig[];
 }
 
 export interface SubTask {

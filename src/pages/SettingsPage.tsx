@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -29,6 +29,7 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   customHolidays: CustomHoliday[];
   onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
   orphanTaskCount: number;
@@ -1431,7 +1432,79 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
   );
 }
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes }: {
+function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: string, config: ExcelFieldConfig[]) => Promise<void> }) {
+  const builtinLabels: Record<string, string> = {
+    taskMonth: '월', title: '업무명', category: '파트', type: '유형', status: '상태',
+    receiver: '접수자', assignee: '담당자', startDate: '시작일', endDate: '종료일',
+  };
+  const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
+
+  // 기본 필드 목록 생성 (builtins + meta)
+  const defaultFields: ExcelFieldConfig[] = [
+    ...Object.entries(builtinLabels).map(([key, label], i) => ({ key, label, enabled: true, order: i })),
+    ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: Object.keys(builtinLabels).length + i })),
+  ];
+
+  const saved = team.excelConfig;
+  const [fields, setFields] = useState<ExcelFieldConfig[]>(() => {
+    if (!saved?.length) return defaultFields;
+    // saved 기준 정렬, 저장 안된 새 필드는 뒤에 추가
+    const savedKeys = new Set(saved.map(f => f.key));
+    const extra = defaultFields.filter(f => !savedKeys.has(f.key)).map((f, i) => ({ ...f, order: saved.length + i }));
+    return [...saved, ...extra].sort((a, b) => a.order - b.order);
+  });
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (key: string) => setFields(fs => fs.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f));
+
+  const handleDrop = (toIdx: number) => {
+    if (dragIdx === null || dragIdx === toIdx) return;
+    const next = [...fields];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setFields(next.map((f, i) => ({ ...f, order: i })));
+    setDragIdx(null); setDragOverIdx(null);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(team.id, fields.map((f, i) => ({ ...f, order: i })));
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-400">엑셀 가져오기/내보내기에 사용할 컬럼을 설정합니다. 드래그로 순서를 바꿀 수 있습니다.</p>
+      <div className="space-y-1">
+        {fields.map((f, idx) => (
+          <div key={f.key}
+            draggable
+            onDragStart={() => setDragIdx(idx)}
+            onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
+            onDrop={() => handleDrop(idx)}
+            onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border bg-white transition-all ${
+              dragOverIdx === idx ? 'border-blue-400 bg-blue-50' : 'border-gray-100'
+            } ${dragIdx === idx ? 'opacity-40' : ''}`}>
+            <GripVertical size={13} className="text-gray-300 cursor-grab flex-shrink-0" />
+            <input type="checkbox" checked={f.enabled} onChange={() => toggle(f.key)}
+              className="w-3.5 h-3.5 accent-blue-500 flex-shrink-0 cursor-pointer" />
+            <span className="text-xs font-medium text-gray-700 flex-1">{f.label}</span>
+            <span className="text-[10px] text-gray-400 font-mono">{f.key}</span>
+          </div>
+        ))}
+      </div>
+      <button onClick={handleSave} disabled={saving}
+        className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors">
+        {saving ? '저장 중...' : '저장'}
+      </button>
+    </div>
+  );
+}
+
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -1446,13 +1519,14 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'excel'>>({});
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -1566,7 +1640,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5">
-                    {(['parts', 'form', 'meta', 'subtask'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'excel'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -1574,7 +1648,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : '세부 업무'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : '엑셀 관리'}
                       </button>
                     ))}
                   </div>
@@ -1653,6 +1727,13 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                     </div>
                   )}
 
+                  {/* 엑셀 관리 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'excel' && (
+                    <div className="px-5 py-4">
+                      <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} />
+                    </div>
+                  )}
+
                 </div>
               )}
             </div>
@@ -1669,7 +1750,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
 }: Props) {
@@ -1920,6 +2001,7 @@ export default function SettingsPage({
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
+          onUpdateExcelConfig={onUpdateExcelConfig}
         />
       )}
 

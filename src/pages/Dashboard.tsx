@@ -283,20 +283,35 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     [fieldStats]
   );
 
-  const subDonut = useMemo(() => [
-    ...statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => st.status === s.key).length })),
-  ].filter(d => d.value > 0), [subtasks, statusConfigs]);
+  const subDonut = useMemo(() =>
+    statusConfigs.map(s => ({ name: s.label, value: subtasks.filter(st => st.status === s.key).length })),
+  [subtasks, statusConfigs]);
 
   const catStats = useMemo(() => cats.map(cat => {
     const catTasks = tasks.filter(t => t.category === cat);
     const total = catTasks.length;
-    const done = catTasks.filter(t => t.status === '완료').length;
-    const inProg = catTasks.filter(t => t.status === '진행 중').length;
-    const hold = catTasks.filter(t => t.status === '보류').length;
-    const before = catTasks.filter(t => t.status === '진행 전').length;
+
+    // 파트별 폼 설정 우선 사용 (statusBarData와 동일한 매칭 방식)
+    const part = parts?.find(p => p.name === cat);
+    const catBuiltins = resolveBuiltinFields(part?.formConfig ?? formConfig);
+    const catStatusFc = catBuiltins.find(f => f.key === 'status');
+    const hasCustomOpts = !!(catStatusFc?.customType === 'select' && catStatusFc.options?.length);
+
+    const statusBreakdown = hasCustomOpts
+      ? catStatusFc!.options!.map((opt, i) => ({
+          key: opt, label: opt,
+          color: catStatusFc!.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
+          count: catTasks.filter(t => t.status === opt).length,
+        }))
+      : statusConfigs.map(s => ({
+          key: s.key, label: s.label, color: s.text,
+          count: catTasks.filter(t => t.status === s.key).length,
+        }));
+
+    const done = statusBreakdown.find(s => s.key === '완료' || s.label === '완료')?.count ?? 0;
     const rate = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { cat, total, done, inProg, hold, before, rate };
-  }), [tasks, cats]);
+    return { cat, total, statusBreakdown, rate };
+  }), [tasks, cats, statusConfigs, formConfig, parts]);
 
   const revisionStats = useMemo(() => {
     const grandTotal = tasks.reduce((sum, t) =>
@@ -320,7 +335,13 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       monthCounts[mk] = mySubs.filter(s => s.startDate?.startsWith(prefix)).length;
     });
     return { name, monthCounts, total: mySubs.length, totalH: mySubs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
-  }).filter(a => a.total > 0 || assignees.includes(a.name)), [subtasks, monthKeys, teamMembers, assignees]);
+  }).filter(a => a.total > 0), [subtasks, monthKeys, teamMembers]);
+
+  // 실제 데이터가 있는 월만 표시
+  const activeMonthKeys = useMemo(
+    () => monthKeys.filter(mk => assigneeStats.some(a => (a.monthCounts[mk] ?? 0) > 0)),
+    [monthKeys, assigneeStats]
+  );
 
   const legendItems = statusBarData.map(s => ({ l: s.label, v: s.count, c: s.color }));
 
@@ -470,7 +491,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <span className="text-[11px] text-gray-400">🗓️ 전체 기간</span>
             </div>
             <div className="flex-1 grid divide-x divide-gray-100" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
-              {catStats.map(({ cat, total, done, inProg, hold, before, rate }) => (
+              {catStats.map(({ cat, total, statusBreakdown, rate }) => (
                 <div key={cat} className="flex flex-col justify-center p-5 gap-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
@@ -482,18 +503,17 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${rate}%`, backgroundColor: catColor(cat) }} />
+                    <div className="h-full rounded-full" style={{ width: `${rate}%`, backgroundColor: catColor(cat) }} />
                   </div>
-                  <div className="grid grid-cols-4 text-center">
-                    {[
-                      { l: '총', v: total, c: 'text-gray-700' },
-                      { l: '완료', v: done, c: 'text-emerald-500' },
-                      { l: '진행', v: inProg, c: 'text-blue-500' },
-                      { l: '진행 전', v: before, c: 'text-gray-400' },
-                    ].map(({ l, v, c }) => (
-                      <div key={l}>
-                        <div className={`text-base font-bold tabular-nums leading-tight ${c}`}>{v}</div>
-                        <div className="text-[9px] text-gray-400 mt-0.5">{l}</div>
+                  <div className="grid text-center" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>
+                    <div>
+                      <div className="text-base font-bold tabular-nums leading-tight text-gray-700">{total}</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">총</div>
+                    </div>
+                    {statusBreakdown.map(({ key, label, color, count }) => (
+                      <div key={key}>
+                        <div className="text-base font-bold tabular-nums leading-tight" style={{ color: count > 0 ? color : '#9ca3af' }}>{count}</div>
+                        <div className="text-[9px] text-gray-400 mt-0.5 truncate">{label}</div>
                       </div>
                     ))}
                   </div>
@@ -554,19 +574,19 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                 <>
                   <div
                     className="grid text-[10px] font-semibold text-gray-400 pb-2 mb-1 border-b border-black/5"
-                    style={{ gridTemplateColumns: `1fr repeat(${monthKeys.length}, 64px) 44px` }}
+                    style={{ gridTemplateColumns: `1fr repeat(${activeMonthKeys.length}, 64px) 44px` }}
                   >
                     <span>담당자</span>
-                    {monthKeys.map(k => <span key={k} className="text-center">{k}</span>)}
+                    {activeMonthKeys.map(k => <span key={k} className="text-center">{k}</span>)}
                     <span className="text-center">합계</span>
                   </div>
                   {assigneeStats.map(({ name, monthCounts, total, totalH }) => (
                     <div key={name}
                       className="grid items-center py-1.5 rounded-lg hover:bg-gray-50 -mx-1 px-1 transition-colors"
-                      style={{ gridTemplateColumns: `1fr repeat(${monthKeys.length}, 64px) 44px` }}
+                      style={{ gridTemplateColumns: `1fr repeat(${activeMonthKeys.length}, 64px) 44px` }}
                     >
                       <span className="text-xs font-semibold text-gray-700 truncate">{name}</span>
-                      {monthKeys.map(mk => {
+                      {activeMonthKeys.map(mk => {
                         const c = monthCounts[mk] ?? 0;
                         return (
                           <div key={mk} className="flex justify-center">
@@ -603,8 +623,8 @@ function DonutChart({ data, colorMap }: {
   colorMap: Record<string, string>;
 }) {
   const colorOf = (name: string) => colorMap[name] ?? '#e5e7eb';
-  const isEmpty = data.length === 0;
-  const total = data.reduce((sum, d) => sum + d.value, 0);
+  const chartData = data.filter(d => d.value > 0); // 파이 원형용
+  const isEmpty = chartData.length === 0;
 
   return (
     <div className="flex items-center gap-4 w-full">
@@ -616,21 +636,23 @@ function DonutChart({ data, colorMap }: {
             <span className="text-[10px] text-gray-400 text-center leading-tight z-10">데이터<br/>없음</span>
           </>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={data} cx="50%" cy="50%" innerRadius={30} outerRadius={48} dataKey="value" strokeWidth={0}>
-                {data.map(e => <Cell key={e.name} fill={colorOf(e.name)} />)}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ width: '100%', height: '100%', animation: 'none' }} className="[&_*]:![animation:none] [&_*]:![transition:none]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={chartData} cx="50%" cy="50%" innerRadius={30} outerRadius={48} dataKey="value" strokeWidth={0} isAnimationActive={false} animationDuration={0}>
+                  {chartData.map(e => <Cell key={e.name} fill={colorOf(e.name)} />)}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
       <div className="flex-1 space-y-3 min-w-0">
         {data.length > 0
           ? data.map(({ name, value }) => (
               <div key={name} className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2 text-xs text-gray-600 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorOf(name) }} />
+                <span className="flex items-center gap-2 text-xs min-w-0" style={{ color: value > 0 ? '#4b5563' : '#9ca3af' }}>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: value > 0 ? colorOf(name) : '#e5e7eb' }} />
                   <span className="truncate">{name}</span>
                 </span>
                 <span className={`text-sm font-bold tabular-nums flex-shrink-0 ${value > 0 ? 'text-gray-800' : 'text-gray-300'}`}>

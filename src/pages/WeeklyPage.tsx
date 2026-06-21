@@ -177,36 +177,38 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
 
   return (
     <div>
-      <div className="flex items-center gap-8 mb-4">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="page-title">위클리</h1>
           <p className="page-subtitle">{weekLabel}</p>
         </div>
-        {/* 월~금 날짜 카드 */}
-        <div className="flex gap-1.5">
-          {weekdays.map(({ name, date, month, isToday }) => {
-            const dateStr = `${now.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-            const holidayName = holidayMap.get(dateStr) ?? null;
-            return (
-              <div key={name} title={holidayName ?? undefined}
-                className={`flex flex-col items-center w-[46px] py-1.5 rounded-xl border text-center ${
-                  isToday
-                    ? 'border-[#5B5BD6] bg-[#5B5BD6]/8'
-                    : holidayName
-                    ? 'border-red-200 bg-red-50'
-                    : 'border-gray-200 bg-white'
-                }`}>
-                <span className={`text-[10px] font-medium leading-none mb-1 ${
-                  isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-400' : 'text-gray-400'
-                }`}>{name}</span>
-                <span className={`text-[11px] font-bold leading-none ${
-                  isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-700'
-                }`}>{month}/{date}</span>
-              </div>
-            );
-          })}
+        <div className="flex items-center gap-3">
+          {/* 월~금 날짜 카드 */}
+          <div className="flex gap-1.5">
+            {weekdays.map(({ name, date, month, isToday }) => {
+              const dateStr = `${now.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+              const holidayName = holidayMap.get(dateStr) ?? null;
+              return (
+                <div key={name} title={holidayName ?? undefined}
+                  className={`flex flex-col items-center w-[46px] py-1.5 rounded-xl border text-center ${
+                    isToday
+                      ? 'border-[#5B5BD6] bg-[#5B5BD6]/8'
+                      : holidayName
+                      ? 'border-red-200 bg-red-50'
+                      : 'border-gray-200 bg-white'
+                  }`}>
+                  <span className={`text-[10px] font-medium leading-none mb-1 ${
+                    isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-400' : 'text-gray-400'
+                  }`}>{name}</span>
+                  <span className={`text-[11px] font-bold leading-none ${
+                    isToday ? 'text-[#5B5BD6]' : holidayName ? 'text-red-500' : 'text-gray-700'
+                  }`}>{month}/{date}</span>
+                </div>
+              );
+            })}
+          </div>
+          <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
         </div>
-        <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
       </div>
 
       {personData.length === 0 ? (

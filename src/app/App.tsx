@@ -309,7 +309,7 @@ function App() {
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} currentUserName={currentUserName} canSeeAll={canSeeAll} />
             } />
             <Route path="/vacation" element={
-              <VacationPage vacations={vacations} members={members} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
+              <VacationPage vacations={vacations} teamMembers={teamMembers} currentUserName={currentUserName} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
             } />
             <Route path="/seats" element={<SeatMapPage members={members} />} />
             <Route path="/settings" element={

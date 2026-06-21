@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info, Upload, Download } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts } from '../types';
@@ -164,6 +164,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     XLSX.writeFile(wb, `업무목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  const handleTemplateDownload = () => {
+    const headers = getExcelHeaders();
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '업무등록템플릿');
+    XLSX.writeFile(wb, '업무등록_템플릿.xlsx');
+  };
+
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -307,17 +315,22 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         </div>
         <div className="flex items-center gap-2">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
+          <button onClick={handleTemplateDownload}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+            style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
+            <FileDown size={14} /> 템플릿
+          </button>
           <button onClick={handleExcelExport}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
             style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.35)' }}>
-            <Download size={14} /> 엑셀 내보내기
+            <Download size={14} /> 내보내기
           </button>
           {canManage && (
             <>
               <button onClick={() => importRef.current?.click()}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
                 style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
-                <Upload size={14} /> 엑셀 업무 등록
+                <Upload size={14} /> 엑셀 등록
               </button>
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelImport} />
               <button onClick={() => setModalOpen(true)}

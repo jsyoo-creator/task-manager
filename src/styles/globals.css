@@ -23,6 +23,8 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+button, select, [role="button"] { cursor: pointer; }
+
 body {
   font-size: 14px;
   font-weight: 400;

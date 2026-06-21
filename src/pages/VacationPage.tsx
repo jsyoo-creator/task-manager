@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import DatePicker from '../components/DatePicker';
 import type { Vacation, VacationType, AppUser } from '../types';
 
 interface Props {
@@ -61,9 +62,17 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
 
   const vacDay = useMemo(() => {
     const map: Record<string, Vacation[]> = {};
-    monthVacations.forEach(v => { map[v.date] = [...(map[v.date] ?? []), v]; });
+    vacations.forEach(v => {
+      const spanDays = v.type === '연차' ? Math.max(1, Math.ceil(v.days)) : 1;
+      for (let i = 0; i < spanDays; i++) {
+        const d = new Date(v.date + 'T00:00:00');
+        d.setDate(d.getDate() + i);
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (ds.startsWith(monthPrefix)) map[ds] = [...(map[ds] ?? []), v];
+      }
+    });
     return map;
-  }, [monthVacations]);
+  }, [vacations, monthPrefix]);
 
   const myVacationsThisYear = useMemo(
     () => vacations.filter(v => v.memberName === currentUserName && v.date.startsWith(yearPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
@@ -174,8 +183,8 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                   value={form.memberName} onChange={e => setForm(f => ({ ...f, memberName: e.target.value }))}>
                   {teamMembers.map(m => <option key={m.uid} value={m.displayName}>{m.displayName}</option>)}
                 </select>
-                <input type="date" required className="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
-                  value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+                <DatePicker value={form.date} onChange={d => setForm(f => ({ ...f, date: d }))}
+                  btnClassName="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs text-gray-700" />
                 <select className="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
                   value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Vacation['type'] }))}>
                   {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
@@ -257,11 +266,11 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                       </div>
                     )}
                   </div>
-                  <input type="date" required
-                    className="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
-                    value={myForm.date} onChange={e => setMyForm(f => ({ ...f, date: e.target.value }))} />
-                  <div className="flex gap-2">
-                    <button type="submit" className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600">신청</button>
+                  <DatePicker value={myForm.date} onChange={d => setMyForm(f => ({ ...f, date: d }))}
+                    btnClassName="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs text-gray-700" />
+                    <div className="flex gap-2">
+                    <button type="submit" disabled={!myForm.date}
+                      className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed">신청</button>
                     <button type="button" onClick={() => setShowMyForm(false)} className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
                   </div>
                 </form>

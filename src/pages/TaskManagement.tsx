@@ -199,9 +199,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           });
         }
 
+        const parseMonth = (raw: string): string => {
+          const s = raw.trim();
+          if (!s) return '';
+          if (/^\d{4}-\d{2}$/.test(s)) return s; // 2026-07
+          const m1 = s.match(/^(\d{1,2})월$/);   // 7월, 10월
+          if (m1) return `${yearFilter}-${String(parseInt(m1[1])).padStart(2, '0')}`;
+          const m2 = s.match(/^(\d{4})[-/](\d{1,2})$/); // 2026-7, 2026/7
+          if (m2) return `${m2[1]}-${String(parseInt(m2[2])).padStart(2, '0')}`;
+          return s;
+        };
+
         return {
           title: String(keyMap.title ?? get('업무명') ?? '').trim(),
-          taskMonth: String(keyMap.taskMonth ?? get('월') ?? '').trim(),
+          taskMonth: parseMonth(String(keyMap.taskMonth ?? '')),
           category: String(keyMap.category ?? get('파트') ?? '').trim() as TaskCategory,
           type: String(keyMap.type ?? get('유형') ?? '신규').trim() as TaskType,
           status: String(keyMap.status ?? get('상태') ?? '진행 전').trim() as TaskStatus,

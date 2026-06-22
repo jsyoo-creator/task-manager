@@ -1572,9 +1572,18 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
 }
 
 const TEAM_COLOR_PRESETS = [
-  '#3b82f6','#8b5cf6','#10b981','#f97316','#ec4899',
-  '#14b8a6','#ef4444','#eab308','#6366f1','#0ea5e9',
-  '#f43f5e','#84cc16',
+  // 레드·핑크
+  '#ef4444','#f97316','#f43f5e','#ec4899','#db2777',
+  // 퍼플·인디고
+  '#a855f7','#8b5cf6','#6366f1','#4f46e5','#7c3aed',
+  // 블루·스카이
+  '#3b82f6','#2563eb','#0ea5e9','#0284c7','#06b6d4',
+  // 그린·틸
+  '#10b981','#059669','#14b8a6','#0d9488','#22c55e',
+  // 라임·옐로
+  '#84cc16','#65a30d','#eab308','#ca8a04','#f59e0b',
+  // 브라운·슬레이트
+  '#78716c','#57534e','#64748b','#475569','#374151',
 ];
 
 function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig }: {
@@ -1741,7 +1750,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 {/* 인라인 색상 팔레트 + 이모지 피커 */}
                 {colorPickerTeamId === team.id && (
                   <div className="mt-2 ml-11 space-y-2">
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="grid grid-cols-10 gap-1.5">
                       {TEAM_COLOR_PRESETS.map(hex => (
                         <button key={hex}
                           onClick={() => { onUpdateTeam(team.id, { color: hex }); }}

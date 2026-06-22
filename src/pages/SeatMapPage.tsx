@@ -23,7 +23,7 @@ const DEPT_STYLE: Record<string, string> = {
 function SeatCell({ assigned, color, photoURL, department }: { assigned: string; color: string; photoURL?: string; department?: string }) {
   return (
     <div
-      className="h-20 rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 px-1.5 transition-all"
+      className="h-20 rounded-xl border-2 flex items-center gap-2.5 px-3 transition-all"
       style={assigned
         ? { backgroundColor: color + '15', borderColor: color + '50' }
         : { backgroundColor: 'rgba(0,0,0,0.02)', borderColor: 'rgba(0,0,0,0.08)' }
@@ -32,16 +32,18 @@ function SeatCell({ assigned, color, photoURL, department }: { assigned: string;
       {assigned ? (
         <>
           {photoURL
-            ? <img src={photoURL} alt={assigned} className="w-6 h-6 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
-            : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
+            ? <img src={photoURL} alt={assigned} className="w-8 h-8 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
+            : <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
           }
-          <p className="text-[10px] font-semibold text-gray-700 truncate max-w-full px-1 leading-tight">{assigned}</p>
-          {department && (
-            <span className={`text-[9px] font-medium px-1.5 py-0 rounded-full leading-tight ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
-          )}
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <p className="text-xs font-semibold text-gray-800 truncate leading-tight">{assigned}</p>
+            {department && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none w-fit ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
+            )}
+          </div>
         </>
       ) : (
-        <p className="text-[10px] text-gray-300">공석</p>
+        <p className="text-[11px] text-gray-300 w-full text-center">공석</p>
       )}
     </div>
   );

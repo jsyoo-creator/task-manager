@@ -1524,15 +1524,7 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
 
   return (
     <div className="space-y-3">
-      {/* 컬럼 헤더 */}
-      <div className="flex items-center gap-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-        <span className="w-4" />
-        <span className="flex-1">항목명</span>
-        <span className="w-[92px] text-center">가져오기</span>
-        <span className="w-[92px] text-center">내보내기</span>
-      </div>
-
-      <div className="space-y-1">
+<div className="space-y-1">
         {fields.map((f, idx) => (
           <div key={f.key}
             draggable

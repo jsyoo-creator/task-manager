@@ -280,10 +280,9 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                   return (
                     <button key={t.id} type="button"
                       onClick={() => setTeamInput(sel ? teamInput.filter(id => id !== t.id) : [...teamInput, t.id])}
+                      style={sel ? { backgroundColor: t.color ?? '#3b82f6', borderColor: t.color ?? '#3b82f6' } : {}}
                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
-                        sel
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                        sel ? 'text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-100'
                       }`}>
                       <span>{t.emoji}</span><span>{t.name}</span>{sel && <Check size={11} />}
                     </button>
@@ -1739,15 +1738,20 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                     </button>
                   </div>
                 </div>
-                {/* 인라인 색상 팔레트 */}
+                {/* 인라인 색상 팔레트 + 이모지 피커 */}
                 {colorPickerTeamId === team.id && (
-                  <div className="mt-2 ml-11 flex flex-wrap gap-1.5">
-                    {TEAM_COLOR_PRESETS.map(hex => (
-                      <button key={hex}
-                        onClick={() => { onUpdateTeam(team.id, { color: hex }); setColorPickerTeamId(null); }}
-                        style={{ backgroundColor: hex }}
-                        className={`w-6 h-6 rounded-full transition-all hover:scale-110 ${team.color === hex ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`} />
-                    ))}
+                  <div className="mt-2 ml-11 space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {TEAM_COLOR_PRESETS.map(hex => (
+                        <button key={hex}
+                          onClick={() => { onUpdateTeam(team.id, { color: hex }); }}
+                          style={{ backgroundColor: hex }}
+                          className={`w-6 h-6 rounded-full transition-all hover:scale-110 ${team.color === hex ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`} />
+                      ))}
+                    </div>
+                    <div className="p-2 rounded-xl border border-black/8 bg-black/[0.02]">
+                      <EmojiPicker value={team.emoji} onChange={emoji => onUpdateTeam(team.id, { emoji })} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -2072,9 +2076,10 @@ export default function SettingsPage({
                     return (
                       <div key={t.id} className="relative">
                         <button onClick={handleToggle}
+                          style={isSelected ? { backgroundColor: t.color ?? '#3b82f6', borderColor: t.color ?? '#3b82f6' } : {}}
                           className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
                             isSelected
-                              ? 'bg-blue-500 text-white border-blue-500 shadow-md pr-8'
+                              ? 'text-white shadow-md pr-8'
                               : 'border-gray-200 text-gray-700 hover:bg-gray-100'
                           }`}>
                           <span className="text-base">{t.emoji}</span>

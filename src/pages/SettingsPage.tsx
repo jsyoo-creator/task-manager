@@ -2081,18 +2081,54 @@ export default function SettingsPage({
             <span className="text-sm font-semibold text-gray-800">사용자 관리</span>
             <span className="text-xs text-gray-400">{users.length}명</span>
           </div>
-          <div className="divide-y divide-black/[0.04]">
-            {users.length === 0 ? (
-              <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 사용자 없음</p>
-            ) : (
-              users
-                .sort((a, b) => ({ superadmin: 0, manager: 1, user: 2 }[a.role] - { superadmin: 0, manager: 1, user: 2 }[b.role]))
-                .map(u => (
-                  <UserRow key={u.uid} u={u} viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []} isSelf={u.uid === appUser.uid}
-                    onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
-                ))
-            )}
-          </div>
+          {users.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 사용자 없음</p>
+          ) : (
+            <div>
+              {[...teams, null].map(team => {
+                const ROLE_ORDER: Record<string, number> = { superadmin: 0, manager: 1, user: 2 };
+                const teamUsers = team
+                  ? users.filter(u => u.selectedTeamIds?.includes(team.id))
+                  : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));
+                if (teamUsers.length === 0) return null;
+
+                const deptGroups = [
+                  ...DEPARTMENTS.map(dept => ({ dept, members: teamUsers.filter(u => u.department === dept) })),
+                  { dept: '미설정', members: teamUsers.filter(u => !u.department) },
+                ].filter(g => g.members.length > 0);
+
+                return (
+                  <div key={team?.id ?? 'none'} className="border-b border-gray-100 last:border-0">
+                    {/* 팀 헤더 */}
+                    <div className="flex items-center gap-2 px-5 py-2.5 bg-gray-50/80 border-b border-gray-100">
+                      <span className="text-xs font-semibold text-gray-700">
+                        {team ? `${team.emoji} ${team.name}` : '무소속'}
+                      </span>
+                      <span className="text-[11px] text-gray-400">{teamUsers.length}명</span>
+                    </div>
+                    {deptGroups.map(({ dept, members }) => (
+                      <div key={dept}>
+                        {/* 직군 헤더 */}
+                        <div className="px-5 py-1 bg-gray-50/40 border-b border-gray-50">
+                          <span className="text-[11px] font-medium text-gray-400">{dept}</span>
+                        </div>
+                        <div className="divide-y divide-black/[0.04]">
+                          {members
+                            .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role])
+                            .map(u => (
+                              <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
+                                viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}
+                                isSelf={u.uid === appUser.uid}
+                                onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 

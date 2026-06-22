@@ -30,6 +30,8 @@ interface Props {
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
+  onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
+  onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
   customHolidays: CustomHoliday[];
   onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
   orphanTaskCount: number;
@@ -1532,7 +1534,18 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
   );
 }
 
-function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: string, config: ExcelFieldConfig[]) => Promise<void> }) {
+function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
+  team: Team;
+  onSave: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
+}) {
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = !isTeam && !currentPart?.excelConfig;
+
   // formConfig의 customLabel 반영 (설정에서 명칭 변경한 경우 적용)
   const resolvedBuiltins = resolveBuiltinFields(team.formConfig);
   const BUILTIN_EXCEL_KEYS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
@@ -1543,28 +1556,31 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
   });
   const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
 
-  // 기본 필드 목록 생성 (builtins + meta)
   const defaultFields: ExcelFieldConfig[] = [
     ...builtinExcelFields,
     ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: builtinExcelFields.length + i })),
   ];
 
-  const saved = team.excelConfig;
-  const [fields, setFields] = useState<ExcelFieldConfig[]>(() => {
+  const buildFields = (saved: ExcelFieldConfig[] | undefined): ExcelFieldConfig[] => {
     if (!saved?.length) return defaultFields;
-    // saved 기준 정렬, 저장 안된 새 필드는 뒤에 추가
     const savedKeys = new Set(saved.map(f => f.key));
     const extra = defaultFields.filter(f => !savedKeys.has(f.key)).map((f, i) => ({ ...f, order: saved.length + i }));
-    // saved의 label을 최신 customLabel로 동기화 (설정에서 명칭 변경 반영)
     const labelMap = Object.fromEntries(defaultFields.map(f => [f.key, f.label]));
     const synced = saved.map(f => ({ ...f, label: labelMap[f.key] ?? f.label }));
     return [...synced, ...extra].sort((a, b) => a.order - b.order);
-  });
+  };
+
+  const savedConfig = isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig);
+  const [fields, setFields] = useState<ExcelFieldConfig[]>(() => buildFields(savedConfig));
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // team.formConfig가 바뀌면 label 동기화 (폼설정에서 명칭 변경 후 즉시 반영)
+  useEffect(() => {
+    setFields(buildFields(isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTarget, team.id, team.excelConfig, currentPart?.excelConfig]);
+
   useEffect(() => {
     const labelMap = Object.fromEntries(defaultFields.map(f => [f.key, f.label]));
     setFields(fs => fs.map(f => ({ ...f, label: labelMap[f.key] ?? f.label })));
@@ -1585,12 +1601,65 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave(team.id, fields.map((f, i) => ({ ...f, order: i })));
+    const config = fields.map((f, i) => ({ ...f, order: i }));
+    if (isTeam) await onSave(team.id, config);
+    else if (currentPart) await onSavePart(team.id, currentPart.id, config);
     setSaving(false);
   };
 
+  useEffect(() => { setSelectedTarget('team'); }, [team.id]);
+
   return (
     <div className="space-y-3">
+      {/* 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.excelConfig;
+              return (
+                <button key={target}
+                  onClick={() => setSelectedTarget(target)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>별도</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상속/별도 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 저장하면 이 파트만 별도 저장됩니다</p>
+          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화
+          </button>
+        </div>
+      )}
+      {!isTeam && !isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />팀 기본으로 초기화
+          </button>
+        </div>
+      )}
+
       <div className="space-y-1">
         {fields.map((f, idx) => (
           <div key={f.key}
@@ -1653,7 +1722,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -1669,6 +1738,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
+  onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
+  onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -1936,7 +2007,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                   {/* 엑셀 관리 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'excel' && (
                     <div className="px-5 py-4">
-                      <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} />
+                      <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} onSavePart={onUpdatePartExcelConfig} onClearPart={onClearPartExcelConfig} />
                     </div>
                   )}
 
@@ -1956,7 +2027,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
 }: Props) {
@@ -2219,6 +2290,8 @@ export default function SettingsPage({
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
           onUpdateExcelConfig={onUpdateExcelConfig}
+          onUpdatePartExcelConfig={onUpdatePartExcelConfig}
+          onClearPartExcelConfig={onClearPartExcelConfig}
         />
       )}
 

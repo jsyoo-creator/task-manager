@@ -134,5 +134,23 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { excelConfig: config });
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays, updateExcelConfig };
+  const updatePartExcelConfig = async (teamId: string, partId: string, config: ExcelFieldConfig[]) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => p.id === partId ? { ...p, excelConfig: config } : p);
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  const clearPartExcelConfig = async (teamId: string, partId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => {
+      if (p.id !== partId) return p;
+      const { excelConfig: _, ...rest } = p;
+      return rest;
+    });
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig };
 }

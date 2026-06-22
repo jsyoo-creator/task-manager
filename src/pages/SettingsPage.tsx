@@ -224,6 +224,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
           <p className="text-sm font-medium text-gray-900 truncate">
             {u.displayName}{isSelf && <span className="ml-1.5 text-xs text-gray-400">(나)</span>}
           </p>
+          <p className="text-xs text-gray-500 truncate">{u.email}</p>
           <div className="flex items-center gap-1 flex-wrap mt-0.5">
             {userTeams.map(t => (
               <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
@@ -234,7 +235,6 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
               <span className="text-[10px] text-gray-400 italic">무소속</span>
             )}
           </div>
-          <p className="text-xs text-gray-500 truncate">{u.email}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium shrink-0">

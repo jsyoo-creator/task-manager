@@ -32,13 +32,15 @@ function SeatCell({ assigned, color, photoURL, department }: { assigned: string;
       {assigned ? (
         <div className="flex items-center gap-2 px-2">
           {photoURL
-            ? <img src={photoURL} alt={assigned} className="w-8 h-8 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
-            : <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
+            ? <img src={photoURL} alt={assigned} className="w-7 h-7 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
+            : <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
           }
-          <div className="flex flex-col items-start gap-0.5">
-            <p className="text-xs font-semibold text-gray-800 leading-tight whitespace-nowrap">{assigned}</p>
+          <div>
+            <p className="text-sm font-semibold text-gray-800 leading-tight">{assigned}</p>
             {department && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
+              <div className="mt-0.5">
+                <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
+              </div>
             )}
           </div>
         </div>

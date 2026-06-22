@@ -396,40 +396,59 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               <Download size={14} /> 내보내기
             </button>
             {exportDropOpen && parts && parts.length > 0 && (
-              <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-black/8 p-3 min-w-[160px]">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">파트 선택</p>
-                <label className="flex items-center gap-2 px-1 py-1 rounded-lg hover:bg-gray-50 cursor-pointer mb-1">
-                  <input
-                    type="checkbox"
-                    checked={exportParts.size === parts.length}
-                    onChange={e => setExportParts(e.target.checked ? new Set(parts.map(p => p.name)) : new Set())}
-                    className="rounded"
-                  />
-                  <span className="text-xs font-medium text-gray-600">전체 선택</span>
-                </label>
-                <div className="w-full h-px bg-black/5 mb-1" />
-                {parts.map(p => (
-                  <label key={p.id} className="flex items-center gap-2 px-1 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={exportParts.has(p.name)}
-                      onChange={e => {
-                        const next = new Set(exportParts);
-                        e.target.checked ? next.add(p.name) : next.delete(p.name);
-                        setExportParts(next);
-                      }}
-                      className="rounded"
-                    />
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
-                    <span className="text-xs text-gray-700">{p.name}</span>
-                  </label>
-                ))}
+              <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 min-w-[200px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">파트 선택</p>
+
+                {/* 전체 선택 */}
+                <button
+                  onClick={() => setExportParts(exportParts.size === parts.length ? new Set() : new Set(parts.map(p => p.name)))}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-1 transition-colors text-left ${exportParts.size === parts.length ? 'bg-slate-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-150'}`}
+                >
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${exportParts.size === parts.length ? 'bg-white border-white' : 'border-gray-400 bg-white'}`}>
+                    {exportParts.size === parts.length && (
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#475569" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    )}
+                    {exportParts.size > 0 && exportParts.size < parts.length && (
+                      <div className="w-2 h-0.5 bg-gray-400 rounded" />
+                    )}
+                  </div>
+                  <span className="text-xs font-semibold">전체 선택</span>
+                </button>
+
+                <div className="w-full h-px bg-black/5 my-2" />
+
+                {/* 파트별 */}
+                <div className="space-y-1">
+                  {parts.map(p => {
+                    const checked = exportParts.has(p.name);
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          const next = new Set(exportParts);
+                          checked ? next.delete(p.name) : next.add(p.name);
+                          setExportParts(next);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all text-left ${checked ? 'bg-slate-50 ring-1 ring-slate-200' : 'hover:bg-gray-50'}`}
+                      >
+                        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${checked ? 'bg-slate-600 border-slate-600' : 'border-gray-300 bg-white'}`}>
+                          {checked && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          )}
+                        </div>
+                        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${p.color}`} />
+                        <span className="text-sm text-gray-700 font-medium">{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <button
                   onClick={() => handleExcelExport(exportParts)}
                   disabled={exportParts.size === 0}
-                  className="mt-2 w-full py-1.5 text-xs font-semibold text-white rounded-lg transition-colors disabled:opacity-40"
-                  style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)' }}>
-                  내보내기 ({exportParts.size}개 파트)
+                  className="mt-3 w-full py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-30"
+                  style={{ background: exportParts.size > 0 ? 'linear-gradient(135deg,#64748b 0%,#475569 100%)' : undefined, boxShadow: exportParts.size > 0 ? '0 4px 12px rgba(100,116,139,0.35)' : undefined }}>
+                  내보내기 {exportParts.size > 0 && <span className="opacity-80">({exportParts.size}개 파트)</span>}
                 </button>
               </div>
             )}

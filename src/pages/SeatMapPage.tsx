@@ -23,27 +23,27 @@ const DEPT_STYLE: Record<string, string> = {
 function SeatCell({ assigned, color, photoURL, department }: { assigned: string; color: string; photoURL?: string; department?: string }) {
   return (
     <div
-      className="h-20 rounded-xl border-2 flex items-center gap-2.5 px-3 transition-all"
+      className="h-20 rounded-xl border-2 flex items-center justify-center transition-all"
       style={assigned
         ? { backgroundColor: color + '15', borderColor: color + '50' }
         : { backgroundColor: 'rgba(0,0,0,0.02)', borderColor: 'rgba(0,0,0,0.08)' }
       }
     >
       {assigned ? (
-        <>
+        <div className="flex items-center gap-2 px-2">
           {photoURL
             ? <img src={photoURL} alt={assigned} className="w-8 h-8 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
             : <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
           }
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-xs font-semibold text-gray-800 truncate leading-tight">{assigned}</p>
+          <div className="flex flex-col items-start gap-0.5">
+            <p className="text-xs font-semibold text-gray-800 leading-tight whitespace-nowrap">{assigned}</p>
             {department && (
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none w-fit ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
             )}
           </div>
-        </>
+        </div>
       ) : (
-        <p className="text-[11px] text-gray-300 w-full text-center">공석</p>
+        <p className="text-[11px] text-gray-300">공석</p>
       )}
     </div>
   );

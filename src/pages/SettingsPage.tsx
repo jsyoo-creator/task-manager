@@ -1524,7 +1524,7 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
 
   return (
     <div className="space-y-3">
-<div className="space-y-1">
+      <div className="space-y-1">
         {fields.map((f, idx) => (
           <div key={f.key}
             draggable
@@ -1537,8 +1537,6 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
             } ${dragIdx === idx ? 'opacity-40' : ''}`}>
             <GripVertical size={13} className="text-gray-300 cursor-grab flex-shrink-0" />
             <span className={`text-xs font-medium flex-1 ${f.enabled ? 'text-gray-700' : 'text-gray-400'}`}>{f.label}</span>
-
-            {/* 가져오기 토글 */}
             <button
               onClick={() => toggle(f.key)}
               className={`w-[92px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
@@ -1548,8 +1546,6 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
               }`}>
               {f.enabled ? '가져오기 포함' : '가져오기 제외'}
             </button>
-
-            {/* 내보내기 토글 */}
             <button
               onClick={() => { if (f.enabled) toggleExportExclude(f.key); }}
               className={`w-[92px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${

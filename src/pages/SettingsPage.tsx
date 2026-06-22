@@ -303,7 +303,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                     setAnnualLeaveStr(String(DEFAULT_ANNUAL));
                   }
                 }}
-                className="w-24 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-center"
+                className="w-24 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
               <span className="text-xs text-gray-400">일 <span className="text-gray-300">(기본 {DEFAULT_ANNUAL}일, 0.1 단위)</span></span>
             </div>

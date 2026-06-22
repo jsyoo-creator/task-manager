@@ -213,9 +213,13 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
   return (
     <div className="px-4 py-3 hover:bg-black/[0.02] transition-colors">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-          {u.displayName?.[0]?.toUpperCase() ?? '?'}
-        </div>
+        {u.photoURL ? (
+          <img src={u.photoURL} alt={u.displayName} className="w-8 h-8 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+            {u.displayName?.[0]?.toUpperCase() ?? '?'}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-medium text-gray-900 truncate">

@@ -396,7 +396,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               <Download size={14} /> 내보내기
             </button>
             {exportDropOpen && parts && parts.length > 0 && (
-              <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 min-w-[200px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 min-w-[200px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">파트 선택</p>
 
                 {/* 전체 선택 */}

@@ -182,13 +182,14 @@ const DEFAULT_ANNUAL = 0;
 function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, teams }: {
   u: AppUser; viewerRole: UserRole; viewerTeamIds: string[]; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
-  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number }) => void;
+  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null }) => void;
   teams: Team[];
 }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(u.displayName);
   const [deptInput, setDeptInput] = useState<Department | undefined>(u.department);
   const [teamInput, setTeamInput] = useState<string[]>(u.selectedTeamIds ?? []);
+  const [defaultTeamInput, setDefaultTeamInput] = useState<string | null>(u.defaultTeamId ?? null);
   const [annualLeaveStr, setAnnualLeaveStr] = useState<string>(String(u.annualLeave ?? DEFAULT_ANNUAL));
 
   // 최고 관리자: 본인 포함 전체 수정 가능
@@ -202,11 +203,15 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
   const handleSave = async () => {
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
     const annualLeave = isNaN(parsed) || parsed < 0 ? DEFAULT_ANNUAL : Math.round(parsed * 100) / 100;
+    const resolvedDefault = teamInput.length >= 2 && defaultTeamInput && teamInput.includes(defaultTeamInput)
+      ? defaultTeamInput
+      : null;
     await onUpdateInfo(u.uid, {
       displayName: nameInput.trim() || u.displayName,
       department: deptInput,
       selectedTeamIds: teamInput,
       annualLeave,
+      defaultTeamId: resolvedDefault,
     });
     setEditing(false);
   };
@@ -216,6 +221,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
     setNameInput(u.displayName);
     setDeptInput(u.department);
     setTeamInput(u.selectedTeamIds ?? []);
+    setDefaultTeamInput(u.defaultTeamId ?? null);
     setAnnualLeaveStr(String(u.annualLeave ?? DEFAULT_ANNUAL));
   };
 
@@ -285,21 +291,44 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
             {teams.length === 0 ? (
               <p className="text-xs text-gray-400 italic">생성된 팀 없음</p>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {teams.map(t => {
-                  const sel = teamInput.includes(t.id);
-                  return (
-                    <button key={t.id} type="button"
-                      onClick={() => setTeamInput(sel ? teamInput.filter(id => id !== t.id) : [...teamInput, t.id])}
-                      style={sel ? { backgroundColor: t.color ?? '#3b82f6', borderColor: t.color ?? '#3b82f6' } : {}}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
-                        sel ? 'text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-100'
-                      }`}>
-                      <span>{t.emoji}</span><span>{t.name}</span>{sel && <Check size={11} />}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {teams.map(t => {
+                    const sel = teamInput.includes(t.id);
+                    const isDefault = defaultTeamInput === t.id;
+                    return (
+                      <div key={t.id} className="relative">
+                        <button type="button"
+                          onClick={() => {
+                            const next = sel ? teamInput.filter(id => id !== t.id) : [...teamInput, t.id];
+                            setTeamInput(next);
+                            if (sel && isDefault) setDefaultTeamInput(null);
+                          }}
+                          style={sel ? { backgroundColor: t.color ?? '#3b82f6', borderColor: t.color ?? '#3b82f6' } : {}}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                            sel ? `text-white ${teamInput.length >= 2 ? 'pr-7' : ''}` : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                          }`}>
+                          <span>{t.emoji}</span><span>{t.name}</span>{sel && !isDefault && <Check size={11} />}
+                        </button>
+                        {sel && teamInput.length >= 2 && (
+                          <button
+                            type="button"
+                            onClick={() => setDefaultTeamInput(isDefault ? null : t.id)}
+                            title={isDefault ? '기본 팀 해제' : '기본 팀으로 설정'}
+                            className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded transition-colors ${
+                              isDefault ? 'text-yellow-300' : 'text-gray-400 hover:text-yellow-300'
+                            }`}>
+                            <Star size={11} fill={isDefault ? 'currentColor' : 'none'} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {teamInput.length >= 2 && (
+                  <p className="mt-1 text-[11px] text-gray-400">★ 를 눌러 접속 시 기본으로 선택될 팀을 지정하세요.</p>
+                )}
+              </>
             )}
           </div>
           <div>
@@ -2311,7 +2340,11 @@ export default function SettingsPage({
                 const DEFAULT_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f97316','#ec4899','#14b8a6'];
                 return [...teams, null].map((team, teamIdx) => {
                   const teamUsers = team
-                    ? users.filter(u => u.selectedTeamIds?.includes(team.id))
+                    ? users.filter(u => {
+                        if (!u.selectedTeamIds?.includes(team.id)) return false;
+                        if (u.defaultTeamId) return u.defaultTeamId === team.id;
+                        return true;
+                      })
                     : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));
                   if (teamUsers.length === 0) return null;
 

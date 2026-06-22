@@ -1592,6 +1592,9 @@ const TEAM_COLOR_PRESETS = [
   '#84cc16','#65a30d','#eab308','#ca8a04','#f59e0b',
   // 브라운·슬레이트
   '#78716c','#57534e','#64748b','#475569','#374151',
+  // 추가 10색
+  '#fda4af','#fdba74','#fcd34d','#86efac','#67e8f9',
+  '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
 function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig }: {

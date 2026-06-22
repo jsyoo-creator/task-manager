@@ -21,7 +21,7 @@ const VACATION_DAYS: Record<VacationType, number> = {
   '오후반반차': 0.25,
   '오후반차': 0.5,
 };
-const ANNUAL_TOTAL = 15;
+const DEFAULT_ANNUAL = 15;
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function typeColor(type: VacationType): string {
@@ -92,18 +92,21 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     return map;
   }, [vacations, monthPrefix, holidayMap]);
 
+  const myAnnualTotal = teamMembers.find(m => m.displayName === currentUserName)?.annualLeave ?? DEFAULT_ANNUAL;
+
   const myVacationsThisYear = useMemo(
     () => vacations.filter(v => v.memberName === currentUserName && v.date.startsWith(yearPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
     [vacations, currentUserName, yearPrefix]
   );
   const myUsed = useMemo(() => myVacationsThisYear.reduce((a, v) => a + v.days, 0), [myVacationsThisYear]);
-  const myRemaining = Math.max(0, ANNUAL_TOTAL - myUsed);
+  const myRemaining = Math.max(0, myAnnualTotal - myUsed);
 
   // 팀 전체 현황 — 본인 포함
   const memberStats = useMemo(
     () => teamMembers.map(m => {
+      const annualTotal = m.annualLeave ?? DEFAULT_ANNUAL;
       const used = vacations.filter(v => v.memberName === m.displayName && v.date.startsWith(yearPrefix)).reduce((a, v) => a + v.days, 0);
-      return { user: m, used, remaining: Math.max(0, ANNUAL_TOTAL - used) };
+      return { user: m, used, remaining: Math.max(0, annualTotal - used), annualTotal };
     }),
     [teamMembers, vacations, yearPrefix]
   );
@@ -139,7 +142,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
           <h1 className="page-title">휴가</h1>
           <p className="page-subtitle">{year}년 연간 휴가 관리</p>
         </div>
-        <span className="text-xs text-gray-400 font-medium">연간 {ANNUAL_TOTAL}일 기준</span>
+        <span className="text-xs text-gray-400 font-medium">기본 {DEFAULT_ANNUAL}일 · 개인별 조정 가능</span>
       </div>
 
       <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '1fr 340px' }}>
@@ -255,7 +258,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-800 mb-1.5 truncate">{currentUserName || '—'}</p>
                 <div className="w-full h-2 bg-gray-100 rounded-full">
-                  <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${Math.min(100, Math.round((myUsed / ANNUAL_TOTAL) * 100))}%` }} />
+                  <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${Math.min(100, Math.round((myUsed / myAnnualTotal) * 100))}%` }} />
                 </div>
               </div>
             </div>
@@ -263,7 +266,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
             <div className="flex gap-3 mt-3 text-center">
               <div className="flex-1 bg-gray-50 rounded-xl py-2">
                 <p className="text-[10px] text-gray-400 mb-0.5">총 연차</p>
-                <p className="text-sm font-bold text-gray-700">{ANNUAL_TOTAL}<span className="text-[10px] font-normal text-gray-400">일</span></p>
+                <p className="text-sm font-bold text-gray-700">{myAnnualTotal}<span className="text-[10px] font-normal text-gray-400">일</span></p>
               </div>
               <div className="flex-1 bg-amber-50 rounded-xl py-2">
                 <p className="text-[10px] text-gray-400 mb-0.5">사용</p>
@@ -336,21 +339,22 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
             </div>
             {memberStats.length === 0
               ? <p className="text-xs text-gray-300 text-center py-8">팀원이 없습니다</p>
-              : memberStats.map(({ user, used, remaining }) => (
+              : memberStats.map(({ user, used, remaining, annualTotal }) => (
                 <div key={user.uid} className={`grid grid-cols-[1fr_56px_56px_80px] items-center px-3 py-2.5 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/40' : ''}`}>
                   <div className="flex items-center gap-2 min-w-0">
                     <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
                     <span className="text-xs text-gray-700 truncate">{user.displayName || user.email || '—'}</span>
                     {user.displayName === currentUserName && <span className="text-[9px] text-blue-400 font-semibold shrink-0">나</span>}
+                    <span className="text-[9px] text-gray-400 shrink-0">/{annualTotal}일</span>
                   </div>
                   <span className="text-center text-xs text-amber-600 font-semibold">{used}일</span>
                   <span className={`text-center text-xs font-bold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
                   <div className="flex flex-col items-center gap-0.5 px-2">
                     <div className="w-full h-1.5 bg-gray-100 rounded-full">
                       <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
-                        style={{ width: `${Math.min(100, Math.round((used / ANNUAL_TOTAL) * 100))}%` }} />
+                        style={{ width: `${Math.min(100, Math.round((used / annualTotal) * 100))}%` }} />
                     </div>
-                    <span className="text-[9px] text-gray-400">{Math.round((used / ANNUAL_TOTAL) * 100)}%</span>
+                    <span className="text-[9px] text-gray-400">{Math.round((used / annualTotal) * 100)}%</span>
                   </div>
                 </div>
               ))

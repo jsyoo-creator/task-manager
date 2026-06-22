@@ -11,6 +11,7 @@ export interface AppUser {
   department?: Department;
   selectedTeamIds?: string[];
   defaultTeamId?: string;
+  annualLeave?: number; // 개인 연간 휴가 일수 (미설정 시 기본값 15)
   createdAt: string;
 }
 

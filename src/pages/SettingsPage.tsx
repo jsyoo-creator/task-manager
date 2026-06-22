@@ -166,16 +166,19 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
 // ──────────────────────────────────────────
 // 사용자 행
 // ──────────────────────────────────────────
+const DEFAULT_ANNUAL = 15;
+
 function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
   u: AppUser; viewerRole: UserRole; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
-  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[] }) => void;
+  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number }) => void;
   teams: Team[];
 }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(u.displayName);
   const [deptInput, setDeptInput] = useState<Department | undefined>(u.department);
   const [teamInput, setTeamInput] = useState<string[]>(u.selectedTeamIds ?? []);
+  const [annualLeaveInput, setAnnualLeaveInput] = useState<number>(u.annualLeave ?? DEFAULT_ANNUAL);
 
   const canEdit = !isSelf && (viewerRole === 'superadmin' || (viewerRole === 'manager' && u.role === 'user'));
   const canChangeRole = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
@@ -185,6 +188,7 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
       displayName: nameInput.trim() || u.displayName,
       department: deptInput,
       selectedTeamIds: teamInput,
+      annualLeave: annualLeaveInput,
     });
     setEditing(false);
   };
@@ -194,6 +198,7 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
     setNameInput(u.displayName);
     setDeptInput(u.department);
     setTeamInput(u.selectedTeamIds ?? []);
+    setAnnualLeaveInput(u.annualLeave ?? DEFAULT_ANNUAL);
   };
 
   const userTeams = teams.filter(t => u.selectedTeamIds?.includes(t.id));
@@ -221,6 +226,9 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
           <p className="text-xs text-gray-500 truncate">{u.email}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium shrink-0">
+            {u.annualLeave ?? DEFAULT_ANNUAL}일
+          </span>
           {u.department ? <DeptBadge dept={u.department} /> : (
             <span className="text-xs text-orange-400 bg-orange-50 px-2 py-0.5 rounded-full">미설정</span>
           )}
@@ -272,6 +280,26 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
                 })}
               </div>
             )}
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">연간 휴가 일수</label>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white/60">
+                <button type="button"
+                  onClick={() => setAnnualLeaveInput(v => Math.max(1, v - 1))}
+                  className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 font-bold text-sm leading-none">−</button>
+                <input
+                  type="number" min={1} max={365}
+                  value={annualLeaveInput}
+                  onChange={e => setAnnualLeaveInput(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-10 text-center text-sm text-gray-900 bg-transparent focus:outline-none font-semibold"
+                />
+                <button type="button"
+                  onClick={() => setAnnualLeaveInput(v => v + 1)}
+                  className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 font-bold text-sm leading-none">+</button>
+              </div>
+              <span className="text-xs text-gray-400">일 <span className="text-gray-300">(기본 {DEFAULT_ANNUAL}일)</span></span>
+            </div>
           </div>
           <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-xs font-semibold btn-shiny-primary">저장</button>
         </div>

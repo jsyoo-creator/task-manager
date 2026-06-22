@@ -108,7 +108,7 @@ export function useAllUsers() {
     await updateDoc(doc(db, 'users', uid), { role });
   };
 
-  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[] }) => {
+  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number }) => {
     await updateDoc(doc(db, 'users', uid), data);
   };
 

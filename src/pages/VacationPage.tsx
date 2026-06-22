@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import DatePicker from '../components/DatePicker';
+import { useHolidayMap } from '../contexts/HolidaysContext';
 import type { Vacation, VacationType, AppUser } from '../types';
 
 interface Props {
@@ -38,11 +39,13 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const holidayMap = useHolidayMap();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     memberName: currentUserName || teamMembers[0]?.displayName || '',
     date: '',
     type: '연차' as VacationType,
+    annualDays: 1,
   });
 
   // 내 휴가 신청 폼
@@ -98,8 +101,9 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     e.preventDefault();
     if (!form.date || !form.memberName) return;
     const member = teamMembers.find(m => m.displayName === form.memberName);
-    onAddVacation({ memberId: member?.uid ?? '', memberName: form.memberName, date: form.date, type: form.type, days: VACATION_DAYS[form.type] });
-    setForm(f => ({ ...f, date: '' }));
+    const days = form.type === '연차' ? form.annualDays : VACATION_DAYS[form.type];
+    onAddVacation({ memberId: member?.uid ?? '', memberName: form.memberName, date: form.date, type: form.type, days });
+    setForm(f => ({ ...f, date: '', annualDays: 1 }));
     setShowForm(false);
   };
 
@@ -144,11 +148,14 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
               const dayVacs = day ? (vacDay[dateStr] ?? []) : [];
               const isTd = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
               const isWk = idx % 7 === 0 || idx % 7 === 6;
+              const holidayName = day ? (holidayMap.get(dateStr) ?? null) : null;
+              const isRed = isWk || !!holidayName;
               return (
-                <div key={idx} className={`aspect-square flex flex-col items-center justify-center rounded-lg ${dayVacs.length > 0 ? 'bg-blue-50' : ''}`}>
+                <div key={idx} className={`aspect-square flex flex-col items-center justify-center rounded-lg ${dayVacs.length > 0 ? 'bg-blue-50' : holidayName && !isWk ? 'bg-red-50/40' : ''}`}>
                   {day && (
                     <>
-                      <span className={`text-[11px] font-medium ${isTd ? 'bg-blue-500 text-white w-5 h-5 flex items-center justify-center rounded-full' : isWk ? 'text-gray-400' : 'text-gray-700'}`}>{day}</span>
+                      <span title={holidayName ?? undefined} className={`text-[11px] font-medium ${isTd ? 'bg-blue-500 text-white w-5 h-5 flex items-center justify-center rounded-full' : isRed ? 'text-red-400' : 'text-gray-700'}`}>{day}</span>
+                      {holidayName && !isTd && <span className="w-1 h-1 rounded-full bg-red-400 mt-0.5" />}
                       {dayVacs.length > 0 && <div className="flex gap-0.5 mt-0.5">{dayVacs.slice(0, 3).map((_, i) => <span key={i} className="w-1 h-1 rounded-full bg-blue-400" />)}</div>}
                     </>
                   )}
@@ -183,12 +190,22 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                   value={form.memberName} onChange={e => setForm(f => ({ ...f, memberName: e.target.value }))}>
                   {teamMembers.map(m => <option key={m.uid} value={m.displayName}>{m.displayName}</option>)}
                 </select>
-                <DatePicker value={form.date} onChange={d => setForm(f => ({ ...f, date: d }))}
-                  btnClassName="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs text-gray-700" />
-                <select className="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
-                  value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Vacation['type'] }))}>
-                  {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  <select className="flex-1 glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
+                    value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Vacation['type'], annualDays: 1 }))}>
+                    {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                  {form.type === '연차' && (
+                    <div className="flex items-center gap-1 glass-card !rounded-lg px-2.5 py-1.5 shrink-0">
+                      <button type="button" onClick={() => setForm(f => ({ ...f, annualDays: Math.max(1, f.annualDays - 1) }))}
+                        className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">−</button>
+                      <span className="text-xs text-gray-700 w-6 text-center">{form.annualDays}일</span>
+                      <button type="button" onClick={() => setForm(f => ({ ...f, annualDays: f.annualDays + 1 }))}
+                        className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">+</button>
+                    </div>
+                  )}
+                </div>
+                <DatePicker value={form.date} onChange={d => setForm(f => ({ ...f, date: d }))} />
                 <div className="flex gap-2">
                   <button type="submit" className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600">등록</button>
                   <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
@@ -266,8 +283,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                       </div>
                     )}
                   </div>
-                  <DatePicker value={myForm.date} onChange={d => setMyForm(f => ({ ...f, date: d }))}
-                    btnClassName="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs text-gray-700" />
+                  <DatePicker value={myForm.date} onChange={d => setMyForm(f => ({ ...f, date: d }))} />
                     <div className="flex gap-2">
                     <button type="submit" disabled={!myForm.date}
                       className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed">신청</button>

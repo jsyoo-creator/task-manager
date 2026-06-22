@@ -107,10 +107,10 @@ function DeptSelector({ value, onChange }: { value?: Department; onChange: (d: D
 // ──────────────────────────────────────────
 function EmojiPicker({ value, onChange }: { value: string; onChange: (e: string) => void }) {
   return (
-    <div className="grid grid-cols-10 gap-1">
+    <div className="grid grid-cols-10 gap-0.5">
       {EMOJIS.map(e => (
         <button key={e} type="button" onClick={() => onChange(e)}
-          className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-all hover:scale-110 ${
+          className={`w-6 h-6 rounded-md text-sm flex items-center justify-center transition-all hover:scale-110 ${
             value === e ? 'bg-blue-100 ring-2 ring-blue-400' : 'hover:bg-gray-100'
           }`}>{e}</button>
       ))}
@@ -1749,8 +1749,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 </div>
                 {/* 인라인 색상 팔레트 + 이모지 피커 */}
                 {colorPickerTeamId === team.id && (
-                  <div className="mt-2 ml-11 space-y-2">
-                    <div className="grid grid-cols-10 gap-1.5">
+                  <div className="mt-2 ml-11 space-y-2" style={{ maxWidth: 272 }}>
+                    <div className="grid grid-cols-10 gap-1">
                       {TEAM_COLOR_PRESETS.map(hex => (
                         <button key={hex}
                           onClick={() => { onUpdateTeam(team.id, { color: hex }); }}
@@ -1758,7 +1758,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                           className={`w-6 h-6 rounded-full transition-all hover:scale-110 ${team.color === hex ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`} />
                       ))}
                     </div>
-                    <div className="p-2 rounded-xl border border-black/8 bg-black/[0.02]">
+                    <div className="p-1.5 rounded-xl border border-black/8 bg-black/[0.02]">
                       <EmojiPicker value={team.emoji} onChange={emoji => onUpdateTeam(team.id, { emoji })} />
                     </div>
                   </div>

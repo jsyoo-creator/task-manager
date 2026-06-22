@@ -51,7 +51,7 @@ import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
 function App() {
-  const { user, loading: authLoading, error: authError, signIn, signInWithEmail, signOut } = useAuth();
+  const { user, loading: authLoading, error: authError, signIn, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam } = useUserRole(user);
   const { users: allUsers } = useAllUsers();
 
@@ -246,7 +246,7 @@ function App() {
   }
 
   if (!user) {
-    return <LoginPage onSignIn={signIn} onSignInWithEmail={signInWithEmail} error={authError} />;
+    return <LoginPage onSignIn={signIn} onSignInWithEmail={signInWithEmail} onSignUpWithEmail={signUpWithEmail} error={authError} />;
   }
 
   const permissions = getPermissions(appUser?.role ?? 'user');

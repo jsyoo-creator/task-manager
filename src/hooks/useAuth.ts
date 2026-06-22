@@ -3,6 +3,8 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut as fbSignOut,
   GoogleAuthProvider,
   type User,
@@ -18,6 +20,7 @@ export interface AuthState {
   error: string | null;
   signIn: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -94,7 +97,29 @@ export function useAuth(): AuthState {
     }
   };
 
+  const signUpWithEmail = async (email: string, password: string, displayName: string) => {
+    if (!auth) { setError('서비스 설정 오류가 발생했습니다. 관리자에게 문의하세요.'); return; }
+    setError(null);
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      if (displayName.trim()) {
+        await updateProfile(result.user, { displayName: displayName.trim() });
+      }
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if (code === 'auth/email-already-in-use') {
+        setError('이미 사용 중인 이메일입니다.');
+      } else if (code === 'auth/invalid-email') {
+        setError('이메일 형식이 올바르지 않습니다.');
+      } else if (code === 'auth/weak-password') {
+        setError('비밀번호는 6자 이상이어야 합니다.');
+      } else {
+        setError('가입 중 오류가 발생했습니다.');
+      }
+    }
+  };
+
   const signOut = () => auth ? fbSignOut(auth) : Promise.resolve();
 
-  return { user, loading, error, signIn, signInWithEmail, signOut };
+  return { user, loading, error, signIn, signInWithEmail, signUpWithEmail, signOut };
 }

@@ -1186,6 +1186,13 @@ const SUBTASK_DEPT_COLOR: Record<string, string> = {
   '퍼블': 'bg-teal-100 text-teal-700',
 };
 
+const SUBTASK_CALENDAR_COLORS = [
+  '#ef4444','#f97316','#eab308','#22c55e','#10b981',
+  '#06b6d4','#3b82f6','#6366f1','#8b5cf6','#ec4899',
+  '#f43f5e','#fb923c','#facc15','#4ade80','#34d399',
+  '#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6',
+];
+
 function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
@@ -1198,6 +1205,7 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   const [newName, setNewName] = useState('');
   const [newDept, setNewDept] = useState<Department | ''>('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [colorPickingId, setColorPickingId] = useState<string | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
@@ -1305,57 +1313,104 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
       {types.length > 0 ? (
         <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
           {types.map((t, i) => (
-            <div key={t.id} draggable
-              onDragStart={() => { dragIdxRef.current = i; }}
-              onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
-              onDrop={() => onDrop(i)}
-              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-              className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-              <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-              {editingId === t.id ? (
-                <input autoFocus
-                  className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                  value={nameInput} onChange={e => setNameInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
-                  onBlur={() => saveName(t.id)} />
-              ) : (
-                <button type="button"
-                  onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
-                  className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
-                  {t.name}
-                </button>
-              )}
-              {/* 직군 토글 버튼 */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-                  <button key={d} type="button"
-                    onClick={() => toggleDept(t.id, d)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
-                      t.department === d
-                        ? SUBTASK_DEPT_COLOR[d]
-                        : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
-                    }`}>
-                    {d}
+            <div key={t.id}>
+              <div draggable
+                onDragStart={() => { dragIdxRef.current = i; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                onDrop={() => onDrop(i)}
+                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                {editingId === t.id ? (
+                  <input autoFocus
+                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                    value={nameInput} onChange={e => setNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                    onBlur={() => saveName(t.id)} />
+                ) : (
+                  <button type="button"
+                    onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                    {t.name}
                   </button>
-                ))}
+                )}
+                {/* 직군 토글 버튼 */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                    <button key={d} type="button"
+                      onClick={() => toggleDept(t.id, d)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                        t.department === d
+                          ? SUBTASK_DEPT_COLOR[d]
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                      }`}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                {/* 캘린더 표시 토글 */}
+                <button
+                  type="button"
+                  title={t.showInCalendar === false ? '캘린더 미표시 (클릭하여 표시)' : '캘린더 표시 (클릭하여 숨김)'}
+                  onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInCalendar: x.showInCalendar === false ? true : false } : x))}
+                  className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                    t.showInCalendar === false
+                      ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                      : 'bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600'
+                  }`}>
+                  <CalendarDays size={11} />
+                </button>
+                {/* 캘린더 색상 버튼 */}
+                <button
+                  type="button"
+                  title="캘린더 표시 색상 선택"
+                  onClick={() => setColorPickingId(colorPickingId === t.id ? null : t.id)}
+                  style={{
+                    width: 16, height: 16, borderRadius: '50%', padding: 0, cursor: 'pointer', flexShrink: 0,
+                    backgroundColor: t.calendarColor ?? '#e5e7eb',
+                    border: t.calendarColor ? `2px solid ${t.calendarColor}` : '1.5px dashed #9ca3af',
+                    outline: colorPickingId === t.id ? '2px solid #6366f1' : 'none',
+                    outlineOffset: 1,
+                  }}
+                />
+                <button type="button" onClick={() => deleteType(t.id)}
+                  className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                  <X size={11} />
+                </button>
               </div>
-              {/* 캘린더 표시 토글 */}
-              <button
-                type="button"
-                title={t.showInCalendar === false ? '캘린더 미표시 (클릭하여 표시)' : '캘린더 표시 (클릭하여 숨김)'}
-                onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInCalendar: x.showInCalendar === false ? true : false } : x))}
-                className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
-                  t.showInCalendar === false
-                    ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                    : 'bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600'
-                }`}>
-                <CalendarDays size={11} />
-              </button>
-              <button type="button" onClick={() => deleteType(t.id)}
-                className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
-                <X size={11} />
-              </button>
+              {/* 인라인 색상 팔레트 */}
+              {colorPickingId === t.id && (
+                <div className="px-3 py-2 bg-gray-50 border-t border-black/5">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 18px)', gap: 4, alignItems: 'center' }}>
+                    {/* 기본값 버튼 */}
+                    <button
+                      type="button"
+                      title="기본값으로 초기화"
+                      onClick={() => { save(types.map(x => x.id === t.id ? { ...x, calendarColor: undefined } : x)); setColorPickingId(null); }}
+                      style={{
+                        width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                        backgroundColor: '#e5e7eb', border: '1.5px dashed #9ca3af',
+                        outline: !t.calendarColor ? '2px solid #6b7280' : 'none', outlineOffset: 1,
+                      }}
+                    />
+                    {SUBTASK_CALENDAR_COLORS.map(hex => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => { save(types.map(x => x.id === t.id ? { ...x, calendarColor: hex } : x)); setColorPickingId(null); }}
+                        style={{
+                          width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                          backgroundColor: hex, border: 'none',
+                          outline: t.calendarColor === hex ? '2px solid #374151' : 'none', outlineOffset: 1,
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1.5">점선 원 = 기본색으로 초기화</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

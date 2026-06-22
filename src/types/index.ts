@@ -204,6 +204,7 @@ export interface SubTaskType {
   name: string;
   department?: Department;
   showInCalendar?: boolean; // undefined = true (기본 표시)
+  calendarColor?: string;   // undefined = 기본색
 }
 
 export const DEFAULT_META_FIELDS: MetaField[] = [

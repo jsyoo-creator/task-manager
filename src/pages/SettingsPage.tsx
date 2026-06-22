@@ -168,8 +168,8 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
 // ──────────────────────────────────────────
 const DEFAULT_ANNUAL = 15;
 
-function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
-  u: AppUser; viewerRole: UserRole; isSelf: boolean;
+function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, teams }: {
+  u: AppUser; viewerRole: UserRole; viewerTeamIds: string[]; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
   onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number }) => void;
   teams: Team[];
@@ -178,17 +178,24 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
   const [nameInput, setNameInput] = useState(u.displayName);
   const [deptInput, setDeptInput] = useState<Department | undefined>(u.department);
   const [teamInput, setTeamInput] = useState<string[]>(u.selectedTeamIds ?? []);
-  const [annualLeaveInput, setAnnualLeaveInput] = useState<number>(u.annualLeave ?? DEFAULT_ANNUAL);
+  const [annualLeaveStr, setAnnualLeaveStr] = useState<string>(String(u.annualLeave ?? DEFAULT_ANNUAL));
 
-  const canEdit = !isSelf && (viewerRole === 'superadmin' || (viewerRole === 'manager' && u.role === 'user'));
+  // 최고 관리자: 본인 포함 전체 수정 가능
+  // 중간 관리자: 본인 + 같은 팀 일반 사용자 수정 가능
+  const isSameTeam = viewerTeamIds.some(tid => u.selectedTeamIds?.includes(tid));
+  const canEdit =
+    viewerRole === 'superadmin' ||
+    (viewerRole === 'manager' && (isSelf || (isSameTeam && u.role === 'user')));
   const canChangeRole = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
+    const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
+    const annualLeave = isNaN(parsed) || parsed < 0.1 ? DEFAULT_ANNUAL : Math.round(parsed * 10) / 10;
     await onUpdateInfo(u.uid, {
       displayName: nameInput.trim() || u.displayName,
       department: deptInput,
       selectedTeamIds: teamInput,
-      annualLeave: annualLeaveInput,
+      annualLeave,
     });
     setEditing(false);
   };
@@ -198,7 +205,7 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
     setNameInput(u.displayName);
     setDeptInput(u.department);
     setTeamInput(u.selectedTeamIds ?? []);
-    setAnnualLeaveInput(u.annualLeave ?? DEFAULT_ANNUAL);
+    setAnnualLeaveStr(String(u.annualLeave ?? DEFAULT_ANNUAL));
   };
 
   const userTeams = teams.filter(t => u.selectedTeamIds?.includes(t.id));
@@ -284,21 +291,21 @@ function UserRow({ u, viewerRole, isSelf, onChangeRole, onUpdateInfo, teams }: {
           <div>
             <label className="block text-xs text-gray-500 mb-1.5">연간 휴가 일수</label>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white/60">
-                <button type="button"
-                  onClick={() => setAnnualLeaveInput(v => Math.max(1, v - 1))}
-                  className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 font-bold text-sm leading-none">−</button>
-                <input
-                  type="number" min={1} max={365}
-                  value={annualLeaveInput}
-                  onChange={e => setAnnualLeaveInput(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-10 text-center text-sm text-gray-900 bg-transparent focus:outline-none font-semibold"
-                />
-                <button type="button"
-                  onClick={() => setAnnualLeaveInput(v => v + 1)}
-                  className="w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 font-bold text-sm leading-none">+</button>
-              </div>
-              <span className="text-xs text-gray-400">일 <span className="text-gray-300">(기본 {DEFAULT_ANNUAL}일)</span></span>
+              <input
+                type="number" step="0.1" min="0.1"
+                value={annualLeaveStr}
+                onChange={e => setAnnualLeaveStr(e.target.value)}
+                onBlur={e => {
+                  const parsed = parseFloat(e.target.value.replace(',', '.'));
+                  if (!isNaN(parsed) && parsed >= 0.1) {
+                    setAnnualLeaveStr(String(Math.round(parsed * 10) / 10));
+                  } else {
+                    setAnnualLeaveStr(String(DEFAULT_ANNUAL));
+                  }
+                }}
+                className="w-24 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-center"
+              />
+              <span className="text-xs text-gray-400">일 <span className="text-gray-300">(기본 {DEFAULT_ANNUAL}일, 0.1 단위)</span></span>
             </div>
           </div>
           <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-xs font-semibold btn-shiny-primary">저장</button>
@@ -2060,7 +2067,7 @@ export default function SettingsPage({
               users
                 .sort((a, b) => ({ superadmin: 0, manager: 1, user: 2 }[a.role] - { superadmin: 0, manager: 1, user: 2 }[b.role]))
                 .map(u => (
-                  <UserRow key={u.uid} u={u} viewerRole={appUser.role} isSelf={u.uid === appUser.uid}
+                  <UserRow key={u.uid} u={u} viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []} isSelf={u.uid === appUser.uid}
                     onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
                 ))
             )}

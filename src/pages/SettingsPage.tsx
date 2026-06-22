@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, EyeOff, Eye } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
@@ -1505,6 +1505,7 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
   }, [team.formConfig]);
 
   const toggle = (key: string) => setFields(fs => fs.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f));
+  const toggleExportExclude = (key: string) => setFields(fs => fs.map(f => f.key === key ? { ...f, exportExcluded: !f.exportExcluded } : f));
 
   const handleDrop = (toIdx: number) => {
     if (dragIdx === null || dragIdx === toIdx) return;
@@ -1524,6 +1525,12 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-400">엑셀 가져오기/내보내기에 사용할 컬럼을 설정합니다. 드래그로 순서를 바꿀 수 있습니다.</p>
+      <div className="flex items-center gap-4 text-[10px] text-gray-400 px-3 py-1">
+        <span className="w-4" />
+        <span className="w-3.5" />
+        <span className="flex-1">항목명</span>
+        <span className="w-20 text-center">내보내기</span>
+      </div>
       <div className="space-y-1">
         {fields.map((f, idx) => (
           <div key={f.key}
@@ -1534,12 +1541,29 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
             onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border bg-white transition-all ${
               dragOverIdx === idx ? 'border-blue-400 bg-blue-50' : 'border-gray-100'
-            } ${dragIdx === idx ? 'opacity-40' : ''}`}>
+            } ${dragIdx === idx ? 'opacity-40' : ''} ${!f.enabled ? 'opacity-50' : ''}`}>
             <GripVertical size={13} className="text-gray-300 cursor-grab flex-shrink-0" />
             <input type="checkbox" checked={f.enabled} onChange={() => toggle(f.key)}
               className="w-3.5 h-3.5 accent-blue-500 flex-shrink-0 cursor-pointer" />
-            <span className="text-xs font-medium text-gray-700 flex-1">{f.label}</span>
-            <span className="text-[10px] text-gray-400 font-mono">{f.key}</span>
+            <span className={`text-xs font-medium flex-1 ${f.enabled ? 'text-gray-700' : 'text-gray-400 line-through'}`}>{f.label}</span>
+            {/* 내보내기 제외 토글 — enabled일 때만 표시 */}
+            {f.enabled ? (
+              <button
+                onClick={() => toggleExportExclude(f.key)}
+                title={f.exportExcluded ? '내보내기에서 제외됨 (클릭하면 포함)' : '내보내기에 포함됨 (클릭하면 제외)'}
+                className={`w-20 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                  f.exportExcluded
+                    ? 'bg-red-50 text-red-400 border border-red-200 hover:bg-red-100'
+                    : 'bg-green-50 text-green-600 border border-green-200 hover:bg-green-100'
+                }`}>
+                {f.exportExcluded
+                  ? <><EyeOff size={10} /> 제외</>
+                  : <><Eye size={10} /> 포함</>
+                }
+              </button>
+            ) : (
+              <div className="w-20" />
+            )}
           </div>
         ))}
       </div>

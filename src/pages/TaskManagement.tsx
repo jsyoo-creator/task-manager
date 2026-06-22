@@ -176,10 +176,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     endDate:   bLabel('endDate', '종료일'),
   };
 
-  // excelConfig의 구 레이블을 builtinLabels 기준으로 동기화
-  const excelFields = (excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
+  // 가져오기용 필드 (enabled만 체크)
+  const importFields = (excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
     .map(f => ({ ...f, label: builtinLabels[f.key] ?? f.label }));
-  const labelToKey = Object.fromEntries(excelFields.map(f => [f.label, f.key]));
+  // 내보내기용 필드 (enabled + exportExcluded 제외)
+  const excelFields = importFields.filter(f => !f.exportExcluded);
+  const labelToKey = Object.fromEntries(importFields.map(f => [f.label, f.key]));
 
   const getExcelHeaders = () =>
     excelFields.length > 0
@@ -268,13 +270,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           if (labelToKey[label] !== undefined) return row[label] ?? '';
           return row[label] ?? '';
         };
-        const keyMap = excelFields.length > 0
-          ? Object.fromEntries(excelFields.map(f => [f.key, row[f.label] ?? '']))
+        const keyMap = importFields.length > 0
+          ? Object.fromEntries(importFields.map(f => [f.key, row[f.label] ?? '']))
           : Object.fromEntries(Object.entries(builtinLabels).map(([key, label]) => [key, row[label] ?? '']));
 
         const customFields: Record<string, string> = {};
-        if (excelFields.length > 0) {
-          excelFields.forEach(f => {
+        if (importFields.length > 0) {
+          importFields.forEach(f => {
             if (!builtinLabels[f.key]) customFields[f.key] = row[f.label] ?? '';
           });
         }

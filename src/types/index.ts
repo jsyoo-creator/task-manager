@@ -242,6 +242,7 @@ export interface ExcelFieldConfig {
   label: string;     // 컬럼 헤더
   enabled: boolean;
   order: number;
+  exportExcluded?: boolean; // true면 내보내기에서 제외 (가져오기는 유지)
 }
 
 export interface Team {

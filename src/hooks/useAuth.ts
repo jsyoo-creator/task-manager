@@ -114,7 +114,7 @@ export function useAuth(): AuthState {
       } else if (code === 'auth/weak-password') {
         setError('비밀번호는 6자 이상이어야 합니다.');
       } else {
-        setError('가입 중 오류가 발생했습니다.');
+        setError(`가입 중 오류가 발생했습니다. (${code})`);
       }
     }
   };

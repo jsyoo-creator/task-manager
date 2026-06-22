@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, EyeOff, Eye } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
@@ -1524,13 +1524,16 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-400">엑셀 가져오기/내보내기에 사용할 컬럼을 설정합니다. 드래그로 순서를 바꿀 수 있습니다.</p>
-      <div className="flex items-center gap-4 text-[10px] text-gray-400 px-3 py-1">
+      <p className="text-xs text-gray-400">드래그로 순서를 변경하고, 각 항목의 가져오기·내보내기 포함 여부를 설정합니다.</p>
+
+      {/* 컬럼 헤더 */}
+      <div className="flex items-center gap-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
         <span className="w-4" />
-        <span className="w-3.5" />
         <span className="flex-1">항목명</span>
-        <span className="w-20 text-center">내보내기</span>
+        <span className="w-[72px] text-center">가져오기</span>
+        <span className="w-[72px] text-center">내보내기</span>
       </div>
+
       <div className="space-y-1">
         {fields.map((f, idx) => (
           <div key={f.key}
@@ -1539,31 +1542,35 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
             onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
             onDrop={() => handleDrop(idx)}
             onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border bg-white transition-all ${
-              dragOverIdx === idx ? 'border-blue-400 bg-blue-50' : 'border-gray-100'
-            } ${dragIdx === idx ? 'opacity-40' : ''} ${!f.enabled ? 'opacity-50' : ''}`}>
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border bg-white transition-all ${
+              dragOverIdx === idx ? 'border-blue-300 bg-blue-50/50' : 'border-gray-100'
+            } ${dragIdx === idx ? 'opacity-40' : ''}`}>
             <GripVertical size={13} className="text-gray-300 cursor-grab flex-shrink-0" />
-            <input type="checkbox" checked={f.enabled} onChange={() => toggle(f.key)}
-              className="w-3.5 h-3.5 accent-blue-500 flex-shrink-0 cursor-pointer" />
-            <span className={`text-xs font-medium flex-1 ${f.enabled ? 'text-gray-700' : 'text-gray-400 line-through'}`}>{f.label}</span>
-            {/* 내보내기 제외 토글 — enabled일 때만 표시 */}
-            {f.enabled ? (
-              <button
-                onClick={() => toggleExportExclude(f.key)}
-                title={f.exportExcluded ? '내보내기에서 제외됨 (클릭하면 포함)' : '내보내기에 포함됨 (클릭하면 제외)'}
-                className={`w-20 flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                  f.exportExcluded
-                    ? 'bg-red-50 text-red-400 border border-red-200 hover:bg-red-100'
-                    : 'bg-green-50 text-green-600 border border-green-200 hover:bg-green-100'
-                }`}>
-                {f.exportExcluded
-                  ? <><EyeOff size={10} /> 제외</>
-                  : <><Eye size={10} /> 포함</>
-                }
-              </button>
-            ) : (
-              <div className="w-20" />
-            )}
+            <span className={`text-xs font-medium flex-1 ${f.enabled ? 'text-gray-700' : 'text-gray-400'}`}>{f.label}</span>
+
+            {/* 가져오기 토글 */}
+            <button
+              onClick={() => toggle(f.key)}
+              className={`w-[72px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
+                f.enabled
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                  : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+              }`}>
+              {f.enabled ? '포함' : '제외'}
+            </button>
+
+            {/* 내보내기 토글 */}
+            <button
+              onClick={() => { if (f.enabled) toggleExportExclude(f.key); }}
+              className={`w-[72px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
+                !f.enabled
+                  ? 'bg-gray-50 text-gray-200 border-gray-100 cursor-not-allowed'
+                  : !f.exportExcluded
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+              }`}>
+              {!f.enabled ? '—' : f.exportExcluded ? '제외' : '포함'}
+            </button>
           </div>
         ))}
       </div>

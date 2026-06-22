@@ -24,12 +24,15 @@ const VACATION_DAYS: Record<VacationType, number> = {
 const ANNUAL_TOTAL = 15;
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-function typeShort(type: VacationType): string {
-  if (type === '연차') return '';
-  if (type.includes('오전반반')) return '오전¼';
-  if (type.includes('오후반반')) return '오후¼';
-  if (type.includes('오전')) return '오전½';
-  return '오후½';
+function typeColor(type: VacationType): string {
+  switch (type) {
+    case '연차':      return 'bg-blue-100 text-blue-700';
+    case '오전반차':   return 'bg-emerald-100 text-emerald-700';
+    case '오전반반차': return 'bg-teal-100 text-teal-700';
+    case '오후반차':   return 'bg-amber-100 text-amber-700';
+    case '오후반반차': return 'bg-orange-100 text-orange-700';
+    default:          return 'bg-gray-100 text-gray-600';
+  }
 }
 
 function Avatar({ photoURL, name, size = 'sm' }: { photoURL?: string; name?: string; size?: 'sm' | 'md' }) {
@@ -58,20 +61,36 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
   const yearPrefix = String(year);
 
-  // 날짜별 휴가 맵 (다일 연차 스팬 포함)
+  // 날짜별 휴가 맵 — 다일 연차는 주말·공휴일 건너뜀
   const vacDay = useMemo(() => {
     const map: Record<string, Vacation[]> = {};
+    const toDs = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
     vacations.forEach(v => {
       const spanDays = v.type === '연차' ? Math.max(1, Math.ceil(v.days)) : 1;
-      for (let i = 0; i < spanDays; i++) {
-        const d = new Date(v.date + 'T00:00:00');
-        d.setDate(d.getDate() + i);
-        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        if (ds.startsWith(monthPrefix)) map[ds] = [...(map[ds] ?? []), v];
+
+      if (spanDays <= 1) {
+        if (v.date.startsWith(monthPrefix)) map[v.date] = [...(map[v.date] ?? []), v];
+        return;
+      }
+
+      // 다일 연차: 영업일(주말·공휴일 제외)만 카운트하며 스팬
+      let found = 0;
+      const cur = new Date(v.date + 'T00:00:00');
+      let safety = 0;
+      while (found < spanDays && safety++ < 365) {
+        const dow = cur.getDay();
+        const ds = toDs(cur);
+        if (dow !== 0 && dow !== 6 && !holidayMap.has(ds)) {
+          if (ds.startsWith(monthPrefix)) map[ds] = [...(map[ds] ?? []), v];
+          found++;
+        }
+        cur.setDate(cur.getDate() + 1);
       }
     });
     return map;
-  }, [vacations, monthPrefix]);
+  }, [vacations, monthPrefix, holidayMap]);
 
   const myVacationsThisYear = useMemo(
     () => vacations.filter(v => v.memberName === currentUserName && v.date.startsWith(yearPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
@@ -183,21 +202,16 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
 
                       {/* 휴가자 칩 */}
                       <div className="flex flex-col gap-0.5">
-                        {dayVacs.slice(0, MAX).map((v, i) => {
-                          const isHalf = v.type !== '연차';
-                          const short = typeShort(v.type);
-                          return (
-                            <div
-                              key={i}
-                              title={`${v.memberName} — ${v.type}${v.days > 1 ? ` ${v.days}일` : ''}`}
-                              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight
-                                ${isHalf ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}
-                            >
-                              <span className="truncate min-w-0">{v.memberName}</span>
-                              {short && <span className="shrink-0 text-[9px] opacity-70">{short}</span>}
-                            </div>
-                          );
-                        })}
+                        {dayVacs.slice(0, MAX).map((v, i) => (
+                          <div
+                            key={i}
+                            title={`${v.memberName} — ${v.type}${v.days > 1 ? ` ${v.days}일` : ''}`}
+                            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${typeColor(v.type)}`}
+                          >
+                            <span className="truncate min-w-0 shrink">{v.memberName}</span>
+                            <span className="shrink-0">{v.type}</span>
+                          </div>
+                        ))}
                         {dayVacs.length > MAX && (
                           <span className="text-[9px] text-gray-400 pl-1">+{dayVacs.length - MAX}명</span>
                         )}
@@ -210,15 +224,19 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
           </div>
 
           {/* 범례 */}
-          <div className="flex items-center gap-4 px-4 py-2.5 border-t border-black/4">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-200 inline-block" />
-              <span className="text-[10px] text-gray-400">연차</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-200 inline-block" />
-              <span className="text-[10px] text-gray-400">반차</span>
-            </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 border-t border-black/4">
+            {([
+              ['연차',      'bg-blue-100 text-blue-700'],
+              ['오전반차',   'bg-emerald-100 text-emerald-700'],
+              ['오전반반차', 'bg-teal-100 text-teal-700'],
+              ['오후반차',   'bg-amber-100 text-amber-700'],
+              ['오후반반차', 'bg-orange-100 text-orange-700'],
+            ] as const).map(([label, cls]) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <span className={`w-2.5 h-2.5 rounded-sm inline-block ${cls}`} />
+                <span className="text-[10px] text-gray-400">{label}</span>
+              </div>
+            ))}
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-red-50 border border-red-200 inline-block" />
               <span className="text-[10px] text-gray-400">공휴일</span>

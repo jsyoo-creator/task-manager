@@ -1524,14 +1524,12 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-400">드래그로 순서를 변경하고, 각 항목의 가져오기·내보내기 포함 여부를 설정합니다.</p>
-
       {/* 컬럼 헤더 */}
       <div className="flex items-center gap-2 px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
         <span className="w-4" />
         <span className="flex-1">항목명</span>
-        <span className="w-[72px] text-center">가져오기</span>
-        <span className="w-[72px] text-center">내보내기</span>
+        <span className="w-[92px] text-center">가져오기</span>
+        <span className="w-[92px] text-center">내보내기</span>
       </div>
 
       <div className="space-y-1">
@@ -1551,25 +1549,25 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
             {/* 가져오기 토글 */}
             <button
               onClick={() => toggle(f.key)}
-              className={`w-[72px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
+              className={`w-[92px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
                 f.enabled
                   ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
                   : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
               }`}>
-              {f.enabled ? '포함' : '제외'}
+              {f.enabled ? '가져오기 포함' : '가져오기 제외'}
             </button>
 
             {/* 내보내기 토글 */}
             <button
               onClick={() => { if (f.enabled) toggleExportExclude(f.key); }}
-              className={`w-[72px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
+              className={`w-[92px] py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
                 !f.enabled
                   ? 'bg-gray-50 text-gray-200 border-gray-100 cursor-not-allowed'
                   : !f.exportExcluded
                     ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
                     : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
               }`}>
-              {!f.enabled ? '—' : f.exportExcluded ? '제외' : '포함'}
+              {!f.enabled ? '—' : f.exportExcluded ? '내보내기 제외' : '내보내기 포함'}
             </button>
           </div>
         ))}

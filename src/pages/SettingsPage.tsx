@@ -2086,7 +2086,6 @@ export default function SettingsPage({
           ) : (
             <div className="grid grid-cols-3 gap-3 p-4">
               {[...teams, null].map(team => {
-                const ROLE_ORDER: Record<string, number> = { superadmin: 0, manager: 1, user: 2 };
                 const teamUsers = team
                   ? users.filter(u => u.selectedTeamIds?.includes(team.id))
                   : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));

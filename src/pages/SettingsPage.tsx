@@ -166,7 +166,7 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
 // ──────────────────────────────────────────
 // 사용자 행
 // ──────────────────────────────────────────
-const DEFAULT_ANNUAL = 15;
+const DEFAULT_ANNUAL = 0;
 
 function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, teams }: {
   u: AppUser; viewerRole: UserRole; viewerTeamIds: string[]; isSelf: boolean;

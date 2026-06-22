@@ -1572,6 +1572,12 @@ function ExcelFieldManager({ team, onSave }: { team: Team; onSave: (teamId: stri
   );
 }
 
+const TEAM_COLOR_PRESETS = [
+  '#3b82f6','#8b5cf6','#10b981','#f97316','#ec4899',
+  '#14b8a6','#ef4444','#eab308','#6366f1','#0ea5e9',
+  '#f43f5e','#84cc16',
+];
+
 function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -1595,6 +1601,9 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'excel'>>({});
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingTeamName, setEditingTeamName] = useState('');
+  const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
 
@@ -1683,11 +1692,49 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
             <div key={team.id}>
               {/* 팀 헤더 */}
               <div className="flex items-center gap-3 px-5 py-3 hover:bg-black/[0.02] transition-colors">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-lg flex-shrink-0">
-                  {team.emoji}
+                {/* 색상 + 이모지 원 (클릭 → 색상 피커) */}
+                <div className="relative flex-shrink-0">
+                  <button
+                    onClick={() => setColorPickerTeamId(colorPickerTeamId === team.id ? null : team.id)}
+                    style={{ backgroundColor: team.color ?? '#3b82f6' }}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-lg transition-all hover:scale-105">
+                    {team.emoji}
+                  </button>
+                  {colorPickerTeamId === team.id && (
+                    <div className="absolute left-0 top-10 z-50 bg-white rounded-xl shadow-lg border border-gray-100 p-2 grid grid-cols-6 gap-1" style={{ width: 148 }}>
+                      {TEAM_COLOR_PRESETS.map(hex => (
+                        <button key={hex} onClick={() => { onUpdateTeam(team.id, { color: hex }); setColorPickerTeamId(null); }}
+                          style={{ backgroundColor: hex }}
+                          className={`w-5 h-5 rounded-full transition-all hover:scale-110 ${team.color === hex ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`} />
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{team.name}</p>
+                  {editingTeamId === team.id ? (
+                    <input
+                      autoFocus
+                      value={editingTeamName}
+                      onChange={e => setEditingTeamName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && editingTeamName.trim()) {
+                          onUpdateTeam(team.id, { name: editingTeamName.trim() });
+                          setEditingTeamId(null);
+                        }
+                        if (e.key === 'Escape') setEditingTeamId(null);
+                      }}
+                      onBlur={() => {
+                        if (editingTeamName.trim()) onUpdateTeam(team.id, { name: editingTeamName.trim() });
+                        setEditingTeamId(null);
+                      }}
+                      className="text-sm font-semibold text-gray-900 w-full px-2 py-0.5 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                    />
+                  ) : (
+                    <button onClick={() => { setEditingTeamId(team.id); setEditingTeamName(team.name); }}
+                      className="text-sm font-semibold text-gray-900 hover:text-blue-600 text-left w-full truncate">
+                      {team.name}
+                    </button>
+                  )}
                   <p className="text-xs text-gray-400">{team.parts.length}개 파트</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2096,14 +2143,7 @@ export default function SettingsPage({
           ) : (
             <div className="grid grid-cols-3 gap-4 p-4">
               {(() => {
-                const TEAM_COLORS = [
-                  { header: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-700',   dept: 'bg-blue-50/60',   border: 'border-blue-100' },
-                  { header: 'bg-violet-500', light: 'bg-violet-50', text: 'text-violet-700', dept: 'bg-violet-50/60', border: 'border-violet-100' },
-                  { header: 'bg-emerald-500',light: 'bg-emerald-50',text: 'text-emerald-700',dept: 'bg-emerald-50/60',border: 'border-emerald-100' },
-                  { header: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-700', dept: 'bg-orange-50/60', border: 'border-orange-100' },
-                  { header: 'bg-pink-500',   light: 'bg-pink-50',   text: 'text-pink-700',   dept: 'bg-pink-50/60',   border: 'border-pink-100' },
-                  { header: 'bg-teal-500',   light: 'bg-teal-50',   text: 'text-teal-700',   dept: 'bg-teal-50/60',   border: 'border-teal-100' },
-                ];
+                const DEFAULT_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f97316','#ec4899','#14b8a6'];
                 return [...teams, null].map((team, teamIdx) => {
                   const teamUsers = team
                     ? users.filter(u => u.selectedTeamIds?.includes(team.id))
@@ -2115,12 +2155,12 @@ export default function SettingsPage({
                     { dept: '미설정', members: teamUsers.filter(u => !u.department) },
                   ].filter(g => g.members.length > 0);
 
-                  const color = team ? TEAM_COLORS[teamIdx % TEAM_COLORS.length] : null;
+                  const headerColor = team ? (team.color ?? DEFAULT_COLORS[teamIdx % DEFAULT_COLORS.length]) : '#9ca3af';
 
                   return (
                     <div key={team?.id ?? 'none'} className="rounded-xl overflow-hidden shadow-sm border border-gray-100">
                       {/* 팀 헤더 */}
-                      <div className={`px-4 py-3 ${color ? color.header : 'bg-gray-400'}`}>
+                      <div className="px-4 py-3" style={{ backgroundColor: headerColor }}>
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-bold text-white">
                             {team ? `${team.emoji} ${team.name}` : '무소속'}
@@ -2131,8 +2171,8 @@ export default function SettingsPage({
                       {deptGroups.map(({ dept, members }) => (
                         <div key={dept}>
                           {/* 직군 헤더 */}
-                          <div className={`px-4 py-1.5 ${color ? color.dept : 'bg-gray-50/60'} border-b border-gray-100`}>
-                            <span className={`text-[10px] font-semibold ${color ? color.text : 'text-gray-500'}`}>{dept}</span>
+                          <div className="px-4 py-1.5 border-b border-gray-100" style={{ backgroundColor: `${headerColor}14` }}>
+                            <span className="text-[10px] font-semibold" style={{ color: headerColor }}>{dept}</span>
                           </div>
                           <div className="divide-y divide-black/[0.04] bg-white">
                             {members

@@ -35,12 +35,10 @@ function SeatCell({ assigned, color, photoURL, department }: { assigned: string;
             ? <img src={photoURL} alt={assigned} className="w-7 h-7 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
             : <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
           }
-          <div>
+          <div className="flex flex-col" style={{ gap: '2px' }}>
             <p className="text-sm font-semibold text-gray-800 leading-tight">{assigned}</p>
             {department && (
-              <div className="mt-0.5">
-                <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
-              </div>
+              <span className={`self-start text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
             )}
           </div>
         </div>

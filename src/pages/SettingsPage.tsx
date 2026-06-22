@@ -2094,48 +2094,62 @@ export default function SettingsPage({
           {users.length === 0 ? (
             <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 사용자 없음</p>
           ) : (
-            <div className="grid grid-cols-3 gap-3 p-4">
-              {[...teams, null].map(team => {
-                const teamUsers = team
-                  ? users.filter(u => u.selectedTeamIds?.includes(team.id))
-                  : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));
-                if (teamUsers.length === 0) return null;
+            <div className="grid grid-cols-3 gap-4 p-4">
+              {(() => {
+                const TEAM_COLORS = [
+                  { header: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-700',   dept: 'bg-blue-50/60',   border: 'border-blue-100' },
+                  { header: 'bg-violet-500', light: 'bg-violet-50', text: 'text-violet-700', dept: 'bg-violet-50/60', border: 'border-violet-100' },
+                  { header: 'bg-emerald-500',light: 'bg-emerald-50',text: 'text-emerald-700',dept: 'bg-emerald-50/60',border: 'border-emerald-100' },
+                  { header: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-700', dept: 'bg-orange-50/60', border: 'border-orange-100' },
+                  { header: 'bg-pink-500',   light: 'bg-pink-50',   text: 'text-pink-700',   dept: 'bg-pink-50/60',   border: 'border-pink-100' },
+                  { header: 'bg-teal-500',   light: 'bg-teal-50',   text: 'text-teal-700',   dept: 'bg-teal-50/60',   border: 'border-teal-100' },
+                ];
+                return [...teams, null].map((team, teamIdx) => {
+                  const teamUsers = team
+                    ? users.filter(u => u.selectedTeamIds?.includes(team.id))
+                    : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));
+                  if (teamUsers.length === 0) return null;
 
-                const deptGroups = [
-                  ...DEPARTMENTS.map(dept => ({ dept, members: teamUsers.filter(u => u.department === dept) })),
-                  { dept: '미설정', members: teamUsers.filter(u => !u.department) },
-                ].filter(g => g.members.length > 0);
+                  const deptGroups = [
+                    ...DEPARTMENTS.map(dept => ({ dept, members: teamUsers.filter(u => u.department === dept) })),
+                    { dept: '미설정', members: teamUsers.filter(u => !u.department) },
+                  ].filter(g => g.members.length > 0);
 
-                return (
-                  <div key={team?.id ?? 'none'} className="rounded-xl border border-gray-100 overflow-hidden">
-                    {/* 팀 헤더 */}
-                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-100">
-                      <span className="text-xs font-semibold text-gray-700">
-                        {team ? `${team.emoji} ${team.name}` : '무소속'}
-                      </span>
-                      <span className="text-[11px] text-gray-400">{teamUsers.length}명</span>
-                    </div>
-                    {deptGroups.map(({ dept, members }) => (
-                      <div key={dept}>
-                        {/* 직군 헤더 */}
-                        <div className="px-3 py-1 bg-gray-50/60 border-b border-gray-50">
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{dept}</span>
-                        </div>
-                        <div className="divide-y divide-black/[0.04]">
-                          {members
-                            .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'))
-                            .map(u => (
-                              <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
-                                viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}
-                                isSelf={u.uid === appUser.uid}
-                                onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
-                            ))}
+                  const color = team ? TEAM_COLORS[teamIdx % TEAM_COLORS.length] : null;
+
+                  return (
+                    <div key={team?.id ?? 'none'} className="rounded-xl overflow-hidden shadow-sm border border-gray-100">
+                      {/* 팀 헤더 */}
+                      <div className={`px-4 py-3 ${color ? color.header : 'bg-gray-400'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-white">
+                            {team ? `${team.emoji} ${team.name}` : '무소속'}
+                          </span>
+                          <span className="text-[11px] text-white/70 font-medium">{teamUsers.length}명</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                );
-              })}
+                      {deptGroups.map(({ dept, members }) => (
+                        <div key={dept}>
+                          {/* 직군 헤더 */}
+                          <div className={`px-4 py-1.5 ${color ? color.dept : 'bg-gray-50/60'} border-b border-gray-100`}>
+                            <span className={`text-[10px] font-semibold ${color ? color.text : 'text-gray-500'}`}>{dept}</span>
+                          </div>
+                          <div className="divide-y divide-black/[0.04] bg-white">
+                            {members
+                              .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'))
+                              .map(u => (
+                                <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
+                                  viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}
+                                  isSelf={u.uid === appUser.uid}
+                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
         </section>

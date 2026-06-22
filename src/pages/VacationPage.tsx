@@ -24,6 +24,14 @@ const VACATION_DAYS: Record<VacationType, number> = {
 const ANNUAL_TOTAL = 15;
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+function typeShort(type: VacationType): string {
+  if (type === '연차') return '';
+  if (type.includes('오전반반')) return '오전¼';
+  if (type.includes('오후반반')) return '오후¼';
+  if (type.includes('오전')) return '오전½';
+  return '오후½';
+}
+
 function Avatar({ photoURL, name, size = 'sm' }: { photoURL?: string; name?: string; size?: 'sm' | 'md' }) {
   const dim = size === 'md' ? 'w-10 h-10 text-sm' : 'w-6 h-6 text-[10px]';
   const initial = (name || '?').slice(0, 1);
@@ -40,15 +48,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const holidayMap = useHolidayMap();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    memberName: currentUserName || teamMembers[0]?.displayName || '',
-    date: '',
-    type: '연차' as VacationType,
-    annualDays: 1,
-  });
 
-  // 내 휴가 신청 폼
   const [showMyForm, setShowMyForm] = useState(false);
   const [myForm, setMyForm] = useState({ date: '', type: '연차' as VacationType, annualDays: 1 });
 
@@ -58,11 +58,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
   const yearPrefix = String(year);
 
-  const monthVacations = useMemo(
-    () => vacations.filter(v => v.date.startsWith(monthPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
-    [vacations, monthPrefix]
-  );
-
+  // 날짜별 휴가 맵 (다일 연차 스팬 포함)
   const vacDay = useMemo(() => {
     const map: Record<string, Vacation[]> = {};
     vacations.forEach(v => {
@@ -84,8 +80,9 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const myUsed = useMemo(() => myVacationsThisYear.reduce((a, v) => a + v.days, 0), [myVacationsThisYear]);
   const myRemaining = Math.max(0, ANNUAL_TOTAL - myUsed);
 
+  // 팀 전체 현황 — 본인 포함
   const memberStats = useMemo(
-    () => teamMembers.filter(m => m.displayName !== currentUserName).map(m => {
+    () => teamMembers.map(m => {
       const used = vacations.filter(v => v.memberName === m.displayName && v.date.startsWith(yearPrefix)).reduce((a, v) => a + v.days, 0);
       return { user: m, used, remaining: Math.max(0, ANNUAL_TOTAL - used) };
     }),
@@ -97,15 +94,12 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.date || !form.memberName) return;
-    const member = teamMembers.find(m => m.displayName === form.memberName);
-    const days = form.type === '연차' ? form.annualDays : VACATION_DAYS[form.type];
-    onAddVacation({ memberId: member?.uid ?? '', memberName: form.memberName, date: form.date, type: form.type, days });
-    setForm(f => ({ ...f, date: '', annualDays: 1 }));
-    setShowForm(false);
-  };
+  // 이번 달 총 휴가 건수
+  const monthVacCount = useMemo(() => {
+    const seen = new Set<string>();
+    Object.values(vacDay).flat().forEach(v => seen.add(v.id));
+    return seen.size;
+  }, [vacDay]);
 
   const handleMySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,20 +123,31 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
         <span className="text-xs text-gray-400 font-medium">연간 {ANNUAL_TOTAL}일 기준</span>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: '300px 1fr' }}>
-        {/* 왼쪽: 캘린더 + 등록 폼 */}
+      <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '1fr 340px' }}>
+
+        {/* 왼쪽: 큰 캘린더 */}
         <div className="glass-card">
+          {/* 헤더 */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-black/5">
             <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"><ChevronLeft size={15} /></button>
-            <span className="text-sm font-semibold text-gray-800">{year}년 {month + 1}월</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-800">{year}년 {month + 1}월</span>
+              {monthVacCount > 0 && (
+                <span className="text-[10px] font-semibold text-blue-500 bg-blue-50 rounded-full px-2 py-0.5">{monthVacCount}건</span>
+              )}
+            </div>
             <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-gray-100 text-gray-500"><ChevronRight size={15} /></button>
           </div>
+
+          {/* 요일 헤더 */}
           <div className="grid grid-cols-7 border-b border-black/3">
             {WEEK_DAYS.map((d, i) => (
-              <div key={d} className={`text-center py-1.5 text-[10px] font-medium ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'}`}>{d}</div>
+              <div key={d} className={`text-center py-2 text-[11px] font-semibold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'}`}>{d}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 p-1.5 gap-0.5">
+
+          {/* 날짜 셀 */}
+          <div className="grid grid-cols-7 divide-x divide-y divide-black/4">
             {cells.map((day, idx) => {
               const dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
               const dayVacs = day ? (vacDay[dateStr] ?? []) : [];
@@ -150,13 +155,53 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
               const isWk = idx % 7 === 0 || idx % 7 === 6;
               const holidayName = day ? (holidayMap.get(dateStr) ?? null) : null;
               const isRed = isWk || !!holidayName;
+              const MAX = 3;
+
               return (
-                <div key={idx} className={`aspect-square flex flex-col items-center justify-center rounded-lg ${dayVacs.length > 0 ? 'bg-blue-50' : holidayName && !isWk ? 'bg-red-50/40' : ''}`}>
+                <div
+                  key={idx}
+                  className={`min-h-[80px] p-1.5 flex flex-col gap-1
+                    ${!day ? 'bg-black/1' : ''}
+                    ${isWk && day ? 'bg-black/[0.015]' : ''}
+                    ${holidayName && !isWk ? 'bg-red-50/30' : ''}
+                  `}
+                >
                   {day && (
                     <>
-                      <span title={holidayName ?? undefined} className={`text-[11px] font-medium ${isTd ? 'bg-blue-500 text-white w-5 h-5 flex items-center justify-center rounded-full' : isRed ? 'text-red-400' : 'text-gray-700'}`}>{day}</span>
-                      {holidayName && !isTd && <span className="w-1 h-1 rounded-full bg-red-400 mt-0.5" />}
-                      {dayVacs.length > 0 && <div className="flex gap-0.5 mt-0.5">{dayVacs.slice(0, 3).map((_, i) => <span key={i} className="w-1 h-1 rounded-full bg-blue-400" />)}</div>}
+                      {/* 날짜 숫자 + 공휴일명 */}
+                      <div className="flex items-start justify-between gap-1">
+                        <span className={`text-[11px] font-semibold w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0
+                          ${isTd ? 'bg-blue-500 text-white shadow-sm' : isRed ? 'text-red-400' : 'text-gray-600'}`}>
+                          {day}
+                        </span>
+                        {holidayName && (
+                          <span className="text-[9px] text-red-400 leading-tight truncate text-right mt-0.5" title={holidayName}>
+                            {holidayName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 휴가자 칩 */}
+                      <div className="flex flex-col gap-0.5">
+                        {dayVacs.slice(0, MAX).map((v, i) => {
+                          const isHalf = v.type !== '연차';
+                          const short = typeShort(v.type);
+                          return (
+                            <div
+                              key={i}
+                              title={`${v.memberName} — ${v.type}${v.days > 1 ? ` ${v.days}일` : ''}`}
+                              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight
+                                ${isHalf ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}
+                            >
+                              <span className="truncate min-w-0">{v.memberName}</span>
+                              {short && <span className="shrink-0 text-[9px] opacity-70">{short}</span>}
+                            </div>
+                          );
+                        })}
+                        {dayVacs.length > MAX && (
+                          <span className="text-[9px] text-gray-400 pl-1">+{dayVacs.length - MAX}명</span>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -164,69 +209,30 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
             })}
           </div>
 
-          {/* 이번 달 내역 */}
-          <div className="border-t border-black/4">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-3 pt-3 pb-1">{month + 1}월 휴가 내역</p>
-            {monthVacations.length === 0
-              ? <p className="text-xs text-gray-300 text-center py-4">등록된 휴가 없음</p>
-              : <div className="divide-y divide-black/3 max-h-36 overflow-y-auto">
-                  {monthVacations.map(v => (
-                    <div key={v.id} className="flex items-center gap-2 px-3 py-2 hover:bg-black/2">
-                      <span className="text-[11px] text-gray-400 w-10 shrink-0">{v.date.slice(5).replace('-', '/')}</span>
-                      <span className="text-[11px] font-medium text-gray-700 flex-1 truncate">{v.memberName}</span>
-                      <span className="text-[11px] text-blue-500 shrink-0">{v.type}</span>
-                      <button onClick={() => onDeleteVacation(v.id)} className="text-gray-200 hover:text-red-400 transition-colors shrink-0"><Trash2 size={10} /></button>
-                    </div>
-                  ))}
-                </div>
-            }
-          </div>
-
-          {/* 등록 폼 */}
-          <div className="p-3 border-t border-black/4">
-            {showForm ? (
-              <form onSubmit={handleSubmit} className="space-y-2">
-                <select className="w-full glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
-                  value={form.memberName} onChange={e => setForm(f => ({ ...f, memberName: e.target.value }))}>
-                  {teamMembers.map(m => <option key={m.uid} value={m.displayName}>{m.displayName}</option>)}
-                </select>
-                <div className="flex gap-2">
-                  <select className="flex-1 glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
-                    value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as Vacation['type'], annualDays: 1 }))}>
-                    {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                  {form.type === '연차' && (
-                    <div className="flex items-center gap-1 glass-card !rounded-lg px-2.5 py-1.5 shrink-0">
-                      <button type="button" onClick={() => setForm(f => ({ ...f, annualDays: Math.max(1, f.annualDays - 1) }))}
-                        className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">−</button>
-                      <span className="text-xs text-gray-700 w-6 text-center">{form.annualDays}일</span>
-                      <button type="button" onClick={() => setForm(f => ({ ...f, annualDays: f.annualDays + 1 }))}
-                        className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">+</button>
-                    </div>
-                  )}
-                </div>
-                <DatePicker value={form.date} onChange={d => setForm(f => ({ ...f, date: d }))} />
-                <div className="flex gap-2">
-                  <button type="submit" className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600">등록</button>
-                  <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
-                </div>
-              </form>
-            ) : (
-              <button
-                onClick={() => { setForm(f => ({ ...f, memberName: currentUserName || teamMembers[0]?.displayName || '' })); setShowForm(true); }}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-blue-500 hover:bg-blue-50 rounded-lg border border-blue-100">
-                <Plus size={12} /> 휴가 등록
-              </button>
-            )}
+          {/* 범례 */}
+          <div className="flex items-center gap-4 px-4 py-2.5 border-t border-black/4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-200 inline-block" />
+              <span className="text-[10px] text-gray-400">연차</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-200 inline-block" />
+              <span className="text-[10px] text-gray-400">반차</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-red-50 border border-red-200 inline-block" />
+              <span className="text-[10px] text-gray-400">공휴일</span>
+            </div>
           </div>
         </div>
 
         {/* 오른쪽: 내 현황 + 팀 전체 현황 */}
         <div className="space-y-3">
+
           {/* 내 휴가현황 */}
           <div className="glass-card p-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">내 휴가현황 — {year}년</p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <Avatar photoURL={mePhotoURL} name={currentUserName} size="md" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-800 mb-1.5 truncate">{currentUserName || '—'}</p>
@@ -234,35 +240,37 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                   <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${Math.min(100, Math.round((myUsed / ANNUAL_TOTAL) * 100))}%` }} />
                 </div>
               </div>
-              <div className="flex gap-5 text-center shrink-0">
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">총 연차</p>
-                  <p className="text-base font-bold text-gray-700">{ANNUAL_TOTAL}<span className="text-xs font-normal text-gray-400">일</span></p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">사용</p>
-                  <p className="text-base font-bold text-amber-500">{myUsed}<span className="text-xs font-normal text-gray-400">일</span></p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">잔여</p>
-                  <p className={`text-base font-bold ${myRemaining <= 3 ? 'text-red-500' : 'text-green-500'}`}>{myRemaining}<span className="text-xs font-normal text-gray-400">일</span></p>
-                </div>
+            </div>
+
+            <div className="flex gap-3 mt-3 text-center">
+              <div className="flex-1 bg-gray-50 rounded-xl py-2">
+                <p className="text-[10px] text-gray-400 mb-0.5">총 연차</p>
+                <p className="text-sm font-bold text-gray-700">{ANNUAL_TOTAL}<span className="text-[10px] font-normal text-gray-400">일</span></p>
+              </div>
+              <div className="flex-1 bg-amber-50 rounded-xl py-2">
+                <p className="text-[10px] text-gray-400 mb-0.5">사용</p>
+                <p className="text-sm font-bold text-amber-500">{myUsed}<span className="text-[10px] font-normal text-gray-400">일</span></p>
+              </div>
+              <div className={`flex-1 rounded-xl py-2 ${myRemaining <= 3 ? 'bg-red-50' : 'bg-green-50'}`}>
+                <p className="text-[10px] text-gray-400 mb-0.5">잔여</p>
+                <p className={`text-sm font-bold ${myRemaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{myRemaining}<span className="text-[10px] font-normal text-gray-400">일</span></p>
               </div>
             </div>
+
             {myVacationsThisYear.length > 0 && (
               <div className="mt-3 pt-3 border-t border-black/5 flex flex-wrap gap-1.5">
                 {myVacationsThisYear.map(v => (
-                  <div key={v.id} className="flex items-center gap-1.5 bg-black/3 rounded-lg px-2 py-1 group">
-                    <span className="text-[11px] text-gray-500">{v.date.slice(5).replace('-', '/')}</span>
+                  <div key={v.id} className="flex items-center gap-1 bg-black/3 rounded-lg px-2 py-1 group">
+                    <span className="text-[11px] text-gray-400">{v.date.slice(5).replace('-', '/')}</span>
                     <span className={`text-[11px] font-medium ${v.type === '연차' ? 'text-blue-500' : 'text-amber-500'}`}>{v.type}</span>
                     {v.type === '연차' && v.days > 1 && <span className="text-[11px] text-gray-400">{v.days}일</span>}
-                    <button onClick={() => onDeleteVacation(v.id)} className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={10} /></button>
+                    <button onClick={() => onDeleteVacation(v.id)} className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 ml-0.5"><Trash2 size={10} /></button>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* 내 휴가 신청 */}
+            {/* 휴가 신청 — 모든 사용자 */}
             <div className="mt-3 pt-3 border-t border-black/5">
               {showMyForm ? (
                 <form onSubmit={handleMySubmit} className="space-y-2">
@@ -270,7 +278,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                     <select
                       className="flex-1 glass-card !rounded-lg px-2.5 py-1.5 text-xs bg-transparent focus:outline-none text-gray-700"
                       value={myForm.type}
-                      onChange={e => setMyForm(f => ({ ...f, type: e.target.value as VacationType }))}>
+                      onChange={e => setMyForm(f => ({ ...f, type: e.target.value as VacationType, annualDays: 1 }))}>
                       {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
                     </select>
                     {myForm.type === '연차' && (
@@ -284,10 +292,11 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                     )}
                   </div>
                   <DatePicker value={myForm.date} onChange={d => setMyForm(f => ({ ...f, date: d }))} />
-                    <div className="flex gap-2">
+                  <div className="flex gap-2">
                     <button type="submit" disabled={!myForm.date}
                       className="flex-1 bg-blue-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed">신청</button>
-                    <button type="button" onClick={() => setShowMyForm(false)} className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
+                    <button type="button" onClick={() => setShowMyForm(false)}
+                      className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
                   </div>
                 </form>
               ) : (
@@ -304,25 +313,26 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
             <div className="px-4 py-3 border-b border-black/5">
               <h3 className="text-sm font-semibold text-gray-800">팀 전체 현황 — {year}년</h3>
             </div>
-            <div className="grid grid-cols-[1fr_72px_72px_100px] text-[11px] text-gray-400 font-medium bg-black/2 border-b border-black/4 px-4 py-2">
+            <div className="grid grid-cols-[1fr_56px_56px_80px] text-[10px] text-gray-400 font-semibold uppercase bg-black/2 border-b border-black/4 px-3 py-2">
               <span>이름</span><span className="text-center">사용</span><span className="text-center">잔여</span><span className="text-center">사용률</span>
             </div>
             {memberStats.length === 0
               ? <p className="text-xs text-gray-300 text-center py-8">팀원이 없습니다</p>
               : memberStats.map(({ user, used, remaining }) => (
-                <div key={user.uid} className={`grid grid-cols-[1fr_72px_72px_100px] items-center px-4 py-3 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/50' : ''}`}>
-                  <div className="flex items-center gap-2">
+                <div key={user.uid} className={`grid grid-cols-[1fr_56px_56px_80px] items-center px-3 py-2.5 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/40' : ''}`}>
+                  <div className="flex items-center gap-2 min-w-0">
                     <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
-                    <span className="text-sm text-gray-700">{user.displayName || user.email || '—'}</span>
-                    {user.displayName === currentUserName && <span className="text-[10px] text-blue-500 font-medium">나</span>}
+                    <span className="text-xs text-gray-700 truncate">{user.displayName || user.email || '—'}</span>
+                    {user.displayName === currentUserName && <span className="text-[9px] text-blue-400 font-semibold shrink-0">나</span>}
                   </div>
-                  <span className="text-center text-sm text-amber-600 font-medium">{used}일</span>
-                  <span className={`text-center text-sm font-semibold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
-                  <div className="flex flex-col items-center gap-1 px-2">
+                  <span className="text-center text-xs text-amber-600 font-semibold">{used}일</span>
+                  <span className={`text-center text-xs font-bold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
+                  <div className="flex flex-col items-center gap-0.5 px-2">
                     <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                      <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`} style={{ width: `${Math.min(100, Math.round((used / ANNUAL_TOTAL) * 100))}%` }} />
+                      <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
+                        style={{ width: `${Math.min(100, Math.round((used / ANNUAL_TOTAL) * 100))}%` }} />
                     </div>
-                    <span className="text-[10px] text-gray-400">{Math.round((used / ANNUAL_TOTAL) * 100)}%</span>
+                    <span className="text-[9px] text-gray-400">{Math.round((used / ANNUAL_TOTAL) * 100)}%</span>
                   </div>
                 </div>
               ))

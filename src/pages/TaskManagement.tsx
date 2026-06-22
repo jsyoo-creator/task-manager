@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
@@ -100,6 +100,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
   const [previewSkipped, setPreviewSkipped] = useState<Set<number>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
+  const exportDropRef = useRef<HTMLDivElement>(null);
+  const [exportDropOpen, setExportDropOpen] = useState(false);
+  const [exportParts, setExportParts] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!exportDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (exportDropRef.current && !exportDropRef.current.contains(e.target as Node)) {
+        setExportDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [exportDropOpen]);
 
   const partColor = (cat: string) => parts?.find(p => p.name === cat)?.color ?? 'bg-gray-400';
 
@@ -159,12 +173,26 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     );
   };
 
-  const handleExcelExport = () => {
-    const rows = filtered.map(taskToRow);
+  const handleExcelExport = (selectedParts?: Set<string>) => {
+    const base = tasks.filter((t: Task) => {
+      if (!canSeeAll && t.assignee && t.assignee !== currentUserName) return false;
+      if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
+      if (monthFilter > 0) {
+        const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
+        if (t.taskMonth) return t.taskMonth === prefix;
+        return t.startDate?.startsWith(prefix) || t.endDate?.startsWith(prefix);
+      }
+      return true;
+    });
+    const toExport = selectedParts && selectedParts.size > 0
+      ? base.filter(t => selectedParts.has(t.category))
+      : base;
+    const rows = toExport.map(taskToRow);
     const ws = XLSX.utils.json_to_sheet(rows, { header: getExcelHeaders() });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '업무목록');
     XLSX.writeFile(wb, `업무목록_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setExportDropOpen(false);
   };
 
   const handleTemplateDownload = () => {
@@ -356,11 +384,56 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
             <FileDown size={14} /> 템플릿
           </button>
-          <button onClick={handleExcelExport}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
-            style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.35)' }}>
-            <Download size={14} /> 내보내기
-          </button>
+          <div className="relative" ref={exportDropRef}>
+            <button
+              onClick={() => {
+                if (!parts || parts.length === 0) { handleExcelExport(); return; }
+                if (!exportDropOpen) setExportParts(new Set(parts.map(p => p.name)));
+                setExportDropOpen(o => !o);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+              style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.35)' }}>
+              <Download size={14} /> 내보내기
+            </button>
+            {exportDropOpen && parts && parts.length > 0 && (
+              <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-black/8 p-3 min-w-[160px]">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">파트 선택</p>
+                <label className="flex items-center gap-2 px-1 py-1 rounded-lg hover:bg-gray-50 cursor-pointer mb-1">
+                  <input
+                    type="checkbox"
+                    checked={exportParts.size === parts.length}
+                    onChange={e => setExportParts(e.target.checked ? new Set(parts.map(p => p.name)) : new Set())}
+                    className="rounded"
+                  />
+                  <span className="text-xs font-medium text-gray-600">전체 선택</span>
+                </label>
+                <div className="w-full h-px bg-black/5 mb-1" />
+                {parts.map(p => (
+                  <label key={p.id} className="flex items-center gap-2 px-1 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={exportParts.has(p.name)}
+                      onChange={e => {
+                        const next = new Set(exportParts);
+                        e.target.checked ? next.add(p.name) : next.delete(p.name);
+                        setExportParts(next);
+                      }}
+                      className="rounded"
+                    />
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                    <span className="text-xs text-gray-700">{p.name}</span>
+                  </label>
+                ))}
+                <button
+                  onClick={() => handleExcelExport(exportParts)}
+                  disabled={exportParts.size === 0}
+                  className="mt-2 w-full py-1.5 text-xs font-semibold text-white rounded-lg transition-colors disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)' }}>
+                  내보내기 ({exportParts.size}개 파트)
+                </button>
+              </div>
+            )}
+          </div>
           {canManage && (
             <>
               <button onClick={() => importRef.current?.click()}

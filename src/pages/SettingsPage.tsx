@@ -107,10 +107,10 @@ function DeptSelector({ value, onChange }: { value?: Department; onChange: (d: D
 // ──────────────────────────────────────────
 function EmojiPicker({ value, onChange }: { value: string; onChange: (e: string) => void }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 26px)', gap: 3 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
       {EMOJIS.map(e => (
         <button key={e} type="button" onClick={() => onChange(e)}
-          style={{ width: 26, height: 26 }}
+          style={{ width: 28, height: 28, minWidth: 28, minHeight: 28, maxWidth: 28, maxHeight: 28, flexShrink: 0 }}
           className={`rounded-md text-sm flex items-center justify-center transition-all hover:scale-110 ${
             value === e ? 'bg-blue-100 ring-2 ring-blue-400' : 'hover:bg-gray-100'
           }`}>{e}</button>
@@ -1750,12 +1750,12 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 </div>
                 {/* 인라인 색상 팔레트 + 이모지 피커 */}
                 {colorPickerTeamId === team.id && (
-                  <div className="mt-2 ml-11 space-y-2" style={{ width: 'fit-content' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 22px)', gap: 5 }}>
+                  <div className="mt-2 ml-11 space-y-2">
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {TEAM_COLOR_PRESETS.map(hex => (
                         <button key={hex}
                           onClick={() => { onUpdateTeam(team.id, { color: hex }); }}
-                          style={{ backgroundColor: hex, width: 22, height: 22, borderRadius: '50%', flexShrink: 0, outline: team.color === hex ? '2px solid #6b7280' : 'none', outlineOffset: 2 }}
+                          style={{ backgroundColor: hex, width: 22, height: 22, minWidth: 22, minHeight: 22, maxWidth: 22, maxHeight: 22, borderRadius: '50%', outline: team.color === hex ? '2px solid #6b7280' : 'none', outlineOffset: 2, flexShrink: 0 }}
                           className="transition-all hover:scale-110" />
                       ))}
                     </div>

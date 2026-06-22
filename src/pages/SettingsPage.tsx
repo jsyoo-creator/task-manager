@@ -201,7 +201,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
 
   const handleSave = async () => {
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
-    const annualLeave = isNaN(parsed) || parsed < 0 ? DEFAULT_ANNUAL : Math.round(parsed * 10) / 10;
+    const annualLeave = isNaN(parsed) || parsed < 0 ? DEFAULT_ANNUAL : Math.round(parsed * 100) / 100;
     await onUpdateInfo(u.uid, {
       displayName: nameInput.trim() || u.displayName,
       department: deptInput,
@@ -306,20 +306,20 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
             <label className="block text-xs text-gray-500 mb-1.5">연간 휴가 일수</label>
             <div className="flex items-center gap-2">
               <input
-                type="number" step="0.1" min="0.1"
+                type="number" step="0.01" min="0"
                 value={annualLeaveStr}
                 onChange={e => setAnnualLeaveStr(e.target.value)}
                 onBlur={e => {
                   const parsed = parseFloat(e.target.value.replace(',', '.'));
-                  if (!isNaN(parsed) && parsed >= 0.1) {
-                    setAnnualLeaveStr(String(Math.round(parsed * 10) / 10));
+                  if (!isNaN(parsed) && parsed >= 0) {
+                    setAnnualLeaveStr(String(Math.round(parsed * 100) / 100));
                   } else {
                     setAnnualLeaveStr(String(DEFAULT_ANNUAL));
                   }
                 }}
                 className="w-24 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
-              <span className="text-xs text-gray-400">일 <span className="text-gray-300">(기본 {DEFAULT_ANNUAL}일, 0.1 단위)</span></span>
+              <span className="text-xs text-gray-400">일 <span className="text-gray-300">(0.01 단위)</span></span>
             </div>
           </div>
           <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-xs font-semibold btn-shiny-primary">저장</button>

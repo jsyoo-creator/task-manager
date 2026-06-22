@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
@@ -103,6 +103,35 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const exportDropRef = useRef<HTMLDivElement>(null);
   const [exportDropOpen, setExportDropOpen] = useState(false);
   const [exportParts, setExportParts] = useState<Set<string>>(new Set());
+
+  // 파트별 유효 헤더 계산 (customLabel 반영)
+  const getPartHeaders = (part: TeamPart): string[] => {
+    const pFields = resolveBuiltinFields(part.formConfig ?? formConfig);
+    const pBLabel = (key: string, fb: string) => pFields.find(f => f.key === key)?.customLabel ?? fb;
+    const pLabels: Record<string, string> = {
+      taskMonth: pBLabel('taskMonth', '월'),
+      title:     pBLabel('title', '업무명'),
+      category:  pBLabel('category', '파트'),
+      type:      pBLabel('type', '유형'),
+      status:    pBLabel('status', '상태'),
+      receiver:  pBLabel('receiver', '접수자'),
+      assignee:  pBLabel('assignee', '담당자'),
+      startDate: pBLabel('startDate', '시작일'),
+      endDate:   pBLabel('endDate', '종료일'),
+    };
+    const ec = excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
+    if (ec.length > 0) return ec.map(f => pLabels[f.key] ?? f.label);
+    return Object.values(pLabels);
+  };
+
+  const exportCompatible = useMemo(() => {
+    if (!parts || exportParts.size <= 1) return true;
+    const selected = parts.filter(p => exportParts.has(p.name));
+    if (selected.length <= 1) return true;
+    const signatures = selected.map(p => getPartHeaders(p).join('\0'));
+    return new Set(signatures).size === 1;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exportParts, parts, formConfig, excelConfig]);
 
   useEffect(() => {
     if (!exportDropOpen) return;
@@ -443,11 +472,21 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   })}
                 </div>
 
+                {!exportCompatible && exportParts.size > 1 && (
+                  <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                    <svg className="flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 1.5L12.5 11H1.5L7 1.5Z" stroke="#d97706" strokeWidth="1.3" strokeLinejoin="round"/>
+                      <path d="M7 5.5V8" stroke="#d97706" strokeWidth="1.3" strokeLinecap="round"/>
+                      <circle cx="7" cy="9.5" r="0.6" fill="#d97706"/>
+                    </svg>
+                    <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라<br/>함께 내보낼 수 없습니다</p>
+                  </div>
+                )}
                 <button
                   onClick={() => handleExcelExport(exportParts)}
-                  disabled={exportParts.size === 0}
-                  className="mt-3 w-full py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-30"
-                  style={{ background: exportParts.size > 0 ? 'linear-gradient(135deg,#64748b 0%,#475569 100%)' : undefined, boxShadow: exportParts.size > 0 ? '0 4px 12px rgba(100,116,139,0.35)' : undefined }}>
+                  disabled={exportParts.size === 0 || !exportCompatible}
+                  className="mt-3 w-full py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ background: (exportParts.size > 0 && exportCompatible) ? 'linear-gradient(135deg,#64748b 0%,#475569 100%)' : undefined, boxShadow: (exportParts.size > 0 && exportCompatible) ? '0 4px 12px rgba(100,116,139,0.35)' : undefined }}>
                   내보내기 {exportParts.size > 0 && <span className="opacity-80">({exportParts.size}개 파트)</span>}
                 </button>
               </div>

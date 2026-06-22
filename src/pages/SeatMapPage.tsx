@@ -14,10 +14,16 @@ const COLOR_PRESETS = [
   '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#6366f1',
 ];
 
-function SeatCell({ assigned, color, photoURL }: { assigned: string; color: string; photoURL?: string }) {
+const DEPT_STYLE: Record<string, string> = {
+  '기획': 'bg-violet-100 text-violet-700',
+  '디자인': 'bg-pink-100 text-pink-700',
+  '퍼블': 'bg-teal-100 text-teal-700',
+};
+
+function SeatCell({ assigned, color, photoURL, department }: { assigned: string; color: string; photoURL?: string; department?: string }) {
   return (
     <div
-      className="h-20 rounded-xl border-2 flex flex-col items-center justify-center gap-1 px-1.5 transition-all"
+      className="h-20 rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 px-1.5 transition-all"
       style={assigned
         ? { backgroundColor: color + '15', borderColor: color + '50' }
         : { backgroundColor: 'rgba(0,0,0,0.02)', borderColor: 'rgba(0,0,0,0.08)' }
@@ -26,10 +32,13 @@ function SeatCell({ assigned, color, photoURL }: { assigned: string; color: stri
       {assigned ? (
         <>
           {photoURL
-            ? <img src={photoURL} alt={assigned} className="w-7 h-7 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
-            : <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
+            ? <img src={photoURL} alt={assigned} className="w-6 h-6 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
+            : <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
           }
           <p className="text-[10px] font-semibold text-gray-700 truncate max-w-full px-1 leading-tight">{assigned}</p>
+          {department && (
+            <span className={`text-[9px] font-medium px-1.5 py-0 rounded-full leading-tight ${DEPT_STYLE[department] ?? 'bg-gray-100 text-gray-500'}`}>{department}</span>
+          )}
         </>
       ) : (
         <p className="text-[10px] text-gray-300">공석</p>
@@ -82,6 +91,10 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
 
   const userPhotoMap = useMemo(
     () => new Map(allUsers.map(u => [u.displayName, u.photoURL])),
+    [allUsers]
+  );
+  const userDeptMap = useMemo(
+    () => new Map(allUsers.map(u => [u.displayName, u.department])),
     [allUsers]
   );
 
@@ -232,6 +245,7 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
                   assigned={assigned}
                   color={group.color}
                   photoURL={assigned ? userPhotoMap.get(assigned) : undefined}
+                  department={assigned ? userDeptMap.get(assigned) : undefined}
                 />
               );
             })}

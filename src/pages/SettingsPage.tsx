@@ -1691,63 +1691,65 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
           {teams.map(team => (
             <div key={team.id}>
               {/* 팀 헤더 */}
-              <div className="flex items-center gap-3 px-5 py-3 hover:bg-black/[0.02] transition-colors">
-                {/* 색상 + 이모지 원 (클릭 → 색상 피커) */}
-                <div className="relative flex-shrink-0">
+              <div className="px-5 py-3 hover:bg-black/[0.02] transition-colors">
+                <div className="flex items-center gap-3">
+                  {/* 색상 + 이모지 원 (클릭 → 인라인 색상 팔레트) */}
                   <button
                     onClick={() => setColorPickerTeamId(colorPickerTeamId === team.id ? null : team.id)}
                     style={{ backgroundColor: team.color ?? '#3b82f6' }}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-lg transition-all hover:scale-105">
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-lg flex-shrink-0 transition-all hover:scale-105">
                     {team.emoji}
                   </button>
-                  {colorPickerTeamId === team.id && (
-                    <div className="absolute left-0 top-10 z-50 bg-white rounded-xl shadow-lg border border-gray-100 p-2 grid grid-cols-6 gap-1" style={{ width: 148 }}>
-                      {TEAM_COLOR_PRESETS.map(hex => (
-                        <button key={hex} onClick={() => { onUpdateTeam(team.id, { color: hex }); setColorPickerTeamId(null); }}
-                          style={{ backgroundColor: hex }}
-                          className={`w-5 h-5 rounded-full transition-all hover:scale-110 ${team.color === hex ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {editingTeamId === team.id ? (
-                    <input
-                      autoFocus
-                      value={editingTeamName}
-                      onChange={e => setEditingTeamName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && editingTeamName.trim()) {
-                          onUpdateTeam(team.id, { name: editingTeamName.trim() });
+                  <div className="flex-1 min-w-0">
+                    {editingTeamId === team.id ? (
+                      <input
+                        autoFocus
+                        value={editingTeamName}
+                        onChange={e => setEditingTeamName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editingTeamName.trim()) {
+                            onUpdateTeam(team.id, { name: editingTeamName.trim() });
+                            setEditingTeamId(null);
+                          }
+                          if (e.key === 'Escape') setEditingTeamId(null);
+                        }}
+                        onBlur={() => {
+                          if (editingTeamName.trim()) onUpdateTeam(team.id, { name: editingTeamName.trim() });
                           setEditingTeamId(null);
-                        }
-                        if (e.key === 'Escape') setEditingTeamId(null);
-                      }}
-                      onBlur={() => {
-                        if (editingTeamName.trim()) onUpdateTeam(team.id, { name: editingTeamName.trim() });
-                        setEditingTeamId(null);
-                      }}
-                      className="text-sm font-semibold text-gray-900 w-full px-2 py-0.5 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
-                    />
-                  ) : (
-                    <button onClick={() => { setEditingTeamId(team.id); setEditingTeamName(team.name); }}
-                      className="text-sm font-semibold text-gray-900 hover:text-blue-600 text-left w-full truncate">
-                      {team.name}
+                        }}
+                        className="text-sm font-semibold text-gray-900 w-full px-2 py-0.5 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400/30"
+                      />
+                    ) : (
+                      <button onClick={() => { setEditingTeamId(team.id); setEditingTeamName(team.name); }}
+                        className="text-sm font-semibold text-gray-900 hover:text-blue-600 text-left w-full truncate">
+                        {team.name}
+                      </button>
+                    )}
+                    <p className="text-xs text-gray-400">{team.parts.length}개 파트</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}
+                      className="text-xs text-blue-500 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                      {expandedTeam === team.id ? '닫기' : '팀 설정'}
                     </button>
-                  )}
-                  <p className="text-xs text-gray-400">{team.parts.length}개 파트</p>
+                    <button onClick={() => { if (confirm(`"${team.name}" 팀을 삭제하시겠습니까?`)) onDeleteTeam(team.id); }}
+                      className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setExpandedTeam(expandedTeam === team.id ? null : team.id)}
-                    className="text-xs text-blue-500 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
-                    {expandedTeam === team.id ? '닫기' : '팀 설정'}
-                  </button>
-                  <button onClick={() => { if (confirm(`"${team.name}" 팀을 삭제하시겠습니까?`)) onDeleteTeam(team.id); }}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
+                {/* 인라인 색상 팔레트 */}
+                {colorPickerTeamId === team.id && (
+                  <div className="mt-2 ml-11 flex flex-wrap gap-1.5">
+                    {TEAM_COLOR_PRESETS.map(hex => (
+                      <button key={hex}
+                        onClick={() => { onUpdateTeam(team.id, { color: hex }); setColorPickerTeamId(null); }}
+                        style={{ backgroundColor: hex }}
+                        className={`w-6 h-6 rounded-full transition-all hover:scale-110 ${team.color === hex ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`} />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 팀 설정 패널 (파트 / 폼 설정 탭) */}

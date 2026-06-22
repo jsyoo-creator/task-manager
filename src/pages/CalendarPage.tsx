@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, MessageCircle, Send } from 'lucide-react';
-import type { Task, SubTask, TaskCategory, TeamPart, TaskStatus, SubTaskMemo, CustomHoliday } from '../types';
+import type { Task, SubTask, TaskCategory, TeamPart, TaskStatus, SubTaskMemo, CustomHoliday, Vacation, VacationType } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
-import { usePublicHolidays } from '../hooks/usePublicHolidays';
+import { useHolidayMap } from '../contexts/HolidaysContext';
 
 interface Props {
   tasks: Task[];
@@ -18,6 +18,18 @@ interface Props {
   currentUserName?: string;
   canSeeAll?: boolean;
   customHolidays?: CustomHoliday[];
+  vacations?: Vacation[];
+}
+
+function vacTypeColor(type: VacationType): string {
+  switch (type) {
+    case '연차':      return 'bg-blue-100 text-blue-700';
+    case '오전반차':   return 'bg-emerald-100 text-emerald-700';
+    case '오전반반차': return 'bg-teal-100 text-teal-700';
+    case '오후반차':   return 'bg-amber-100 text-amber-700';
+    case '오후반반차': return 'bg-orange-100 text-orange-700';
+    default:          return 'bg-gray-100 text-gray-600';
+  }
 }
 
 const CAT_STYLE: Record<string, { card: string; title: string; dot: string; hover: string }> = {
@@ -55,11 +67,11 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [] }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [] }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const { holidays: publicHolidays } = usePublicHolidays(year);
+  const holidayMap = useHolidayMap();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSubKey, setExpandedSubKey] = useState('');
   const [editState, setEditState] = useState<EditState | null>(null);
@@ -98,17 +110,37 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const isToday = (d: number) =>
     year === today.getFullYear() && month === today.getMonth() && d === today.getDate();
 
-  const holidayMap = useMemo(() => {
-    const map = new Map<string, string>();
-    publicHolidays.forEach(h => map.set(h.date, h.name));
-    customHolidays.forEach(h => map.set(h.date, h.name));
-    return map;
-  }, [publicHolidays, customHolidays]);
-
   const getHolidayName = (d: number): string | null => {
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     return holidayMap.get(key) ?? null;
   };
+
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const vacDay = useMemo(() => {
+    const map: Record<string, Vacation[]> = {};
+    const toDs = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    vacations.forEach(v => {
+      const spanDays = v.type === '연차' ? Math.max(1, Math.ceil(v.days)) : 1;
+      if (spanDays <= 1) {
+        if (v.date.startsWith(monthPrefix)) map[v.date] = [...(map[v.date] ?? []), v];
+        return;
+      }
+      let found = 0;
+      const cur = new Date(v.date + 'T00:00:00');
+      let safety = 0;
+      while (found < spanDays && safety++ < 365) {
+        const dow = cur.getDay();
+        const ds = toDs(cur);
+        if (dow !== 0 && dow !== 6 && !holidayMap.has(ds)) {
+          if (ds.startsWith(monthPrefix)) map[ds] = [...(map[ds] ?? []), v];
+          found++;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+    return map;
+  }, [vacations, monthPrefix, holidayMap]);
 
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
@@ -257,6 +289,20 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                         <p className="text-[9px] leading-tight text-red-400 truncate mt-0.5" title={holidayName}>{holidayName}</p>
                       )}
                     </div>
+                    {(() => {
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const dayVacs = vacDay[dateStr] ?? [];
+                      if (dayVacs.length === 0) return null;
+                      return (
+                        <div className="flex flex-col gap-0.5 mb-1">
+                          {dayVacs.map(v => (
+                            <div key={v.id} className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${vacTypeColor(v.type)}`}>
+                              <span className="truncate">{v.memberName} {v.type}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     <div className="space-y-1.5">
                       {dayItems.map(item => {
                         const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];

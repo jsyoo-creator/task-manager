@@ -88,6 +88,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage,
   metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
+  canSeeAll = true, currentUserName = '',
 }: {
   task: Task;
   onClose: () => void;
@@ -101,6 +102,8 @@ export default function TaskDetailPanel({
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
   userPhotoMap?: Map<string, string>;
+  canSeeAll?: boolean;
+  currentUserName?: string;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const builtinFields = resolveBuiltinFields(formConfig);
@@ -494,7 +497,11 @@ export default function TaskDetailPanel({
             <p className="text-xs text-gray-400 text-center py-3">팀 설정 → 세부 업무 탭에서 유형을 등록해주세요</p>
           ) : (
             <div className="space-y-3">
-              {subTaskTypes.map(type => {
+              {subTaskTypes.filter(type => {
+                if (canSeeAll) return true;
+                const entry = localSubTaskData[type.id];
+                return entry?.assignee === currentUserName;
+              }).map(type => {
                 const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
                 const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
 

@@ -204,7 +204,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const handleExcelExport = (selectedParts?: Set<string>) => {
     const base = tasks.filter((t: Task) => {
-      if (!canSeeAll && t.assignee && t.assignee !== currentUserName) return false;
+      if (!canSeeAll && !isTaskVisible(t)) return false;
       if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
       if (monthFilter > 0) {
         const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
@@ -387,9 +387,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     });
   };
 
+  const isTaskVisible = (t: Task): boolean => {
+    if (canSeeAll) return true;
+    if (t.assignee === currentUserName) return true;
+    return !!t.subTaskData && Object.values(t.subTaskData).some(e => e.assignee === currentUserName);
+  };
+
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
-    if (!canSeeAll && t.assignee && t.assignee !== currentUserName) return false;
+    if (!canSeeAll && !isTaskVisible(t)) return false;
     if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;

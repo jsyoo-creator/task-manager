@@ -190,7 +190,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
 
   const handleSave = async () => {
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
-    const annualLeave = isNaN(parsed) || parsed < 0.1 ? DEFAULT_ANNUAL : Math.round(parsed * 10) / 10;
+    const annualLeave = isNaN(parsed) || parsed < 0 ? DEFAULT_ANNUAL : Math.round(parsed * 10) / 10;
     await onUpdateInfo(u.uid, {
       displayName: nameInput.trim() || u.displayName,
       department: deptInput,

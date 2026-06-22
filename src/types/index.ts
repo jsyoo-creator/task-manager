@@ -225,6 +225,18 @@ export interface CustomHoliday {
   createdAt: string;
 }
 
+export interface SeatGroup {
+  id: string;
+  name: string;
+  color: string;     // hex e.g. '#3b82f6'
+  teamId: string;
+  cols: number;
+  rows: number;
+  seats: Record<string, string>; // "r-c" → displayName
+  order: number;
+  createdAt: string;
+}
+
 export interface ExcelFieldConfig {
   key: string;       // builtin key 또는 metaField key
   label: string;     // 컬럼 헤더

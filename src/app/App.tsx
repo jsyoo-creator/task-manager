@@ -311,7 +311,7 @@ function App() {
             <Route path="/vacation" element={
               <VacationPage vacations={vacations} teamMembers={selectedTeam ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id)) : []} currentUserName={currentUserName} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
             } />
-            <Route path="/seats" element={<SeatMapPage members={members} />} />
+            <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
             <Route path="/settings" element={
               appUser
                 ? <SettingsPage

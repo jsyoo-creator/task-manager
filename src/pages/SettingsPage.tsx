@@ -2114,7 +2114,7 @@ export default function SettingsPage({
                         </div>
                         <div className="divide-y divide-black/[0.04]">
                           {members
-                            .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role])
+                            .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'))
                             .map(u => (
                               <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
                                 viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}

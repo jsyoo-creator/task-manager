@@ -1827,6 +1827,16 @@ export default function SettingsPage({
   const { users, updateUserRole, updateUserInfo } = useAllUsers();
 
   const canManageUsers = appUser.role === 'superadmin' || appUser.role === 'manager';
+
+  // 구 기본값(15일)으로 저장된 사용자를 0으로 일괄 초기화 (1회 실행)
+  const annualMigratedRef = useRef(false);
+  useEffect(() => {
+    if (annualMigratedRef.current || users.length === 0) return;
+    annualMigratedRef.current = true;
+    const toReset = users.filter(u => u.annualLeave === 15);
+    if (toReset.length === 0) return;
+    Promise.all(toReset.map(u => updateUserInfo(u.uid, { annualLeave: 0 })));
+  }, [users]);
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState('');
   const [cleaning, setCleaning] = useState(false);

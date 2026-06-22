@@ -221,12 +221,12 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {u.displayName}{isSelf && <span className="ml-1.5 text-xs text-gray-400">(나)</span>}
-            </p>
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {u.displayName}{isSelf && <span className="ml-1.5 text-xs text-gray-400">(나)</span>}
+          </p>
+          <div className="flex items-center gap-1 flex-wrap mt-0.5">
             {userTeams.map(t => (
-              <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium flex-shrink-0">
+              <span key={t.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
                 {t.emoji} {t.name}
               </span>
             ))}

@@ -103,6 +103,18 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const exportDropRef = useRef<HTMLDivElement>(null);
   const [exportDropOpen, setExportDropOpen] = useState(false);
   const [exportParts, setExportParts] = useState<Set<string>>(new Set());
+  const [exportMonths, setExportMonths] = useState<Set<number>>(new Set());
+
+  const monthsWithData = useMemo(() => {
+    const set = new Set<number>();
+    const yr = String(yearFilter);
+    tasks.forEach(t => {
+      if (t.taskMonth?.startsWith(yr)) set.add(parseInt(t.taskMonth.split('-')[1]));
+      else if (t.startDate?.startsWith(yr)) set.add(parseInt(t.startDate.split('-')[1]));
+      else if (t.endDate?.startsWith(yr)) set.add(parseInt(t.endDate.split('-')[1]));
+    });
+    return set;
+  }, [tasks, yearFilter]);
 
   // 파트별 유효 헤더 계산 (customLabel 반영)
   const getPartHeaders = (part: TeamPart): string[] => {
@@ -202,14 +214,22 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     );
   };
 
-  const handleExcelExport = (selectedParts?: Set<string>) => {
+  const handleExcelExport = (selectedParts?: Set<string>, selectedMonths?: Set<number>) => {
+    const yr = String(yearFilter);
     const base = tasks.filter((t: Task) => {
-      if (!canSeeAll && !isTaskVisible(t)) return false;
-      if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
-      if (monthFilter > 0) {
-        const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
-        if (t.taskMonth) return t.taskMonth === prefix;
-        return t.startDate?.startsWith(prefix) || t.endDate?.startsWith(prefix);
+      // 연도 필터
+      const taskYear = t.taskMonth?.substring(0, 4) ?? t.startDate?.substring(0, 4) ?? t.endDate?.substring(0, 4) ?? '';
+      if (taskYear && taskYear !== yr) return false;
+      // 월 필터
+      if (selectedMonths && selectedMonths.size > 0) {
+        const m = t.taskMonth
+          ? parseInt(t.taskMonth.split('-')[1])
+          : t.startDate?.startsWith(yr)
+            ? parseInt(t.startDate.split('-')[1])
+            : t.endDate?.startsWith(yr)
+              ? parseInt(t.endDate.split('-')[1])
+              : 0;
+        if (!m || !selectedMonths.has(m)) return false;
       }
       return true;
     });
@@ -422,8 +442,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <div className="relative" ref={exportDropRef}>
             <button
               onClick={() => {
-                if (!parts || parts.length === 0) { handleExcelExport(); return; }
-                if (!exportDropOpen) setExportParts(new Set(parts.map(p => p.name)));
+                if (!exportDropOpen) {
+                  setExportParts(parts && parts.length > 0 ? new Set(parts.map(p => p.name)) : new Set());
+                  setExportMonths(new Set(monthsWithData));
+                }
                 setExportDropOpen(o => !o);
               }}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
@@ -431,55 +453,73 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               <Download size={14} /> 내보내기
             </button>
             {exportDropOpen && parts && parts.length > 0 && (
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 min-w-[200px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">파트 선택</p>
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[260px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
 
-                {/* 전체 선택 */}
-                <button
-                  onClick={() => setExportParts(exportParts.size === parts.length ? new Set() : new Set(parts.map(p => p.name)))}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-1 transition-colors text-left ${exportParts.size === parts.length ? 'bg-slate-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-150'}`}
-                >
-                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${exportParts.size === parts.length ? 'bg-white border-white' : 'border-gray-400 bg-white'}`}>
-                    {exportParts.size === parts.length && (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#475569" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    )}
-                    {exportParts.size > 0 && exportParts.size < parts.length && (
-                      <div className="w-2 h-0.5 bg-gray-400 rounded" />
-                    )}
-                  </div>
-                  <span className="text-xs font-semibold">전체 선택</span>
-                </button>
+                {/* 파트 선택 */}
+                {parts && parts.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">파트 선택</p>
+                    <button
+                      onClick={() => setExportParts(exportParts.size === parts.length ? new Set() : new Set(parts.map(p => p.name)))}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-1 transition-colors text-left ${exportParts.size === parts.length ? 'bg-slate-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                      <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${exportParts.size === parts.length ? 'bg-white border-white' : 'border-gray-400 bg-white'}`}>
+                        {exportParts.size === parts.length && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#475569" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                        {exportParts.size > 0 && exportParts.size < parts.length && <div className="w-2 h-0.5 bg-gray-400 rounded" />}
+                      </div>
+                      <span className="text-xs font-semibold">전체 선택</span>
+                    </button>
+                    <div className="space-y-0.5 mb-3">
+                      {parts.map(p => {
+                        const checked = exportParts.has(p.name);
+                        return (
+                          <button key={p.id} onClick={() => { const next = new Set(exportParts); checked ? next.delete(p.name) : next.add(p.name); setExportParts(next); }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all text-left ${checked ? 'bg-slate-50 ring-1 ring-slate-200' : 'hover:bg-gray-50'}`}>
+                            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${checked ? 'bg-slate-600 border-slate-600' : 'border-gray-300 bg-white'}`}>
+                              {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                            </div>
+                            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${p.color}`} />
+                            <span className="text-sm text-gray-700 font-medium">{p.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="w-full h-px bg-black/5 mb-3" />
+                  </>
+                )}
 
-                <div className="w-full h-px bg-black/5 my-2" />
-
-                {/* 파트별 */}
-                <div className="space-y-1">
-                  {parts.map(p => {
-                    const checked = exportParts.has(p.name);
+                {/* 월 선택 */}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{yearFilter}년 월 선택</p>
+                  <button
+                    onClick={() => setExportMonths(exportMonths.size === monthsWithData.size ? new Set() : new Set(monthsWithData))}
+                    className="text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+                  >{exportMonths.size === monthsWithData.size ? '전체 해제' : '전체 선택'}</button>
+                </div>
+                <div className="grid grid-cols-4 gap-1 mb-3">
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+                    const hasData = monthsWithData.has(m);
+                    const selected = exportMonths.has(m);
                     return (
                       <button
-                        key={p.id}
-                        onClick={() => {
-                          const next = new Set(exportParts);
-                          checked ? next.delete(p.name) : next.add(p.name);
-                          setExportParts(next);
-                        }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all text-left ${checked ? 'bg-slate-50 ring-1 ring-slate-200' : 'hover:bg-gray-50'}`}
-                      >
-                        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${checked ? 'bg-slate-600 border-slate-600' : 'border-gray-300 bg-white'}`}>
-                          {checked && (
-                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          )}
-                        </div>
-                        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${p.color}`} />
-                        <span className="text-sm text-gray-700 font-medium">{p.name}</span>
-                      </button>
+                        key={m}
+                        disabled={!hasData}
+                        onClick={() => { const next = new Set(exportMonths); selected ? next.delete(m) : next.add(m); setExportMonths(next); }}
+                        className={`py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          !hasData
+                            ? 'text-gray-300 bg-gray-50 cursor-not-allowed'
+                            : selected
+                              ? 'bg-slate-600 text-white shadow-sm'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >{m}월</button>
                     );
                   })}
                 </div>
 
+                {/* 호환성 경고 */}
                 {!exportCompatible && exportParts.size > 1 && (
-                  <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                  <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
                     <svg className="flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M7 1.5L12.5 11H1.5L7 1.5Z" stroke="#d97706" strokeWidth="1.3" strokeLinejoin="round"/>
                       <path d="M7 5.5V8" stroke="#d97706" strokeWidth="1.3" strokeLinecap="round"/>
@@ -488,12 +528,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                     <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라<br/>함께 내보낼 수 없습니다</p>
                   </div>
                 )}
+
                 <button
-                  onClick={() => handleExcelExport(exportParts)}
-                  disabled={exportParts.size === 0 || !exportCompatible}
-                  className="mt-3 w-full py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                  style={{ background: (exportParts.size > 0 && exportCompatible) ? 'linear-gradient(135deg,#64748b 0%,#475569 100%)' : undefined, boxShadow: (exportParts.size > 0 && exportCompatible) ? '0 4px 12px rgba(100,116,139,0.35)' : undefined }}>
-                  내보내기 {exportParts.size > 0 && <span className="opacity-80">({exportParts.size}개 파트)</span>}
+                  onClick={() => handleExcelExport(exportParts.size > 0 ? exportParts : undefined, exportMonths.size > 0 ? exportMonths : undefined)}
+                  disabled={exportMonths.size === 0 || !exportCompatible}
+                  className="w-full py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ background: (exportMonths.size > 0 && exportCompatible) ? 'linear-gradient(135deg,#64748b 0%,#475569 100%)' : undefined, boxShadow: (exportMonths.size > 0 && exportCompatible) ? '0 4px 12px rgba(100,116,139,0.35)' : undefined }}>
+                  내보내기
+                  {exportMonths.size > 0 && <span className="opacity-75 text-xs ml-1">({exportMonths.size}개월{(parts && parts.length > 0 && exportParts.size > 0) ? ` · ${exportParts.size}개 파트` : ''})</span>}
                 </button>
               </div>
             )}

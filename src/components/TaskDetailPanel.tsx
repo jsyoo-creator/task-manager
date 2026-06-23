@@ -708,11 +708,21 @@ export default function TaskDetailPanel({
                   const cfType = cf.type as string;
                   const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
                   const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
-                  const opts = isNameType
+                  let opts = isNameType
                     ? (cfDepts && teamMembers?.length
                         ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
                         : assignees)
                     : (cf.options ?? []);
+                  // 연결 필드: 부모 필드 값에 따라 표시 옵션 결정
+                  if (cf.dependsOn && cfType === 'select') {
+                    const builtinKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
+                    const pid = cf.dependsOn.fieldId;
+                    const pVal = builtinKeys.includes(pid)
+                      ? String((task as Record<string, unknown>)[pid] ?? '')
+                      : (task.customFields?.[pid] ?? '');
+                    const mapped = pVal ? cf.dependsOn.valueMap[pVal] : undefined;
+                    if (mapped !== undefined) opts = mapped;
+                  }
                   return (
                     <div key={cf.id} className="flex items-center gap-2">
                       <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
@@ -726,7 +736,7 @@ export default function TaskDetailPanel({
                             <select disabled={!canManage} value={val} onChange={e => handleBlur(e.target.value)}
                               className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default">
                               <option value="">-</option>
-                              {(cf.options ?? []).map(o => <option key={o}>{o}</option>)}
+                              {opts.map(o => <option key={o}>{o}</option>)}
                             </select>
                           </div>
                         ) : (isNameType || cfType === 'select') ? (

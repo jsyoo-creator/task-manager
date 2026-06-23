@@ -728,25 +728,27 @@ export default function TaskDetailPanel({
                     <div key={cf.id} className="flex items-center gap-2">
                       <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
                       <div className="flex-1 min-w-0">
-                        {cfType === 'select' && cf.optionColors?.[val] ? (
+                        {(isNameType || cfType === 'select') ? (
                           <div className="relative w-full">
-                            <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
-                              style={{ backgroundColor: cf.optionColors[val].bg, color: cf.optionColors[val].text }}>
-                              <span>{val || '-'}</span><ChevronDown size={9} />
-                            </div>
-                            <select disabled={!canManage} value={val} onChange={e => handleBlur(e.target.value)}
-                              className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default">
+                            {cfType === 'select' && cf.optionColors?.[val] ? (
+                              <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                                style={{ backgroundColor: cf.optionColors[val].bg, color: cf.optionColors[val].text }}>
+                                <span className="truncate">{val || '-'}</span>
+                                <ChevronDown size={11} className="flex-shrink-0 ml-1.5 opacity-60" />
+                              </div>
+                            ) : (
+                              <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-gray-800 bg-black/[0.07]">
+                                <span className="truncate">{val || '-'}</span>
+                                <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
+                              </div>
+                            )}
+                            <select disabled={!canManage} value={val}
+                              onChange={e => handleBlur(e.target.value)}
+                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
                               <option value="">-</option>
                               {opts.map(o => <option key={o}>{o}</option>)}
                             </select>
                           </div>
-                        ) : (isNameType || cfType === 'select') ? (
-                          <select disabled={!canManage} value={val}
-                            onChange={e => handleBlur(e.target.value)}
-                            className={cls}>
-                            <option value="">-</option>
-                            {opts.map(o => <option key={o}>{o}</option>)}
-                          </select>
                         ) : cfType === 'date' ? (
                           <input type="date" readOnly={!canManage} value={val}
                             onChange={e => handleBlur(e.target.value)}

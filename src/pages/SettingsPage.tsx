@@ -861,7 +861,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                         <span className="text-[11px] text-gray-500">필수</span>
                       </label>
                     </div>
-                    {customTypeInput === 'select' && (
+                    {customTypeInput === 'select' && !customDependsOnId && (
                       <div className="mt-1.5 space-y-1">
                         {customOptionsInput.map((opt, idx) => (
                           <div key={idx}>

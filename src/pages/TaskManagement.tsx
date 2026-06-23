@@ -103,6 +103,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const importRef = useRef<HTMLInputElement>(null);
   const exportDropRef = useRef<HTMLDivElement>(null);
   const [exportDropOpen, setExportDropOpen] = useState(false);
+  const templateDropRef = useRef<HTMLDivElement>(null);
+  const [templateDropOpen, setTemplateDropOpen] = useState(false);
   const [exportParts, setExportParts] = useState<Set<string>>(new Set());
   const [exportMonths, setExportMonths] = useState<Set<number>>(new Set());
 
@@ -132,7 +134,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       startDate: pBLabel('startDate', '시작일'),
       endDate:   pBLabel('endDate', '종료일'),
     };
-    const ec = excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
+    const ec = (part.excelConfig ?? excelConfig)?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
     if (ec.length > 0) return ec.map(f => pLabels[f.key] ?? f.label);
     return Object.values(pLabels);
   };
@@ -156,6 +158,17 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [exportDropOpen]);
+
+  useEffect(() => {
+    if (!templateDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (templateDropRef.current && !templateDropRef.current.contains(e.target as Node)) {
+        setTemplateDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [templateDropOpen]);
 
   const partColor = (cat: string) => parts?.find(p => p.name === cat)?.color ?? 'bg-gray-400';
 
@@ -247,12 +260,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setExportDropOpen(false);
   };
 
-  const handleTemplateDownload = () => {
-    const headers = getExcelHeaders();
+  const downloadTemplate = (part?: TeamPart) => {
+    const headers = part ? getPartHeaders(part) : getExcelHeaders();
     const ws = XLSX.utils.aoa_to_sheet([headers]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '업무등록템플릿');
-    XLSX.writeFile(wb, '업무등록_템플릿.xlsx');
+    XLSX.writeFile(wb, part ? `업무등록_템플릿_${part.name}.xlsx` : '업무등록_템플릿.xlsx');
+    setTemplateDropOpen(false);
   };
 
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -463,11 +477,38 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         </div>
         <div className="flex items-center gap-2">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
-          <button onClick={handleTemplateDownload}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
-            style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
-            <FileDown size={14} /> 템플릿
-          </button>
+          {(() => {
+            const hasDifferentFormats = parts && parts.length > 1 &&
+              new Set(parts.map(p => getPartHeaders(p).join('\0'))).size > 1;
+            return hasDifferentFormats ? (
+              <div className="relative" ref={templateDropRef}>
+                <button
+                  onClick={() => setTemplateDropOpen(o => !o)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                  style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
+                  <FileDown size={14} /> 템플릿
+                </button>
+                {templateDropOpen && (
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-2 min-w-[160px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 pt-1 pb-2">파트 선택</p>
+                    {parts!.map(p => (
+                      <button key={p.id} onClick={() => downloadTemplate(p)}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left">
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                        <span className="text-sm text-gray-700 font-medium">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button onClick={() => downloadTemplate()}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
+                <FileDown size={14} /> 템플릿
+              </button>
+            );
+          })()}
           <div className="relative" ref={exportDropRef}>
             <button
               onClick={() => {

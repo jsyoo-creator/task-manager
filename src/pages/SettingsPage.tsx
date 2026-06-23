@@ -34,6 +34,7 @@ interface Props {
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
   customHolidays: CustomHoliday[];
   onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
+  onReorderTeams: (ordered: Team[]) => Promise<void>;
   orphanTaskCount: number;
   onCleanupOrphanTasks: () => Promise<number>;
 }
@@ -1947,12 +1948,13 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
   onSetParts: (teamId: string, parts: TeamPart[]) => Promise<void>;
   onDeleteTeam: (teamId: string) => Promise<void>;
+  onReorderTeams: (ordered: Team[]) => Promise<void>;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
@@ -1977,6 +1979,9 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
+  const [dragOverTeamId, setDragOverTeamId] = useState<string | null>(null);
+  const [draggingTeamId, setDraggingTeamId] = useState<string | null>(null);
+  const dragTeamIdRef = useRef<string | null>(null);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -2060,10 +2065,32 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
       ) : (
         <div className="divide-y divide-black/[0.04]">
           {teams.map(team => (
-            <div key={team.id}>
+            <div key={team.id}
+              draggable
+              onDragStart={() => { dragTeamIdRef.current = team.id; setDraggingTeamId(team.id); }}
+              onDragOver={e => { e.preventDefault(); if (dragTeamIdRef.current !== team.id) setDragOverTeamId(team.id); }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTeamId(null); }}
+              onDrop={() => {
+                const fromId = dragTeamIdRef.current;
+                if (!fromId || fromId === team.id) { dragTeamIdRef.current = null; setDragOverTeamId(null); setDraggingTeamId(null); return; }
+                const next = [...teams];
+                const fromIdx = next.findIndex(t => t.id === fromId);
+                const toIdx = next.findIndex(t => t.id === team.id);
+                if (fromIdx !== -1 && toIdx !== -1) {
+                  const [moved] = next.splice(fromIdx, 1);
+                  next.splice(toIdx, 0, moved);
+                  onReorderTeams(next);
+                }
+                dragTeamIdRef.current = null; setDragOverTeamId(null); setDraggingTeamId(null);
+              }}
+              onDragEnd={() => { dragTeamIdRef.current = null; setDragOverTeamId(null); setDraggingTeamId(null); }}
+              className={`transition-all ${dragOverTeamId === team.id ? 'border-t-2 border-blue-400' : ''}`}
+              style={{ opacity: draggingTeamId === team.id ? 0.4 : 1 }}>
               {/* 팀 헤더 */}
               <div className="px-5 py-3 hover:bg-black/[0.02] transition-colors">
                 <div className="flex items-center gap-3">
+                  {/* 드래그 핸들 */}
+                  <GripVertical size={14} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 -ml-1" />
                   {/* 색상 + 이모지 원 (클릭 → 인라인 색상 팔레트) */}
                   <button
                     onClick={() => setColorPickerTeamId(colorPickerTeamId === team.id ? null : team.id)}
@@ -2253,6 +2280,7 @@ export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
   onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
+  onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
 }: Props) {
@@ -2505,6 +2533,7 @@ export default function SettingsPage({
           onUpdateTeam={onUpdateTeam}
           onSetParts={onSetParts}
           onDeleteTeam={onDeleteTeam}
+          onReorderTeams={onReorderTeams}
           onUpdateFormConfig={onUpdateFormConfig}
           onUpdatePartFormConfig={onUpdatePartFormConfig}
           onClearPartFormConfig={onClearPartFormConfig}

@@ -258,6 +258,7 @@ export interface Team {
   name: string;
   emoji: string;
   color?: string; // hex e.g. '#3b82f6'
+  sortOrder?: number;
   parts: TeamPart[];
   createdAt: string;
   formConfig?: TeamFormConfig;

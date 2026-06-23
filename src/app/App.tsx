@@ -75,7 +75,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
@@ -373,6 +373,7 @@ function App() {
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}
                     onClearPartExcelConfig={clearPartExcelConfig}
+                    onReorderTeams={reorderTeams}
                     customHolidays={customHolidays}
                     onUpdateHolidays={updateHolidays}
                     orphanTaskCount={orphanTaskCount}

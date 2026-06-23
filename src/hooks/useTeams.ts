@@ -18,7 +18,11 @@ export function useTeams(uid?: string) {
       snap => {
         const data = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Team))
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          .sort((a, b) => {
+            const ao = a.sortOrder ?? 999999;
+            const bo = b.sortOrder ?? 999999;
+            return ao !== bo ? ao - bo : a.createdAt.localeCompare(b.createdAt);
+          });
         setTeams(data);
         setLoading(false);
       },
@@ -152,5 +156,13 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig };
+  const reorderTeams = async (ordered: Team[]) => {
+    const batch = writeBatch(db);
+    ordered.forEach((team, i) => {
+      batch.update(doc(db, 'teams', team.id), { sortOrder: i });
+    });
+    await batch.commit();
+  };
+
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams };
 }

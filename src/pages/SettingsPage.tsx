@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
@@ -1277,10 +1277,10 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
       {/* 상속 안내 */}
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
-          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중</p>
+          <button onClick={() => currentPart && onSavePart(team.id, currentPart.id, teamFields)}
             className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />초기화
+            <ArrowDownToLine size={11} />팀 기본 가져오기
           </button>
         </div>
       )}
@@ -1856,10 +1856,10 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
       {/* 상속/별도 안내 */}
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 저장하면 이 파트만 별도 저장됩니다</p>
-          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
-            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />초기화
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중</p>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0 disabled:opacity-50">
+            <ArrowDownToLine size={11} />팀 기본 가져오기
           </button>
         </div>
       )}

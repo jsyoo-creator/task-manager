@@ -233,10 +233,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const handleExcelExport = (selectedParts?: Set<string>, selectedMonths?: Set<number>) => {
     const yr = String(yearFilter);
     const base = tasks.filter((t: Task) => {
-      // 연도 필터
       const taskYear = t.taskMonth?.substring(0, 4) ?? t.startDate?.substring(0, 4) ?? t.endDate?.substring(0, 4) ?? '';
       if (taskYear && taskYear !== yr) return false;
-      // 월 필터
       if (selectedMonths && selectedMonths.size > 0) {
         const m = t.taskMonth
           ? parseInt(t.taskMonth.split('-')[1])
@@ -252,8 +250,26 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const toExport = selectedParts && selectedParts.size > 0
       ? base.filter(t => selectedParts.has(t.category))
       : base;
-    const rows = toExport.map(taskToRow);
-    const ws = XLSX.utils.json_to_sheet(rows, { header: getExcelHeaders() });
+
+    // 선택된 파트 중 별도 excelConfig 있으면 우선 사용, 없으면 팀 기본
+    const selectedPartObjects = parts?.filter(p => selectedParts?.has(p.name)) ?? [];
+    const effectiveConfig = selectedPartObjects.find(p => p.excelConfig)?.excelConfig ?? excelConfig;
+    const effectiveImportFields = (effectiveConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
+      .map(f => ({ ...f, label: builtinLabels[f.key] ?? f.label }));
+    const effectiveExcelFields = effectiveImportFields.filter(f => !f.exportExcluded);
+    const headers = effectiveExcelFields.length > 0
+      ? effectiveExcelFields.map(f => f.label)
+      : Object.values(builtinLabels);
+    const rows = toExport.map(t => {
+      if (effectiveExcelFields.length > 0) {
+        const row: Record<string, string> = {};
+        effectiveExcelFields.forEach(f => { row[f.label] = taskVal(t, f.key); });
+        return row;
+      }
+      return Object.fromEntries(Object.entries(builtinLabels).map(([key, label]) => [label, taskVal(t, key)]));
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '업무목록');
     XLSX.writeFile(wb, `업무목록_${new Date().toISOString().slice(0, 10)}.xlsx`);

@@ -665,7 +665,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                     <Upload size={14} /> 엑셀 등록
                   </button>
                   {importDropOpen && (
-                    <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[220px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[220px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">파트 선택</p>
                       <button
                         onClick={() => setImportParts(importParts.size === parts.length ? new Set() : new Set(parts.map(p => p.name)))}

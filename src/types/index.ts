@@ -74,6 +74,7 @@ export interface BuiltinFieldConfig {
   width: number; // 0 = 1fr (title), weeklyHours는 주당 너비
   customLabel?: string; // 사용자 정의 표시 이름
   customType?: FormFieldType; // 폼 렌더링 속성 오버라이드
+  required?: boolean; // 새업무 등록 폼에서 필수 입력 여부
   department?: Department; // 이름 타입: 해당 직군 사람만 표시 (구버전 호환)
   departments?: Department[]; // 복수 직군 선택 (신버전)
   options?: string[]; // select 타입: 선택지

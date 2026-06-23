@@ -108,6 +108,12 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     if (!form.taskMonth) { alert('월을 선택해 주세요.'); return; }
     const category = form.category || partNames[0] || '';
     if (!category) { alert('파트를 선택해 주세요.'); return; }
+    // 필수 설정된 기본 필드 검증 (HTML required가 적용 안 되는 DatePicker 등)
+    for (const fc of builtinFields) {
+      if (!fc.required || !fc.enabled) continue;
+      if (fc.key === 'startDate' && !form.startDate) { alert(`${fc.customLabel ?? '시작일'}을 입력해 주세요.`); return; }
+      if (fc.key === 'endDate' && !form.endDate) { alert(`${fc.customLabel ?? '종료일'}을 입력해 주세요.`); return; }
+    }
     onSubmit({ ...form, category: category as Task['category'], projectId, weeklyHours: {}, totalHours: 0, customFields: Object.keys(custom).length > 0 ? custom : undefined });
     resetForm();
     onClose();
@@ -240,12 +246,15 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                     value={form.title} onChange={e => setF({ title: e.target.value })} />
                 </div>
               );
+              const req = fc?.required ?? false;
+              const reqMark = req ? <span className="text-red-400 ml-0.5">*</span> : null;
               if (k === 'type') {
                 const typeOpts = (fc?.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
                 return (
                   <div>
-                    <label className={lbl}>{fieldLabel}</label>
-                    <select className={cls} value={form.type} onChange={e => setF({ type: e.target.value as TaskType })}>
+                    <label className={lbl}>{fieldLabel}{reqMark}</label>
+                    <select required={req} className={cls} value={form.type} onChange={e => setF({ type: e.target.value as TaskType })}>
+                      {req && <option value="">선택하세요</option>}
                       {typeOpts.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
@@ -259,8 +268,8 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   : assignees;
                 return (
                   <div>
-                    <label className={lbl}>{fieldLabel}</label>
-                    <select className={cls} value={form.receiver} onChange={e => setF({ receiver: e.target.value })}>
+                    <label className={lbl}>{fieldLabel}{reqMark}</label>
+                    <select required={req} className={cls} value={form.receiver} onChange={e => setF({ receiver: e.target.value })}>
                       <option value="">선택하세요</option>
                       {ropts.map(a => <option key={a}>{a}</option>)}
                     </select>
@@ -275,8 +284,8 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                   : assignees;
                 return (
                   <div>
-                    <label className={lbl}>{fieldLabel}</label>
-                    <select className={cls} value={form.assignee} onChange={e => setF({ assignee: e.target.value })}>
+                    <label className={lbl}>{fieldLabel}{reqMark}</label>
+                    <select required={req} className={cls} value={form.assignee} onChange={e => setF({ assignee: e.target.value })}>
                       <option value="">선택하세요</option>
                       {aopts.map(a => <option key={a}>{a}</option>)}
                     </select>
@@ -285,20 +294,20 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
               }
               if (k === 'startDate') return (
                 <div>
-                  <label className={lbl}>{fieldLabel}</label>
+                  <label className={lbl}>{fieldLabel}{reqMark}</label>
                   <DatePicker value={form.startDate} onChange={v => setF({ startDate: v })} />
                 </div>
               );
               if (k === 'endDate') return (
                 <div>
-                  <label className={lbl}>{fieldLabel}</label>
+                  <label className={lbl}>{fieldLabel}{reqMark}</label>
                   <DatePicker value={form.endDate} onChange={v => setF({ endDate: v })} />
                 </div>
               );
               if (k === 'revisionLevel') return (
                 <div>
-                  <label className={lbl}>{fieldLabel}</label>
-                  <select className={cls} value={form.revisionLevel}
+                  <label className={lbl}>{fieldLabel}{reqMark}</label>
+                  <select required={req} className={cls} value={form.revisionLevel}
                     onChange={e => setF({ revisionLevel: Number(e.target.value) })}>
                     {REVISION_OPTIONS.map((o, idx) => <option key={idx} value={idx}>{o}</option>)}
                   </select>

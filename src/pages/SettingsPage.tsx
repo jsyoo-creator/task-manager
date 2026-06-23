@@ -508,6 +508,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   const [typeInput, setTypeInput] = useState<FormFieldType | 'default'>('default');
   const [builtinDeptInput, setBuiltinDeptInput] = useState<Department | ''>('');
 
+  const [builtinRequiredInput, setBuiltinRequiredInput] = useState(false);
   const [builtinOptionsInput, setBuiltinOptionsInput] = useState<string[]>(['', '']);
   const [builtinOptionColors, setBuiltinOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [builtinColorPickerIdx, setBuiltinColorPickerIdx] = useState<number | null>(null);
@@ -518,6 +519,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
   const [customLabelInput, setCustomLabelInput] = useState('');
   const [customTypeInput, setCustomTypeInput] = useState<FormFieldType>('text');
+  const [customRequiredInput, setCustomRequiredInput] = useState(false);
   const [customDeptInput, setCustomDeptInput] = useState<Department | ''>('');
   const [customOptionsInput, setCustomOptionsInput] = useState<string[]>(['', '']);
   const [customOptionColors, setCustomOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
@@ -579,6 +581,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
         ...f,
         customLabel: trimmed || undefined,
         customType: resolvedType,
+        required: builtinRequiredInput || undefined,
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
         options: isSelect ? validOpts : undefined,
         optionColors: isSelect && Object.keys(builtinOptionColorsRef.current).length > 0 ? builtinOptionColorsRef.current : undefined,
@@ -609,6 +612,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
         ...cf,
         label: newLabel || cf.label,
         type: customTypeInput,
+        required: customRequiredInput,
         department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
         options: customTypeInput === 'select' ? validOpts : cf.options,
         optionColors: customTypeInput === 'select' && Object.keys(customOptionColorsRef.current).length > 0 ? customOptionColorsRef.current : undefined,
@@ -686,6 +690,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                             ))}
                           </select>
                         )}
+                        {fc.key !== 'taskMonth' && !isTitle && (
+                          <label className="flex items-center gap-1 flex-shrink-0 cursor-pointer select-none">
+                            <input type="checkbox" checked={builtinRequiredInput} onChange={e => setBuiltinRequiredInput(e.target.checked)} className="rounded w-3 h-3 accent-red-400" />
+                            <span className="text-[11px] text-gray-500">필수</span>
+                          </label>
+                        )}
                       </div>
                       {(fc.key === 'taskMonth' || isTitle)
                         ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
@@ -753,6 +763,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       onClick={() => {
                         setEditingKey(fc.key);
                         setLabelInput(fc.customLabel ?? '');
+                        setBuiltinRequiredInput(fc.required ?? false);
                         setBuiltinDeptInput(fc.department ?? '');
                         setBuiltinColorPickerIdx(null);
                         // 상태 필드: 옵션 없으면 기본 4가지 상태로 자동 채움 + 드롭다운 모드 강제
@@ -770,6 +781,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       {label}
                       {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
+                      {fc.required && <span className="ml-1 text-[10px] text-red-400 font-medium">필수</span>}
                     </button>
                     {/* 이름 타입 직군 pill */}
                     {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (
@@ -834,6 +846,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                           <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
                         ))}
                       </select>
+                      <label className="flex items-center gap-1 flex-shrink-0 cursor-pointer select-none">
+                        <input type="checkbox" checked={customRequiredInput} onChange={e => setCustomRequiredInput(e.target.checked)} className="rounded w-3 h-3 accent-red-400" />
+                        <span className="text-[11px] text-gray-500">필수</span>
+                      </label>
                     </div>
                     {customTypeInput === 'select' && (
                       <div className="mt-1.5 space-y-1">
@@ -889,7 +905,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                   <button
                     type="button"
                     title="클릭하여 이름 · 속성 수정"
-                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
+                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomRequiredInput(cf.required ?? false); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
                     className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {cf.label}
                   </button>

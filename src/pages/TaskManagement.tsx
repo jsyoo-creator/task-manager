@@ -99,6 +99,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
   const [previewSkipped, setPreviewSkipped] = useState<Set<number>>(new Set());
+  const [previewUpdateSet, setPreviewUpdateSet] = useState<Set<number>>(new Set());
   const importRef = useRef<HTMLInputElement>(null);
   const exportDropRef = useRef<HTMLDivElement>(null);
   const [exportDropOpen, setExportDropOpen] = useState(false);
@@ -336,34 +337,53 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const handleImportConfirm = async () => {
     if (!importPreview) return;
-    // previewSkipped에 없는 항목만 등록
-    const toAdd = importPreview.rows.map((r, i) => ({ r, i })).filter(({ i }) => !previewSkipped.has(i));
-    const bottom = tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1);
     const validPartNames = new Set(parts?.map(p => p.name) ?? []);
-    for (let idx = 0; idx < toAdd.length; idx++) {
-      const { r, i } = toAdd[idx];
+    const currentMonth = monthFilter > 0
+      ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}`
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const existingTaskMap = new Map(tasks.map(t => [`${t.title.trim()}||${t.category}||${t.taskMonth}`, t]));
+    const bottom = tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1);
+    let addIdx = 0;
+
+    for (let i = 0; i < importPreview.rows.length; i++) {
+      if (previewSkipped.has(i)) continue;
+      const r = importPreview.rows[i];
       const rawCat = r.category ?? '';
       const resolvedCategory = (previewCats[i]) ||
         (validPartNames.size === 0 || validPartNames.has(rawCat) ? rawCat : '') ||
         (parts?.[0]?.name ?? '');
-      await onAddTask({
-        projectId, teamId: '',
-        title: r.title ?? '',
-        taskMonth: r.taskMonth || (monthFilter > 0
-          ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}`
-          : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`),
-        category: resolvedCategory as TaskCategory,
-        type: (r.type as TaskType) || '신규',
-        status: (r.status as TaskStatus) || '',
-        receiver: r.receiver ?? '', assignee: r.assignee ?? '',
-        startDate: r.startDate ?? '', endDate: r.endDate ?? '',
-        weeklyHours: {}, totalHours: 0, revisionLevel: 0,
-        sortOrder: bottom + 1 + idx,
-        ...(r.customFields ? { customFields: r.customFields } : {}),
-      });
+      const resolvedMonth = r.taskMonth || currentMonth;
+
+      if (previewUpdateSet.has(i)) {
+        const key = `${(r.title ?? '').trim()}||${resolvedCategory}||${resolvedMonth}`;
+        const existing = existingTaskMap.get(key);
+        if (existing) {
+          const { title: _t, category: _c, taskMonth: _m, ...updateFields } = r;
+          onUpdateTask(existing.id, {
+            ...updateFields,
+            ...(r.customFields ? { customFields: { ...(existing.customFields ?? {}), ...r.customFields } } : {}),
+          });
+        }
+      } else {
+        await onAddTask({
+          projectId, teamId: '',
+          title: r.title ?? '',
+          taskMonth: resolvedMonth,
+          category: resolvedCategory as TaskCategory,
+          type: (r.type as TaskType) || '신규',
+          status: (r.status as TaskStatus) || '',
+          receiver: r.receiver ?? '', assignee: r.assignee ?? '',
+          startDate: r.startDate ?? '', endDate: r.endDate ?? '',
+          weeklyHours: {}, totalHours: 0, revisionLevel: 0,
+          sortOrder: bottom + 1 + addIdx,
+          ...(r.customFields ? { customFields: r.customFields } : {}),
+        });
+        addIdx++;
+      }
     }
     setImportPreview(null);
     setPreviewSkipped(new Set());
+    setPreviewUpdateSet(new Set());
   };
 
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
@@ -666,13 +686,23 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           return existingKeys.has(`${(r.title ?? '').trim()}||${cat}||${month}`) ? i : -1;
         }).filter(i => i >= 0));
         const registerCount = importPreview.rows.length - previewSkipped.size;
-        const close = () => { setImportPreview(null); setPreviewCats({}); setPreviewSkipped(new Set()); };
-        const toggleSkip = (i: number) => {
-          setPreviewSkipped(prev => {
-            const next = new Set(prev);
-            if (next.has(i)) next.delete(i); else next.add(i);
-            return next;
-          });
+        const updateCount = [...previewUpdateSet].filter(i => dupeSet.has(i)).length;
+        const addCount = registerCount - updateCount;
+        const close = () => { setImportPreview(null); setPreviewCats({}); setPreviewSkipped(new Set()); setPreviewUpdateSet(new Set()); };
+        const cycleDupeMode = (i: number) => {
+          const isSkipped = previewSkipped.has(i);
+          const isUpdate = previewUpdateSet.has(i);
+          if (isSkipped) {
+            // 건너뜀 → 업데이트
+            setPreviewSkipped(prev => { const s = new Set(prev); s.delete(i); return s; });
+            setPreviewUpdateSet(prev => { const s = new Set(prev); s.add(i); return s; });
+          } else if (isUpdate) {
+            // 업데이트 → 새로추가
+            setPreviewUpdateSet(prev => { const s = new Set(prev); s.delete(i); return s; });
+          } else {
+            // 새로추가 → 건너뜀
+            setPreviewSkipped(prev => { const s = new Set(prev); s.add(i); return s; });
+          }
         };
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -682,8 +712,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   <h2 className="text-sm font-bold text-gray-800">엑셀 업무 등록 미리보기</h2>
                   <p className="text-xs text-gray-400 mt-0.5">
                     총 {importPreview.rows.length}건 · 중복 {dupeSet.size}건 ·{' '}
-                    <span className="text-green-600 font-medium">{registerCount}건 등록 예정</span>
-                    {dupeSet.size > 0 && <span className="text-gray-400"> (중복 항목 클릭하면 포함 가능)</span>}
+                    {addCount > 0 && <span className="text-green-600 font-medium">{addCount}건 등록</span>}
+                    {addCount > 0 && updateCount > 0 && <span> · </span>}
+                    {updateCount > 0 && <span className="text-blue-600 font-medium">{updateCount}건 업데이트</span>}
+                    {registerCount === 0 && <span className="text-gray-400">처리 없음</span>}
+                    {dupeSet.size > 0 && <span className="text-gray-400"> (중복 항목 클릭으로 모드 변경)</span>}
                   </p>
                 </div>
                 <button onClick={close} className="text-gray-400 hover:text-gray-600 transition-colors">✕</button>
@@ -692,20 +725,28 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 {importPreview.rows.map((row, i) => {
                   const isDupe = dupeSet.has(i);
                   const isSkipped = previewSkipped.has(i);
+                  const isUpdate = previewUpdateSet.has(i);
                   const catVal = previewCats[i] ?? row.category ?? '';
                   const partNameSet = new Set(parts?.map(p => p.name) ?? []);
                   const needsCat = parts && parts.length > 0 && (!catVal || !partNameSet.has(catVal));
+                  const dupeModeColor = isSkipped
+                    ? 'bg-red-50 text-red-400 cursor-pointer hover:bg-red-100'
+                    : isUpdate
+                    ? 'bg-blue-50 text-blue-700 cursor-pointer hover:bg-blue-100'
+                    : isDupe
+                    ? 'bg-green-50 text-green-700 cursor-pointer hover:bg-green-100'
+                    : 'bg-gray-50 text-gray-700';
                   return (
                     <div key={i}
-                      onClick={isDupe ? () => toggleSkip(i) : undefined}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors ${
-                        isSkipped ? 'bg-red-50 text-red-400 cursor-pointer hover:bg-red-100' :
-                        isDupe ? 'bg-green-50 text-green-700 cursor-pointer hover:bg-green-100' :
-                        'bg-gray-50 text-gray-700'
-                      }`}>
+                      onClick={isDupe ? () => cycleDupeMode(i) : undefined}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-colors ${dupeModeColor}`}>
                       {isDupe ? (
-                        <span className={`w-4 h-4 rounded flex-shrink-0 border text-[9px] flex items-center justify-center font-bold ${isSkipped ? 'border-red-300 text-red-400' : 'border-green-400 bg-green-400 text-white'}`}>
-                          {isSkipped ? '✕' : '✓'}
+                        <span className={`w-4 h-4 rounded flex-shrink-0 border text-[9px] flex items-center justify-center font-bold ${
+                          isSkipped ? 'border-red-300 text-red-400' :
+                          isUpdate ? 'border-blue-400 bg-blue-400 text-white' :
+                          'border-green-400 bg-green-400 text-white'
+                        }`}>
+                          {isSkipped ? '✕' : isUpdate ? '↑' : '✓'}
                         </span>
                       ) : (
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-400" />
@@ -723,7 +764,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                       ) : (
                         catVal && <span className="text-[11px] opacity-60">{catVal}</span>
                       )}
-                      {isDupe && <span className={`text-[10px] font-semibold ${isSkipped ? 'text-red-400' : 'text-green-600'}`}>{isSkipped ? '중복제외' : '포함'}</span>}
+                      {isDupe && (
+                        <span className={`text-[10px] font-semibold ${isSkipped ? 'text-red-400' : isUpdate ? 'text-blue-600' : 'text-green-600'}`}>
+                          {isSkipped ? '건너뜀' : isUpdate ? '업데이트' : '새로추가'}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -735,7 +780,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 </button>
                 <button onClick={handleImportConfirm} disabled={registerCount === 0}
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-green-500 text-white hover:bg-green-600 disabled:opacity-40 transition-colors">
-                  {registerCount}건 등록
+                  {addCount > 0 && updateCount > 0
+                    ? `${addCount}건 등록 · ${updateCount}건 업데이트`
+                    : updateCount > 0
+                    ? `${updateCount}건 업데이트`
+                    : `${addCount}건 등록`}
                 </button>
               </div>
             </div>

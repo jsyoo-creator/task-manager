@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
@@ -1013,11 +1013,18 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       {!isInherited && selectedTarget !== 'team' && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <button
-            onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />팀 기본으로 초기화
-          </button>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            <button
+              onClick={() => { if (rawConfig) onUpdateFormConfig(team.id, rawConfig); }}
+              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+              <ArrowUpToLine size={11} />팀 기본으로 지정
+            </button>
+            <button
+              onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+              <RotateCcw size={11} />초기화
+            </button>
+          </div>
         </div>
       )}
 
@@ -1138,10 +1145,16 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
       {!isTeam && !isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />팀 기본으로 초기화
-          </button>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            <button onClick={() => onSave(team.id, fields)}
+              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+              <ArrowUpToLine size={11} />팀 기본으로 지정
+            </button>
+            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+              <RotateCcw size={11} />초기화
+            </button>
+          </div>
         </div>
       )}
 
@@ -1329,10 +1342,16 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
       {!isTeam && !isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />팀 기본으로 초기화
-          </button>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            <button onClick={() => onSave(team.id, types)}
+              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+              <ArrowUpToLine size={11} />팀 기본으로 지정
+            </button>
+            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+              <RotateCcw size={11} />초기화
+            </button>
+          </div>
         </div>
       )}
 
@@ -1636,6 +1655,13 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
     setSaving(false);
   };
 
+  const handleSaveAsTeamDefault = async () => {
+    setSaving(true);
+    const config = fields.map((f, i) => ({ ...f, order: i }));
+    await onSave(team.id, config);
+    setSaving(false);
+  };
+
   useEffect(() => { setSelectedTarget('team'); }, [team.id]);
 
   return (
@@ -1682,10 +1708,16 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
       {!isTeam && !isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
-            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />팀 기본으로 초기화
-          </button>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            <button onClick={handleSaveAsTeamDefault} disabled={saving}
+              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50">
+              <ArrowUpToLine size={11} />팀 기본으로 지정
+            </button>
+            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+              <RotateCcw size={11} />초기화
+            </button>
+          </div>
         </div>
       )}
 

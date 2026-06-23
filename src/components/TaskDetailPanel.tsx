@@ -555,18 +555,25 @@ export default function TaskDetailPanel({
                           </div>
                         );
                       })()}
-                      <select
-                        disabled={!canManage}
-                        className="text-xs bg-gray-100 border-none rounded-lg px-2 py-1 focus:outline-none text-gray-600 cursor-pointer disabled:cursor-default max-w-[120px]"
-                        value={entry.assignee ?? ''}
-                        onChange={e => {
-                          const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
-                          setLocalSubTaskData(next);
-                          saveSubTaskData(next);
-                        }}>
-                        <option value="">{fieldLabel('assignee')}</option>
-                        {displayAssignees.map(a => <option key={a}>{a}</option>)}
-                      </select>
+                      <div className="relative max-w-[120px]">
+                        <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">
+                          <span className="truncate">{entry.assignee || fieldLabel('assignee')}</span>
+                          <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
+                        </div>
+                        <select
+                          disabled={!canManage}
+                          className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
+                          style={{ cursor: canManage ? 'pointer' : 'default' }}
+                          value={entry.assignee ?? ''}
+                          onChange={e => {
+                            const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
+                            setLocalSubTaskData(next);
+                            saveSubTaskData(next);
+                          }}>
+                          <option value="">{fieldLabel('assignee')}</option>
+                          {displayAssignees.map(a => <option key={a}>{a}</option>)}
+                        </select>
+                      </div>
                       {total > 0 && (
                         <span className="text-xs font-semibold text-blue-500 flex-shrink-0">{total}h</span>
                       )}

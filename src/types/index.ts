@@ -149,6 +149,7 @@ export interface TeamFormConfig {
   enabledBuiltins?: BuiltinFieldKey[];  // 구버전 호환용
   customFields: CustomFormField[];
   statusConfigs?: StatusConfig[];
+  fieldOrder?: string[]; // 기본+커스텀 통합 순서 (builtin key 또는 custom field id)
 }
 
 export function resolveStatusConfigs(config?: TeamFormConfig): StatusConfig[] {

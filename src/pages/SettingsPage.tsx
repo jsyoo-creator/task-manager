@@ -488,19 +488,19 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
 }
 
 // ── 필드 설정 빌더 (드래그 앤 드롭 + 너비 조절) ──
-function FieldConfigEditor({ fields: fieldsProp, customFields, onSaveFields, onSaveCustom }: {
+function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSaveFields, onSaveCustom, onSaveOrder }: {
   fields: BuiltinFieldConfig[];
   customFields: CustomFormField[];
+  fieldOrder?: string[];
   onSaveFields: (f: BuiltinFieldConfig[]) => void;
   onSaveCustom: (f: CustomFormField[]) => void;
+  onSaveOrder?: (order: string[]) => void;
 }) {
   const [fields, setFields] = useState(fieldsProp);
   useEffect(() => { setFields(fieldsProp); }, [fieldsProp]);
 
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
-  const [cdragOverIdx, setCDragOverIdx] = useState<number | null>(null);
-  const cdragIdxRef = useRef<number | null>(null);
 
   // 인라인 레이블·속성 편집 (빌트인)
   const [editingKey, setEditingKey] = useState<BuiltinFieldKey | null>(null);
@@ -527,27 +527,39 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, onSaveFields, onS
 
   const isTableField = (key: BuiltinFieldKey) => TABLE_FIELD_KEYS.includes(key);
 
-  const onDrop = (toIdx: number) => {
+  // 통합 필드 리스트 (fieldOrder 적용)
+  type UItem = { kind: 'builtin'; data: BuiltinFieldConfig } | { kind: 'custom'; data: CustomFormField };
+  const bMap = Object.fromEntries(fields.map(f => [f.key, f]));
+  const cMap = Object.fromEntries(customFields.map(f => [f.id, f]));
+  const unified: UItem[] = (() => {
+    const bs: UItem[] = fields.map(f => ({ kind: 'builtin', data: f }));
+    const cs: UItem[] = customFields.map(f => ({ kind: 'custom', data: f }));
+    if (!fieldOrder?.length) return [...bs, ...cs];
+    const result: UItem[] = [];
+    for (const k of fieldOrder) {
+      if (k in bMap) result.push({ kind: 'builtin', data: bMap[k] });
+      else if (k in cMap) result.push({ kind: 'custom', data: cMap[k] });
+    }
+    fields.forEach(f => { if (!fieldOrder.includes(f.key)) result.push({ kind: 'builtin', data: f }); });
+    customFields.forEach(f => { if (!fieldOrder.includes(f.id)) result.push({ kind: 'custom', data: f }); });
+    return result;
+  })();
+
+  const onDropUnified = (toIdx: number) => {
     const from = dragIdxRef.current;
     if (from === null || from === toIdx) return;
-    const arr = [...fields];
-    const [item] = arr.splice(from, 1);
-    arr.splice(toIdx, 0, item);
-    setFields(arr);
-    onSaveFields(arr);
+    const arr = [...unified];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, moved);
+    const newOrder = arr.map(u => u.kind === 'builtin' ? u.data.key : u.data.id);
+    const newBuiltins = arr.filter(u => u.kind === 'builtin').map(u => (u as { kind: 'builtin'; data: BuiltinFieldConfig }).data);
+    const newCustoms = arr.filter(u => u.kind === 'custom').map(u => (u as { kind: 'custom'; data: CustomFormField }).data);
+    setFields(newBuiltins);
+    onSaveFields(newBuiltins);
+    onSaveCustom(newCustoms);
+    onSaveOrder?.(newOrder);
     dragIdxRef.current = null;
     setDragOverIdx(null);
-  };
-
-  const onDropCustom = (toIdx: number) => {
-    const from = cdragIdxRef.current;
-    if (from === null || from === toIdx) return;
-    const arr = [...customFields];
-    const [item] = arr.splice(from, 1);
-    arr.splice(toIdx, 0, item);
-    onSaveCustom(arr);
-    cdragIdxRef.current = null;
-    setCDragOverIdx(null);
   };
 
   const toggleBuiltin = (key: BuiltinFieldKey) => {
@@ -620,17 +632,19 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, onSaveFields, onS
 
   return (
     <div className="space-y-4">
-      {/* 기본 필드 */}
+      {/* 통합 필드 목록 */}
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-          기본 필드
-          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 이름/속성 수정</span>
+          필드
+          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 변경 (기본·커스텀 간 이동 가능) · 이름 클릭으로 속성 수정</span>
         </p>
         <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
-          {fields.map((fc, i) => {
+          {unified.map((item, i) => {
+            const isDragOver = dragOverIdx === i;
+            if (item.kind === 'builtin') {
+            const fc = item.data;
             const defaultLabel = BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
             const label = fc.customLabel ?? defaultLabel;
-            const isDragOver = dragOverIdx === i;
             const isTitle = fc.key === 'title';
             const isTypeFixed = fc.key === 'weeklyHours' || fc.key === 'revisionLevel';
             return (
@@ -640,7 +654,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, onSaveFields, onS
                 onDragStart={() => { dragIdxRef.current = i; }}
                 onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
                 onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
-                onDrop={() => onDrop(i)}
+                onDrop={() => onDropUnified(i)}
                 onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
                 className={`${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
                 {editingKey === fc.key ? (
@@ -784,142 +798,139 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, onSaveFields, onS
                 )}
               </div>
             );
+            } else {
+            // 커스텀 필드 행
+            const cf = item.data;
+            const isEditingCF = editingCustomId === cf.id;
+            return (
+              <div
+                key={cf.id}
+                draggable={!isEditingCF}
+                onDragStart={() => { dragIdxRef.current = i; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                onDrop={() => onDropUnified(i)}
+                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                {isEditingCF ? (
+                  <div className="flex-1 min-w-0"
+                    onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}
+                    onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        autoFocus
+                        className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                        value={customLabelInput}
+                        onChange={e => setCustomLabelInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
+                      />
+                      <select
+                        className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
+                        value={customTypeInput}
+                        onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
+                        {CUSTOM_FIELD_TYPES.map(t => (
+                          <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {customTypeInput === 'select' && (
+                      <div className="mt-1.5 space-y-1">
+                        {customOptionsInput.map((opt, idx) => (
+                          <div key={idx}>
+                            <div className="flex gap-1.5 items-center">
+                              <button type="button"
+                                onClick={() => setCustomColorPickerIdx(customColorPickerIdx === idx ? null : idx)}
+                                className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt] ? 'border border-transparent' : 'border border-dashed border-gray-400'}`}
+                                style={{ backgroundColor: customOptionColors[opt]?.bg ?? 'white' }}
+                              />
+                              <input
+                                className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                                placeholder={`옵션 ${idx + 1}`}
+                                value={opt}
+                                onChange={e => {
+                                  const old = customOptionsInput[idx];
+                                  const next = e.target.value;
+                                  setCustomOptionsInput(prev => prev.map((v, j) => j === idx ? next : v));
+                                  if (customOptionColors[old]) {
+                                    setCustomOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
+                                  }
+                                }}
+                              />
+                              {customOptionsInput.length > 1 && (
+                                <button type="button" onClick={() => { setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx)); setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
+                                  className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                              )}
+                            </div>
+                            {customColorPickerIdx === idx && (
+                              <div className="flex gap-0.5 flex-wrap mt-1 ml-5">
+                                <button type="button" title="색상 없음"
+                                  onClick={() => { setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); setCustomColorPickerIdx(null); }}
+                                  className="w-4 h-4 rounded-full bg-gray-100 border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center">✕</button>
+                                {STATUS_COLOR_PRESETS.map(p => (
+                                  <button key={p.label} type="button" title={p.label}
+                                    onClick={() => { setCustomOptionColors(prev => ({ ...prev, [opt]: { bg: p.bg, text: p.text } })); setCustomColorPickerIdx(null); }}
+                                    className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                                    style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setCustomOptionsInput(prev => [...prev, ''])}
+                          className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors">
+                          <Plus size={10} />옵션 추가
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    title="클릭하여 이름 · 속성 수정"
+                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                    {cf.label}
+                  </button>
+                )}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
+                  {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
+                    const val = d === '전체' ? undefined : d as Department;
+                    const activeDeptsCF = cf.departments ?? (cf.department ? [cf.department] : []);
+                    const active = val === undefined ? activeDeptsCF.length === 0 : activeDeptsCF.includes(val);
+                    return (
+                      <button key={d} type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          onSaveCustom(customFields.map(f => {
+                            if (f.id !== cf.id) return f;
+                            if (!val) return { ...f, departments: undefined, department: undefined };
+                            const cur = f.departments ?? (f.department ? [f.department] : []);
+                            const next = cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val];
+                            return { ...f, departments: next.length ? next : undefined, department: undefined };
+                          }));
+                        }}
+                        className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
+                        {d}
+                      </button>
+                    );
+                  })}
+                  {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
+                  <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
+                  <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
+                </div>
+              </div>
+            );
+            }
           })}
         </div>
       </div>
 
-      {/* 커스텀 필드 */}
+      {/* 커스텀 필드 추가 */}
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">커스텀 필드</p>
-        {customFields.length > 0 && (
-          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 mb-2">
-            {customFields.map((cf, i) => {
-              const isDragOver = cdragOverIdx === i;
-              const isEditingCF = editingCustomId === cf.id;
-              return (
-                <div
-                  key={cf.id}
-                  draggable={!isEditingCF}
-                  onDragStart={() => { cdragIdxRef.current = i; }}
-                  onDragOver={(e) => { e.preventDefault(); setCDragOverIdx(i); }}
-                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setCDragOverIdx(null); }}
-                  onDrop={() => onDropCustom(i)}
-                  onDragEnd={() => { cdragIdxRef.current = null; setCDragOverIdx(null); }}
-                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${isDragOver ? 'border-t-2 border-blue-400' : ''}`}>
-                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                  {isEditingCF ? (
-                    <div className="flex-1 min-w-0"
-                      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}
-                      onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          autoFocus
-                          className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                          value={customLabelInput}
-                          onChange={e => setCustomLabelInput(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}
-                        />
-                        <select
-                          className="text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none flex-shrink-0"
-                          value={customTypeInput}
-                          onChange={e => setCustomTypeInput(e.target.value as FormFieldType)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveCustomField(cf.id); if (e.key === 'Escape') setEditingCustomId(null); }}>
-                          {CUSTOM_FIELD_TYPES.map(t => (
-                            <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>
-                          ))}
-                        </select>
-                      </div>
-                      {customTypeInput === 'select' && (
-                        <div className="mt-1.5 space-y-1">
-                          {customOptionsInput.map((opt, idx) => (
-                            <div key={idx}>
-                              <div className="flex gap-1.5 items-center">
-                                <button type="button"
-                                  onClick={() => setCustomColorPickerIdx(customColorPickerIdx === idx ? null : idx)}
-                                  className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt] ? 'border border-transparent' : 'border border-dashed border-gray-400'}`}
-                                  style={{ backgroundColor: customOptionColors[opt]?.bg ?? 'white' }}
-                                />
-                                <input
-                                  className="flex-1 text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                                  placeholder={`옵션 ${idx + 1}`}
-                                  value={opt}
-                                  onChange={e => {
-                                    const old = customOptionsInput[idx];
-                                    const next = e.target.value;
-                                    setCustomOptionsInput(prev => prev.map((v, j) => j === idx ? next : v));
-                                    if (customOptionColors[old]) {
-                                      setCustomOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
-                                    }
-                                  }}
-                                />
-                                {customOptionsInput.length > 1 && (
-                                  <button type="button" onClick={() => { setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx)); setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
-                                    className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
-                                )}
-                              </div>
-                              {customColorPickerIdx === idx && (
-                                <div className="flex gap-0.5 flex-wrap mt-1 ml-5">
-                                  <button type="button" title="색상 없음"
-                                    onClick={() => { setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); setCustomColorPickerIdx(null); }}
-                                    className="w-4 h-4 rounded-full bg-gray-100 border border-gray-300 text-[9px] text-gray-400 flex items-center justify-center">✕</button>
-                                  {STATUS_COLOR_PRESETS.map(p => (
-                                    <button key={p.label} type="button" title={p.label}
-                                      onClick={() => { setCustomOptionColors(prev => ({ ...prev, [opt]: { bg: p.bg, text: p.text } })); setCustomColorPickerIdx(null); }}
-                                      className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
-                                      style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          <button type="button" onClick={() => setCustomOptionsInput(prev => [...prev, ''])}
-                            className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors">
-                            <Plus size={10} />옵션 추가
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      title="클릭하여 이름 · 속성 수정"
-                      onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
-                      className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
-                      {cf.label}
-                    </button>
-                  )}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
-                    {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
-                      const val = d === '전체' ? undefined : d as Department;
-                      const activeDeptsCF = cf.departments ?? (cf.department ? [cf.department] : []);
-                      const active = val === undefined ? activeDeptsCF.length === 0 : activeDeptsCF.includes(val);
-                      return (
-                        <button key={d} type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            onSaveCustom(customFields.map(f => {
-                              if (f.id !== cf.id) return f;
-                              if (!val) return { ...f, departments: undefined, department: undefined };
-                              const cur = f.departments ?? (f.department ? [f.department] : []);
-                              const next = cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val];
-                              return { ...f, departments: next.length ? next : undefined, department: undefined };
-                            }));
-                          }}
-                          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-violet-100 hover:text-violet-600'}`}>
-                          {d}
-                        </button>
-                      );
-                    })}
-                    {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
-                    <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
-                    <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
         <AddFieldForm onAdd={addCustomField} />
       </div>
     </div>
@@ -952,6 +963,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
     builtinFields: fields,
     customFields,
     statusConfigs: rawConfig?.statusConfigs,
+    fieldOrder: rawConfig?.fieldOrder,
     ...overrides,
   });
 
@@ -963,6 +975,12 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 
   const saveCustom = (newCustom: CustomFormField[]) => {
     const config = makeConfig({ customFields: newCustom });
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
+  };
+
+  const saveOrder = (order: string[]) => {
+    const config = makeConfig({ fieldOrder: order });
     if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
     else onUpdatePartFormConfig(team.id, selectedTarget, config);
   };
@@ -1039,8 +1057,10 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       <FieldConfigEditor
         fields={fields}
         customFields={customFields}
+        fieldOrder={rawConfig?.fieldOrder}
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
+        onSaveOrder={saveOrder}
       />
     </div>
   );

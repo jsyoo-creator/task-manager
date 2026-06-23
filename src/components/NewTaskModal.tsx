@@ -41,10 +41,26 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const builtinFields = resolveBuiltinFields(formConfig);
   const customFields = formConfig?.customFields ?? [];
   const statusConfigs = resolveStatusConfigs(formConfig);
-  // 폼에 표시할 필드 순서 (weeklyHours는 폼 입력 없음)
-  const formKeys = builtinFields
-    .filter(fc => fc.enabled && fc.key !== 'weeklyHours' && fc.key !== 'revisionLevel')
-    .map(fc => fc.key);
+  // fieldOrder 적용: 기본+커스텀 통합 순서
+  const enabledBuiltins = builtinFields.filter(fc => fc.enabled && fc.key !== 'weeklyHours' && fc.key !== 'revisionLevel');
+  const enabledCustoms = customFields.filter(cf => cf.enabled !== false);
+  type FormItem = { kind: 'builtin'; key: BuiltinFieldKey } | { kind: 'custom'; cf: typeof enabledCustoms[0] };
+  const formItems: FormItem[] = (() => {
+    const bItems: FormItem[] = enabledBuiltins.map(fc => ({ kind: 'builtin', key: fc.key }));
+    const cItems: FormItem[] = enabledCustoms.map(cf => ({ kind: 'custom', cf }));
+    const fo = formConfig?.fieldOrder;
+    if (!fo?.length) return [...bItems, ...cItems];
+    const bMap = Object.fromEntries(enabledBuiltins.map(fc => [fc.key, fc]));
+    const cMap = Object.fromEntries(enabledCustoms.map(cf => [cf.id, cf]));
+    const result: FormItem[] = [];
+    for (const k of fo) {
+      if (k in bMap) result.push({ kind: 'builtin', key: k as BuiltinFieldKey });
+      else if (k in cMap) result.push({ kind: 'custom', cf: cMap[k] });
+    }
+    enabledBuiltins.forEach(fc => { if (!fo.includes(fc.key)) result.push({ kind: 'builtin', key: fc.key }); });
+    enabledCustoms.forEach(cf => { if (!fo.includes(cf.id)) result.push({ kind: 'custom', cf }); });
+    return result;
+  })();
 
   const getPersonDefault = (key: 'receiver' | 'assignee') => {
     const fc = builtinFields.find(f => f.key === key);
@@ -290,77 +306,80 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
 
             const result: JSX.Element[] = [];
             let i = 0;
-            while (i < formKeys.length) {
-              const key = formKeys[i];
-              const nextKey = formKeys[i + 1] as BuiltinFieldKey | undefined;
-              const isPair = nextKey !== undefined && FIELD_PAIRS.some(
-                ([a, b]) => (a === key && b === nextKey) || (b === key && a === nextKey)
-              );
-              if (isPair && nextKey) {
+            while (i < formItems.length) {
+              const item = formItems[i];
+              if (item.kind === 'builtin') {
+                const key = item.key;
+                const nextItem = formItems[i + 1];
+                const nextKey = nextItem?.kind === 'builtin' ? nextItem.key : undefined;
+                const isPair = nextKey !== undefined && FIELD_PAIRS.some(
+                  ([a, b]) => (a === key && b === nextKey) || (b === key && a === nextKey)
+                );
+                if (isPair && nextKey) {
+                  result.push(
+                    <div key={`${key}-${nextKey}`} className="grid grid-cols-2 gap-3">
+                      {renderField(key)}
+                      {renderField(nextKey)}
+                    </div>
+                  );
+                  i += 2;
+                } else {
+                  const el = renderField(key);
+                  if (el) result.push(<div key={key}>{el}</div>);
+                  i += 1;
+                }
+              } else {
+                const cf = item.cf;
+                const cfType = cf.type as string;
+                const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+                const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
+                const opts = isNameType
+                  ? (teamMembers && cfDepts
+                      ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
+                      : assignees)
+                  : [];
                 result.push(
-                  <div key={`${key}-${nextKey}`} className="grid grid-cols-2 gap-3">
-                    {renderField(key)}
-                    {renderField(nextKey)}
+                  <div key={cf.id}>
+                    <label className={lbl}>
+                      {cf.label}{cf.required && <span className="text-red-400 ml-0.5">*</span>}
+                    </label>
+                    {isNameType && (
+                      <select required={cf.required} className={cls}
+                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
+                        <option value="">선택하세요</option>
+                        {opts.map(a => <option key={a}>{a}</option>)}
+                      </select>
+                    )}
+                    {cfType === 'text' && (
+                      <input type="text" required={cf.required} className={cls}
+                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                    )}
+                    {cfType === 'select' && (
+                      <select required={cf.required} className={cls}
+                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
+                        <option value="">선택하세요</option>
+                        {cf.options?.map(o => <option key={o}>{o}</option>)}
+                      </select>
+                    )}
+                    {cfType === 'date' && (
+                      <input type="date" required={cf.required} className={cls}
+                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                    )}
+                    {cfType === 'number' && (
+                      <input type="number" required={cf.required} className={cls}
+                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                    )}
+                    {cfType === 'link' && (
+                      <input type="url" required={cf.required} className={cls} placeholder="https://"
+                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                    )}
                   </div>
                 );
-                i += 2;
-              } else {
-                const el = renderField(key);
-                if (el) result.push(<div key={key}>{el}</div>);
                 i += 1;
               }
             }
             return result;
           })()}
-
-          {/* 커스텀 필드 */}
-          {customFields.filter(cf => cf.enabled !== false).map(cf => {
-            const cfType = cf.type as string;
-            const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
-            const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
-            const opts = isNameType
-              ? (teamMembers && cfDepts
-                  ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
-                  : assignees)
-              : [];
-            return (
-              <div key={cf.id}>
-                <label className={lbl}>
-                  {cf.label}{cf.required && <span className="text-red-400 ml-0.5">*</span>}
-                </label>
-                {isNameType && (
-                  <select required={cf.required} className={cls}
-                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
-                    <option value="">선택하세요</option>
-                    {opts.map(a => <option key={a}>{a}</option>)}
-                  </select>
-                )}
-                {cfType === 'text' && (
-                  <input type="text" required={cf.required} className={cls}
-                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-                )}
-                {cfType === 'select' && (
-                  <select required={cf.required} className={cls}
-                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
-                    <option value="">선택하세요</option>
-                    {cf.options?.map(o => <option key={o}>{o}</option>)}
-                  </select>
-                )}
-                {cfType === 'date' && (
-                  <input type="date" required={cf.required} className={cls}
-                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-                )}
-                {cfType === 'number' && (
-                  <input type="number" required={cf.required} className={cls}
-                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-                )}
-                {cfType === 'link' && (
-                  <input type="url" required={cf.required} className={cls} placeholder="https://"
-                    value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
-                )}
-              </div>
-            );
-          })}
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}

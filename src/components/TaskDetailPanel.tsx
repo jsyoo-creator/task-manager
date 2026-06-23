@@ -683,7 +683,17 @@ export default function TaskDetailPanel({
 
         {/* 커스텀 폼 필드 */}
         {(() => {
-          const cfs = formConfig?.customFields?.filter(cf => cf.enabled !== false) ?? [];
+          const enabledCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false) ?? [];
+          const fo = formConfig?.fieldOrder;
+          const cfs = fo?.length
+            ? [...enabledCfs].sort((a, b) => {
+                const ai = fo.indexOf(a.id);
+                const bi = fo.indexOf(b.id);
+                const aIdx = ai === -1 ? Infinity : ai;
+                const bIdx = bi === -1 ? Infinity : bi;
+                return aIdx - bIdx;
+              })
+            : enabledCfs;
           if (cfs.length === 0) return null;
           const cls = "flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
           return (

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import {
+  collection, query, where, onSnapshot,
+  addDoc, deleteDoc, updateDoc, doc, increment, deleteField,
+} from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface Post {
@@ -11,6 +14,9 @@ export interface Post {
   title: string;
   content: string;
   createdAt: string;
+  commentCount?: number;
+  isNotice?: boolean;
+  noticeAt?: string; // ISO — 공지 지정 시각 (정렬 기준)
 }
 
 export interface PostComment {
@@ -47,10 +53,13 @@ export function usePosts(teamId: string | null) {
     return unsub;
   }, [teamId]);
 
-  const addPost = async (data: Omit<Post, 'id' | 'createdAt'>) => {
+  const addPost = async (data: Omit<Post, 'id' | 'createdAt' | 'commentCount'>) => {
+    const now = new Date().toISOString();
     await addDoc(collection(db, 'posts'), {
       ...data,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      commentCount: 0,
+      ...(data.isNotice ? { noticeAt: now } : {}),
     });
   };
 
@@ -58,7 +67,21 @@ export function usePosts(teamId: string | null) {
     await deleteDoc(doc(db, 'posts', postId));
   };
 
-  return { posts, loading, addPost, deletePost };
+  const setNotice = async (postId: string, isNotice: boolean) => {
+    if (isNotice) {
+      await updateDoc(doc(db, 'posts', postId), {
+        isNotice: true,
+        noticeAt: new Date().toISOString(),
+      });
+    } else {
+      await updateDoc(doc(db, 'posts', postId), {
+        isNotice: deleteField(),
+        noticeAt: deleteField(),
+      });
+    }
+  };
+
+  return { posts, loading, addPost, deletePost, setNotice };
 }
 
 export function useComments(postId: string | null) {
@@ -82,10 +105,12 @@ export function useComments(postId: string | null) {
       ...data,
       createdAt: new Date().toISOString(),
     });
+    await updateDoc(doc(db, 'posts', data.postId), { commentCount: increment(1) });
   };
 
-  const deleteComment = async (commentId: string) => {
+  const deleteComment = async (commentId: string, postId: string) => {
     await deleteDoc(doc(db, 'comments', commentId));
+    await updateDoc(doc(db, 'posts', postId), { commentCount: increment(-1) });
   };
 
   return { comments, addComment, deleteComment };

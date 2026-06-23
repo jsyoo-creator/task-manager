@@ -179,10 +179,11 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
 // ──────────────────────────────────────────
 const DEFAULT_ANNUAL = 0;
 
-function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, teams }: {
+function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, onDeleteUser, teams }: {
   u: AppUser; viewerRole: UserRole; viewerTeamIds: string[]; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
   onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null }) => void;
+  onDeleteUser: (uid: string) => Promise<void>;
   teams: Team[];
 }) {
   const [editing, setEditing] = useState(false);
@@ -199,6 +200,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
     viewerRole === 'superadmin' ||
     (viewerRole === 'manager' && (isSelf || (isSameTeam && u.role === 'user')));
   const canChangeRole = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
+  const canDelete = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
@@ -271,6 +273,16 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
             <button onClick={handleCancel}
               className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
               <X size={12} />
+            </button>
+          )}
+          {canDelete && !editing && (
+            <button
+              onClick={() => {
+                if (window.confirm(`${u.displayName} 사용자를 탈퇴 처리하시겠습니까?\n탈퇴 후 재로그인 시 일반 사용자로 재등록됩니다.`))
+                  onDeleteUser(u.uid);
+              }}
+              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+              <Trash2 size={12} />
             </button>
           )}
         </div>
@@ -2246,7 +2258,7 @@ export default function SettingsPage({
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
-  const { users, updateUserRole, updateUserInfo } = useAllUsers();
+  const { users, updateUserRole, updateUserInfo, deleteUser } = useAllUsers();
 
   const canManageUsers = appUser.role === 'superadmin' || appUser.role === 'manager';
 
@@ -2563,7 +2575,7 @@ export default function SettingsPage({
                                 <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
                                   viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}
                                   isSelf={u.uid === appUser.uid}
-                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} teams={teams} />
+                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} onDeleteUser={deleteUser} teams={teams} />
                               ))}
                           </div>
                         </div>

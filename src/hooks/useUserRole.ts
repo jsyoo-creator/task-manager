@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, deleteField,
+  doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, deleteField, deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { User } from 'firebase/auth';
@@ -117,5 +117,9 @@ export function useAllUsers() {
     await updateDoc(doc(db, 'users', uid), payload);
   };
 
-  return { users, updateUserRole, updateUserInfo };
+  const deleteUser = async (uid: string) => {
+    await deleteDoc(doc(db, 'users', uid));
+  };
+
+  return { users, updateUserRole, updateUserInfo, deleteUser };
 }

@@ -380,11 +380,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       const currentMonth = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
       const existingKeysInit = new Set(tasks.map(t => `${t.title.trim()}||${t.category}||${t.taskMonth}`));
-      const initDupes = new Set(parsed.map((r, i) => {
-        const cat = r.category ?? '';
-        const month = r.taskMonth || currentMonth;
-        return existingKeysInit.has(`${(r.title ?? '').trim()}||${cat}||${month}`) ? i : -1;
-      }).filter(i => i >= 0));
+      const existingTaskMapInit = new Map(tasks.map(t => [`${t.title.trim()}||${t.category}||${t.taskMonth}`, t]));
+
       // 파트 1개 선택 시 category 없는 행에 자동 지정
       const partNameSet = new Set(parts?.map(p => p.name) ?? []);
       const autoCats: Record<number, string> = {};
@@ -398,8 +395,36 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           });
         }
       }
+
+      // 중복 자동 분류: 변경 항목 있으면 업데이트, 없으면 건너뜀
+      const initSkips = new Set<number>();
+      const initAutoUpdates = new Set<number>();
+      const fieldsToCheck: (keyof Task)[] = ['type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
+      parsed.forEach((r, i) => {
+        const cat = autoCats[i] ?? (r.category ?? '');
+        const month = r.taskMonth || currentMonth;
+        const key = `${(r.title ?? '').trim()}||${cat}||${month}`;
+        if (!existingKeysInit.has(key)) return;
+        const existing = existingTaskMapInit.get(key);
+        if (!existing) { initSkips.add(i); return; }
+        const hasChange = fieldsToCheck.some(f => {
+          const nv = String((r as Record<string, unknown>)[f] ?? '');
+          const ov = String(existing[f] ?? '');
+          return nv !== '' && nv !== ov;
+        });
+        const customChanged = r.customFields
+          ? Object.entries(r.customFields).some(([k, v]) => v !== '' && v !== (existing.customFields?.[k] ?? ''))
+          : false;
+        if (hasChange || customChanged) {
+          initAutoUpdates.add(i);
+        } else {
+          initSkips.add(i);
+        }
+      });
+
       setPreviewCats(autoCats);
-      setPreviewSkipped(initDupes);
+      setPreviewSkipped(initSkips);
+      setPreviewUpdateSet(initAutoUpdates);
       setImportPreview({ rows: parsed });
     };
     reader.readAsBinaryString(file);

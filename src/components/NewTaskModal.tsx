@@ -137,7 +137,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     const category = (partNames.length > 0 && partNames.includes(form.category))
       ? form.category
       : (partNames[0] || '');
-    if (!category) { alert('파트를 선택해 주세요.'); return; }
+    if (partNames.length > 0 && !category) { alert('파트를 선택해 주세요.'); return; }
     // 필수 설정된 기본 필드 검증 (HTML required가 적용 안 되는 DatePicker 등)
     for (const fc of builtinFields) {
       if (!fc.required || !fc.enabled) continue;

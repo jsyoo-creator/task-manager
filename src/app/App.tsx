@@ -47,7 +47,14 @@ function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConfig: Tea
       ...(resolveFieldDepts(pf) ? {} : { departments: tf.departments, department: tf.department }),
     };
   });
-  return { ...partConfig, builtinFields: merged };
+  // 커스텀 필드: 팀 기본을 베이스로, 파트 오버라이드를 병합 (나중에 팀에 추가된 필드도 포함)
+  const teamCfs = teamConfig.customFields ?? [];
+  const partCfs = partConfig.customFields ?? [];
+  const mergedCfs = [
+    ...teamCfs.map(tcf => partCfs.find(pcf => pcf.id === tcf.id) ?? tcf),
+    ...partCfs.filter(pcf => !teamCfs.some(tcf => tcf.id === pcf.id)),
+  ];
+  return { ...partConfig, builtinFields: merged, customFields: mergedCfs };
 }
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';

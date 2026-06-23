@@ -13,6 +13,7 @@ interface Props {
   assignees?: string[];
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
+  currentUserName?: string;
 }
 
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
@@ -36,7 +37,7 @@ const FIELD_PAIRS: [BuiltinFieldKey, BuiltinFieldKey][] = [
   ['startDate', 'endDate'],
 ];
 
-export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig }: Props) {
+export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig, currentUserName = '' }: Props) {
   const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
   const builtinFields = resolveBuiltinFields(formConfig);
   const customFields = formConfig?.customFields ?? [];
@@ -66,11 +67,11 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     const fc = builtinFields.find(f => f.key === key);
     if (fc?.customType) return ''; // customType 필드는 선택하세요로 시작
     const depts = fc ? resolveFieldDepts(fc) : null;
-    if (depts && teamMembers?.length) {
-      const filtered = teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name);
-      if (filtered.length > 0) return filtered[0];
-    }
-    return assignees[0] ?? '';
+    const pool = depts && teamMembers?.length
+      ? teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name)
+      : assignees;
+    if (currentUserName && pool.includes(currentUserName)) return currentUserName;
+    return pool[0] ?? '';
   };
 
   const [form, setForm] = useState({

@@ -339,13 +339,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     // previewSkipped에 없는 항목만 등록
     const toAdd = importPreview.rows.map((r, i) => ({ r, i })).filter(({ i }) => !previewSkipped.has(i));
     const bottom = tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1);
+    const validPartNames = new Set(parts?.map(p => p.name) ?? []);
     for (let idx = 0; idx < toAdd.length; idx++) {
       const { r, i } = toAdd[idx];
+      const rawCat = r.category ?? '';
+      const resolvedCategory = (previewCats[i]) ||
+        (validPartNames.size === 0 || validPartNames.has(rawCat) ? rawCat : '') ||
+        (parts?.[0]?.name ?? '');
       await onAddTask({
         projectId, teamId: '',
         title: r.title ?? '',
-        taskMonth: r.taskMonth || `${yearFilter}-${String(monthFilter).padStart(2, '0')}`,
-        category: (previewCats[i] ?? r.category as TaskCategory) || (parts?.[0]?.name as TaskCategory) || '' as TaskCategory,
+        taskMonth: r.taskMonth || (monthFilter > 0
+          ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}`
+          : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`),
+        category: resolvedCategory as TaskCategory,
         type: (r.type as TaskType) || '신규',
         status: (r.status as TaskStatus) || '',
         receiver: r.receiver ?? '', assignee: r.assignee ?? '',
@@ -646,7 +653,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       />
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
-        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} />
+        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} />
 
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {
@@ -686,7 +693,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   const isDupe = dupeSet.has(i);
                   const isSkipped = previewSkipped.has(i);
                   const catVal = previewCats[i] ?? row.category ?? '';
-                  const needsCat = !catVal && parts && parts.length > 0;
+                  const partNameSet = new Set(parts?.map(p => p.name) ?? []);
+                  const needsCat = parts && parts.length > 0 && (!catVal || !partNameSet.has(catVal));
                   return (
                     <div key={i}
                       onClick={isDupe ? () => toggleSkip(i) : undefined}

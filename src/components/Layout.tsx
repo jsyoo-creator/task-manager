@@ -29,8 +29,8 @@ const NAV_ALL = [
   { to: '/calendar', label: '캘린더', icon: CalendarDays },
   { to: '/weekly', label: '위클리', icon: BarChart3 },
   { to: '/vacation', label: '휴가', icon: Umbrella },
-  { to: '/seats', label: '자리 배치도', icon: Grid3X3 },
   { to: '/board', label: '커뮤니티', icon: MessageSquare },
+  { to: '/seats', label: '자리 배치도', icon: Grid3X3 },
   { to: '/settings', label: '설정', icon: Settings },
 ];
 const NAV_SETTINGS_ONLY = [

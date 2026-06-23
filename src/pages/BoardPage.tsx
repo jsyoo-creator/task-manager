@@ -105,8 +105,9 @@ function ListView({ posts, loading, onSelect, onWrite }: {
         )}
       </div>
       {/* 작성자 */}
-      <div className="w-20 flex-shrink-0 text-center hidden sm:block">
-        <span className="text-xs text-gray-500 truncate block">{post.authorName}</span>
+      <div className="w-24 flex-shrink-0 hidden sm:flex items-center justify-center gap-1.5">
+        <Avatar name={post.authorName} photoURL={post.authorPhotoURL} size={6} />
+        <span className="text-xs text-gray-500 truncate">{post.authorName}</span>
       </div>
       {/* 날짜 */}
       <div className="w-14 flex-shrink-0 text-center">
@@ -121,7 +122,7 @@ function ListView({ posts, loading, onSelect, onWrite }: {
       <div className="flex items-center px-5 py-2.5 border-b border-gray-100 bg-gray-50/50">
         <div className="w-14 flex-shrink-0 text-center text-[11px] font-semibold text-gray-400">구분</div>
         <div className="flex-1 pl-1 text-[11px] font-semibold text-gray-400">제목</div>
-        <div className="w-20 flex-shrink-0 text-center text-[11px] font-semibold text-gray-400 hidden sm:block">작성자</div>
+        <div className="w-24 flex-shrink-0 text-center text-[11px] font-semibold text-gray-400 hidden sm:block">작성자</div>
         <div className="w-14 flex-shrink-0 text-center text-[11px] font-semibold text-gray-400">날짜</div>
       </div>
 
@@ -476,12 +477,20 @@ interface Props {
 
 export default function BoardPage({ appUser, teams }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
-  const [activeTeamId, setActiveTeamId] = useState<string | null>(userTeams[0]?.id ?? null);
+
+  const resolveTeam = (list: typeof userTeams) => {
+    if (appUser.defaultTeamId && list.some(t => t.id === appUser.defaultTeamId)) {
+      return appUser.defaultTeamId;
+    }
+    return list[0]?.id ?? null;
+  };
+
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(() => resolveTeam(userTeams));
   const [view, setView] = useState<BoardView>({ type: 'list' });
 
   useEffect(() => {
     if (userTeams.length > 0 && (!activeTeamId || !userTeams.some(t => t.id === activeTeamId))) {
-      setActiveTeamId(userTeams[0].id);
+      setActiveTeamId(resolveTeam(userTeams));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userTeams.map(t => t.id).join(',')]);

@@ -388,11 +388,11 @@ function ReadView({ post, appUser, onBack, onDelete, onSetNotice }: {
         <div className="flex items-center gap-3 px-5 py-4 border-b border-black/5">
           <button
             onClick={onBack}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-all"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
+            목록으로
           </button>
-          <span className="text-xs text-gray-400">목록으로</span>
           <div className="flex-1" />
           {/* 공지 관리 버튼 (중간 관리자+) */}
           {canManageNotice && (

@@ -320,7 +320,7 @@ function App() {
             <Route path="/tasks" element={
               <TaskManagement
                 tasks={filteredTasks} onAddTask={addTaskForTeam} onUpdateTask={updateTask}
-                onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} projectId={projectId}
+                onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} activeTaskId={detailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canManage={permissions.canManageTasks}
                 parts={activeParts}

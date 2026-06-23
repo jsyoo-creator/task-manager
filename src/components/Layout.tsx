@@ -21,6 +21,7 @@ interface Props {
   teamsLoading: boolean;
   activeTeamId: string | null;
   onActiveTeamChange: (id: string) => void;
+  unreadNoticeCount?: number;
 }
 
 const NAV_ALL = [
@@ -166,7 +167,7 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
 
 export default function Layout({
   children, user, appUser, onSignOut, teams, teamsLoading,
-  activeTeamId, onActiveTeamChange,
+  activeTeamId, onActiveTeamChange, unreadNoticeCount = 0,
 }: Props) {
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
   const hasTeamSelected = userSelectedTeams.length > 0;
@@ -218,12 +219,17 @@ export default function Layout({
             >
               {({ isActive }) => (
                 <>
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
+                  <div className={`relative w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
                     isActive
                       ? 'bg-[#6C63FF] text-white shadow-lg shadow-[#6C63FF]/40'
                       : 'text-white/55'
                   }`}>
                     <Icon size={14} />
+                    {to === '/board' && unreadNoticeCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                        {unreadNoticeCount > 9 ? '9+' : unreadNoticeCount}
+                      </span>
+                    )}
                   </div>
                   <span>{label}</span>
                 </>

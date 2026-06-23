@@ -370,16 +370,23 @@ function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser 
 }
 
 // ─── 글 읽기 뷰 ───────────────────────────────────────────────────────
-function ReadView({ post, appUser, onBack, onDelete, onSetNotice }: {
+function ReadView({ post, appUser, onBack, onDelete, onSetNotice, onReadNotice }: {
   post: Post;
   appUser: AppUser;
   onBack: () => void;
   onDelete: () => void;
   onSetNotice: (isNotice: boolean) => void;
+  onReadNotice?: (postId: string) => void;
 }) {
   const canDelete = post.authorUid === appUser.uid || appUser.role === 'superadmin';
   const canManageNotice = appUser.role === 'manager' || appUser.role === 'superadmin';
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // 공지 글이면 열람 즉시 읽음 처리
+  useEffect(() => {
+    if (post.isNotice && onReadNotice) onReadNotice(post.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
 
   return (
     <>
@@ -473,9 +480,10 @@ type BoardView = { type: 'list' } | { type: 'write' } | { type: 'read'; postId: 
 interface Props {
   appUser: AppUser;
   teams: Team[];
+  onReadNotice?: (postId: string) => void;
 }
 
-export default function BoardPage({ appUser, teams }: Props) {
+export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
   const resolveTeam = (list: typeof userTeams) => {
@@ -618,6 +626,7 @@ export default function BoardPage({ appUser, teams }: Props) {
           onBack={() => setView({ type: 'list' })}
           onDelete={() => handleDelete(selectedPost.id)}
           onSetNotice={isNotice => setNotice(selectedPost.id, isNotice)}
+          onReadNotice={onReadNotice}
         />
       )}
     </>

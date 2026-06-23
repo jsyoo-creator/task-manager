@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
 
 function RouteWatcher({ onRouteChange }: { onRouteChange: (path: string) => void }) {
@@ -16,6 +16,7 @@ import WeeklyPage from '../pages/WeeklyPage';
 import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
 import BoardPage from '../pages/BoardPage';
+import { useTeamNotices } from '../hooks/useTeamNotices';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
@@ -78,6 +79,30 @@ function App() {
     customHolidays.forEach(h => map.set(h.date, h.name));
     return map;
   }, [publicHolidays, nextYearHolidays, customHolidays]);
+
+  // ── 공지 읽음 추적 (localStorage, per-user) ──────────────────────
+  const [readNoticeIds, setReadNoticeIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!appUser?.uid) return;
+    try {
+      const stored = localStorage.getItem(`noticeRead_${appUser.uid}`);
+      setReadNoticeIds(new Set<string>(stored ? JSON.parse(stored) : []));
+    } catch { setReadNoticeIds(new Set()); }
+  }, [appUser?.uid]);
+
+  const markNoticeRead = useCallback((postId: string) => {
+    if (!appUser?.uid) return;
+    setReadNoticeIds(prev => {
+      if (prev.has(postId)) return prev;
+      const next = new Set(prev);
+      next.add(postId);
+      localStorage.setItem(`noticeRead_${appUser.uid}`, JSON.stringify([...next]));
+      return next;
+    });
+  }, [appUser?.uid]);
+
+  const teamNotices = useTeamNotices(appUser?.selectedTeamIds ?? []);
+  const unreadNoticeCount = teamNotices.filter(n => !readNoticeIds.has(n.id)).length;
 
   // activeTeamId 유효성 검사 — 선택 팀 목록이 바뀔 때 보정
   useEffect(() => {
@@ -279,6 +304,7 @@ function App() {
           teamsLoading={teamsLoading}
           activeTeamId={activeTeamId}
           onActiveTeamChange={handleActiveTeamChange}
+          unreadNoticeCount={unreadNoticeCount}
         >
           <Routes>
             <Route path="/" element={
@@ -313,7 +339,7 @@ function App() {
               <VacationPage vacations={vacations} teamMembers={selectedTeam ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id)) : []} currentUserName={currentUserName} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
             } />
             <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
-            <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} /> : null} />
+            <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} /> : null} />
             <Route path="/settings" element={
               appUser
                 ? <SettingsPage

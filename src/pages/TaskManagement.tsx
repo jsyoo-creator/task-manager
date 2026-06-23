@@ -288,6 +288,17 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // 파트 간 엑셀 형식이 다르면 어느 파트 양식인지 알 수 없어 차단
+    if (parts && parts.length > 1) {
+      const signatures = parts.map(p => getPartHeaders(p).join('\0'));
+      if (new Set(signatures).size > 1) {
+        alert('파트 간 엑셀 형식이 달라 가져올 수 없습니다.\n파트별로 양식을 통일하거나, 파트별 템플릿을 각각 사용해 주세요.');
+        e.target.value = '';
+        return;
+      }
+    }
+
     const reader = new FileReader();
     reader.onload = ev => {
       const data = ev.target?.result;

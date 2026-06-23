@@ -201,7 +201,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
     viewerRole === 'superadmin' ||
     (viewerRole === 'manager' && (isSelf || (isSameTeam && u.role === 'user')));
   const canChangeRole = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
-  const canDelete = viewerRole === 'superadmin' && !isSelf && u.role !== 'superadmin';
+  const canDelete = (viewerRole === 'superadmin' || viewerRole === 'manager') && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));

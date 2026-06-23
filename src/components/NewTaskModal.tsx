@@ -96,6 +96,34 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partNames[0]]);
 
+  // 부모 필드 값 변경 시 종속 select 필드 자동 리셋
+  const builtinFormKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'] as const;
+  const depsKey = enabledCustoms
+    .filter(cf => cf.dependsOn)
+    .map(cf => {
+      const pid = cf.dependsOn!.fieldId;
+      const pVal = (builtinFormKeys as readonly string[]).includes(pid)
+        ? String((form as Record<string, unknown>)[pid] ?? '')
+        : custom[pid] ?? '';
+      return `${cf.id}:${pVal}`;
+    }).join(',');
+  useEffect(() => {
+    const toReset: string[] = [];
+    for (const cf of enabledCustoms) {
+      if (!cf.dependsOn || cf.type !== 'select') continue;
+      const pid = cf.dependsOn.fieldId;
+      const pVal = (builtinFormKeys as readonly string[]).includes(pid)
+        ? String((form as Record<string, unknown>)[pid] ?? '')
+        : custom[pid] ?? '';
+      const mapped = pVal ? cf.dependsOn.valueMap[pVal] : undefined;
+      const opts = mapped !== undefined ? mapped : cf.options ?? [];
+      const cur = custom[cf.id] ?? '';
+      if (cur && !opts.includes(cur)) toReset.push(cf.id);
+    }
+    if (toReset.length > 0) setCustom(c => { const n = { ...c }; toReset.forEach(id => { n[id] = ''; }); return n; });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depsKey]);
+
   if (!open) return null;
 
   const resetForm = () => {
@@ -350,6 +378,16 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                       ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
                       : assignees)
                   : [];
+                // 연결 필드: 부모 선택값에 따라 표시 옵션 결정
+                let selectOpts = cf.options ?? [];
+                if (cf.dependsOn && cfType === 'select') {
+                  const pid = cf.dependsOn.fieldId;
+                  const pVal = (builtinFormKeys as readonly string[]).includes(pid)
+                    ? String((form as Record<string, unknown>)[pid] ?? '')
+                    : custom[pid] ?? '';
+                  const mapped = pVal ? cf.dependsOn.valueMap[pVal] : undefined;
+                  if (mapped !== undefined) selectOpts = mapped;
+                }
                 result.push(
                   <div key={cf.id}>
                     <label className={lbl}>
@@ -370,7 +408,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                       <select required={cf.required} className={cls}
                         value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
                         <option value="">선택하세요</option>
-                        {cf.options?.map(o => <option key={o}>{o}</option>)}
+                        {selectOpts.map(o => <option key={o}>{o}</option>)}
                       </select>
                     )}
                     {cfType === 'date' && (

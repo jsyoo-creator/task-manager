@@ -521,6 +521,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   const [customTypeInput, setCustomTypeInput] = useState<FormFieldType>('text');
   const [customRequiredInput, setCustomRequiredInput] = useState(false);
   const [customDeptInput, setCustomDeptInput] = useState<Department | ''>('');
+  const [customDependsOnId, setCustomDependsOnId] = useState('');
+  const [customValueMapInput, setCustomValueMapInput] = useState<Record<string, string[]>>({});
   const [customOptionsInput, setCustomOptionsInput] = useState<string[]>(['', '']);
   const [customOptionColors, setCustomOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [customColorPickerIdx, setCustomColorPickerIdx] = useState<number | null>(null);
@@ -607,6 +609,11 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   const saveCustomField = (id: string) => {
     const newLabel = customLabelInput.trim();
     const validOpts = customOptionsInput.filter(o => o.trim());
+    const cleanValueMap: Record<string, string[]> = {};
+    Object.entries(customValueMapInput).forEach(([k, v]) => {
+      const filtered = v.filter(o => o.trim());
+      if (filtered.length) cleanValueMap[k] = filtered;
+    });
     const updated = customFields.map(cf =>
       cf.id === id ? {
         ...cf,
@@ -616,6 +623,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
         department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
         options: customTypeInput === 'select' ? validOpts : cf.options,
         optionColors: customTypeInput === 'select' && Object.keys(customOptionColorsRef.current).length > 0 ? customOptionColorsRef.current : undefined,
+        dependsOn: customTypeInput === 'select' && customDependsOnId
+          ? { fieldId: customDependsOnId, valueMap: cleanValueMap }
+          : undefined,
       } : cf
     );
     onSaveCustom(updated);
@@ -900,12 +910,85 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                         </button>
                       </div>
                     )}
+                    {/* 연결 필드 설정 */}
+                    {customTypeInput === 'select' && (() => {
+                      const parentSelectFields: { id: string; label: string; options: string[] }[] = [
+                        ...fields
+                          .filter(f => f.customType === 'select' && f.enabled && (f.options?.length ?? 0) > 0)
+                          .map(f => ({ id: f.key, label: f.customLabel ?? (BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key), options: f.options! })),
+                        ...customFields
+                          .filter(f => f.type === 'select' && f.enabled !== false && f.id !== cf.id && (f.options?.length ?? 0) > 0)
+                          .map(f => ({ id: f.id, label: f.label, options: f.options! })),
+                      ];
+                      if (parentSelectFields.length === 0) return null;
+                      const parentOpts = parentSelectFields.find(p => p.id === customDependsOnId)?.options ?? [];
+                      return (
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                          <p className="text-[10px] text-gray-500 font-medium mb-1.5">
+                            연결 필드 <span className="text-gray-400 font-normal">· 상위 필드 선택값에 따라 이 드롭다운 옵션 변경</span>
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <select
+                              className="flex-1 text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none"
+                              value={customDependsOnId}
+                              onChange={e => { setCustomDependsOnId(e.target.value); setCustomValueMapInput({}); }}>
+                              <option value="">연결 안 함</option>
+                              {parentSelectFields.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                            </select>
+                            {customDependsOnId && (
+                              <button type="button" onClick={() => { setCustomDependsOnId(''); setCustomValueMapInput({}); }}
+                                className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                            )}
+                          </div>
+                          {customDependsOnId && parentOpts.length > 0 && (
+                            <div className="mt-1.5 space-y-1.5">
+                              {parentOpts.map(parentVal => {
+                                const childOpts = customValueMapInput[parentVal] ?? [''];
+                                return (
+                                  <div key={parentVal} className="bg-violet-50/60 rounded-lg px-2 py-1.5">
+                                    <p className="text-[10px] font-semibold text-gray-500 mb-1">
+                                      <span className="text-violet-500">"{parentVal}"</span> 선택 시 옵션
+                                    </p>
+                                    <div className="space-y-0.5">
+                                      {childOpts.map((opt, idx) => (
+                                        <div key={idx} className="flex gap-1 items-center">
+                                          <input
+                                            className="flex-1 text-xs px-1.5 py-0.5 rounded border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                                            placeholder={`옵션 ${idx + 1}`}
+                                            value={opt}
+                                            onChange={e => {
+                                              const updated = [...childOpts];
+                                              updated[idx] = e.target.value;
+                                              setCustomValueMapInput(prev => ({ ...prev, [parentVal]: updated }));
+                                            }}
+                                          />
+                                          {childOpts.length > 1 && (
+                                            <button type="button"
+                                              onClick={() => setCustomValueMapInput(prev => ({ ...prev, [parentVal]: childOpts.filter((_, j) => j !== idx) }))}
+                                              className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+                                          )}
+                                        </div>
+                                      ))}
+                                      <button type="button"
+                                        onClick={() => setCustomValueMapInput(prev => ({ ...prev, [parentVal]: [...(prev[parentVal] ?? ['']), ''] }))}
+                                        className="text-[11px] text-violet-400 hover:text-violet-600 flex items-center gap-0.5 transition-colors mt-0.5">
+                                        <Plus size={10} />옵션 추가
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <button
                     type="button"
                     title="클릭하여 이름 · 속성 수정"
-                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomRequiredInput(cf.required ?? false); setCustomDeptInput(cf.department ?? ''); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
+                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomRequiredInput(cf.required ?? false); setCustomDeptInput(cf.department ?? ''); setCustomDependsOnId(cf.dependsOn?.fieldId ?? ''); setCustomValueMapInput(cf.dependsOn?.valueMap ?? {}); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
                     className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {cf.label}
                   </button>
@@ -934,6 +1017,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                     );
                   })}
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
+                  {cf.dependsOn && <span className="text-[10px] text-violet-400 font-medium">연결됨</span>}
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
                   <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                 </div>

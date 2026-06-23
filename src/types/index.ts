@@ -60,6 +60,10 @@ export interface CustomFormField {
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   department?: Department; // name 타입: 해당 직군 사람만 표시 (구버전 호환)
   departments?: Department[]; // 복수 직군 선택 (신버전)
+  dependsOn?: {
+    fieldId: string;                    // 부모 필드 ID (커스텀) 또는 builtin key
+    valueMap: Record<string, string[]>; // 부모 선택값 → 이 필드의 표시 옵션
+  };
 }
 
 export type BuiltinFieldKey =

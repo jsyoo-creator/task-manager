@@ -107,6 +107,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [templateDropOpen, setTemplateDropOpen] = useState(false);
   const [exportParts, setExportParts] = useState<Set<string>>(new Set());
   const [exportMonths, setExportMonths] = useState<Set<number>>(new Set());
+  const importDropRef = useRef<HTMLDivElement>(null);
+  const [importDropOpen, setImportDropOpen] = useState(false);
+  const [importParts, setImportParts] = useState<Set<string>>(new Set());
 
   const monthsWithData = useMemo(() => {
     const set = new Set<number>();
@@ -148,6 +151,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exportParts, parts, formConfig, excelConfig]);
 
+  const importCompatible = useMemo(() => {
+    if (!parts || importParts.size <= 1) return true;
+    const selected = parts.filter(p => importParts.has(p.name));
+    if (selected.length <= 1) return true;
+    const signatures = selected.map(p => getPartHeaders(p).join('\0'));
+    return new Set(signatures).size === 1;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importParts, parts, formConfig, excelConfig]);
+
   useEffect(() => {
     if (!exportDropOpen) return;
     const handler = (e: MouseEvent) => {
@@ -158,6 +170,17 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [exportDropOpen]);
+
+  useEffect(() => {
+    if (!importDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (importDropRef.current && !importDropRef.current.contains(e.target as Node)) {
+        setImportDropOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [importDropOpen]);
 
   useEffect(() => {
     if (!templateDropOpen) return;
@@ -190,8 +213,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     endDate:   bLabel('endDate', '종료일'),
   };
 
-  // 가져오기용 필드 (enabled만 체크)
-  const importFields = (excelConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
+  // 가져오기용 필드 — 선택된 파트에 별도 excelConfig 있으면 우선 사용
+  const effectiveImportConfig = (() => {
+    const selected = parts?.filter(p => importParts.has(p.name)) ?? [];
+    return selected.find(p => p.excelConfig)?.excelConfig ?? excelConfig;
+  })();
+  const importFields = (effectiveImportConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
     .map(f => ({ ...f, label: builtinLabels[f.key] ?? f.label }));
   // 내보내기용 필드 (enabled + exportExcluded 제외)
   const excelFields = importFields.filter(f => !f.exportExcluded);
@@ -288,17 +315,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // 파트 간 엑셀 형식이 다르면 어느 파트 양식인지 알 수 없어 차단
-    if (parts && parts.length > 1) {
-      const signatures = parts.map(p => getPartHeaders(p).join('\0'));
-      if (new Set(signatures).size > 1) {
-        alert('파트 간 엑셀 형식이 달라 가져올 수 없습니다.\n파트별로 양식을 통일하거나, 파트별 템플릿을 각각 사용해 주세요.');
-        e.target.value = '';
-        return;
-      }
-    }
-
+    setImportDropOpen(false);
     const reader = new FileReader();
     reader.onload = ev => {
       const data = ev.target?.result;
@@ -636,11 +653,72 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           </div>
           {canManage && (
             <>
-              <button onClick={() => importRef.current?.click()}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
-                style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
-                <Upload size={14} /> 엑셀 등록
-              </button>
+              {parts && parts.length > 0 ? (
+                <div className="relative" ref={importDropRef}>
+                  <button
+                    onClick={() => {
+                      if (!importDropOpen) setImportParts(new Set(parts.map(p => p.name)));
+                      setImportDropOpen(o => !o);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                    style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
+                    <Upload size={14} /> 엑셀 등록
+                  </button>
+                  {importDropOpen && (
+                    <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[220px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">파트 선택</p>
+                      <button
+                        onClick={() => setImportParts(importParts.size === parts.length ? new Set() : new Set(parts.map(p => p.name)))}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl mb-1 transition-colors text-left ${importParts.size === parts.length ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${importParts.size === parts.length ? 'bg-white border-white' : 'border-gray-400 bg-white'}`}>
+                          {importParts.size === parts.length && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          {importParts.size > 0 && importParts.size < parts.length && <div className="w-2 h-0.5 bg-gray-400 rounded" />}
+                        </div>
+                        <span className="text-xs font-semibold">전체 선택</span>
+                      </button>
+                      <div className="space-y-0.5 mb-3">
+                        {parts.map(p => {
+                          const checked = importParts.has(p.name);
+                          return (
+                            <button key={p.id}
+                              onClick={() => { const next = new Set(importParts); checked ? next.delete(p.name) : next.add(p.name); setImportParts(next); }}
+                              className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all text-left ${checked ? 'bg-emerald-50 ring-1 ring-emerald-200' : 'hover:bg-gray-50'}`}>
+                              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${checked ? 'bg-emerald-600 border-emerald-600' : 'border-gray-300 bg-white'}`}>
+                                {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                              </div>
+                              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${p.color}`} />
+                              <span className="text-sm text-gray-700 font-medium">{p.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!importCompatible && importParts.size > 1 && (
+                        <div className="mb-3 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                          <svg className="flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M7 1.5L12.5 11H1.5L7 1.5Z" stroke="#d97706" strokeWidth="1.3" strokeLinejoin="round"/>
+                            <path d="M7 5.5V8" stroke="#d97706" strokeWidth="1.3" strokeLinecap="round"/>
+                            <circle cx="7" cy="9.5" r="0.6" fill="#d97706"/>
+                          </svg>
+                          <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라<br/>함께 등록할 수 없습니다</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => importRef.current?.click()}
+                        disabled={importParts.size === 0 || !importCompatible}
+                        className="w-full py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        style={{ background: (importParts.size > 0 && importCompatible) ? 'linear-gradient(135deg,#10b981 0%,#059669 100%)' : undefined, boxShadow: (importParts.size > 0 && importCompatible) ? '0 4px 14px rgba(16,185,129,0.35)' : undefined }}>
+                        파일 선택
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button onClick={() => importRef.current?.click()}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                  style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
+                  <Upload size={14} /> 엑셀 등록
+                </button>
+              )}
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelImport} />
               <button onClick={() => setModalOpen(true)}
                 className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold">

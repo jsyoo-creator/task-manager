@@ -385,7 +385,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         const month = r.taskMonth || currentMonth;
         return existingKeysInit.has(`${(r.title ?? '').trim()}||${cat}||${month}`) ? i : -1;
       }).filter(i => i >= 0));
-      setPreviewCats({});
+      // 파트 1개 선택 시 category 없는 행에 자동 지정
+      const partNameSet = new Set(parts?.map(p => p.name) ?? []);
+      const autoCats: Record<number, string> = {};
+      if (importParts.size === 1) {
+        const singlePart = [...importParts][0];
+        if (partNameSet.has(singlePart)) {
+          parsed.forEach((row, i) => {
+            if (!row.category || !partNameSet.has(row.category as string)) {
+              autoCats[i] = singlePart;
+            }
+          });
+        }
+      }
+      setPreviewCats(autoCats);
       setPreviewSkipped(initDupes);
       setImportPreview({ rows: parsed });
     };

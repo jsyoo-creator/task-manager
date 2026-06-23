@@ -1794,24 +1794,34 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team.formConfig]);
 
-  const toggle = (key: string) => setFields(fs => fs.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f));
-  const toggleExportExclude = (key: string) => setFields(fs => fs.map(f => f.key === key ? { ...f, exportExcluded: !f.exportExcluded } : f));
+  const toggle = (key: string) => {
+    if (isInherited) return;
+    const next = fields.map(f => f.key === key ? { ...f, enabled: !f.enabled } : f);
+    setFields(next);
+    save(next);
+  };
+  const toggleExportExclude = (key: string) => {
+    if (isInherited) return;
+    const next = fields.map(f => f.key === key ? { ...f, exportExcluded: !f.exportExcluded } : f);
+    setFields(next);
+    save(next);
+  };
 
   const handleDrop = (toIdx: number) => {
     if (dragIdx === null || dragIdx === toIdx) return;
     const next = [...fields];
     const [moved] = next.splice(dragIdx, 1);
     next.splice(toIdx, 0, moved);
-    setFields(next.map((f, i) => ({ ...f, order: i })));
+    const reordered = next.map((f, i) => ({ ...f, order: i }));
+    setFields(reordered);
     setDragIdx(null); setDragOverIdx(null);
+    if (!isInherited) save(reordered);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    const config = fields.map((f, i) => ({ ...f, order: i }));
+  const save = async (updated: ExcelFieldConfig[]) => {
+    const config = updated.map((f, i) => ({ ...f, order: i }));
     if (isTeam) await onSave(team.id, config);
     else if (currentPart) await onSavePart(team.id, currentPart.id, config);
-    setSaving(false);
   };
 
   const handleSaveAsTeamDefault = async () => {
@@ -1858,8 +1868,8 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
           <p className="text-xs text-amber-700">팀 기본 설정을 상속 중</p>
-          <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0 disabled:opacity-50">
+          <button onClick={() => save(fields)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
             <ArrowDownToLine size={11} />팀 기본 가져오기
           </button>
         </div>
@@ -1922,10 +1932,6 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
           </div>
         ))}
       </div>
-      <button onClick={handleSave} disabled={saving}
-        className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-colors">
-        {saving ? '저장 중...' : '저장'}
-      </button>
     </div>
   );
 }

@@ -65,12 +65,12 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
 
   const getPersonDefault = (key: 'receiver' | 'assignee') => {
     const fc = builtinFields.find(f => f.key === key);
-    if (fc?.customType) return ''; // customType 필드는 선택하세요로 시작
+    if (fc?.customType === 'select') return ''; // select 커스텀 옵션은 자동 선택 없음
     const depts = fc ? resolveFieldDepts(fc) : null;
     const pool = depts && teamMembers?.length
       ? teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name)
       : assignees;
-    if (currentUserName && pool.includes(currentUserName)) return currentUserName;
+    if (key === 'assignee' && currentUserName && pool.includes(currentUserName)) return currentUserName;
     return pool[0] ?? '';
   };
 
@@ -88,13 +88,13 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   });
   const [custom, setCustom] = useState<Record<string, string>>({});
 
-  // parts가 늦게 로드될 경우 category 동기화
+  // parts 변경 시 category 유효성 동기화 (파트 이름 변경·삭제·추가 후 stale 값 방지)
   useEffect(() => {
-    if (partNames[0] && !form.category) {
+    if (partNames.length > 0 && !partNames.includes(form.category)) {
       setForm(f => ({ ...f, category: partNames[0] }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partNames[0]]);
+  }, [partNames.join(',')]);
 
   // 부모 필드 값 변경 시 종속 select 필드 자동 리셋
   const builtinFormKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'] as const;
@@ -134,7 +134,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.taskMonth) { alert('월을 선택해 주세요.'); return; }
-    const category = form.category || partNames[0] || '';
+    const category = (partNames.length > 0 && partNames.includes(form.category))
+      ? form.category
+      : (partNames[0] || '');
     if (!category) { alert('파트를 선택해 주세요.'); return; }
     // 필수 설정된 기본 필드 검증 (HTML required가 적용 안 되는 DatePicker 등)
     for (const fc of builtinFields) {

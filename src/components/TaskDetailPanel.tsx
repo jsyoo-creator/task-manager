@@ -695,7 +695,8 @@ export default function TaskDetailPanel({
               })
             : enabledCfs;
           if (cfs.length === 0) return null;
-          const cls = "flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
+          const cls = "w-full text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
+          const linkInputCls = "flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
           return (
             <div className="px-5 py-3 border-t border-black/[0.08]">
               <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">추가 정보</p>
@@ -728,8 +729,8 @@ export default function TaskDetailPanel({
                       <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
                       <div className="flex-1 min-w-0">
                         {cfType === 'select' && cf.optionColors?.[val] ? (
-                          <div className="relative block w-full">
-                            <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                          <div className="relative w-full">
+                            <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
                               style={{ backgroundColor: cf.optionColors[val].bg, color: cf.optionColors[val].text }}>
                               <span>{val || '-'}</span><ChevronDown size={9} />
                             </div>
@@ -761,7 +762,7 @@ export default function TaskDetailPanel({
                               onChange={e => handleBlur(e.target.value)}
                               onBlur={e => handleBlur(e.target.value)}
                               placeholder="https://"
-                              className={cls} />
+                              className={linkInputCls} />
                             {val && <a href={val} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-blue-400 hover:text-blue-500"><ExternalLink size={13} /></a>}
                           </div>
                         ) : (

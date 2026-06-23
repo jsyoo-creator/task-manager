@@ -934,6 +934,8 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 }) {
   // 선택된 편집 대상: 'team' 또는 파트 ID
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+  const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
 
   const currentPart = selectedTarget !== 'team'
     ? team.parts.find(p => p.id === selectedTarget)
@@ -1013,18 +1015,24 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       {!isInherited && selectedTarget !== 'team' && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-            <button
-              onClick={() => { if (rawConfig) onUpdateFormConfig(team.id, rawConfig); }}
-              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
-              <ArrowUpToLine size={11} />팀 기본으로 지정
-            </button>
-            <button
-              onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
-              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
-              <RotateCcw size={11} />초기화
-            </button>
-          </div>
+          {flash ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold ml-3 flex-shrink-0">
+              <Check size={11} />{flash === 'saved' ? '팀 기본 저장됨' : '초기화됨'}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+              <button
+                onClick={() => { if (rawConfig) { onUpdateFormConfig(team.id, rawConfig); doFlash('saved'); } }}
+                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+                <ArrowUpToLine size={11} />팀 기본으로 지정
+              </button>
+              <button
+                onClick={() => { onClearPartFormConfig(team.id, selectedTarget); doFlash('reset'); }}
+                className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                <RotateCcw size={11} />초기화
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1051,6 +1059,8 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
 }) {
   // selectedTarget: 'team' | partId
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+  const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -1145,16 +1155,22 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
       {!isTeam && !isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-            <button onClick={() => onSave(team.id, fields)}
-              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
-              <ArrowUpToLine size={11} />팀 기본으로 지정
-            </button>
-            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
-              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
-              <RotateCcw size={11} />초기화
-            </button>
-          </div>
+          {flash ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold ml-3 flex-shrink-0">
+              <Check size={11} />{flash === 'saved' ? '팀 기본 저장됨' : '초기화됨'}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+              <button onClick={() => { onSave(team.id, fields); doFlash('saved'); }}
+                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+                <ArrowUpToLine size={11} />팀 기본으로 지정
+              </button>
+              <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
+                className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                <RotateCcw size={11} />초기화
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1244,6 +1260,8 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+  const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [newName, setNewName] = useState('');
@@ -1342,16 +1360,22 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
       {!isTeam && !isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-            <button onClick={() => onSave(team.id, types)}
-              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
-              <ArrowUpToLine size={11} />팀 기본으로 지정
-            </button>
-            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
-              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
-              <RotateCcw size={11} />초기화
-            </button>
-          </div>
+          {flash ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold ml-3 flex-shrink-0">
+              <Check size={11} />{flash === 'saved' ? '팀 기본 저장됨' : '초기화됨'}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+              <button onClick={() => { onSave(team.id, types); doFlash('saved'); }}
+                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+                <ArrowUpToLine size={11} />팀 기본으로 지정
+              </button>
+              <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
+                className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                <RotateCcw size={11} />초기화
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1623,6 +1647,8 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+  const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
 
   useEffect(() => {
     setFields(buildFields(isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig)));
@@ -1708,16 +1734,22 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
       {!isTeam && !isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
-          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-            <button onClick={handleSaveAsTeamDefault} disabled={saving}
-              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50">
-              <ArrowUpToLine size={11} />팀 기본으로 지정
-            </button>
-            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
-              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
-              <RotateCcw size={11} />초기화
-            </button>
-          </div>
+          {flash ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold ml-3 flex-shrink-0">
+              <Check size={11} />{flash === 'saved' ? '팀 기본 저장됨' : '초기화됨'}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+              <button onClick={() => { handleSaveAsTeamDefault(); doFlash('saved'); }} disabled={saving}
+                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50">
+                <ArrowUpToLine size={11} />팀 기본으로 지정
+              </button>
+              <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
+                className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+                <RotateCcw size={11} />초기화
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -154,6 +154,19 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 );
               }
 
+              // category는 항상 파트 이름 드롭다운 (customType 무시)
+              if (k === 'category') {
+                if (partNames.length === 0) return null;
+                return (
+                  <div>
+                    <label className={lbl}>{fieldLabel}</label>
+                    <select className={cls} value={form.category} onChange={e => setF({ category: e.target.value })}>
+                      {partNames.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                );
+              }
+
               // 속성(customType) 오버라이드가 있으면 해당 타입으로 렌더링
               if (fc?.customType) {
                 const ct = fc.customType;
@@ -226,17 +239,6 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                     value={form.title} onChange={e => setF({ title: e.target.value })} />
                 </div>
               );
-              if (k === 'category') {
-                if (partNames.length === 0) return null;
-                return (
-                  <div>
-                    <label className={lbl}>{fieldLabel}</label>
-                    <select className={cls} value={form.category} onChange={e => setF({ category: e.target.value })}>
-                      {partNames.map(c => <option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-                );
-              }
               if (k === 'type') {
                 const typeOpts = (fc?.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
                 return (

@@ -15,6 +15,7 @@ import CalendarPage from '../pages/CalendarPage';
 import WeeklyPage from '../pages/WeeklyPage';
 import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
+import BoardPage from '../pages/BoardPage';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
@@ -312,6 +313,7 @@ function App() {
               <VacationPage vacations={vacations} teamMembers={selectedTeam ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id)) : []} currentUserName={currentUserName} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
             } />
             <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
+            <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} /> : null} />
             <Route path="/settings" element={
               appUser
                 ? <SettingsPage

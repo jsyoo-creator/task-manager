@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, LogOut, Settings, AlertCircle, ChevronDown
+  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team } from '../types';
@@ -30,6 +30,7 @@ const NAV_ALL = [
   { to: '/weekly', label: '위클리', icon: BarChart3 },
   { to: '/vacation', label: '휴가', icon: Umbrella },
   { to: '/seats', label: '자리 배치도', icon: Grid3X3 },
+  { to: '/board', label: '커뮤니티', icon: MessageSquare },
   { to: '/settings', label: '설정', icon: Settings },
 ];
 const NAV_SETTINGS_ONLY = [

@@ -477,38 +477,35 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         </div>
         <div className="flex items-center gap-2">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
-          {(() => {
-            const hasDifferentFormats = parts && parts.length > 1 &&
-              new Set(parts.map(p => getPartHeaders(p).join('\0'))).size > 1;
-            return hasDifferentFormats ? (
-              <div className="relative" ref={templateDropRef}>
-                <button
-                  onClick={() => setTemplateDropOpen(o => !o)}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
-                  style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
-                  <FileDown size={14} /> 템플릿
-                </button>
-                {templateDropOpen && (
-                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-2 min-w-[160px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 pt-1 pb-2">파트 선택</p>
-                    {parts!.map(p => (
-                      <button key={p.id} onClick={() => downloadTemplate(p)}
-                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left">
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
-                        <span className="text-sm text-gray-700 font-medium">{p.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button onClick={() => downloadTemplate()}
+          {parts && parts.length > 0 ? (
+            <div className="relative" ref={templateDropRef}>
+              <button
+                onClick={() => setTemplateDropOpen(o => !o)}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
                 style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
                 <FileDown size={14} /> 템플릿
               </button>
-            );
-          })()}
+              {templateDropOpen && (
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-2 min-w-[160px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 pt-1 pb-2">파트 선택</p>
+                  {parts.map(p => (
+                    <button key={p.id} onClick={() => downloadTemplate(p)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors text-left">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                      <span className="text-sm text-gray-700 font-medium">{p.name}</span>
+                      {p.excelConfig && <span className="text-[10px] text-blue-500 font-medium ml-auto">별도</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <button onClick={() => downloadTemplate()}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+              style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
+              <FileDown size={14} /> 템플릿
+            </button>
+          )}
           <div className="relative" ref={exportDropRef}>
             <button
               onClick={() => {

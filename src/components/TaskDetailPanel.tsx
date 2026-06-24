@@ -372,22 +372,41 @@ export default function TaskDetailPanel({
             {showCategory && (
               <div>
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('category')}</p>
-                {canManage ? (
-                  isCustomCategory ? (
-                    <div className="relative flex items-center gap-1 cursor-pointer">
-                      <span className="text-sm text-gray-700 truncate">{task.category || '-'}</span>
-                      <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
-                        <option value="">-</option>
-                        {categoryFc!.options!.map(o => <option key={o}>{o}</option>)}
-                      </select>
-                    </div>
-                  ) : (
-                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                      value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
-                      {parts.map(p => <option key={p.id}>{p.name}</option>)}
-                    </select>
-                  )
+                {isCustomCategory ? (
+                  (() => {
+                    const custColor = categoryFc!.optionColors?.[task.category];
+                    return canManage ? (
+                      <div className="relative block w-full">
+                        {custColor ? (
+                          <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
+                            style={{ backgroundColor: custColor.bg, color: custColor.text }}>
+                            <span className="truncate">{task.category || '-'}</span><ChevronDown size={9} />
+                          </div>
+                        ) : (
+                          <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs text-gray-700 bg-black/[0.06] cursor-pointer">
+                            <span className="truncate">{task.category || '-'}</span><ChevronDown size={9} className="text-gray-400" />
+                          </div>
+                        )}
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                          value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                          <option value="">-</option>
+                          {categoryFc!.options!.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      custColor ? (
+                        <span className="flex w-full px-2.5 py-0.5 rounded-lg text-xs font-medium"
+                          style={{ backgroundColor: custColor.bg, color: custColor.text }}>
+                          {task.category || '-'}
+                        </span>
+                      ) : <span className="text-sm text-gray-700">{task.category || '-'}</span>
+                    );
+                  })()
+                ) : canManage ? (
+                  <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                    value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                    {parts.map(p => <option key={p.id}>{p.name}</option>)}
+                  </select>
                 ) : <span className="text-sm text-gray-700">{task.category}</span>}
               </div>
             )}

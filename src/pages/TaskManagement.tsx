@@ -56,7 +56,7 @@ const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 function buildCols(tableFields: BuiltinFieldConfig[]): string {
-  const cols: string[] = ['18px']; // drag handle
+  const cols: string[] = ['28px', '18px']; // checkbox | drag handle
   for (const fc of tableFields) {
     if (fc.key === 'title') {
       cols.push('minmax(120px, 1fr)');
@@ -71,8 +71,8 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
 }
 
 function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
-  let w = 18; // drag handle
-  let colCount = 1;
+  let w = 46; // checkbox(28) + drag handle(18)
+  let colCount = 2;
   for (const fc of tableFields) {
     if (fc.key === 'title') { w += 120; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
@@ -855,6 +855,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               )}
             </div>
           </div>
+          {/* 드래그핸들 열 헤더 */}
+          <span />
           {tableFields.flatMap(fc => {
             const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
             if (fc.key === 'title') return [
@@ -1155,34 +1157,34 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       onDrop={e => { e.preventDefault(); onDrop(); }}
       onDragEnd={onDragEnd}
     >
-      <div className={`grid gap-x-3 items-center px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+      <div className={`group/row grid gap-x-3 items-center px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
         style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
 
-        {/* 드래그 핸들 / 체크박스 */}
-        <div className="group/handle flex items-center justify-center relative">
-          {selected ? (
-            <div className="w-[15px] h-[15px] rounded border-2 bg-indigo-600 border-indigo-600 flex items-center justify-center cursor-pointer"
-              onClick={e => { e.stopPropagation(); onSelect?.(); }}>
+        {/* 체크박스 열 (독립) */}
+        <div className="flex items-center justify-center">
+          <div
+            onClick={e => { e.stopPropagation(); onSelect?.(); }}
+            className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+              selected
+                ? 'bg-indigo-600 border-indigo-600 opacity-100'
+                : 'border-gray-300 bg-white opacity-0 group-hover/row:opacity-100 hover:border-indigo-400'
+            }`}
+          >
+            {selected && (
               <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
                 <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </div>
-          ) : (
-            <>
-              {/* 체크박스: absolute로 grip 위에 위치, hover 시 표시 — draggable 없음 */}
-              <div className="opacity-0 group-hover/handle:opacity-100 absolute inset-0 z-10 flex items-center justify-center transition-opacity cursor-pointer"
-                onClick={e => { e.stopPropagation(); onSelect?.(); }}>
-                <div className="w-[15px] h-[15px] rounded border-2 border-gray-300 hover:border-indigo-400 bg-white" />
-              </div>
-              {/* grip: draggable을 여기에만 설정 → hover 시 체크박스가 위에 오므로 드래그 불가 */}
-              <div
-                draggable
-                onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-                className="group-hover/handle:opacity-0 text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing transition-opacity">
-                <GripVertical size={13} />
-              </div>
-            </>
-          )}
+            )}
+          </div>
+        </div>
+
+        {/* 드래그 핸들 열 (독립) */}
+        <div
+          draggable
+          onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+          className="flex items-center justify-center text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical size={13} />
         </div>
 
         {tableFields.flatMap(fc => {
@@ -1487,6 +1489,8 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap, par
   return (
     <div className="grid gap-x-3 items-center pl-6 pr-3 py-2 border-b border-black/3 last:border-0 min-w-max"
       style={{ gridTemplateColumns: colTemplate }}>
+      {/* 체크박스·드래그핸들 열 자리 채우기 */}
+      <span /><span />
       {tableFields.flatMap(fc => {
         if (fc.key === 'title') return [
           <span key="title" className="flex items-center gap-1.5 min-w-0 pr-2">

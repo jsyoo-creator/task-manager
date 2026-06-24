@@ -2810,7 +2810,7 @@ export default function SettingsPage({
     { id: 'teams',     label: '팀 관리',          icon: <Layers size={14} />,      show: canManageUsers },
     { id: 'users',     label: '사용자 관리',      icon: <Users size={14} />,       show: canManageUsers },
     { id: 'holidays',  label: '휴일 관리',        icon: <CalendarDays size={14} />,show: canManageUsers },
-    { id: 'fields',    label: '프로필 필드',      icon: <Star size={14} />,        show: appUser.role === 'superadmin' },
+    { id: 'fields',    label: '프로필 필드',      icon: <Star size={14} />,        show: canManageUsers },
     { id: 'system',    label: '시스템',           icon: <Shield size={14} />,      show: appUser.role === 'superadmin' },
   ];
   const visibleTabs = ALL_TABS.filter(t => t.show);
@@ -3146,7 +3146,7 @@ export default function SettingsPage({
       )}
 
       {/* ── 프로필 필드 탭 ── */}
-      {activeTab === 'fields' && appUser.role === 'superadmin' && (
+      {activeTab === 'fields' && canManageUsers && (
         <ProfileFieldManager profileFields={profileFields} onUpdateProfileFields={onUpdateProfileFields} />
       )}
 

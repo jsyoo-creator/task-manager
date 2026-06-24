@@ -21,6 +21,22 @@ const DEPT_STYLE: Record<string, string> = {
 };
 
 function SeatCell({ assigned, color, photoURL, department }: { assigned: string; color: string; photoURL?: string; department?: string }) {
+  if (assigned === '__wall__') {
+    return (
+      <div className="h-20 rounded-xl flex items-center justify-center bg-gray-300 border-2 border-gray-400">
+        <p className="text-[11px] font-semibold text-gray-500 tracking-wide">벽</p>
+      </div>
+    );
+  }
+  if (assigned === '__pillar__') {
+    return (
+      <div className="h-20 rounded-xl flex items-center justify-center bg-gray-100 border-2 border-gray-300">
+        <div className="w-8 h-8 rounded-md bg-gray-400 flex items-center justify-center">
+          <p className="text-[10px] font-bold text-white">기둥</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className="h-20 rounded-xl border-2 flex items-center justify-center transition-all"
@@ -69,6 +85,8 @@ function EditSeatCell({ assigned, members, onAssign, color }: {
         className="w-full h-full text-[11px] text-center bg-transparent border-none outline-none cursor-pointer px-1 font-medium text-gray-700"
       >
         <option value="">공석</option>
+        <option value="__wall__">── 벽</option>
+        <option value="__pillar__">□ 기둥</option>
         {members.map(m => (
           <option key={m.uid} value={m.displayName}>{m.displayName}</option>
         ))}
@@ -110,7 +128,10 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
     () => new Set(Object.values(group.seats).filter(Boolean)),
     [group.seats]
   );
-  const occupiedCount = assignedNames.size;
+  const occupiedCount = useMemo(
+    () => Object.values(group.seats).filter(v => v && v !== '__wall__' && v !== '__pillar__').length,
+    [group.seats]
+  );
 
   const handleSeat = (key: string, name: string) => {
     const newSeats = { ...group.seats };

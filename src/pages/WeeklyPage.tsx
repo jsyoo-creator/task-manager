@@ -202,6 +202,20 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
 
   const weekTaskMap = useMemo(() => new Map(weekTasks.map(t => [t.id, t])), [weekTasks]);
 
+  // 이번 주 각 담당자의 휴가 타입 문자열 맵 (대무 표시용)
+  const vacTypeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const names = new Set(weekSubtasks.map(s => s.assignee).filter(Boolean));
+    names.forEach(name => {
+      const info = getPersonVacationInfo(name, vacations, start);
+      if (info.entries.length) {
+        const types = [...new Set(info.entries.map(e => e.type))];
+        map.set(name, types.join('/'));
+      }
+    });
+    return map;
+  }, [weekSubtasks, vacations, start]);
+
   const personData = useMemo(() => {
     const assigneeSet = new Set(weekSubtasks.map(s => s.assignee).filter(Boolean));
     const substituteSet = new Set<string>();
@@ -303,7 +317,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const lines = [`[${task.type}] ${task.title}`];
                 subs.forEach(s => {
                   const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
-                  const subSuffix = isSubstitute && s.assignee ? ` (${s.assignee} 휴가 대무)` : '';
+                  const vacType = s.assignee ? (vacTypeMap.get(s.assignee) ?? '휴가') : '휴가';
+                  const subSuffix = isSubstitute && s.assignee ? ` (${s.assignee} ${vacType} 대무)` : '';
                   lines.push(`- ${s.title}${sd ? ` ${sd}` : ''}${subSuffix}`);
                 });
                 const desc = lines.length > 1
@@ -407,7 +422,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                             <span className="text-xs text-gray-600 flex-1 truncate">
                               {s.title}
                               {isSubstitute && s.assignee && (
-                                <span className="text-orange-400 ml-1">({s.assignee} 휴가 대무)</span>
+                                <span className="text-orange-400 ml-1">({s.assignee} {vacTypeMap.get(s.assignee) ?? '휴가'} 대무)</span>
                               )}
                             </span>
                             <div className="flex items-center gap-1.5 flex-shrink-0">

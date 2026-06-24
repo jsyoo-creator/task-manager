@@ -25,6 +25,10 @@
 
 button, select, [role="button"] { cursor: pointer; }
 
+html, body {
+  overflow: hidden;
+}
+
 body {
   font-size: 14px;
   font-weight: 400;

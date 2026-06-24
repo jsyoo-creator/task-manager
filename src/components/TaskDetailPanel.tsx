@@ -117,6 +117,10 @@ export default function TaskDetailPanel({
   const receiverIdx = builtinFields.findIndex(f => f.key === 'receiver');
   const assigneeIdx = builtinFields.findIndex(f => f.key === 'assignee');
   const receiverFirst = receiverIdx !== -1 && assigneeIdx !== -1 && receiverIdx < assigneeIdx;
+  const receiverFc = builtinFields.find(f => f.key === 'receiver');
+  const assigneeFc = builtinFields.find(f => f.key === 'assignee');
+  const isReceiverCustomSelect = receiverFc?.customType === 'select' && !!receiverFc?.options?.length;
+  const isAssigneeCustomSelect = assigneeFc?.customType === 'select' && !!assigneeFc?.options?.length;
 
   const filteredByDept = (key: 'receiver' | 'assignee') => {
     const bf = builtinFields.find(f => f.key === key);
@@ -377,30 +381,56 @@ export default function TaskDetailPanel({
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('receiver')}</p>
                   {canManage ? (
-                    <div className="relative flex items-center gap-1 cursor-pointer">
-                      <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
-                      <span className="text-sm text-gray-600 truncate">{task.receiver || '-'}</span>
-                      <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                        <option value="">-</option>
-                        {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
-                      </select>
-                    </div>
-                  ) : <span className="flex items-center gap-1"><MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} /><span className="text-sm text-gray-600">{task.receiver}</span></span>}
+                    isReceiverCustomSelect ? (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <span className="text-sm text-gray-700 truncate">{task.receiver || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                          <option value="">-</option>
+                          {receiverFc!.options!.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
+                        <span className="text-sm text-gray-600 truncate">{task.receiver || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                          <option value="">-</option>
+                          {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
+                        </select>
+                      </div>
+                    )
+                  ) : isReceiverCustomSelect
+                    ? <span className="text-sm text-gray-700">{task.receiver || '-'}</span>
+                    : <span className="flex items-center gap-1"><MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} /><span className="text-sm text-gray-600">{task.receiver}</span></span>}
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
                   {canManage ? (
-                    <div className="relative flex items-center gap-1 cursor-pointer">
-                      <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
-                      <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
-                      <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                        <option value="">-</option>
-                        {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
-                      </select>
-                    </div>
-                  ) : <span className="flex items-center gap-1"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
+                    isAssigneeCustomSelect ? (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                          <option value="">-</option>
+                          {assigneeFc!.options!.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
+                        <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                          <option value="">-</option>
+                          {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
+                        </select>
+                      </div>
+                    )
+                  ) : isAssigneeCustomSelect
+                    ? <span className="text-sm text-gray-700">{task.assignee || '-'}</span>
+                    : <span className="flex items-center gap-1"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
                 </div>
               </>
             ) : (
@@ -408,30 +438,56 @@ export default function TaskDetailPanel({
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
                   {canManage ? (
-                    <div className="relative flex items-center gap-1 cursor-pointer">
-                      <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
-                      <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
-                      <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                        <option value="">-</option>
-                        {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
-                      </select>
-                    </div>
-                  ) : <span className="flex items-center gap-1"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
+                    isAssigneeCustomSelect ? (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                          <option value="">-</option>
+                          {assigneeFc!.options!.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
+                        <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.assignee} onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                          <option value="">-</option>
+                          {filteredByDept('assignee').map(a => <option key={a}>{a}</option>)}
+                        </select>
+                      </div>
+                    )
+                  ) : isAssigneeCustomSelect
+                    ? <span className="text-sm text-gray-700">{task.assignee || '-'}</span>
+                    : <span className="flex items-center gap-1"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('receiver')}</p>
                   {canManage ? (
-                    <div className="relative flex items-center gap-1 cursor-pointer">
-                      <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
-                      <span className="text-sm text-gray-600 truncate">{task.receiver || '-'}</span>
-                      <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                        value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                        <option value="">-</option>
-                        {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
-                      </select>
-                    </div>
-                  ) : <span className="flex items-center gap-1"><MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} /><span className="text-sm text-gray-600">{task.receiver}</span></span>}
+                    isReceiverCustomSelect ? (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <span className="text-sm text-gray-700 truncate">{task.receiver || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                          <option value="">-</option>
+                          {receiverFc!.options!.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center gap-1 cursor-pointer">
+                        <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
+                        <span className="text-sm text-gray-600 truncate">{task.receiver || '-'}</span>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          value={task.receiver} onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                          <option value="">-</option>
+                          {filteredByDept('receiver').map(a => <option key={a}>{a}</option>)}
+                        </select>
+                      </div>
+                    )
+                  ) : isReceiverCustomSelect
+                    ? <span className="text-sm text-gray-700">{task.receiver || '-'}</span>
+                    : <span className="flex items-center gap-1"><MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} /><span className="text-sm text-gray-600">{task.receiver}</span></span>}
                 </div>
               </>
             )}

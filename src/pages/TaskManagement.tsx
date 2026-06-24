@@ -1131,6 +1131,19 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
           }
           if (fc.key === 'receiver') {
+            if (fc.customType === 'select' && fc.options?.length) {
+              return [
+                <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.receiver || '-'}</span>
+                  <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
+                    onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                    <option value="">-</option>
+                    {fc.options.map(a => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+              ];
+            }
             const rdepts = resolveFieldDepts(fc);
             const base = rdepts && teamMembers?.length
               ? (teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name) || assignees)
@@ -1149,6 +1162,19 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
           }
           if (fc.key === 'assignee') {
+            if (fc.customType === 'select' && fc.options?.length) {
+              return [
+                <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.assignee || '-'}</span>
+                  <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
+                    onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                    <option value="">-</option>
+                    {fc.options.map(a => <option key={a}>{a}</option>)}
+                  </select>
+                </div>
+              ];
+            }
             const adepts = resolveFieldDepts(fc);
             const base = adepts && teamMembers?.length
               ? (teamMembers.filter(m => m.department && adepts.includes(m.department)).map(m => m.name) || assignees)

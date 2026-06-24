@@ -1804,7 +1804,7 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   useEffect(() => {
     setFields(buildFields(isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [team.formConfig]);
+  }, [team.formConfig, team.metaFields]);
 
   const toggle = (key: string) => {
     if (isInherited) return;

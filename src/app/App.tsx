@@ -16,6 +16,7 @@ import WeeklyPage from '../pages/WeeklyPage';
 import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
 import BoardPage from '../pages/BoardPage';
+import AccountInfoPage from '../pages/AccountInfoPage';
 import { useTeamNotices } from '../hooks/useTeamNotices';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
@@ -365,6 +366,11 @@ function App() {
             } />
             <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
             <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} /> : null} />
+            <Route path="/accounts" element={
+              (appUser?.role === 'superadmin' || appUser?.role === 'manager')
+                ? <AccountInfoPage allUsers={allUsers} teams={teams} profileFields={profileFields} />
+                : <Navigate to="/" replace />
+            } />
             <Route path="/settings" element={
               appUser
                 ? <SettingsPage

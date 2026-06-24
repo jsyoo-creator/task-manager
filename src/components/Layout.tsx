@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown
+  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team } from '../types';
@@ -25,17 +25,18 @@ interface Props {
 }
 
 const NAV_ALL = [
-  { to: '/', label: '대시보드', icon: LayoutDashboard },
-  { to: '/tasks', label: '업무 관리', icon: ClipboardList },
-  { to: '/calendar', label: '캘린더', icon: CalendarDays },
-  { to: '/weekly', label: '위클리', icon: BarChart3 },
-  { to: '/vacation', label: '휴가', icon: Umbrella },
-  { to: '/board', label: '커뮤니티', icon: MessageSquare },
-  { to: '/seats', label: '자리 배치도', icon: Grid3X3 },
-  { to: '/settings', label: '설정', icon: Settings },
+  { to: '/', label: '대시보드', icon: LayoutDashboard, minRole: null },
+  { to: '/tasks', label: '업무 관리', icon: ClipboardList, minRole: null },
+  { to: '/calendar', label: '캘린더', icon: CalendarDays, minRole: null },
+  { to: '/weekly', label: '위클리', icon: BarChart3, minRole: null },
+  { to: '/vacation', label: '휴가', icon: Umbrella, minRole: null },
+  { to: '/board', label: '커뮤니티', icon: MessageSquare, minRole: null },
+  { to: '/accounts', label: '계정 정보', icon: Contact, minRole: 'manager' as const },
+  { to: '/seats', label: '자리 배치도', icon: Grid3X3, minRole: null },
+  { to: '/settings', label: '설정', icon: Settings, minRole: null },
 ];
 const NAV_SETTINGS_ONLY = [
-  { to: '/settings', label: '설정', icon: Settings },
+  { to: '/settings', label: '설정', icon: Settings, minRole: null },
 ];
 
 function DepartmentAlert({ appUser }: { appUser: AppUser | null }) {
@@ -171,7 +172,11 @@ export default function Layout({
 }: Props) {
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
   const hasTeamSelected = userSelectedTeams.length > 0;
-  const NAV = hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY;
+  const role = appUser?.role ?? 'user';
+  const canSeeManagerMenu = role === 'superadmin' || role === 'manager';
+  const NAV = (hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY).filter(item =>
+    item.minRole === null || canSeeManagerMenu
+  );
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#1E2264' }}>

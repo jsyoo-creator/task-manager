@@ -69,7 +69,8 @@ function toDate(str: string) {
   return new Date(y, m - 1, d);
 }
 
-function fmt(d: Date) { return `${d.getMonth() + 1}/${d.getDate()}`; }
+const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+function fmt(d: Date) { return `${d.getMonth() + 1}/${d.getDate()}(${DAY_KO[d.getDay()]})`; }
 
 /** 이번 주 (월~금) 내 해당 인원의 휴가 시간 합산 + 항목별 상세 반환 */
 function getPersonVacationInfo(personName: string, vacations: Vacation[], weekMon: Date): {

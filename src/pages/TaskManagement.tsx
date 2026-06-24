@@ -1174,9 +1174,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
     const plain = [`[${task.title}]`, ...entries.map(e => `${e.label}: ${e.value}`)].join('\n');
 
     const htmlRows = entries.map(e => {
-      const valCell = e.isUrl
-        ? `<a href="${e.value}" style="color:#0078d4;">${e.value}</a>`
-        : e.value;
+      const valCell = e.value;
       return `<tr>
         <td style="padding:6px 14px;border:1px solid #e0e0e0;background:#f7f7f7;font-weight:600;font-size:13px;white-space:nowrap;color:#444;">${e.label}</td>
         <td style="padding:6px 14px;border:1px solid #e0e0e0;font-size:13px;color:#222;">${valCell}</td>

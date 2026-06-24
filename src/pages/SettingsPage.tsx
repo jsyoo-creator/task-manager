@@ -2341,6 +2341,37 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [newOptions, setNewOptions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // 편집 상태
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editRequired, setEditRequired] = useState(false);
+  const [editFieldType, setEditFieldType] = useState<'text' | 'select'>('text');
+  const [editOptions, setEditOptions] = useState<string[]>([]);
+  const [editOptionInput, setEditOptionInput] = useState('');
+
+  const startEdit = (field: ProfileFieldDef) => {
+    setEditingId(field.id);
+    setEditLabel(field.label);
+    setEditRequired(field.required);
+    setEditFieldType(field.fieldType);
+    setEditOptions(field.options ?? []);
+    setEditOptionInput('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    if (editFieldType === 'select' && editOptions.length < 1) {
+      alert('드롭다운 옵션을 1개 이상 추가해주세요.');
+      return;
+    }
+    await onUpdateProfileFields(profileFields.map(f =>
+      f.id === editingId
+        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: editFieldType === 'select' ? editOptions : undefined }
+        : f
+    ));
+    setEditingId(null);
+  };
+
   const handleAddOption = () => {
     const v = newOptionInput.trim();
     if (!v || newOptions.includes(v)) return;
@@ -2374,11 +2405,8 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   };
 
   const handleDelete = async (id: string) => {
+    if (editingId === id) setEditingId(null);
     await onUpdateProfileFields(profileFields.filter(f => f.id !== id));
-  };
-
-  const handleToggleRequired = async (id: string) => {
-    await onUpdateProfileFields(profileFields.map(f => f.id === id ? { ...f, required: !f.required } : f));
   };
 
   return (
@@ -2392,23 +2420,88 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       {profileFields.length > 0 && (
         <div className="space-y-2">
           {profileFields.map(field => (
-            <div key={field.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
-              <span className="text-sm text-gray-700 flex-1">{field.label}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
-                {field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : '텍스트'}
-              </span>
-              <button
-                onClick={() => handleToggleRequired(field.id)}
-                className={`text-[11px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                  field.required ? 'bg-red-100 text-red-500 hover:bg-red-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                }`}>
-                {field.required ? '필수' : '선택'}
-              </button>
-              <button
-                onClick={() => handleDelete(field.id)}
-                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all">
-                <Trash2 size={12} />
-              </button>
+            <div key={field.id} className="rounded-xl bg-gray-50 border border-gray-100 overflow-hidden">
+              {editingId === field.id ? (
+                /* ── 편집 모드 ── */
+                <div className="p-3 space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={editLabel}
+                      onChange={e => setEditLabel(e.target.value)}
+                      className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+                    />
+                    <button
+                      onClick={() => setEditFieldType(t => t === 'text' ? 'select' : 'text')}
+                      className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border whitespace-nowrap transition-colors ${
+                        editFieldType === 'select' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-500 border-gray-200'
+                      }`}>
+                      {editFieldType === 'select' ? '드롭다운' : '텍스트'}
+                    </button>
+                    <button
+                      onClick={() => setEditRequired(r => !r)}
+                      className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border whitespace-nowrap transition-colors ${
+                        editRequired ? 'bg-red-50 text-red-500 border-red-200' : 'bg-white text-gray-400 border-gray-200'
+                      }`}>
+                      {editRequired ? '필수' : '선택'}
+                    </button>
+                  </div>
+                  {editFieldType === 'select' && (
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap gap-1.5">
+                        {editOptions.map(o => (
+                          <span key={o} className="flex items-center gap-1 text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-600">
+                            {o}
+                            <button onClick={() => setEditOptions(opts => opts.filter(x => x !== o))} className="text-gray-300 hover:text-red-400"><X size={10} /></button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <input
+                          value={editOptionInput}
+                          onChange={e => setEditOptionInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const v = editOptionInput.trim();
+                              if (v && !editOptions.includes(v)) { setEditOptions(o => [...o, v]); setEditOptionInput(''); }
+                            }
+                          }}
+                          placeholder="옵션 입력 후 Enter"
+                          className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+                        />
+                        <button
+                          onClick={() => {
+                            const v = editOptionInput.trim();
+                            if (v && !editOptions.includes(v)) { setEditOptions(o => [...o, v]); setEditOptionInput(''); }
+                          }}
+                          className="text-xs px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-100">
+                          추가
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={handleSaveEdit} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition-colors">저장</button>
+                    <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
+                    <button onClick={() => handleDelete(field.id)} className="ml-auto text-xs px-3 py-1.5 rounded-lg text-red-400 hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors">삭제</button>
+                  </div>
+                </div>
+              ) : (
+                /* ── 보기 모드 ── */
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <span className="text-sm text-gray-700 flex-1">{field.label}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
+                    {field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : '텍스트'}
+                  </span>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${field.required ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400'}`}>
+                    {field.required ? '필수' : '선택'}
+                  </span>
+                  <button
+                    onClick={() => startEdit(field)}
+                    className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-indigo-400 hover:bg-indigo-50 transition-all">
+                    <Pencil size={12} />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

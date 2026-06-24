@@ -25,14 +25,21 @@ export default function DatePicker({ value, onChange, compact, disabled, btnClas
   const popupRef = useRef<HTMLDivElement>(null);
   const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
 
-  const parsed = value ? new Date(value + 'T00:00:00') : new Date();
+  // 잘못된 날짜 문자열에서 NaN이 되지 않도록 안전하게 파싱
+  const safeParseDate = (v: string): Date => {
+    if (!v) return new Date();
+    const d = new Date(v + 'T00:00:00');
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const parsed = safeParseDate(value ?? '');
   const [viewYear, setViewYear] = useState(parsed.getFullYear());
   const [viewMonth, setViewMonth] = useState(parsed.getMonth());
 
   // 값이 바뀌면 뷰도 맞춤
   useEffect(() => {
     if (value) {
-      const d = new Date(value + 'T00:00:00');
+      const d = safeParseDate(value);
       setViewYear(d.getFullYear());
       setViewMonth(d.getMonth());
     }
@@ -76,7 +83,13 @@ export default function DatePicker({ value, onChange, compact, disabled, btnClas
 
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const displayValue = value ? `${value.slice(2,4)}.${value.slice(5,7)}.${value.slice(8,10)}` : '';
+  // YYYY-MM-DD 형식이면 YY.MM.DD 로 표시, 아니면 원본 값 그대로 표시
+  const isValidFormat = /^\d{4}-\d{2}-\d{2}$/.test(value ?? '');
+  const displayValue = value
+    ? isValidFormat
+      ? `${value.slice(2,4)}.${value.slice(5,7)}.${value.slice(8,10)}`
+      : value
+    : '';
 
   const btnClass = compact
     ? 'flex items-center gap-1 text-xs text-gray-600 hover:text-blue-500 transition-colors cursor-pointer'

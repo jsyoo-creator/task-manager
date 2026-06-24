@@ -506,37 +506,42 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
-        <div className="grid gap-3 items-stretch" style={{ gridTemplateColumns: '1fr 1fr 2fr' }}>
+        <div className="space-y-3">
 
-          {/* 메인 업무 — 선택 필드 기준 */}
-          <div className="glass-card flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700">메인 업무 · {activeFieldLabel}</span>
+          {/* 1행: 메인 업무 + 세부 업무 */}
+          <div className="grid grid-cols-2 gap-3 items-stretch">
+
+            {/* 메인 업무 — 선택 필드 기준 */}
+            <div className="glass-card flex flex-col">
+              <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+                <span className="text-[12.5px] font-bold text-gray-700">메인 업무 · {activeFieldLabel}</span>
+              </div>
+              <div className="flex-1 flex items-center p-5">
+                <DonutChart
+                  data={mainDonut}
+                  colorMap={Object.fromEntries(
+                    fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
+                  )}
+                />
+              </div>
             </div>
-            <div className="flex-1 flex items-center p-5">
-              <DonutChart
-                data={mainDonut}
-                colorMap={Object.fromEntries(
-                  fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
-                )}
-              />
+
+            {/* 세부 업무 상태 */}
+            <div className="glass-card flex flex-col">
+              <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+                <span className="text-[12.5px] font-bold text-gray-700">세부 업무 상태</span>
+              </div>
+              <div className="flex-1 flex items-center p-5">
+                <DonutChart
+                  data={subDonut}
+                  colorMap={subDonutColorMap}
+                />
+              </div>
             </div>
+
           </div>
 
-          {/* 세부 업무 상태 */}
-          <div className="glass-card flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700">세부 업무 상태</span>
-            </div>
-            <div className="flex-1 flex items-center p-5">
-              <DonutChart
-                data={subDonut}
-                colorMap={subDonutColorMap}
-              />
-            </div>
-          </div>
-
-          {/* 분류별 완료율 */}
+          {/* 2행: 분류별 완료율 (전체 너비) */}
           {cats.length > 0 && (
           <div className="glass-card flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">

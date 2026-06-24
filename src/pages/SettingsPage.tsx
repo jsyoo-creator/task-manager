@@ -321,7 +321,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                 {field.required && <span className="text-red-400 ml-0.5">*</span>}
               </label>
               {field.fieldType === 'text+select' && field.options?.length ? (
-                <div className="flex gap-1.5 max-w-xs">
+                <div className={`flex gap-1.5 max-w-xs ${field.textFirst === false ? 'flex-row-reverse' : ''}`}>
                   <input
                     value={profileDataInput[field.id] ?? ''}
                     onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
@@ -2368,6 +2368,8 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [editFieldType, setEditFieldType] = useState<'text' | 'select' | 'text+select'>('text');
   const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editOptionInput, setEditOptionInput] = useState('');
+  const [editTextFirst, setEditTextFirst] = useState(true);
+  const [newTextFirst, setNewTextFirst] = useState(true);
 
   // 드래그 순서 변경
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -2393,6 +2395,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     setEditFieldType(field.fieldType);
     setEditOptions(field.options ?? []);
     setEditOptionInput('');
+    setEditTextFirst(field.textFirst !== false);
   };
 
   const cycleFieldType = (t: 'text' | 'select' | 'text+select') =>
@@ -2409,7 +2412,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     }
     await onUpdateProfileFields(profileFields.map(f =>
       f.id === editingId
-        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: editFieldType !== 'text' ? editOptions : undefined }
+        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: editFieldType !== 'text' ? editOptions : undefined, textFirst: editFieldType === 'text+select' ? editTextFirst : undefined }
         : f
     ));
     setEditingId(null);
@@ -2436,6 +2439,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       order: profileFields.length,
       fieldType: newFieldType,
       options: newFieldType !== 'text' ? newOptions : undefined,
+      textFirst: newFieldType === 'text+select' ? newTextFirst : undefined,
     };
     setSaving(true);
     await onUpdateProfileFields([...profileFields, newField]);
@@ -2497,6 +2501,15 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                       {editRequired ? '필수' : '선택'}
                     </button>
                   </div>
+                  {editFieldType === 'text+select' && (
+                    <button
+                      onClick={() => setEditTextFirst(v => !v)}
+                      className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors w-fit">
+                      <span className={`font-medium ${editTextFirst ? 'text-indigo-600' : 'text-gray-400'}`}>텍스트</span>
+                      <span className="text-gray-300">⇄</span>
+                      <span className={`font-medium ${!editTextFirst ? 'text-indigo-600' : 'text-gray-400'}`}>드롭다운</span>
+                    </button>
+                  )}
                   {editFieldType !== 'text' && (
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap gap-1.5">
@@ -2590,6 +2603,16 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
             {newRequired ? '필수' : '선택'}
           </button>
         </div>
+
+        {newFieldType === 'text+select' && (
+          <button
+            onClick={() => setNewTextFirst(v => !v)}
+            className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors w-fit">
+            <span className={`font-medium ${newTextFirst ? 'text-indigo-600' : 'text-gray-400'}`}>텍스트</span>
+            <span className="text-gray-300">⇄</span>
+            <span className={`font-medium ${!newTextFirst ? 'text-indigo-600' : 'text-gray-400'}`}>드롭다운</span>
+          </button>
+        )}
 
         {newFieldType !== 'text' && (
           <div className="space-y-1.5">
@@ -2819,7 +2842,7 @@ export default function SettingsPage({
                     {field.required && <span className="text-red-400 ml-0.5">*</span>}
                   </label>
                   {field.fieldType === 'text+select' && field.options?.length ? (
-                    <div className="flex gap-1.5 max-w-xs">
+                    <div className={`flex gap-1.5 max-w-xs ${field.textFirst === false ? 'flex-row-reverse' : ''}`}>
                       <input
                         value={myProfileData[field.id] ?? ''}
                         onChange={e => setMyProfileData(prev => ({ ...prev, [field.id]: e.target.value }))}

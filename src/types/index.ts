@@ -9,6 +9,7 @@ export interface ProfileFieldDef {
   order: number;
   fieldType: 'text' | 'select' | 'text+select';
   options?: string[];
+  textFirst?: boolean; // text+select일 때 텍스트가 앞(true, 기본) vs 드롭다운이 앞(false)
 }
 
 export interface AppUser {

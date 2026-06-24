@@ -1154,6 +1154,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   onSelect?: () => void;
 }) {
   const [metaCopied, setMetaCopied] = useState(false);
+  const [copiedUrlKey, setCopiedUrlKey] = useState<string | null>(null);
+  const copyUrl = (key: string, url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedUrlKey(key);
+    setTimeout(() => setCopiedUrlKey(null), 1500);
+  };
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false);
 
@@ -1477,10 +1483,15 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     <div key={f.key} className="flex flex-col px-5 py-3 shrink-0">
                       <span className="text-[10px] text-gray-400 font-medium mb-1">{f.label}</span>
                       {f.isUrl ? (
-                        <a href={val} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:text-blue-700 max-w-[220px] truncate">
-                          {val}
-                        </a>
+                        <div className="flex items-center gap-1">
+                          <a href={val} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-blue-500 hover:text-blue-700 max-w-[200px] truncate">
+                            {val}
+                          </a>
+                          <button onClick={() => copyUrl(f.key, val)} className="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors">
+                            {copiedUrlKey === f.key ? <Check size={10} className="text-green-500" /> : <Copy size={10} />}
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val}</span>
                       )}
@@ -1513,7 +1524,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                         </div>
                       ) : cfType === 'link' ? (
                         val
-                          ? <a href={val} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 max-w-[220px] truncate">{val}</a>
+                          ? <div className="flex items-center gap-1">
+                              <a href={val} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 max-w-[200px] truncate">{val}</a>
+                              <button onClick={() => copyUrl(cf.id, val)} className="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors">
+                                {copiedUrlKey === cf.id ? <Check size={10} className="text-green-500" /> : <Copy size={10} />}
+                              </button>
+                            </div>
                           : <span className="text-xs text-gray-400">-</span>
                       ) : (
                         <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val || '-'}</span>

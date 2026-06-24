@@ -305,6 +305,9 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                   : lines[0];
                 return [isNew, isDerived, isOther, taskH, '', '', desc].join('\t');
               });
+              if (vacH > 0) {
+                rows.push([0, 0, 0, -vacH, '', '', `휴가 (${vacLabel})`].join('\t'));
+              }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);
               setTimeout(() => setCopiedPerson(null), 2000);

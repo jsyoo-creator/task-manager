@@ -41,12 +41,12 @@ const CAT_STYLE: Record<string, { card: string; title: string; dot: string; hove
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 
-function Avatar({ name, photoURL }: { name: string; photoURL?: string }) {
+function Avatar({ name, photoURL, isSubstitute = false }: { name: string; photoURL?: string; isSubstitute?: boolean }) {
   if (photoURL) {
-    return <img src={photoURL} alt={name} title={name} className="w-6 h-6 rounded-full object-cover ring-2 ring-white flex-shrink-0" />;
+    return <img src={photoURL} alt={name} title={isSubstitute ? `대무자: ${name}` : name} className={`w-6 h-6 rounded-full object-cover ring-2 flex-shrink-0 ${isSubstitute ? 'ring-orange-400' : 'ring-white'}`} />;
   }
   return (
-    <div title={name} className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[9px] font-semibold text-gray-500 ring-2 ring-white flex-shrink-0">
+    <div title={isSubstitute ? `대무자: ${name}` : name} className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-semibold ring-2 flex-shrink-0 ${isSubstitute ? 'bg-orange-100 text-orange-500 ring-orange-400' : 'bg-gray-200 text-gray-500 ring-white'}`}>
       {name.slice(0, 1)}
     </div>
   );
@@ -86,12 +86,16 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
 
   const filteredSubtasks = useMemo(() =>
-    subtasks.filter(s =>
-      s.endDate &&
-      (activeCategory === 'all' || s.category === activeCategory) &&
-      (canSeeAll || s.assignee === currentUserName)
-    ),
-    [subtasks, activeCategory, canSeeAll, currentUserName]
+    subtasks.filter(s => {
+      if (!s.endDate) return false;
+      if (activeCategory !== 'all' && s.category !== activeCategory) return false;
+      if (canSeeAll) return true;
+      if (s.assignee === currentUserName) return true;
+      const [, subKey] = s.id.split('__');
+      const substitute = taskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
+      return substitute === currentUserName;
+    }),
+    [subtasks, activeCategory, canSeeAll, currentUserName, taskMap]
   );
 
   const itemsForDay = (day: number) => {
@@ -103,7 +107,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
         const [, subKey] = s.id.split('__');
         const people = [s.receiver, s.assignee].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
         const memoCount = parent?.subTaskData?.[subKey]?.memos?.length ?? 0;
-        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, people, category: s.category, status: s.status, memoCount };
+        const substitute = parent?.subTaskData?.[subKey]?.substitute || undefined;
+        return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, people, substitute, category: s.category, status: s.status, memoCount };
       });
   };
 
@@ -348,11 +353,14 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     <span>{item.memoCount}</span>
                                   </div>
                                 )}
-                                {item.people.length > 0 && (
+                                {(item.people.length > 0 || item.substitute) && (
                                   <div className="flex flex-col -space-y-1.5">
                                     {item.people.map(name => (
                                       <Avatar key={name} name={name} photoURL={userPhotoMap?.get(name)} />
                                     ))}
+                                    {item.substitute && (
+                                      <Avatar name={item.substitute} photoURL={userPhotoMap?.get(item.substitute)} isSubstitute />
+                                    )}
                                   </div>
                                 )}
                               </div>

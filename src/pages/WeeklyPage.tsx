@@ -71,41 +71,45 @@ function toDate(str: string) {
 
 function fmt(d: Date) { return `${d.getMonth() + 1}/${d.getDate()}`; }
 
-/** 이번 주 (월~금) 내 해당 인원의 휴가 시간 합산 + 표시용 날짜 범위 반환 */
-function getPersonVacationInfo(personName: string, vacations: Vacation[], weekMon: Date): { h: number; label: string } {
+/** 이번 주 (월~금) 내 해당 인원의 휴가 시간 합산 + 항목별 상세 반환 */
+function getPersonVacationInfo(personName: string, vacations: Vacation[], weekMon: Date): {
+  h: number;
+  entries: { dateStr: string; type: string; h: number }[];
+} {
   const weekFri = new Date(weekMon);
   weekFri.setDate(weekMon.getDate() + 4);
 
-  const personVacs = vacations.filter(v => v.memberName === personName);
-  let totalH = 0;
-  const datesInWeek: Date[] = [];
+  const entries: { dateStr: string; type: string; h: number }[] = [];
 
-  personVacs.forEach(v => {
+  vacations.filter(v => v.memberName === personName).forEach(v => {
     const vacStart = toDate(v.date);
     if (v.days <= 1) {
       const dow = vacStart.getDay();
       if (dow >= 1 && dow <= 5 && vacStart >= weekMon && vacStart <= weekFri) {
-        totalH += v.days * 8;
-        datesInWeek.push(new Date(vacStart));
+        entries.push({ dateStr: fmt(vacStart), type: v.type, h: v.days * 8 });
       }
     } else {
       const vacEnd = new Date(vacStart);
       vacEnd.setDate(vacStart.getDate() + Math.ceil(v.days) - 1);
-      const d = new Date(Math.max(vacStart.getTime(), weekMon.getTime()));
-      const endBound = new Date(Math.min(vacEnd.getTime(), weekFri.getTime()));
-      while (d <= endBound) {
-        if (d.getDay() >= 1 && d.getDay() <= 5) { totalH += 8; datesInWeek.push(new Date(d)); }
-        d.setDate(d.getDate() + 1);
+      const overlapStart = new Date(Math.max(vacStart.getTime(), weekMon.getTime()));
+      const overlapEnd = new Date(Math.min(vacEnd.getTime(), weekFri.getTime()));
+      if (overlapStart <= overlapEnd) {
+        let h = 0;
+        const d = new Date(overlapStart);
+        while (d <= overlapEnd) {
+          if (d.getDay() >= 1 && d.getDay() <= 5) h += 8;
+          d.setDate(d.getDate() + 1);
+        }
+        if (h > 0) {
+          const dateStr = overlapStart.toDateString() === overlapEnd.toDateString()
+            ? fmt(overlapStart) : `${fmt(overlapStart)} ~ ${fmt(overlapEnd)}`;
+          entries.push({ dateStr, type: v.type, h });
+        }
       }
     }
   });
 
-  if (!datesInWeek.length) return { h: 0, label: '' };
-  datesInWeek.sort((a, b) => a.getTime() - b.getTime());
-  const first = datesInWeek[0];
-  const last = datesInWeek[datesInWeek.length - 1];
-  const label = first.toDateString() === last.toDateString() ? fmt(first) : `${fmt(first)} ~ ${fmt(last)}`;
-  return { h: totalH, label };
+  return { h: entries.reduce((s, e) => s + e.h, 0), entries };
 }
 
 // 태스크 시작일 기준 상대 주차를 계산해 해당 주의 시간 합산
@@ -236,7 +240,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
 
       const totalH = groups.reduce((sum, g) => sum + g.taskH, 0);
       const vacInfo = getPersonVacationInfo(person, vacations, start);
-      return { person, groups, totalH, vacH: vacInfo.h, vacLabel: vacInfo.label };
+      return { person, groups, totalH, vacH: vacInfo.h, vacEntries: vacInfo.entries };
     }).filter(p => p.groups.length > 0 || p.vacH > 0);
   }, [weekSubtasks, weekTaskMap, start, canSeeAll, currentUserName, vacations]);
 
@@ -282,7 +286,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {personData.map(({ person, groups, totalH, vacH, vacLabel }) => {
+          {personData.map(({ person, groups, totalH, vacH, vacEntries }) => {
             const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
               const rows = groups.map(({ task, subs, taskH, isSubstitute }) => {
@@ -307,7 +311,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 return [isNew, isDerived, isOther, taskH, '', '', desc].join('\t');
               });
               if (vacH > 0) {
-                rows.push([0, 0, 0, 0, '', '', `"[기타]\n- 휴가 (${vacLabel})"`].join('\t'));
+                const vacLines = vacEntries.map(e => `- ${e.type} (${e.dateStr})`).join('\n');
+                rows.push([0, 0, 0, 0, '', '', `"[기타]\n${vacLines}"`].join('\t'));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);
@@ -359,10 +364,12 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
 
               {/* 휴가 행 */}
               {vacH > 0 && (
-                <div className="px-5 py-2 bg-orange-50 border-b border-orange-100 flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-orange-500">휴가</span>
-                  <span className="text-[11px] text-orange-400">{vacLabel}</span>
-                  <span className="text-[11px] font-semibold text-orange-400 ml-auto">-{vacH}h</span>
+                <div className="px-5 py-2 bg-orange-50 border-b border-orange-100 flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold text-orange-500 flex-shrink-0">휴가</span>
+                  <span className="text-[11px] text-orange-400 flex-1">
+                    {vacEntries.map(e => `${e.dateStr} ${e.type}`).join(' · ')}
+                  </span>
+                  <span className="text-[11px] font-semibold text-orange-400 flex-shrink-0">-{vacH}h</span>
                 </div>
               )}
 

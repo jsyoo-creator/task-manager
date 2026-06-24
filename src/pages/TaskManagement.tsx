@@ -1171,8 +1171,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       if (val) entries.push({ label: cf.label, value: val, isUrl: cf.type === 'link' });
     });
 
-    const plain = [`[${task.title}]`, ...entries.map(e => `${e.label}: ${e.value}`)].join('\n');
+    const plain = [`업무명: ${task.title}`, ...entries.map(e => `${e.label}: ${e.value}`)].join('\n');
 
+    const titleRow = `<tr>
+        <td style="padding:6px 14px;border:1px solid #e0e0e0;background:#f7f7f7;font-weight:600;font-size:13px;white-space:nowrap;color:#444;">업무명</td>
+        <td style="padding:6px 14px;border:1px solid #e0e0e0;font-size:13px;font-weight:600;color:#222;">${task.title}</td>
+      </tr>`;
     const htmlRows = entries.map(e => {
       const valCell = e.isUrl
         ? `<a href="${e.value.startsWith('http') ? e.value : `https://${e.value}`}" style="color:#0078d4;">${e.value}</a>`
@@ -1182,8 +1186,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         <td style="padding:6px 14px;border:1px solid #e0e0e0;font-size:13px;color:#222;">${valCell}</td>
       </tr>`;
     }).join('');
-    const html = `<p style="font-weight:700;font-size:14px;margin:0 0 8px;font-family:sans-serif;">${task.title}</p>
-<table style="border-collapse:collapse;font-family:sans-serif;">${htmlRows}</table>`;
+    const html = `<table style="border-collapse:collapse;font-family:sans-serif;">${titleRow}${htmlRows}</table>`;
 
     try {
       await navigator.clipboard.write([new ClipboardItem({

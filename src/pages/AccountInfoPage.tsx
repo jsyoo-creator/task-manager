@@ -62,34 +62,24 @@ function buildSheet(users: AppUser[], profileFields: ProfileFieldDef[], activeTe
 }
 
 function downloadXlsx(teams: Team[], allUsers: AppUser[], profileFields: ProfileFieldDef[], selectedIds: Set<string>) {
+  const selectedTeams = teams.filter(t => selectedIds.has(t.id));
+  if (selectedTeams.length === 0) return;
+
   const wb = XLSX.utils.book_new();
 
-  teams
-    .filter(t => selectedIds.has(t.id))
-    .forEach(t => {
-      const users = allUsers.filter(u => getUserTeamId(u) === t.id);
-      const ws = buildSheet(users, profileFields, t.id);
-      const sheetName = t.name.slice(0, 31); // xlsx 시트명 31자 제한
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    });
+  selectedTeams.forEach(t => {
+    const users = allUsers.filter(u => getUserTeamId(u) === t.id);
+    const ws = buildSheet(users, profileFields, t.id);
+    // xlsx 시트명은 31자 이내, 특수문자 불가
+    const sheetName = t.name.replace(/[\\/*?[\]:]/g, '').slice(0, 31) || `팀${t.id.slice(-4)}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
 
-  const filename = selectedIds.size === 1
-    ? `계정정보_${teams.find(t => selectedIds.has(t.id))?.name ?? ''}.xlsx`
+  const filename = selectedTeams.length === 1
+    ? `계정정보_${selectedTeams[0].name}.xlsx`
     : `계정정보_전체.xlsx`;
 
-  // writeFile 대신 blob URL 방식으로 신뢰성 있게 다운로드
-  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([buf], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  XLSX.writeFile(wb, filename);
 }
 
 function DownloadModal({ teams, allUsers, profileFields, onClose }: {

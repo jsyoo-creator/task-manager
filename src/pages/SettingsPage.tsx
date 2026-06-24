@@ -810,10 +810,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                       {fc.required && <span className="ml-1 text-[10px] text-red-400 font-medium">필수</span>}
                     </button>
-                    {isTableField(fc.key)
-                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium flex-shrink-0 border border-sky-100">목록+상세</span>
-                      : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium flex-shrink-0 border border-violet-100">상세</span>
-                    }
                     {/* 이름 타입 직군 pill */}
                     {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (
                       <div className="flex items-center gap-1 flex-shrink-0">
@@ -833,6 +829,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                         })}
                       </div>
                     )}
+                    {isTableField(fc.key)
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium flex-shrink-0 border border-sky-100">목록+상세</span>
+                      : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium flex-shrink-0 border border-violet-100">상세</span>
+                    }
                     {(fc.key === 'taskMonth' || isTitle)
                       ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
                       : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />

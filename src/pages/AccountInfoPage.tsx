@@ -25,11 +25,7 @@ function getCellValue(user: AppUser, field: ProfileFieldDef): string {
   return user.profileData?.[field.id] ?? '';
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  superadmin: '최고관리자',
-  manager: '중간관리자',
-  user: '일반',
-};
+
 const DEPT_ORDER: Record<string, number> = { 기획: 0, 디자인: 1, 퍼블: 2 };
 
 function sortUsers(users: AppUser[]) {
@@ -42,12 +38,11 @@ function sortUsers(users: AppUser[]) {
 }
 
 function buildSheet(users: AppUser[], profileFields: ProfileFieldDef[], activeTeamId: string) {
-  const headers = ['이름', '이메일', '직군', '권한', ...profileFields.map(f => f.label)];
+  const headers = ['이름', '이메일', '직군', ...profileFields.map(f => f.label)];
   const rows = sortUsers(users).map(u => [
     u.displayName || '',
     u.email,
     u.department ?? '',
-    ROLE_LABEL[u.role] ?? u.role,
     ...profileFields.map(f => getCellValue(u, f)),
   ]);
 
@@ -261,7 +256,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr>
-                    {['이름', '직군', '권한', ...visibleFields.map(f => f.label + (f.required ? ' *' : ''))].map(h => (
+                    {['이름', '직군', ...visibleFields.map(f => f.label + (f.required ? ' *' : ''))].map(h => (
                       <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider bg-gray-50/80 border-b border-gray-100 whitespace-nowrap">
                         {h}
                       </th>
@@ -292,15 +287,6 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
                           {u.department
                             ? <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-indigo-50 text-indigo-600">{u.department}</span>
                             : <span className="text-gray-300">—</span>}
-                        </td>
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                            u.role === 'superadmin' ? 'bg-violet-100 text-violet-600'
-                            : u.role === 'manager' ? 'bg-blue-100 text-blue-600'
-                            : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {ROLE_LABEL[u.role] ?? u.role}
-                          </span>
                         </td>
                         {visibleFields.map(f => {
                           const val = getCellValue(u, f);

@@ -2349,6 +2349,23 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editOptionInput, setEditOptionInput] = useState('');
 
+  // 드래그 순서 변경
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleFieldDrop = async (targetId: string) => {
+    if (!draggingId || draggingId === targetId) return;
+    const from = profileFields.findIndex(f => f.id === draggingId);
+    const to = profileFields.findIndex(f => f.id === targetId);
+    if (from === -1 || to === -1) return;
+    const reordered = [...profileFields];
+    const [item] = reordered.splice(from, 1);
+    reordered.splice(to, 0, item);
+    await onUpdateProfileFields(reordered.map((f, i) => ({ ...f, order: i })));
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
   const startEdit = (field: ProfileFieldDef) => {
     setEditingId(field.id);
     setEditLabel(field.label);
@@ -2420,7 +2437,16 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       {profileFields.length > 0 && (
         <div className="space-y-2">
           {profileFields.map(field => (
-            <div key={field.id} className="rounded-xl bg-gray-50 border border-gray-100 overflow-hidden">
+            <div
+              key={field.id}
+              onDragOver={e => { e.preventDefault(); setDragOverId(field.id); }}
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={() => handleFieldDrop(field.id)}
+              className={`rounded-xl bg-gray-50 border overflow-hidden transition-all ${
+                dragOverId === field.id && draggingId !== field.id
+                  ? 'border-indigo-300 ring-1 ring-indigo-200'
+                  : 'border-gray-100'
+              } ${draggingId === field.id ? 'opacity-40' : ''}`}>
               {editingId === field.id ? (
                 /* ── 편집 모드 ── */
                 <div className="p-3 space-y-2.5">
@@ -2488,6 +2514,13 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
               ) : (
                 /* ── 보기 모드 ── */
                 <div className="flex items-center gap-2 px-3 py-2">
+                  <div
+                    draggable
+                    onDragStart={() => { setDraggingId(field.id); setEditingId(null); }}
+                    onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+                    className="text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0">
+                    <GripVertical size={14} />
+                  </div>
                   <span className="text-sm text-gray-700 flex-1">{field.label}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
                     {field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : '텍스트'}

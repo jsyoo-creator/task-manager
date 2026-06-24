@@ -205,7 +205,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
 
   const handleSave = async () => {
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
-    const annualLeave = isNaN(parsed) || parsed < 0 ? DEFAULT_ANNUAL : Math.round(parsed * 100) / 100;
+    const annualLeave = isNaN(parsed) ? DEFAULT_ANNUAL : Math.round(parsed * 100) / 100;
     const resolvedDefault = teamInput.length >= 2 && defaultTeamInput && teamInput.includes(defaultTeamInput)
       ? defaultTeamInput
       : null;
@@ -348,12 +348,12 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
             <label className="block text-xs text-gray-500 mb-1.5">연간 휴가 일수</label>
             <div className="flex items-center gap-2">
               <input
-                type="number" step="0.01" min="0"
+                type="number" step="0.01"
                 value={annualLeaveStr}
                 onChange={e => setAnnualLeaveStr(e.target.value)}
                 onBlur={e => {
                   const parsed = parseFloat(e.target.value.replace(',', '.'));
-                  if (!isNaN(parsed) && parsed >= 0) {
+                  if (!isNaN(parsed)) {
                     setAnnualLeaveStr(String(Math.round(parsed * 100) / 100));
                   } else {
                     setAnnualLeaveStr(String(DEFAULT_ANNUAL));

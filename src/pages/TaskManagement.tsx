@@ -833,6 +833,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               colTemplate={colTemplate}
               colMinWidth={colMinWidth}
               metaFields={resolvedMetaFields}
+              formConfig={formConfig}
               isDragging={dragId === task.id}
               isDragOver={dragOverId === task.id}
               isActive={activeTaskId === task.id}
@@ -1000,7 +1001,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1015,6 +1016,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   colTemplate: string;
   colMinWidth: number;
   metaFields?: MetaField[];
+  formConfig?: TeamFormConfig;
   isDragging: boolean;
   isDragOver: boolean;
   isActive: boolean;
@@ -1028,6 +1030,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   partColor: (cat: string) => string;
 }) {
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
+  const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false);
 
   const totalH = (() => {
     if (task.subTaskData && Object.keys(task.subTaskData).length > 0) {
@@ -1226,7 +1229,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
 
       {expanded && (
         <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: colMinWidth }}>
-          {filledMeta.length > 0 ? (
+          {(filledMeta.length > 0 || enabledCfs.length > 0) ? (
             <div className="overflow-x-auto">
               <div className="flex divide-x divide-gray-100 min-w-max pl-8">
                 {filledMeta.map(f => {
@@ -1241,6 +1244,40 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                         </a>
                       ) : (
                         <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val}</span>
+                      )}
+                    </div>
+                  );
+                })}
+                {enabledCfs.map(cf => {
+                  const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const cfType = cf.type as string;
+                  const opts = (cfType === 'name' || cfType === '이름')
+                    ? assignees
+                    : (cf.options ?? []);
+                  const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
+                  return (
+                    <div key={cf.id} className="flex flex-col px-5 py-3 shrink-0">
+                      <span className="text-[10px] text-gray-400 font-medium mb-1">{cf.label}</span>
+                      {isSelectable ? (
+                        <div className="relative">
+                          <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate block pr-4">{val || '-'}</span>
+                          {canManage && (
+                            <select
+                              value={val}
+                              onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                            >
+                              <option value="">-</option>
+                              {opts.map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      ) : cfType === 'link' ? (
+                        val
+                          ? <a href={val} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 max-w-[220px] truncate">{val}</a>
+                          : <span className="text-xs text-gray-400">-</span>
+                      ) : (
+                        <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val || '-'}</span>
                       )}
                     </div>
                   );

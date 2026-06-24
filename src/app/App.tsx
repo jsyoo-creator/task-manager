@@ -342,9 +342,20 @@ function App() {
             <Route path="/weekly" element={
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} currentUserName={currentUserName} canSeeAll={canSeeAll} />
             } />
-            <Route path="/vacation" element={
-              <VacationPage vacations={vacations} teamMembers={selectedTeam ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id)) : []} currentUserName={currentUserName} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onAddVacation={addVacation} onDeleteVacation={deleteVacation} />
-            } />
+            <Route path="/vacation" element={(() => {
+              const vacTeamMembers = selectedTeam ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id)) : [];
+              const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
+              return (
+                <VacationPage
+                  vacations={vacations.filter(v => vacMemberNames.has(v.memberName))}
+                  teamMembers={vacTeamMembers}
+                  currentUserName={currentUserName}
+                  userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
+                  onAddVacation={addVacation}
+                  onDeleteVacation={deleteVacation}
+                />
+              );
+            })()} />
             <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
             <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} /> : null} />
             <Route path="/settings" element={

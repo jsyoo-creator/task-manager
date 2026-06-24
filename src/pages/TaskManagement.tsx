@@ -1166,8 +1166,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             onClick={e => { e.stopPropagation(); onSelect?.(); }}
             className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
               selected
-                ? 'bg-indigo-600 border-indigo-600 opacity-100'
-                : 'border-gray-300 bg-white opacity-0 group-hover/row:opacity-100 hover:border-indigo-400'
+                ? 'bg-indigo-600 border-indigo-600'
+                : 'border-gray-300 bg-white hover:border-indigo-400'
             }`}
           >
             {selected && (

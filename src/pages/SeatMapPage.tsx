@@ -141,10 +141,13 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
     [group.seats]
   );
 
+  const MULTI_TYPES = new Set(['__wall__', '__pillar__', '__corridor__']);
   const handleSeat = (key: string, name: string) => {
     const newSeats = { ...group.seats };
-    // Remove this name from any other seat first (one person = one seat per group)
-    Object.keys(newSeats).forEach(k => { if (newSeats[k] === name) delete newSeats[k]; });
+    // 사람은 한 자리만 — 특수 타입(벽·기둥·복도)은 여러 자리 허용
+    if (!MULTI_TYPES.has(name)) {
+      Object.keys(newSeats).forEach(k => { if (newSeats[k] === name) delete newSeats[k]; });
+    }
     if (name) newSeats[key] = name;
     else delete newSeats[key];
     onUpdateGroup(group.id, { seats: newSeats });

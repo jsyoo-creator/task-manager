@@ -692,6 +692,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                   >
                     <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
                       <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                      {isTableField(fc.key)
+                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium flex-shrink-0 border border-sky-100">목록+상세</span>
+                        : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium flex-shrink-0 border border-violet-100">상세</span>
+                      }
                       <div className="flex-1 flex items-center gap-1.5 min-w-0">
                         <input
                           autoFocus
@@ -806,6 +810,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                       {fc.required && <span className="ml-1 text-[10px] text-red-400 font-medium">필수</span>}
                     </button>
+                    {isTableField(fc.key)
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium flex-shrink-0 border border-sky-100">목록+상세</span>
+                      : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium flex-shrink-0 border border-violet-100">상세</span>
+                    }
                     {/* 이름 타입 직군 pill */}
                     {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (
                       <div className="flex items-center gap-1 flex-shrink-0">
@@ -1007,6 +1015,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                   </button>
                 )}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {!isEditingCF && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium border border-violet-100">상세</span>}
                   {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
                   {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
                     const val = d === '전체' ? undefined : d as Department;

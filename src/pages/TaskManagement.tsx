@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Info, Upload, Download, FileDown } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts } from '../types';
@@ -1153,8 +1153,21 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   selected?: boolean;
   onSelect?: () => void;
 }) {
+  const [metaCopied, setMetaCopied] = useState(false);
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false);
+
+  const copyMetaFields = () => {
+    const lines: string[] = [`[${task.title}]`];
+    filledMeta.forEach(f => lines.push(`${f.label}: ${task.customFields![f.key]}`));
+    enabledCfs.forEach(cf => {
+      const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+      if (val) lines.push(`${cf.label}: ${val}`);
+    });
+    navigator.clipboard.writeText(lines.join('\n'));
+    setMetaCopied(true);
+    setTimeout(() => setMetaCopied(false), 2000);
+  };
 
   const totalH = (() => {
     if (task.subTaskData && Object.keys(task.subTaskData).length > 0) {
@@ -1428,7 +1441,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       {expanded && (
         <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: colMinWidth }}>
           {(filledMeta.length > 0 || enabledCfs.length > 0) ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto relative">
+              <button
+                onClick={copyMetaFields}
+                className="absolute top-2 right-3 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors z-10"
+              >
+                {metaCopied ? <><Check size={11} className="text-green-500" /><span className="text-green-500">복사됨</span></> : <><Copy size={11} /><span>복사</span></>}
+              </button>
               <div className="flex divide-x divide-gray-100 min-w-max pl-8">
                 {filledMeta.map(f => {
                   const val = task.customFields![f.key];

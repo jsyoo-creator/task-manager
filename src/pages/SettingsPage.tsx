@@ -829,14 +829,16 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                         })}
                       </div>
                     )}
-                    {isTableField(fc.key)
-                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium flex-shrink-0 border border-sky-100">목록+상세</span>
-                      : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium flex-shrink-0 border border-violet-100">상세</span>
-                    }
-                    {(fc.key === 'taskMonth' || isTitle)
-                      ? <span className="text-[11px] text-gray-300 italic flex-shrink-0">고정</span>
-                      : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
-                    }
+                    <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[116px] justify-end">
+                      {isTableField(fc.key)
+                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium border border-sky-100">목록+상세</span>
+                        : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium border border-violet-100">상세</span>
+                      }
+                      {(fc.key === 'taskMonth' || isTitle)
+                        ? <span className="text-[11px] text-gray-300 italic">고정</span>
+                        : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />
+                      }
+                    </div>
                   </div>
                 )}
               </div>
@@ -1014,7 +1016,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                     {cf.label}
                   </button>
                 )}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[116px] justify-end">
                   {!isEditingCF && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium border border-violet-100">상세</span>}
                   {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
                   {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {

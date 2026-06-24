@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 
@@ -13,6 +13,7 @@ interface Props {
   parts?: TeamPart[];
   userPhotoMap?: Map<string, string>;
   customHolidays?: CustomHoliday[];
+  vacations?: Vacation[];
   currentUserName?: string;
   canSeeAll?: boolean;
 }
@@ -68,6 +69,45 @@ function toDate(str: string) {
   return new Date(y, m - 1, d);
 }
 
+function fmt(d: Date) { return `${d.getMonth() + 1}/${d.getDate()}`; }
+
+/** 이번 주 (월~금) 내 해당 인원의 휴가 시간 합산 + 표시용 날짜 범위 반환 */
+function getPersonVacationInfo(personName: string, vacations: Vacation[], weekMon: Date): { h: number; label: string } {
+  const weekFri = new Date(weekMon);
+  weekFri.setDate(weekMon.getDate() + 4);
+
+  const personVacs = vacations.filter(v => v.memberName === personName);
+  let totalH = 0;
+  const datesInWeek: Date[] = [];
+
+  personVacs.forEach(v => {
+    const vacStart = toDate(v.date);
+    if (v.days <= 1) {
+      const dow = vacStart.getDay();
+      if (dow >= 1 && dow <= 5 && vacStart >= weekMon && vacStart <= weekFri) {
+        totalH += v.days * 8;
+        datesInWeek.push(new Date(vacStart));
+      }
+    } else {
+      const vacEnd = new Date(vacStart);
+      vacEnd.setDate(vacStart.getDate() + Math.ceil(v.days) - 1);
+      const d = new Date(Math.max(vacStart.getTime(), weekMon.getTime()));
+      const endBound = new Date(Math.min(vacEnd.getTime(), weekFri.getTime()));
+      while (d <= endBound) {
+        if (d.getDay() >= 1 && d.getDay() <= 5) { totalH += 8; datesInWeek.push(new Date(d)); }
+        d.setDate(d.getDate() + 1);
+      }
+    }
+  });
+
+  if (!datesInWeek.length) return { h: 0, label: '' };
+  datesInWeek.sort((a, b) => a.getTime() - b.getTime());
+  const first = datesInWeek[0];
+  const last = datesInWeek[datesInWeek.length - 1];
+  const label = first.toDateString() === last.toDateString() ? fmt(first) : `${fmt(first)} ~ ${fmt(last)}`;
+  return { h: totalH, label };
+}
+
 // 태스크 시작일 기준 상대 주차를 계산해 해당 주의 시간 합산
 function getSubWeekHours(sub: SubTask, currentWeekMonday: Date): number {
   if (!sub.startDate) return 0;
@@ -98,7 +138,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], currentUserName = '', canSeeAll = false }: Props) {
+export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const { start, end, weekNum, now, weekdays } = useMemo(getWeekBounds, []);
   const { holidays: publicHolidays } = usePublicHolidays(now.getFullYear());
@@ -155,28 +195,50 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
     });
   }, [subtasks, weekTasks, start, end]);
 
+  const weekTaskMap = useMemo(() => new Map(weekTasks.map(t => [t.id, t])), [weekTasks]);
+
   const personData = useMemo(() => {
-    const allPeople = [...new Set(weekSubtasks.map(s => s.assignee).filter(Boolean))].sort();
+    const assigneeSet = new Set(weekSubtasks.map(s => s.assignee).filter(Boolean));
+    const substituteSet = new Set<string>();
+    weekSubtasks.forEach(s => {
+      const [, subKey] = s.id.split('__');
+      const sub = weekTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
+      if (sub) substituteSet.add(sub);
+    });
+
+    const allPeople = [...new Set([...assigneeSet, ...substituteSet])].sort();
     const people = canSeeAll ? allPeople : allPeople.filter(p => p === currentUserName);
 
     return people.map(person => {
       const mySubs = weekSubtasks.filter(s => s.assignee === person);
-      const taskIds = [...new Set(mySubs.map(s => s.taskId))];
+      const subSubs = weekSubtasks.filter(s => {
+        if (s.assignee === person) return false;
+        const [, subKey] = s.id.split('__');
+        return weekTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute === person;
+      });
 
-      const groups = taskIds
-        .map(taskId => {
-          const task = weekTasks.find(t => t.id === taskId);
+      const groups = [
+        ...[...new Set(mySubs.map(s => s.taskId))].map(taskId => {
+          const task = weekTaskMap.get(taskId);
           if (!task) return null;
           const subs = mySubs.filter(s => s.taskId === taskId);
           const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0);
-          return { task, subs, taskH };
-        })
-        .filter((g): g is { task: Task; subs: SubTask[]; taskH: number } => g !== null);
+          return { task, subs, taskH, isSubstitute: false };
+        }),
+        ...[...new Set(subSubs.map(s => s.taskId))].map(taskId => {
+          const task = weekTaskMap.get(taskId);
+          if (!task) return null;
+          const subs = subSubs.filter(s => s.taskId === taskId);
+          const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0);
+          return { task, subs, taskH, isSubstitute: true };
+        }),
+      ].filter((g): g is { task: Task; subs: SubTask[]; taskH: number; isSubstitute: boolean } => g !== null);
 
       const totalH = groups.reduce((sum, g) => sum + g.taskH, 0);
-      return { person, groups, totalH };
-    }).filter(p => p.groups.length > 0);
-  }, [weekSubtasks, weekTasks, start]);
+      const vacInfo = getPersonVacationInfo(person, vacations, start);
+      return { person, groups, totalH, vacH: vacInfo.h, vacLabel: vacInfo.label };
+    }).filter(p => p.groups.length > 0 || p.vacH > 0);
+  }, [weekSubtasks, weekTaskMap, start, canSeeAll, currentUserName, vacations]);
 
   return (
     <div>
@@ -220,7 +282,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {personData.map(({ person, groups, totalH }) => {
+          {personData.map(({ person, groups, totalH, vacH, vacLabel }) => {
+            const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
               const rows = groups.map(({ task, subs, taskH }) => {
                 const isNew      = task.type === '신규'  ? 1 : 0;
@@ -275,14 +338,14 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                     <>
                       <span className="text-gray-200">·</span>
                       <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
-                      <span className="text-xs text-gray-300">/ {targetH}h</span>
-                      {totalH < targetH && (
+                      <span className="text-xs text-gray-300">/ {personTargetH}h</span>
+                      {totalH < personTargetH && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500 border border-amber-200">미달</span>
                       )}
-                      {totalH === targetH && (
+                      {totalH === personTargetH && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">정상</span>
                       )}
-                      {totalH > targetH && (
+                      {totalH > personTargetH && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">초과</span>
                       )}
                     </>
@@ -290,10 +353,19 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 </div>
               </div>
 
+              {/* 휴가 행 */}
+              {vacH > 0 && (
+                <div className="px-5 py-2 bg-orange-50 border-b border-orange-100 flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-orange-500">휴가</span>
+                  <span className="text-[11px] text-orange-400">{vacLabel}</span>
+                  <span className="text-[11px] font-semibold text-orange-400 ml-auto">-{vacH}h</span>
+                </div>
+              )}
+
               {/* 업무 그룹 — 가로 분할 */}
-              <div className="grid divide-x divide-gray-100"
+              {groups.length > 0 && <div className="grid divide-x divide-gray-100"
                 style={{ gridTemplateColumns: `repeat(${Math.min(groups.length, 3)}, 1fr)` }}>
-                {groups.map(({ task, subs, taskH }) => (
+                {groups.map(({ task, subs, taskH, isSubstitute }) => (
                   <div key={task.id} className="p-4">
 
                     {/* 메인업무 */}
@@ -303,6 +375,9 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 leading-snug">
                           {task.title}
+                          {isSubstitute && (
+                            <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-500">대무</span>
+                          )}
                         </p>
                         <p className="text-[11px] text-gray-400 mt-0.5">{task.category}</p>
                       </div>
@@ -331,7 +406,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
 
                   </div>
                 ))}
-              </div>
+              </div>}
 
             </div>
             );

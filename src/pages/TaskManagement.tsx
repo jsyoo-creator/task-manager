@@ -1174,7 +1174,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
     const plain = [`[${task.title}]`, ...entries.map(e => `${e.label}: ${e.value}`)].join('\n');
 
     const htmlRows = entries.map(e => {
-      const valCell = e.value;
+      const valCell = e.isUrl
+        ? `<a href="${e.value.startsWith('http') ? e.value : `https://${e.value}`}" style="color:#0078d4;">${e.value}</a>`
+        : e.value;
       return `<tr>
         <td style="padding:6px 14px;border:1px solid #e0e0e0;background:#f7f7f7;font-weight:600;font-size:13px;white-space:nowrap;color:#444;">${e.label}</td>
         <td style="padding:6px 14px;border:1px solid #e0e0e0;font-size:13px;color:#222;">${valCell}</td>
@@ -1470,7 +1472,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <div className="overflow-x-auto relative">
               <button
                 onClick={copyMetaFields}
-                className="absolute top-2 right-3 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors z-10"
+                className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors z-10"
               >
                 {metaCopied ? <><Check size={11} className="text-green-500" /><span className="text-green-500">복사됨</span></> : <><Copy size={11} /><span>복사</span></>}
               </button>

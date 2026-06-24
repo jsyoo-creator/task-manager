@@ -96,6 +96,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
@@ -832,7 +834,27 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         {/* 헤더 */}
         <div className="grid gap-x-3 text-[11px] text-gray-500 font-semibold bg-black/3 border-b border-black/5 px-3 py-2.5"
           style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
-          <span key="drag-h" />
+          {/* 전체선택 체크박스 */}
+          <div className="flex items-center justify-center cursor-pointer"
+            onClick={() => {
+              if (selectedIds.size > 0) setSelectedIds(new Set());
+              else setSelectedIds(new Set(filtered.map(t => t.id)));
+            }}>
+            <div className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center transition-all ${
+              selectedIds.size > 0 && selectedIds.size >= filtered.length
+                ? 'bg-indigo-600 border-indigo-600'
+                : selectedIds.size > 0
+                  ? 'border-indigo-400 bg-white'
+                  : 'border-gray-300 bg-white hover:border-indigo-400'
+            }`}>
+              {selectedIds.size > 0 && selectedIds.size >= filtered.length && (
+                <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              )}
+              {selectedIds.size > 0 && selectedIds.size < filtered.length && (
+                <div className="w-2 h-0.5 bg-indigo-500 rounded" />
+              )}
+            </div>
+          </div>
           {tableFields.flatMap(fc => {
             const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
             if (fc.key === 'title') return [
@@ -886,6 +908,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               onDragEnd={() => { setDragId(null); setDragOverId(null); }}
               userPhotoMap={userPhotoMap}
               partColor={partColor}
+              selected={selectedIds.has(task.id)}
+              onSelect={() => setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.has(task.id) ? next.delete(task.id) : next.add(task.id);
+                return next;
+              })}
             />
           );
         })}
@@ -897,6 +925,36 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         onConfirm={() => { onDeleteTask(pendingDelete!.id); setPendingDelete(null); }}
         onCancel={() => setPendingDelete(null)}
       />
+
+      <ConfirmDialog
+        open={pendingBulkDelete}
+        taskTitle={`선택한 ${selectedIds.size}개의 업무`}
+        onConfirm={() => {
+          selectedIds.forEach(id => onDeleteTask(id));
+          setSelectedIds(new Set());
+          setPendingBulkDelete(false);
+        }}
+        onCancel={() => setPendingBulkDelete(false)}
+      />
+
+      {/* 다중 선택 액션 바 */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl px-5 py-3 shadow-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <span className="text-sm font-semibold text-white">{selectedIds.size}개 선택됨</span>
+          <div className="w-px h-4 bg-white/20" />
+          <button
+            onClick={() => setPendingBulkDelete(true)}
+            className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-sm font-semibold transition-colors">
+            <Trash2 size={13} /> 삭제
+          </button>
+          <div className="w-px h-4 bg-white/20" />
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-gray-400 hover:text-white text-sm transition-colors">
+            선택 해제
+          </button>
+        </div>
+      )}
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
         projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} />
@@ -1042,7 +1100,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1069,6 +1127,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   onDragEnd: () => void;
   userPhotoMap?: Map<string, string>;
   partColor: (cat: string) => string;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false);
@@ -1100,9 +1160,26 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       <div className={`grid gap-x-3 items-center px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
         style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
 
-        {/* 드래그 핸들 */}
-        <div className="flex items-center justify-center text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing">
-          <GripVertical size={13} />
+        {/* 드래그 핸들 / 체크박스 */}
+        <div className="group/handle flex items-center justify-center relative">
+          {selected ? (
+            <div className="w-[15px] h-[15px] rounded border-2 bg-indigo-600 border-indigo-600 flex items-center justify-center cursor-pointer"
+              onClick={e => { e.stopPropagation(); onSelect?.(); }}>
+              <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+          ) : (
+            <>
+              <div className="opacity-0 group-hover/handle:opacity-100 absolute inset-0 flex items-center justify-center transition-opacity cursor-pointer"
+                onClick={e => { e.stopPropagation(); onSelect?.(); }}>
+                <div className="w-[15px] h-[15px] rounded border-2 border-gray-300 hover:border-indigo-400 bg-white" />
+              </div>
+              <div className="group-hover/handle:opacity-0 text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing transition-opacity">
+                <GripVertical size={13} />
+              </div>
+            </>
+          )}
         </div>
 
         {tableFields.flatMap(fc => {

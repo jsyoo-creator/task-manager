@@ -345,7 +345,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                     <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
                     <span className="text-xs text-gray-700 truncate">{user.displayName || user.email || '—'}</span>
                     {user.displayName === currentUserName && <span className="text-[9px] text-blue-400 font-semibold shrink-0">나</span>}
-                    <span className="text-[9px] text-gray-400 shrink-0">/{annualTotal}일</span>
+                    <span className="text-[9px] text-gray-400 shrink-0">{annualTotal}일</span>
                   </div>
                   <span className="text-center text-xs text-amber-600 font-semibold">{used}일</span>
                   <span className={`text-center text-xs font-bold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>

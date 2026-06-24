@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
@@ -38,6 +38,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 type SubTaskEntry = {
   status?: TaskStatus;
   assignee?: string;
+  substitute?: string;
   startDate?: string;
   endDate?: string;
   weeklyHours: Record<string, number>; // keys: w1d1~w5d5
@@ -88,7 +89,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage,
   metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
-  canSeeAll = true, currentUserName = '',
+  canSeeAll = true, currentUserName = '', vacations = [],
 }: {
   task: Task;
   onClose: () => void;
@@ -104,8 +105,19 @@ export default function TaskDetailPanel({
   userPhotoMap?: Map<string, string>;
   canSeeAll?: boolean;
   currentUserName?: string;
+  vacations?: Vacation[];
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
+  const today = new Date().toISOString().slice(0, 10);
+  const isAssigneeOnVacation = (name: string | undefined): boolean => {
+    if (!name || !vacations.length) return false;
+    return vacations.some(v => {
+      if (v.memberName !== name) return false;
+      const end = new Date(v.date);
+      end.setDate(end.getDate() + Math.max(Math.ceil(v.days) - 1, 0));
+      return today >= v.date && today <= end.toISOString().slice(0, 10);
+    });
+  };
   const builtinFields = resolveBuiltinFields(formConfig);
   const statusConfigs = resolveStatusConfigs(formConfig);
   const typeField = builtinFields.find(f => f.key === 'type');
@@ -699,6 +711,7 @@ export default function TaskDetailPanel({
               }).map(type => {
                 const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
                 const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
+                const isVacation = isAssigneeOnVacation(entry.assignee);
 
                 // 직군에 맞는 담당자 필터링
                 const filtered = type.department && teamMembers?.length
@@ -753,6 +766,9 @@ export default function TaskDetailPanel({
                       <div className="relative max-w-[120px]">
                         <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">
                           <span className="truncate">{entry.assignee || fieldLabel('assignee')}</span>
+                          {isVacation && (
+                            <span className="text-[9px] px-1 rounded font-medium bg-orange-100 text-orange-500 flex-shrink-0">휴가</span>
+                          )}
                           <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
                         </div>
                         <select
@@ -773,6 +789,33 @@ export default function TaskDetailPanel({
                         <span className="text-xs font-semibold text-blue-500 flex-shrink-0">{total}h</span>
                       )}
                     </div>
+
+                    {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우) */}
+                    {(isVacation || entry.substitute) && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[11px] font-medium text-orange-500 flex-shrink-0">대무자</span>
+                        <div className="relative max-w-[120px]">
+                          <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-orange-50 border border-orange-200">
+                            <span className="truncate">{entry.substitute || '미지정'}</span>
+                            <ChevronDown size={10} className="flex-shrink-0 text-orange-300" />
+                          </div>
+                          <select
+                            disabled={!canManage}
+                            className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
+                            style={{ cursor: canManage ? 'pointer' : 'default' }}
+                            value={entry.substitute ?? ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const next = { ...localSubTaskData, [type.id]: { ...entry, substitute: val || undefined } };
+                              setLocalSubTaskData(next);
+                              saveSubTaskData(next);
+                            }}>
+                            <option value="">미지정</option>
+                            {displayAssignees.filter(a => a !== entry.assignee).map(a => <option key={a}>{a}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    )}
 
                     {/* 시작일 / 종료일 */}
                     <div className="flex items-center gap-2 mb-2.5">

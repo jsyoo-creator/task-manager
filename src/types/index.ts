@@ -320,6 +320,7 @@ export interface Task {
   subTaskData?: Record<string, {
     status?: TaskStatus;
     assignee?: string;
+    substitute?: string; // 대무자 (담당자 휴가 시)
     startDate?: string;
     endDate?: string;
     weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)

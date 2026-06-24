@@ -433,6 +433,7 @@ function App() {
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
               canSeeAll={canSeeAll}
               currentUserName={currentUserName}
+              vacations={teamVacations}
             />
           );
         })()}

@@ -1157,14 +1157,36 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false);
 
-  const copyMetaFields = () => {
-    const lines: string[] = [`[${task.title}]`];
-    filledMeta.forEach(f => lines.push(`${f.label}: ${task.customFields![f.key]}`));
+  const copyMetaFields = async () => {
+    const entries: { label: string; value: string; isUrl: boolean }[] = [];
+    filledMeta.forEach(f => entries.push({ label: f.label, value: task.customFields![f.key], isUrl: f.isUrl ?? false }));
     enabledCfs.forEach(cf => {
       const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
-      if (val) lines.push(`${cf.label}: ${val}`);
+      if (val) entries.push({ label: cf.label, value: val, isUrl: cf.type === 'link' });
     });
-    navigator.clipboard.writeText(lines.join('\n'));
+
+    const plain = [`[${task.title}]`, ...entries.map(e => `${e.label}: ${e.value}`)].join('\n');
+
+    const htmlRows = entries.map(e => {
+      const valCell = e.isUrl
+        ? `<a href="${e.value}" style="color:#0078d4;">${e.value}</a>`
+        : e.value;
+      return `<tr>
+        <td style="padding:6px 14px;border:1px solid #e0e0e0;background:#f7f7f7;font-weight:600;font-size:13px;white-space:nowrap;color:#444;">${e.label}</td>
+        <td style="padding:6px 14px;border:1px solid #e0e0e0;font-size:13px;color:#222;">${valCell}</td>
+      </tr>`;
+    }).join('');
+    const html = `<p style="font-weight:700;font-size:14px;margin:0 0 8px;font-family:sans-serif;">${task.title}</p>
+<table style="border-collapse:collapse;font-family:sans-serif;">${htmlRows}</table>`;
+
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      })]);
+    } catch {
+      navigator.clipboard.writeText(plain);
+    }
     setMetaCopied(true);
     setTimeout(() => setMetaCopied(false), 2000);
   };

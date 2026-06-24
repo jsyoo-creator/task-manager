@@ -354,7 +354,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   </div>
                                 )}
                                 {(item.people.length > 0 || item.substitute) && (
-                                  <div className="flex flex-col -space-y-1.5">
+                                  <div className="flex flex-row -space-x-1.5">
                                     {item.people.map(name => (
                                       <Avatar key={name} name={name} photoURL={userPhotoMap?.get(name)} />
                                     ))}

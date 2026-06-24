@@ -1781,10 +1781,11 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
 
   const buildFields = (saved: ExcelFieldConfig[] | undefined): ExcelFieldConfig[] => {
     if (!saved?.length) return defaultFields;
+    const validKeys = new Set(defaultFields.map(f => f.key));
     const savedKeys = new Set(saved.map(f => f.key));
     const extra = defaultFields.filter(f => !savedKeys.has(f.key)).map((f, i) => ({ ...f, order: saved.length + i }));
     const labelMap = Object.fromEntries(defaultFields.map(f => [f.key, f.label]));
-    const synced = saved.map(f => ({ ...f, label: labelMap[f.key] ?? f.label }));
+    const synced = saved.filter(f => validKeys.has(f.key)).map(f => ({ ...f, label: labelMap[f.key] ?? f.label }));
     return [...synced, ...extra].sort((a, b) => a.order - b.order);
   };
 

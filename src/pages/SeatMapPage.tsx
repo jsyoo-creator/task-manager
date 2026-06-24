@@ -37,6 +37,13 @@ function SeatCell({ assigned, color, photoURL, department }: { assigned: string;
       </div>
     );
   }
+  if (assigned === '__corridor__') {
+    return (
+      <div className="h-20 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/50">
+        <p className="text-[11px] text-gray-300 tracking-widest">복도</p>
+      </div>
+    );
+  }
   return (
     <div
       className="h-20 rounded-xl border-2 flex items-center justify-center transition-all"
@@ -87,6 +94,7 @@ function EditSeatCell({ assigned, members, onAssign, color }: {
         <option value="">공석</option>
         <option value="__wall__">── 벽</option>
         <option value="__pillar__">□ 기둥</option>
+        <option value="__corridor__">↔ 복도</option>
         {members.map(m => (
           <option key={m.uid} value={m.displayName}>{m.displayName}</option>
         ))}
@@ -129,7 +137,7 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
     [group.seats]
   );
   const occupiedCount = useMemo(
-    () => Object.values(group.seats).filter(v => v && v !== '__wall__' && v !== '__pillar__').length,
+    () => Object.values(group.seats).filter(v => v && v !== '__wall__' && v !== '__pillar__' && v !== '__corridor__').length,
     [group.seats]
   );
 

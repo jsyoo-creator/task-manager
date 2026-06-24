@@ -2804,15 +2804,45 @@ export default function SettingsPage({
     setTimeout(() => setNameSaved(false), 2000);
   };
 
+  type SettingsTab = 'profile' | 'teams' | 'users' | 'holidays' | 'fields' | 'system';
+  const ALL_TABS: { id: SettingsTab; label: string; icon: React.ReactNode; show: boolean }[] = [
+    { id: 'profile',   label: '내 프로필',       icon: <User size={14} />,        show: true },
+    { id: 'teams',     label: '팀 관리',          icon: <Layers size={14} />,      show: canManageUsers },
+    { id: 'users',     label: '사용자 관리',      icon: <Users size={14} />,       show: canManageUsers },
+    { id: 'holidays',  label: '휴일 관리',        icon: <CalendarDays size={14} />,show: canManageUsers },
+    { id: 'fields',    label: '프로필 필드',      icon: <Star size={14} />,        show: appUser.role === 'superadmin' },
+    { id: 'system',    label: '시스템',           icon: <Shield size={14} />,      show: appUser.role === 'superadmin' },
+  ];
+  const visibleTabs = ALL_TABS.filter(t => t.show);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>(visibleTabs[0]?.id ?? 'profile');
+  const activeTab = visibleTabs.find(t => t.id === settingsTab) ? settingsTab : (visibleTabs[0]?.id ?? 'profile');
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* 헤더 + 탭 */}
       <div>
         <h1 className="page-title">설정</h1>
         <p className="page-subtitle">계정 및 권한 관리</p>
       </div>
+      <div className="flex gap-1 bg-white/60 border border-gray-200 rounded-2xl p-1.5 flex-wrap">
+        {visibleTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setSettingsTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              activeTab === tab.id
+                ? 'bg-[#6C63FF] text-white shadow shadow-[#6C63FF]/25'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      {/* 내 프로필 */}
-      <section className="glass-card">
+      {/* ── 내 프로필 탭 ── */}
+      {activeTab === 'profile' && <section className="glass-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <User size={15} className="text-blue-500" />
           <span className="text-sm font-semibold text-gray-800">내 프로필</span>
@@ -2976,10 +3006,10 @@ export default function SettingsPage({
             )}
           </div>
         </div>
-      </section>
+      </section>}
 
-      {/* 팀 관리 — 중간 관리자 이상 */}
-      {canManageUsers && (
+      {/* ── 팀 관리 탭 ── */}
+      {activeTab === 'teams' && canManageUsers && (
         <TeamSection
           teams={teams}
           onCreateTeam={onCreateTeam}
@@ -3002,8 +3032,8 @@ export default function SettingsPage({
         />
       )}
 
-      {/* 사용자 관리 — 중간 관리자 이상 */}
-      {canManageUsers && (
+      {/* ── 사용자 관리 탭 ── */}
+      {activeTab === 'users' && canManageUsers && (
         <section className="glass-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
             <Users size={15} className="text-purple-500" />
@@ -3071,8 +3101,8 @@ export default function SettingsPage({
         </section>
       )}
 
-      {/* 권한 안내 */}
-      <section className="glass-card">
+      {/* ── 시스템 탭: 권한 안내 ── */}
+      {activeTab === 'system' && <section className="glass-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <Shield size={15} className="text-gray-400" />
           <span className="text-sm font-semibold text-gray-800">권한 안내</span>
@@ -3095,10 +3125,10 @@ export default function SettingsPage({
             ))}
           </div>
         </div>
-      </section>
+      </section>}
 
-      {/* 휴일 관리 — 중간 관리자 이상 */}
-      {canManageUsers && (
+      {/* ── 휴일 관리 탭 ── */}
+      {activeTab === 'holidays' && canManageUsers && (
         <section className="glass-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
             <CalendarDays size={15} className="text-red-400" />
@@ -3115,13 +3145,13 @@ export default function SettingsPage({
         </section>
       )}
 
-      {/* 슈퍼어드민 전용: 프로필 추가 필드 관리 */}
-      {appUser.role === 'superadmin' && (
+      {/* ── 프로필 필드 탭 ── */}
+      {activeTab === 'fields' && appUser.role === 'superadmin' && (
         <ProfileFieldManager profileFields={profileFields} onUpdateProfileFields={onUpdateProfileFields} />
       )}
 
-      {/* 슈퍼어드민 전용: 데이터 마이그레이션 */}
-      {appUser.role === 'superadmin' && (
+      {/* ── 시스템 탭: 데이터 마이그레이션 ── */}
+      {activeTab === 'system' && appUser.role === 'superadmin' && (
         <section className="glass-card p-5 space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
             <Shield size={14} className="text-orange-400" />
@@ -3162,8 +3192,8 @@ export default function SettingsPage({
         </section>
       )}
 
-      {/* 데이터 정리 — 최고 관리자 전용 */}
-      {appUser.role === 'superadmin' && (
+      {/* ── 시스템 탭: 데이터 정리 ── */}
+      {activeTab === 'system' && appUser.role === 'superadmin' && (
         <section className="glass-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
             <Trash2 size={15} className="text-red-400" />

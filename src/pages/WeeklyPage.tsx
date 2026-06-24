@@ -306,7 +306,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 return [isNew, isDerived, isOther, taskH, '', '', desc].join('\t');
               });
               if (vacH > 0) {
-                rows.push([0, 0, 1, 0, '', '', `"[기타]\n- 휴가 (${vacLabel})"`].join('\t'));
+                rows.push([0, 0, 0, 0, '', '', `"[기타]\n- 휴가 (${vacLabel})"`].join('\t'));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);
@@ -395,7 +395,12 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                         const h = getSubWeekHours(s, start);
                         return (
                           <div key={s.id} className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600 flex-1 truncate">{s.title}</span>
+                            <span className="text-xs text-gray-600 flex-1 truncate">
+                              {s.title}
+                              {isSubstitute && s.assignee && (
+                                <span className="text-orange-400 ml-1">({s.assignee} 휴가 대무)</span>
+                              )}
+                            </span>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               {h > 0 && (
                                 <span className="text-[11px] font-semibold text-gray-400">{h}h</span>

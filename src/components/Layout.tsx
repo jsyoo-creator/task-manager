@@ -174,7 +174,7 @@ export default function Layout({
   const NAV = hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY;
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#1E2264' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#1E2264' }}>
 
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"

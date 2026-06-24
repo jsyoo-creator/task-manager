@@ -99,14 +99,14 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     [vacations, currentUserName, yearPrefix]
   );
   const myUsed = useMemo(() => myVacationsThisYear.reduce((a, v) => a + v.days, 0), [myVacationsThisYear]);
-  const myRemaining = Math.max(0, myAnnualTotal - myUsed);
+  const myRemaining = myAnnualTotal - myUsed;
 
   // 팀 전체 현황 — 본인 포함
   const memberStats = useMemo(
     () => teamMembers.map(m => {
       const annualTotal = m.annualLeave ?? DEFAULT_ANNUAL;
       const used = vacations.filter(v => v.memberName === m.displayName && v.date.startsWith(yearPrefix)).reduce((a, v) => a + v.days, 0);
-      return { user: m, used, remaining: Math.max(0, annualTotal - used), annualTotal };
+      return { user: m, used, remaining: annualTotal - used, annualTotal };
     }),
     [teamMembers, vacations, yearPrefix]
   );
@@ -258,7 +258,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-800 mb-1.5 truncate">{currentUserName || '—'}</p>
                 <div className="w-full h-2 bg-gray-100 rounded-full">
-                  <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${Math.min(100, Math.round((myUsed / myAnnualTotal) * 100))}%` }} />
+                  <div className="h-2 rounded-full bg-blue-400 transition-all" style={{ width: `${myAnnualTotal > 0 ? Math.min(100, Math.max(0, Math.round((myUsed / myAnnualTotal) * 100))) : 100}%` }} />
                 </div>
               </div>
             </div>
@@ -352,9 +352,9 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                   <div className="flex flex-col items-center gap-0.5 px-2">
                     <div className="w-full h-1.5 bg-gray-100 rounded-full">
                       <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
-                        style={{ width: `${Math.min(100, Math.round((used / annualTotal) * 100))}%` }} />
+                        style={{ width: `${annualTotal > 0 ? Math.min(100, Math.max(0, Math.round((used / annualTotal) * 100))) : 100}%` }} />
                     </div>
-                    <span className="text-[9px] text-gray-400">{Math.round((used / annualTotal) * 100)}%</span>
+                    <span className="text-[9px] text-gray-400">{annualTotal > 0 ? `${Math.round((used / annualTotal) * 100)}%` : '—'}</span>
                   </div>
                 </div>
               ))

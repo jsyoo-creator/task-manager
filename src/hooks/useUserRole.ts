@@ -113,7 +113,7 @@ export function useAllUsers() {
     await updateDoc(doc(db, 'users', uid), { role });
   };
 
-  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null }) => {
+  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; profileData?: Record<string, string> }) => {
     const { defaultTeamId, ...rest } = data;
     const payload: Record<string, unknown> = { ...rest };
     if ('defaultTeamId' in data) {

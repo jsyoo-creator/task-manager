@@ -22,6 +22,7 @@ import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
+import { useProfileFields } from '../hooks/useProfileFields';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
@@ -77,6 +78,7 @@ function App() {
   const { vacations, addVacation, deleteVacation } = useVacations();
   const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
+  const { profileFields, updateProfileFields } = useProfileFields();
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
   const { holidays: nextYearHolidays } = usePublicHolidays(currentYear + 1);
@@ -394,6 +396,8 @@ function App() {
                     onUpdateHolidays={updateHolidays}
                     orphanTaskCount={orphanTaskCount}
                     onCleanupOrphanTasks={() => cleanupOrphanTasks(validCategories)}
+                    profileFields={profileFields}
+                    onUpdateProfileFields={updateProfileFields}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />

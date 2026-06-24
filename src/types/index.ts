@@ -2,6 +2,13 @@ export type UserRole = 'superadmin' | 'manager' | 'user';
 export type Department = '기획' | '디자인' | '퍼블';
 export const DEPARTMENTS: Department[] = ['기획', '디자인', '퍼블'];
 
+export interface ProfileFieldDef {
+  id: string;
+  label: string;
+  required: boolean;
+  order: number;
+}
+
 export interface AppUser {
   uid: string;
   email: string;
@@ -11,7 +18,8 @@ export interface AppUser {
   department?: Department;
   selectedTeamIds?: string[];
   defaultTeamId?: string;
-  annualLeave?: number; // 개인 연간 휴가 일수 (미설정 시 기본값 15)
+  annualLeave?: number;
+  profileData?: Record<string, string>;
   createdAt: string;
 }
 

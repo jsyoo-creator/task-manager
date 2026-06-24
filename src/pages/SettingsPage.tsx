@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -37,6 +37,8 @@ interface Props {
   onReorderTeams: (ordered: Team[]) => Promise<void>;
   orphanTaskCount: number;
   onCleanupOrphanTasks: () => Promise<number>;
+  profileFields: ProfileFieldDef[];
+  onUpdateProfileFields: (fields: ProfileFieldDef[]) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -180,12 +182,13 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
 // ──────────────────────────────────────────
 const DEFAULT_ANNUAL = 0;
 
-function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, onDeleteUser, teams }: {
+function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, onDeleteUser, teams, profileFields }: {
   u: AppUser; viewerRole: UserRole; viewerTeamIds: string[]; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
-  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null }) => void;
+  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; profileData?: Record<string, string> }) => void;
   onDeleteUser: (uid: string) => Promise<void>;
   teams: Team[];
+  profileFields: ProfileFieldDef[];
 }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(u.displayName);
@@ -193,6 +196,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
   const [teamInput, setTeamInput] = useState<string[]>(u.selectedTeamIds ?? []);
   const [defaultTeamInput, setDefaultTeamInput] = useState<string | null>(u.defaultTeamId ?? null);
   const [annualLeaveStr, setAnnualLeaveStr] = useState<string>(String(u.annualLeave ?? DEFAULT_ANNUAL));
+  const [profileDataInput, setProfileDataInput] = useState<Record<string, string>>(u.profileData ?? {});
 
   // 최고 관리자: 본인 포함 전체 수정 가능
   // 중간 관리자: 본인 + 같은 팀 일반 사용자 수정 가능
@@ -204,6 +208,11 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
   const canDelete = (viewerRole === 'superadmin' || viewerRole === 'manager') && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
+    const missingRequired = profileFields.filter(f => f.required && !profileDataInput[f.id]?.trim());
+    if (missingRequired.length > 0) {
+      alert(`필수 항목을 입력해주세요: ${missingRequired.map(f => f.label).join(', ')}`);
+      return;
+    }
     const parsed = parseFloat(annualLeaveStr.replace(',', '.'));
     const annualLeave = isNaN(parsed) ? DEFAULT_ANNUAL : Math.round(parsed * 100) / 100;
     const resolvedDefault = teamInput.length >= 2 && defaultTeamInput && teamInput.includes(defaultTeamInput)
@@ -215,6 +224,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
       selectedTeamIds: teamInput,
       annualLeave,
       defaultTeamId: resolvedDefault,
+      profileData: profileDataInput,
     });
     setEditing(false);
   };
@@ -226,6 +236,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
     setTeamInput(u.selectedTeamIds ?? []);
     setDefaultTeamInput(u.defaultTeamId ?? null);
     setAnnualLeaveStr(String(u.annualLeave ?? DEFAULT_ANNUAL));
+    setProfileDataInput(u.profileData ?? {});
   };
 
   const userTeams = teams.filter(t => u.selectedTeamIds?.includes(t.id));
@@ -299,6 +310,20 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
             <label className="block text-xs text-gray-500 mb-1.5">직군</label>
             <DeptSelector value={deptInput} onChange={setDeptInput} />
           </div>
+          {profileFields.map(field => (
+            <div key={field.id}>
+              <label className="block text-xs text-gray-500 mb-1">
+                {field.label}
+                {field.required && <span className="text-red-400 ml-0.5">*</span>}
+              </label>
+              <input
+                value={profileDataInput[field.id] ?? ''}
+                onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
+                placeholder={field.required ? '필수 항목' : '선택 항목'}
+                className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+            </div>
+          ))}
           <div>
             <label className="block text-xs text-gray-500 mb-1.5">소속 팀 <span className="text-gray-400 font-normal">(복수 선택 가능)</span></label>
             {teams.length === 0 ? (
@@ -2293,6 +2318,101 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 }
 
 // ──────────────────────────────────────────
+// 프로필 추가 필드 관리 (superadmin 전용)
+// ──────────────────────────────────────────
+function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
+  profileFields: ProfileFieldDef[];
+  onUpdateProfileFields: (fields: ProfileFieldDef[]) => Promise<void>;
+}) {
+  const [newLabel, setNewLabel] = useState('');
+  const [newRequired, setNewRequired] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleAdd = async () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const newField: ProfileFieldDef = {
+      id: `pf_${Date.now()}`,
+      label,
+      required: newRequired,
+      order: profileFields.length,
+    };
+    setSaving(true);
+    await onUpdateProfileFields([...profileFields, newField]);
+    setSaving(false);
+    setNewLabel('');
+    setNewRequired(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await onUpdateProfileFields(profileFields.filter(f => f.id !== id));
+  };
+
+  const handleToggleRequired = async (id: string) => {
+    await onUpdateProfileFields(profileFields.map(f => f.id === id ? { ...f, required: !f.required } : f));
+  };
+
+  return (
+    <section className="glass-card p-5 space-y-3">
+      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+        <User size={14} className="text-indigo-400" />
+        프로필 추가 필드 관리
+      </h3>
+      <p className="text-xs text-gray-400">추가한 필드는 모든 사용자 프로필 편집 화면(직군 아래)에 표시됩니다.</p>
+
+      {profileFields.length > 0 && (
+        <div className="space-y-2">
+          {profileFields.map(field => (
+            <div key={field.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+              <span className="text-sm text-gray-700 flex-1">{field.label}</span>
+              <button
+                onClick={() => handleToggleRequired(field.id)}
+                className={`text-[11px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                  field.required
+                    ? 'bg-red-100 text-red-500 hover:bg-red-200'
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                }`}>
+                {field.required ? '필수' : '선택'}
+              </button>
+              <button
+                onClick={() => handleDelete(field.id)}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <input
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="새 필드 이름 (예: 포지션)"
+          className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+        />
+        <button
+          onClick={() => setNewRequired(r => !r)}
+          className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border transition-colors whitespace-nowrap ${
+            newRequired
+              ? 'bg-red-50 text-red-500 border-red-200'
+              : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300'
+          }`}>
+          {newRequired ? '필수' : '선택'}
+        </button>
+        <button
+          onClick={handleAdd}
+          disabled={!newLabel.trim() || saving}
+          className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 disabled:opacity-40 transition-colors">
+          <Plus size={13} /> 추가
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────
 // 메인 페이지
 // ──────────────────────────────────────────
 export default function SettingsPage({
@@ -2302,6 +2422,7 @@ export default function SettingsPage({
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
+  profileFields, onUpdateProfileFields,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -2623,7 +2744,7 @@ export default function SettingsPage({
                                 <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
                                   viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}
                                   isSelf={u.uid === appUser.uid}
-                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} onDeleteUser={deleteUser} teams={teams} />
+                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} onDeleteUser={deleteUser} teams={teams} profileFields={profileFields} />
                               ))}
                           </div>
                         </div>
@@ -2679,6 +2800,11 @@ export default function SettingsPage({
             />
           </div>
         </section>
+      )}
+
+      {/* 슈퍼어드민 전용: 프로필 추가 필드 관리 */}
+      {appUser.role === 'superadmin' && (
+        <ProfileFieldManager profileFields={profileFields} onUpdateProfileFields={onUpdateProfileFields} />
       )}
 
       {/* 슈퍼어드민 전용: 데이터 마이그레이션 */}

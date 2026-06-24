@@ -343,7 +343,11 @@ function App() {
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} currentUserName={currentUserName} canSeeAll={canSeeAll} />
             } />
             <Route path="/vacation" element={(() => {
-              const vacTeamMembers = selectedTeam ? allUsers.filter(u => u.defaultTeamId === selectedTeam.id) : [];
+              const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
+                u.defaultTeamId
+                  ? u.defaultTeamId === selectedTeam.id
+                  : u.selectedTeamIds?.includes(selectedTeam.id)
+              ) : [];
               const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
               return (
                 <VacationPage

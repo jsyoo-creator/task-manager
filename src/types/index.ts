@@ -7,6 +7,8 @@ export interface ProfileFieldDef {
   label: string;
   required: boolean;
   order: number;
+  fieldType: 'text' | 'select';
+  options?: string[];
 }
 
 export interface AppUser {

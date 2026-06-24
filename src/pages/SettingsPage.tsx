@@ -316,12 +316,22 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                 {field.label}
                 {field.required && <span className="text-red-400 ml-0.5">*</span>}
               </label>
-              <input
-                value={profileDataInput[field.id] ?? ''}
-                onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
-                placeholder={field.required ? '필수 항목' : '선택 항목'}
-                className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              />
+              {field.fieldType === 'select' && field.options?.length ? (
+                <select
+                  value={profileDataInput[field.id] ?? ''}
+                  onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
+                  className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                  <option value="">{field.required ? '선택 (필수)' : '선택'}</option>
+                  {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  value={profileDataInput[field.id] ?? ''}
+                  onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
+                  placeholder={field.required ? '필수 항목' : '선택 항목'}
+                  className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
+              )}
             </div>
           ))}
           <div>
@@ -2326,22 +2336,41 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 }) {
   const [newLabel, setNewLabel] = useState('');
   const [newRequired, setNewRequired] = useState(false);
+  const [newFieldType, setNewFieldType] = useState<'text' | 'select'>('text');
+  const [newOptionInput, setNewOptionInput] = useState('');
+  const [newOptions, setNewOptions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const handleAddOption = () => {
+    const v = newOptionInput.trim();
+    if (!v || newOptions.includes(v)) return;
+    setNewOptions(o => [...o, v]);
+    setNewOptionInput('');
+  };
 
   const handleAdd = async () => {
     const label = newLabel.trim();
     if (!label) return;
+    if (newFieldType === 'select' && newOptions.length < 1) {
+      alert('드롭다운 옵션을 1개 이상 추가해주세요.');
+      return;
+    }
     const newField: ProfileFieldDef = {
       id: `pf_${Date.now()}`,
       label,
       required: newRequired,
       order: profileFields.length,
+      fieldType: newFieldType,
+      options: newFieldType === 'select' ? newOptions : undefined,
     };
     setSaving(true);
     await onUpdateProfileFields([...profileFields, newField]);
     setSaving(false);
     setNewLabel('');
     setNewRequired(false);
+    setNewFieldType('text');
+    setNewOptions([]);
+    setNewOptionInput('');
   };
 
   const handleDelete = async (id: string) => {
@@ -2358,19 +2387,20 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
         <User size={14} className="text-indigo-400" />
         프로필 추가 필드 관리
       </h3>
-      <p className="text-xs text-gray-400">추가한 필드는 모든 사용자 프로필 편집 화면(직군 아래)에 표시됩니다.</p>
+      <p className="text-xs text-gray-400">추가한 필드는 모든 사용자 프로필(직군 아래)에 표시됩니다.</p>
 
       {profileFields.length > 0 && (
         <div className="space-y-2">
           {profileFields.map(field => (
             <div key={field.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
               <span className="text-sm text-gray-700 flex-1">{field.label}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
+                {field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : '텍스트'}
+              </span>
               <button
                 onClick={() => handleToggleRequired(field.id)}
                 className={`text-[11px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                  field.required
-                    ? 'bg-red-100 text-red-500 hover:bg-red-200'
-                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                  field.required ? 'bg-red-100 text-red-500 hover:bg-red-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                 }`}>
                 {field.required ? '필수' : '선택'}
               </button>
@@ -2384,28 +2414,63 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <input
-          value={newLabel}
-          onChange={e => setNewLabel(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="새 필드 이름 (예: 포지션)"
-          className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
-        />
-        <button
-          onClick={() => setNewRequired(r => !r)}
-          className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border transition-colors whitespace-nowrap ${
-            newRequired
-              ? 'bg-red-50 text-red-500 border-red-200'
-              : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300'
-          }`}>
-          {newRequired ? '필수' : '선택'}
-        </button>
+      <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-3 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <input
+            value={newLabel}
+            onChange={e => setNewLabel(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && newFieldType === 'text' && handleAdd()}
+            placeholder="필드 이름 (예: 포지션)"
+            className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+          />
+          <button
+            onClick={() => setNewFieldType(t => t === 'text' ? 'select' : 'text')}
+            className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border transition-colors whitespace-nowrap ${
+              newFieldType === 'select' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+            }`}>
+            {newFieldType === 'select' ? '드롭다운' : '텍스트'}
+          </button>
+          <button
+            onClick={() => setNewRequired(r => !r)}
+            className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border transition-colors whitespace-nowrap ${
+              newRequired ? 'bg-red-50 text-red-500 border-red-200' : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+            }`}>
+            {newRequired ? '필수' : '선택'}
+          </button>
+        </div>
+
+        {newFieldType === 'select' && (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
+              {newOptions.map(o => (
+                <span key={o} className="flex items-center gap-1 text-xs bg-white border border-gray-200 rounded-full px-2 py-0.5 text-gray-600">
+                  {o}
+                  <button onClick={() => setNewOptions(opts => opts.filter(x => x !== o))} className="text-gray-300 hover:text-red-400">
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                value={newOptionInput}
+                onChange={e => setNewOptionInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddOption()}
+                placeholder="옵션 입력 후 Enter"
+                className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+              />
+              <button onClick={handleAddOption} className="text-xs px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors">
+                추가
+              </button>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={handleAdd}
           disabled={!newLabel.trim() || saving}
-          className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 disabled:opacity-40 transition-colors">
-          <Plus size={13} /> 추가
+          className="flex items-center gap-1 text-sm px-4 py-1.5 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 disabled:opacity-40 transition-colors">
+          <Plus size={13} /> 필드 추가
         </button>
       </div>
     </section>
@@ -2426,6 +2491,8 @@ export default function SettingsPage({
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
+  const [myProfileData, setMyProfileData] = useState<Record<string, string>>(appUser.profileData ?? {});
+  const [myProfileSaved, setMyProfileSaved] = useState(false);
   const { users, updateUserRole, updateUserInfo, deleteUser } = useAllUsers();
 
   const canManageUsers = appUser.role === 'superadmin' || appUser.role === 'manager';
@@ -2591,6 +2658,45 @@ export default function SettingsPage({
               <p className="mt-1.5 text-xs text-orange-500">직군을 선택해주세요. 모든 구성원이 필수 설정해야 합니다.</p>
             )}
           </div>
+          {profileFields.length > 0 && (
+            <div className="space-y-3">
+              {profileFields.map(field => (
+                <div key={field.id}>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                    {field.label}
+                    {field.required && <span className="text-red-400 ml-0.5">*</span>}
+                  </label>
+                  {field.fieldType === 'select' && field.options?.length ? (
+                    <select
+                      value={myProfileData[field.id] ?? ''}
+                      onChange={e => setMyProfileData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                      className="w-full max-w-xs text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                      <option value="">{field.required ? '선택 (필수)' : '선택'}</option>
+                      {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      value={myProfileData[field.id] ?? ''}
+                      onChange={e => setMyProfileData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                      placeholder={field.required ? '필수 항목' : '선택 항목'}
+                      className="w-full max-w-xs text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={async () => {
+                  const missing = profileFields.filter(f => f.required && !myProfileData[f.id]?.trim());
+                  if (missing.length > 0) { alert(`필수 항목을 입력해주세요: ${missing.map(f => f.label).join(', ')}`); return; }
+                  await updateUserInfo(appUser.uid, { profileData: myProfileData });
+                  setMyProfileSaved(true);
+                  setTimeout(() => setMyProfileSaved(false), 2000);
+                }}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${myProfileSaved ? 'bg-green-500 text-white' : 'btn-shiny-primary'}`}>
+                {myProfileSaved ? '저장됨' : '추가 정보 저장'}
+              </button>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">
               소속 팀 <span className="text-gray-400 font-normal">(복수 선택 가능)</span>

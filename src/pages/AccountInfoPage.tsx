@@ -189,6 +189,8 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
 
   const activeTeam = teams.find(t => t.id === activeTeamId);
   const sorted = sortUsers(allUsers.filter(u => getUserTeamId(u) === activeTeamId));
+  // 계정 정보 페이지에 노출 설정된 필드만
+  const visibleFields = profileFields.filter(f => f.showInAccountInfo !== false);
 
   return (
     <div className="space-y-5">
@@ -212,7 +214,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
               <DownloadModal
                 teams={teams}
                 allUsers={allUsers}
-                profileFields={profileFields}
+                profileFields={visibleFields}
                 onClose={() => setShowDownload(false)}
               />
             )}
@@ -259,7 +261,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr>
-                    {['이름', '직군', '권한', ...profileFields.map(f => f.label + (f.required ? ' *' : ''))].map(h => (
+                    {['이름', '직군', '권한', ...visibleFields.map(f => f.label + (f.required ? ' *' : ''))].map(h => (
                       <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-gray-400 uppercase tracking-wider bg-gray-50/80 border-b border-gray-100 whitespace-nowrap">
                         {h}
                       </th>
@@ -300,7 +302,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
                             {ROLE_LABEL[u.role] ?? u.role}
                           </span>
                         </td>
-                        {profileFields.map(f => {
+                        {visibleFields.map(f => {
                           const val = getCellValue(u, f);
                           return (
                             <td key={f.id} className="px-5 py-3.5 whitespace-nowrap">

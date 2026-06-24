@@ -2568,6 +2568,18 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                     {field.required ? '필수' : '선택'}
                   </span>
                   <button
+                    title="계정 정보 페이지 노출 여부"
+                    onClick={() => onUpdateProfileFields(profileFields.map(f =>
+                      f.id === field.id ? { ...f, showInAccountInfo: f.showInAccountInfo === false ? true : false } : f
+                    ))}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors whitespace-nowrap ${
+                      field.showInAccountInfo === false
+                        ? 'bg-gray-100 text-gray-300 hover:bg-gray-200'
+                        : 'bg-teal-50 text-teal-500 hover:bg-teal-100'
+                    }`}>
+                    계정정보 {field.showInAccountInfo === false ? '숨김' : '노출'}
+                  </button>
+                  <button
                     onClick={() => startEdit(field)}
                     className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-indigo-400 hover:bg-indigo-50 transition-all">
                     <Pencil size={12} />

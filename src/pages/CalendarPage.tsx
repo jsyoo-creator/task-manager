@@ -89,7 +89,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     subtasks.filter(s =>
       s.endDate &&
       (activeCategory === 'all' || s.category === activeCategory) &&
-      (canSeeAll || s.assignee === currentUserName || s.receiver === currentUserName)
+      (canSeeAll || s.assignee === currentUserName)
     ),
     [subtasks, activeCategory, canSeeAll, currentUserName]
   );

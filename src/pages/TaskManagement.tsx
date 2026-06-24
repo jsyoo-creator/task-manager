@@ -536,6 +536,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const isTaskVisible = (t: Task): boolean => {
     if (canSeeAll) return true;
     if (t.assignee === currentUserName) return true;
+    if (t.receiver === currentUserName) return true;
     return !!t.subTaskData && Object.values(t.subTaskData).some(e => e.assignee === currentUserName);
   };
 

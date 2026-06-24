@@ -158,6 +158,15 @@ function App() {
     : [];
   const teamAssignees = teamMembers.map(m => m.name);
 
+  // 휴가 표시용: defaultTeamId 기준, 미설정 시 selectedTeamIds 폴백
+  const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
+    u.defaultTeamId
+      ? u.defaultTeamId === selectedTeam.id
+      : u.selectedTeamIds?.includes(selectedTeam.id)
+  ) : [];
+  const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
+  const teamVacations = vacations.filter(v => vacMemberNames.has(v.memberName));
+
   // 활성 카테고리에 해당하는 파트 (없으면 undefined → 팀 기본 설정 사용)
   const activePart = activeCategory !== 'all'
     ? activeParts.find(p => p.name === activeCategory)
@@ -337,29 +346,21 @@ function App() {
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={vacations} />
+              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={teamVacations} />
             } />
             <Route path="/weekly" element={
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} currentUserName={currentUserName} canSeeAll={canSeeAll} />
             } />
-            <Route path="/vacation" element={(() => {
-              const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
-                u.defaultTeamId
-                  ? u.defaultTeamId === selectedTeam.id
-                  : u.selectedTeamIds?.includes(selectedTeam.id)
-              ) : [];
-              const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
-              return (
-                <VacationPage
-                  vacations={vacations.filter(v => vacMemberNames.has(v.memberName))}
-                  teamMembers={vacTeamMembers}
-                  currentUserName={currentUserName}
-                  userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
-                  onAddVacation={addVacation}
-                  onDeleteVacation={deleteVacation}
-                />
-              );
-            })()} />
+            <Route path="/vacation" element={
+              <VacationPage
+                vacations={teamVacations}
+                teamMembers={vacTeamMembers}
+                currentUserName={currentUserName}
+                userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
+                onAddVacation={addVacation}
+                onDeleteVacation={deleteVacation}
+              />
+            } />
             <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
             <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} /> : null} />
             <Route path="/settings" element={

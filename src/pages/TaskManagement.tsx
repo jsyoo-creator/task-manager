@@ -1485,6 +1485,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       {f.isUrl ? (
                         <div className="flex items-center gap-1">
                           <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
                             className="text-xs text-blue-500 hover:text-blue-700 max-w-[200px] truncate">
                             {val}
                           </a>
@@ -1525,7 +1526,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       ) : cfType === 'link' ? (
                         val
                           ? <div className="flex items-center gap-1">
-                              <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:text-blue-700 max-w-[200px] truncate">{val}</a>
+                              <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:text-blue-700 max-w-[200px] truncate">{val}</a>
                               <button onClick={() => copyUrl(cf.id, val)} className="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors">
                                 {copiedUrlKey === cf.id ? <Check size={10} className="text-green-500" /> : <Copy size={10} />}
                               </button>

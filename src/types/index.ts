@@ -7,7 +7,7 @@ export interface ProfileFieldDef {
   label: string;
   required: boolean;
   order: number;
-  fieldType: 'text' | 'select';
+  fieldType: 'text' | 'select' | 'text+select';
   options?: string[];
 }
 

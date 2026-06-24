@@ -208,7 +208,11 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
   const canDelete = (viewerRole === 'superadmin' || viewerRole === 'manager') && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
-    const missingRequired = profileFields.filter(f => f.required && !profileDataInput[f.id]?.trim());
+    const missingRequired = profileFields.filter(f => {
+      if (!f.required) return false;
+      if (f.fieldType === 'text+select') return !profileDataInput[f.id]?.trim() || !profileDataInput[`${f.id}__sel`]?.trim();
+      return !profileDataInput[f.id]?.trim();
+    });
     if (missingRequired.length > 0) {
       alert(`필수 항목을 입력해주세요: ${missingRequired.map(f => f.label).join(', ')}`);
       return;
@@ -316,7 +320,23 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                 {field.label}
                 {field.required && <span className="text-red-400 ml-0.5">*</span>}
               </label>
-              {field.fieldType === 'select' && field.options?.length ? (
+              {field.fieldType === 'text+select' && field.options?.length ? (
+                <div className="flex gap-1.5 max-w-xs">
+                  <input
+                    value={profileDataInput[field.id] ?? ''}
+                    onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
+                    placeholder={field.required ? '직접 입력 (필수)' : '직접 입력'}
+                    className="flex-1 min-w-0 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  />
+                  <select
+                    value={profileDataInput[`${field.id}__sel`] ?? ''}
+                    onChange={e => setProfileDataInput(prev => ({ ...prev, [`${field.id}__sel`]: e.target.value }))}
+                    className="text-sm px-2 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                    <option value="">{field.required ? '선택 (필수)' : '선택'}</option>
+                    {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              ) : field.fieldType === 'select' && field.options?.length ? (
                 <select
                   value={profileDataInput[field.id] ?? ''}
                   onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
@@ -2336,7 +2356,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 }) {
   const [newLabel, setNewLabel] = useState('');
   const [newRequired, setNewRequired] = useState(false);
-  const [newFieldType, setNewFieldType] = useState<'text' | 'select'>('text');
+  const [newFieldType, setNewFieldType] = useState<'text' | 'select' | 'text+select'>('text');
   const [newOptionInput, setNewOptionInput] = useState('');
   const [newOptions, setNewOptions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -2345,7 +2365,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editRequired, setEditRequired] = useState(false);
-  const [editFieldType, setEditFieldType] = useState<'text' | 'select'>('text');
+  const [editFieldType, setEditFieldType] = useState<'text' | 'select' | 'text+select'>('text');
   const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editOptionInput, setEditOptionInput] = useState('');
 
@@ -2375,15 +2395,21 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     setEditOptionInput('');
   };
 
+  const cycleFieldType = (t: 'text' | 'select' | 'text+select') =>
+    t === 'text' ? 'select' : t === 'select' ? 'text+select' : 'text' as const;
+
+  const fieldTypeLabel = (t: 'text' | 'select' | 'text+select') =>
+    t === 'select' ? '드롭다운' : t === 'text+select' ? '텍스트+드롭다운' : '텍스트';
+
   const handleSaveEdit = async () => {
     if (!editingId) return;
-    if (editFieldType === 'select' && editOptions.length < 1) {
+    if (editFieldType !== 'text' && editOptions.length < 1) {
       alert('드롭다운 옵션을 1개 이상 추가해주세요.');
       return;
     }
     await onUpdateProfileFields(profileFields.map(f =>
       f.id === editingId
-        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: editFieldType === 'select' ? editOptions : undefined }
+        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: editFieldType !== 'text' ? editOptions : undefined }
         : f
     ));
     setEditingId(null);
@@ -2399,7 +2425,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const handleAdd = async () => {
     const label = newLabel.trim();
     if (!label) return;
-    if (newFieldType === 'select' && newOptions.length < 1) {
+    if (newFieldType !== 'text' && newOptions.length < 1) {
       alert('드롭다운 옵션을 1개 이상 추가해주세요.');
       return;
     }
@@ -2409,7 +2435,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       required: newRequired,
       order: profileFields.length,
       fieldType: newFieldType,
-      options: newFieldType === 'select' ? newOptions : undefined,
+      options: newFieldType !== 'text' ? newOptions : undefined,
     };
     setSaving(true);
     await onUpdateProfileFields([...profileFields, newField]);
@@ -2457,11 +2483,11 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                       className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
                     />
                     <button
-                      onClick={() => setEditFieldType(t => t === 'text' ? 'select' : 'text')}
+                      onClick={() => setEditFieldType(t => cycleFieldType(t))}
                       className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border whitespace-nowrap transition-colors ${
-                        editFieldType === 'select' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-500 border-gray-200'
+                        editFieldType !== 'text' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-500 border-gray-200'
                       }`}>
-                      {editFieldType === 'select' ? '드롭다운' : '텍스트'}
+                      {fieldTypeLabel(editFieldType)}
                     </button>
                     <button
                       onClick={() => setEditRequired(r => !r)}
@@ -2471,7 +2497,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                       {editRequired ? '필수' : '선택'}
                     </button>
                   </div>
-                  {editFieldType === 'select' && (
+                  {editFieldType !== 'text' && (
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap gap-1.5">
                         {editOptions.map(o => (
@@ -2523,7 +2549,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                   </div>
                   <span className="text-sm text-gray-700 flex-1">{field.label}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
-                    {field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : '텍스트'}
+                    {field.fieldType === 'text' ? '텍스트' : field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : `텍스트+드롭다운 ${field.options?.length ?? 0}개`}
                   </span>
                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${field.required ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400'}`}>
                     {field.required ? '필수' : '선택'}
@@ -2550,11 +2576,11 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
             className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
           />
           <button
-            onClick={() => setNewFieldType(t => t === 'text' ? 'select' : 'text')}
+            onClick={() => setNewFieldType(t => cycleFieldType(t))}
             className={`text-[11px] px-2.5 py-1.5 rounded-lg font-medium border transition-colors whitespace-nowrap ${
-              newFieldType === 'select' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+              newFieldType !== 'text' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
             }`}>
-            {newFieldType === 'select' ? '드롭다운' : '텍스트'}
+            {fieldTypeLabel(newFieldType)}
           </button>
           <button
             onClick={() => setNewRequired(r => !r)}
@@ -2565,7 +2591,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
           </button>
         </div>
 
-        {newFieldType === 'select' && (
+        {newFieldType !== 'text' && (
           <div className="space-y-1.5">
             <div className="flex flex-wrap gap-1.5">
               {newOptions.map(o => (
@@ -2792,7 +2818,23 @@ export default function SettingsPage({
                     {field.label}
                     {field.required && <span className="text-red-400 ml-0.5">*</span>}
                   </label>
-                  {field.fieldType === 'select' && field.options?.length ? (
+                  {field.fieldType === 'text+select' && field.options?.length ? (
+                    <div className="flex gap-1.5 max-w-xs">
+                      <input
+                        value={myProfileData[field.id] ?? ''}
+                        onChange={e => setMyProfileData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        placeholder={field.required ? '직접 입력 (필수)' : '직접 입력'}
+                        className="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
+                      <select
+                        value={myProfileData[`${field.id}__sel`] ?? ''}
+                        onChange={e => setMyProfileData(prev => ({ ...prev, [`${field.id}__sel`]: e.target.value }))}
+                        className="text-sm px-2 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                        <option value="">{field.required ? '선택 (필수)' : '선택'}</option>
+                        {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  ) : field.fieldType === 'select' && field.options?.length ? (
                     <select
                       value={myProfileData[field.id] ?? ''}
                       onChange={e => setMyProfileData(prev => ({ ...prev, [field.id]: e.target.value }))}
@@ -2812,7 +2854,11 @@ export default function SettingsPage({
               ))}
               <button
                 onClick={async () => {
-                  const missing = profileFields.filter(f => f.required && !myProfileData[f.id]?.trim());
+                  const missing = profileFields.filter(f => {
+                    if (!f.required) return false;
+                    if (f.fieldType === 'text+select') return !myProfileData[f.id]?.trim() || !myProfileData[`${f.id}__sel`]?.trim();
+                    return !myProfileData[f.id]?.trim();
+                  });
                   if (missing.length > 0) { alert(`필수 항목을 입력해주세요: ${missing.map(f => f.label).join(', ')}`); return; }
                   await updateUserInfo(appUser.uid, { profileData: myProfileData });
                   setMyProfileSaved(true);

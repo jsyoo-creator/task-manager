@@ -1472,7 +1472,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <div className="overflow-x-auto relative">
               <button
                 onClick={copyMetaFields}
-                className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors z-10"
+                className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:text-gray-700 hover:border-gray-300 shadow-sm transition-colors z-10"
               >
                 {metaCopied ? <><Check size={11} className="text-green-500" /><span className="text-green-500">복사됨</span></> : <><Copy size={11} /><span>복사</span></>}
               </button>

@@ -1151,8 +1151,6 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   return (
     <div
       className={`border-b border-black/4 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`}
-      draggable
-      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
       onDragEnd={onDragEnd}
@@ -1171,11 +1169,16 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             </div>
           ) : (
             <>
-              <div className="opacity-0 group-hover/handle:opacity-100 absolute inset-0 flex items-center justify-center transition-opacity cursor-pointer"
+              {/* 체크박스: absolute로 grip 위에 위치, hover 시 표시 — draggable 없음 */}
+              <div className="opacity-0 group-hover/handle:opacity-100 absolute inset-0 z-10 flex items-center justify-center transition-opacity cursor-pointer"
                 onClick={e => { e.stopPropagation(); onSelect?.(); }}>
                 <div className="w-[15px] h-[15px] rounded border-2 border-gray-300 hover:border-indigo-400 bg-white" />
               </div>
-              <div className="group-hover/handle:opacity-0 text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing transition-opacity">
+              {/* grip: draggable을 여기에만 설정 → hover 시 체크박스가 위에 오므로 드래그 불가 */}
+              <div
+                draggable
+                onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+                className="group-hover/handle:opacity-0 text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing transition-opacity">
                 <GripVertical size={13} />
               </div>
             </>

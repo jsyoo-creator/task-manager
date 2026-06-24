@@ -311,8 +311,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 return [isNew, isDerived, isOther, taskH, '', '', desc].join('\t');
               });
               if (vacH > 0) {
-                const vacLines = vacEntries.map(e => `- ${e.type} (${e.dateStr})`).join('\n');
-                rows.push([0, 0, 0, 0, '', '', `"[기타]\n${vacLines}"`].join('\t'));
+                const vacLines = vacEntries.map(e => `※ ${e.type} (${e.dateStr})`).join('\n');
+                rows.push([0, 0, 0, 0, '', '', `"${vacLines}"`].join('\t'));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);

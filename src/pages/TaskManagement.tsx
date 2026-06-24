@@ -603,7 +603,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.35)' }}>
               <Download size={14} /> 내보내기
             </button>
-            {exportDropOpen && parts && parts.length > 0 && (
+            {exportDropOpen && (
               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[260px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
 
                 {/* 파트 선택 */}

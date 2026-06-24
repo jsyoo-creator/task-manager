@@ -945,6 +945,27 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <span className="text-sm font-semibold text-white">{selectedIds.size}개 선택됨</span>
           <div className="w-px h-4 bg-white/20" />
           <button
+            onClick={() => {
+              tasks.forEach((t, i) => { if (t.sortOrder !== i) onUpdateTask(t.id, { sortOrder: i }); });
+              filtered
+                .filter(t => selectedIds.has(t.id))
+                .forEach((t, i) => {
+                  const idx = tasks.findIndex(x => x.id === t.id);
+                  onAddTask({
+                    projectId: t.projectId, teamId: t.teamId, taskMonth: t.taskMonth,
+                    category: t.category, title: t.title, type: '신규', status: '진행 전',
+                    receiver: t.receiver, assignee: t.assignee,
+                    startDate: '', endDate: '', weeklyHours: {}, totalHours: 0,
+                    revisionLevel: 0, sortOrder: idx + 0.5 + i * 0.01,
+                  });
+                });
+              setSelectedIds(new Set());
+            }}
+            className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
+            <Copy size={13} /> 복사
+          </button>
+          <div className="w-px h-4 bg-white/20" />
+          <button
             onClick={() => setPendingBulkDelete(true)}
             className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-sm font-semibold transition-colors">
             <Trash2 size={13} /> 삭제

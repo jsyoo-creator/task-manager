@@ -285,7 +285,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
           {personData.map(({ person, groups, totalH, vacH, vacLabel }) => {
             const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
-              const rows = groups.map(({ task, subs, taskH }) => {
+              const rows = groups.map(({ task, subs, taskH, isSubstitute }) => {
                 const isNew      = task.type === '신규'  ? 1 : 0;
                 const isDerived  = task.type === '파생'  ? 1 : 0;
                 const isOther    = (task.type !== '신규' && task.type !== '파생') ? 1 : 0;
@@ -298,7 +298,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const lines = [`[${task.type}] ${task.title}`];
                 subs.forEach(s => {
                   const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
-                  lines.push(`- ${s.title}${sd ? ` ${sd}` : ''}`);
+                  const subSuffix = isSubstitute && s.assignee ? ` (${s.assignee} 휴가 대무)` : '';
+                  lines.push(`- ${s.title}${sd ? ` ${sd}` : ''}${subSuffix}`);
                 });
                 const desc = lines.length > 1
                   ? `"${lines.join('\n').replace(/"/g, '""')}"`

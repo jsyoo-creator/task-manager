@@ -1072,14 +1072,42 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               <span className="text-xs font-semibold text-gray-800 truncate group-hover/title:text-blue-600 transition-colors">{task.title}</span>
             </button>,
           ];
-          if (fc.key === 'category') return [
-            <span key="category" className="text-xs truncate">
-              <span className={`inline-flex items-center gap-1.5`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
-                <span className="text-gray-700 truncate">{task.category}</span>
+          if (fc.key === 'category') {
+            if (fc.customType === 'select' && fc.options?.length) {
+              const custColor = fc.optionColors?.[task.category];
+              return [
+                <div key="category" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                  {custColor ? (
+                    <div className="flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: custColor.bg, color: custColor.text }}>
+                      <span className="truncate">{task.category || '-'}</span>
+                      <ChevronDown size={10} className="flex-shrink-0 ml-1" />
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.category || '-'}</span>
+                      <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
+                    </>
+                  )}
+                  {canManage && (
+                    <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.category}
+                      onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                      <option value="">-</option>
+                      {fc.options.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  )}
+                </div>
+              ];
+            }
+            return [
+              <span key="category" className="text-xs truncate">
+                <span className={`inline-flex items-center gap-1.5`}>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
+                  <span className="text-gray-700 truncate">{task.category}</span>
+                </span>
               </span>
-            </span>
-          ];
+            ];
+          }
           if (fc.key === 'type') {
             const typeOpts = (fc.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
             const typeColor = fc.optionColors?.[task.type];

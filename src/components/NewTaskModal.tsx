@@ -191,8 +191,19 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 );
               }
 
-              // category는 항상 파트 이름 드롭다운 (customType 무시)
+              // category: 커스텀 셀렉트면 해당 옵션으로, 아니면 파트 이름 드롭다운
               if (k === 'category') {
+                if (fc?.customType === 'select' && fc.options?.length) {
+                  return (
+                    <div>
+                      <label className={lbl}>{fieldLabel}</label>
+                      <select className={cls} value={form.category} onChange={e => setF({ category: e.target.value })}>
+                        <option value="">선택하세요</option>
+                        {fc.options.map(o => <option key={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  );
+                }
                 if (partNames.length === 0) return null;
                 return (
                   <div>

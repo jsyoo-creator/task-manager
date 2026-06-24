@@ -363,15 +363,31 @@ export default function TaskDetailPanel({
           })()}
 
           {/* 행 2: 파트 / 담당자(접수자) / 접수자(담당자) — formConfig 순서 반영 */}
-          <div className={`grid ${parts.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-x-3 py-2.5 border-b border-gray-100`}>
-            {parts.length > 0 && (
+          {(() => {
+            const categoryFc = builtinFields.find(f => f.key === 'category');
+            const isCustomCategory = categoryFc?.customType === 'select' && !!categoryFc.options?.length;
+            const showCategory = parts.length > 0 || isCustomCategory;
+            return (
+          <div className={`grid ${showCategory ? 'grid-cols-3' : 'grid-cols-2'} gap-x-3 py-2.5 border-b border-gray-100`}>
+            {showCategory && (
               <div>
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('category')}</p>
                 {canManage ? (
-                  <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
-                    value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
-                    {parts.map(p => <option key={p.id}>{p.name}</option>)}
-                  </select>
+                  isCustomCategory ? (
+                    <div className="relative flex items-center gap-1 cursor-pointer">
+                      <span className="text-sm text-gray-700 truncate">{task.category || '-'}</span>
+                      <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                        <option value="">-</option>
+                        {categoryFc!.options!.map(o => <option key={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  ) : (
+                    <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
+                      value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                      {parts.map(p => <option key={p.id}>{p.name}</option>)}
+                    </select>
+                  )
                 ) : <span className="text-sm text-gray-700">{task.category}</span>}
               </div>
             )}
@@ -492,6 +508,8 @@ export default function TaskDetailPanel({
               </>
             )}
           </div>
+            );
+          })()}
 
           {/* 행 3: 기간 */}
           <div className="py-2.5">

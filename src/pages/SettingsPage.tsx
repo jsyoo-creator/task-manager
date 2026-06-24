@@ -1771,10 +1771,12 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
     return { key, label: bf?.customLabel ?? defaultLabel, enabled: true, order: i };
   });
   const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
+  const customFormFields = (team.formConfig?.customFields ?? []).filter(f => f.enabled !== false);
 
   const defaultFields: ExcelFieldConfig[] = [
     ...builtinExcelFields,
     ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: builtinExcelFields.length + i })),
+    ...customFormFields.map((f, i) => ({ key: f.id, label: f.label, enabled: false, order: builtinExcelFields.length + metaFields.length + i })),
   ];
 
   const buildFields = (saved: ExcelFieldConfig[] | undefined): ExcelFieldConfig[] => {
@@ -1800,8 +1802,7 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   }, [selectedTarget, team.id, team.excelConfig, currentPart?.excelConfig]);
 
   useEffect(() => {
-    const labelMap = Object.fromEntries(defaultFields.map(f => [f.key, f.label]));
-    setFields(fs => fs.map(f => ({ ...f, label: labelMap[f.key] ?? f.label })));
+    setFields(buildFields(isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team.formConfig]);
 

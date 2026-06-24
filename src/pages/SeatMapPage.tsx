@@ -55,9 +55,18 @@ function SeatCell({ assigned, color, photoURL, department }: { assigned: string;
       {assigned ? (
         <div className="flex items-center gap-2 px-2">
           {photoURL
-            ? <img src={photoURL} alt={assigned} className="w-7 h-7 rounded-full object-cover ring-2 ring-white flex-shrink-0" />
-            : <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: color }}>{assigned.slice(0, 1)}</div>
+            ? <img
+                src={photoURL}
+                alt={assigned}
+                className="w-7 h-7 rounded-full object-cover ring-2 ring-white flex-shrink-0"
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement)?.style?.removeProperty('display'); }}
+              />
+            : null
           }
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+            style={{ backgroundColor: color, display: photoURL ? 'none' : undefined }}
+          >{assigned.slice(0, 1)}</div>
           <div className="flex flex-col" style={{ gap: '2px' }}>
             <p className="text-sm font-semibold text-gray-800 leading-tight">{assigned}</p>
             {department && (

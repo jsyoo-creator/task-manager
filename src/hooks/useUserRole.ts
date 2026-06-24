@@ -43,9 +43,9 @@ export function useUserRole(firebaseUser: User | null) {
           createdAt: new Date().toISOString(),
         };
         await setDoc(ref, data);
-      } else if (firebaseUser.photoURL) {
+      } else {
         const existing = snap.data() as AppUser;
-        if (existing.photoURL !== firebaseUser.photoURL) {
+        if (firebaseUser.photoURL && existing.photoURL !== firebaseUser.photoURL) {
           await updateDoc(ref, { photoURL: firebaseUser.photoURL });
         }
       }

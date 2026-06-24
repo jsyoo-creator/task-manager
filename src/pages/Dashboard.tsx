@@ -543,9 +543,9 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
               <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
               <span className="text-[11px] text-gray-400">🗓️ 전체 기간</span>
             </div>
-            <div className="flex-1 grid divide-x divide-gray-100" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 4)}, 1fr)` }}>
+            <div className="flex-1 grid gap-px bg-gray-100" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 3)}, minmax(0, 1fr))` }}>
               {catStats.map(({ cat, total, statusBreakdown, rate }) => (
-                <div key={cat} className="flex flex-col justify-center p-5 gap-3">
+                <div key={cat} className="flex flex-col justify-center p-5 gap-3 bg-white">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />

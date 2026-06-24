@@ -274,17 +274,17 @@ export default function Layout({
         style={{
           marginLeft: '220px',
           padding: '12px',
-          minHeight: '100vh',
+          height: '100vh',
           boxSizing: 'border-box',
         }}
       >
         <div
-          className="rounded-[28px] min-h-[calc(100vh-24px)] overflow-hidden"
+          className="rounded-[28px] h-full overflow-hidden flex flex-col"
           style={{ background: 'linear-gradient(160deg, #FAFAFE 0%, #F0EEFF 100%)' }}
         >
           {/* paddingLeft shifts when detail panel opens — panel stays full size */}
           <div
-            className="pt-6 pr-6 pb-6"
+            className="pt-6 pr-6 pb-6 flex-1 overflow-y-auto"
             style={{
               paddingLeft: 'calc(var(--detail-panel-w, 0px) + 24px)',
               transition: 'padding-left 0.26s ease-out',

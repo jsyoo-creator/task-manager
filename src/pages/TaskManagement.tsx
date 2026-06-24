@@ -347,9 +347,50 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           if (/^\d{4}-\d{2}$/.test(s)) return s;
           const m1 = s.match(/^(\d{1,2})월$/);
           if (m1) return `${yearFilter}-${String(parseInt(m1[1])).padStart(2, '0')}`;
-          const m2 = s.match(/^(\d{4})[-/](\d{1,2})$/);
+          const m2 = s.match(/^(\d{4})[-/.](\d{1,2})$/);
           if (m2) return `${m2[1]}-${String(parseInt(m2[2])).padStart(2, '0')}`;
           return s;
+        };
+
+        // 다양한 날짜 형식 → YYYY-MM-DD 정규화
+        const parseDate = (raw: unknown): string => {
+          if (raw === null || raw === undefined || raw === '') return '';
+          // Excel 직렬 날짜 (숫자)
+          if (typeof raw === 'number') {
+            const adj = raw > 59 ? raw - 1 : raw; // Excel의 1900년 윤년 버그 보정
+            const d = new Date(Date.UTC(1900, 0, 1) + (adj - 1) * 86400000);
+            if (isNaN(d.getTime()) || d.getFullYear() < 1900) return '';
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          }
+          const s = String(raw).trim();
+          if (!s) return '';
+          // YYYY-MM-DD (정상)
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+          // YYYY.MM.DD 또는 YYYY/MM/DD
+          const m1 = s.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})$/);
+          if (m1) return `${m1[1]}-${String(parseInt(m1[2])).padStart(2, '0')}-${String(parseInt(m1[3])).padStart(2, '0')}`;
+          // DD.MM.YYYY (유럽식 점 구분자)
+          const m2 = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+          if (m2) return `${m2[3]}-${String(parseInt(m2[2])).padStart(2, '0')}-${String(parseInt(m2[1])).padStart(2, '0')}`;
+          // DD/MM/YYYY 또는 MM/DD/YYYY (슬래시 구분자)
+          const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (m3) {
+            const [a, b, yr] = [parseInt(m3[1]), parseInt(m3[2]), m3[3]];
+            // 앞자리가 12 초과면 확실히 일(day)
+            if (a > 12) return `${yr}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+            return `${yr}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+          }
+          // 한국어: 2024년 1월 18일 또는 1월 18일
+          const m4 = s.match(/(?:(\d{4})년\s*)?(\d{1,2})월\s*(\d{1,2})일/);
+          if (m4) return `${m4[1] ?? yearFilter}-${String(parseInt(m4[2])).padStart(2, '0')}-${String(parseInt(m4[3])).padStart(2, '0')}`;
+          // 네이티브 Date 파싱 (ISO 등 나머지 형식 폴백)
+          if (s.length >= 8) {
+            const d = new Date(s);
+            if (!isNaN(d.getTime()) && d.getFullYear() > 1900) {
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+          }
+          return '';
         };
 
         const statusFc = builtinFields.find(f => f.key === 'status');
@@ -373,8 +414,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           status: parseStatus(String(keyMap.status ?? get('상태') ?? '')) as TaskStatus,
           receiver: String(keyMap.receiver ?? get('접수자') ?? '').trim(),
           assignee: String(keyMap.assignee ?? get('담당자') ?? '').trim(),
-          startDate: String(keyMap.startDate ?? get('시작일') ?? '').trim(),
-          endDate: String(keyMap.endDate ?? get('종료일') ?? '').trim(),
+          startDate: parseDate(keyMap.startDate ?? get('시작일') ?? ''),
+          endDate: parseDate(keyMap.endDate ?? get('종료일') ?? ''),
           ...(Object.keys(customFields).length > 0 ? { customFields } : {}),
         };
       }).filter(r => r.title);

@@ -676,7 +676,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                       <path d="M7 5.5V8" stroke="#d97706" strokeWidth="1.3" strokeLinecap="round"/>
                       <circle cx="7" cy="9.5" r="0.6" fill="#d97706"/>
                     </svg>
-                    <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라<br/>함께 내보낼 수 없습니다</p>
+                    <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라 함께 내보낼 수 없습니다</p>
                   </div>
                 )}
 
@@ -705,7 +705,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                     <Upload size={14} /> 엑셀 등록
                   </button>
                   {importDropOpen && (
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[220px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-black/6 p-4 w-[260px]" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">파트 선택</p>
                       <button
                         onClick={() => setImportParts(importParts.size === parts.length ? new Set() : new Set(parts.map(p => p.name)))}
@@ -739,7 +739,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                             <path d="M7 5.5V8" stroke="#d97706" strokeWidth="1.3" strokeLinecap="round"/>
                             <circle cx="7" cy="9.5" r="0.6" fill="#d97706"/>
                           </svg>
-                          <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라<br/>함께 등록할 수 없습니다</p>
+                          <p className="text-[11px] text-amber-700 leading-snug font-medium">파트 간 항목 명칭 또는 순서가 달라 함께 등록할 수 없습니다</p>
                         </div>
                       )}
                       <button

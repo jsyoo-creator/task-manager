@@ -660,13 +660,14 @@ function DependsOnEditor({ dependsOnId, setDependsOnId, valueMapInput, setValueM
 }
 
 // ── 필드 설정 빌더 (드래그 앤 드롭 + 너비 조절) ──
-function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSaveFields, onSaveCustom, onSaveOrder }: {
+function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
   fields: BuiltinFieldConfig[];
   customFields: CustomFormField[];
   fieldOrder?: string[];
   onSaveFields: (f: BuiltinFieldConfig[]) => void;
   onSaveCustom: (f: CustomFormField[]) => void;
   onSaveOrder?: (order: string[]) => void;
+  onSaveDrag?: (fields: BuiltinFieldConfig[], customFields: CustomFormField[], order: string[]) => void;
 }) {
   const [fields, setFields] = useState(fieldsProp);
   useEffect(() => { setFields(fieldsProp); }, [fieldsProp]);
@@ -733,9 +734,13 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
     const newBuiltins = arr.filter(u => u.kind === 'builtin').map(u => (u as { kind: 'builtin'; data: BuiltinFieldConfig }).data);
     const newCustoms = arr.filter(u => u.kind === 'custom').map(u => (u as { kind: 'custom'; data: CustomFormField }).data);
     setFields(newBuiltins);
-    onSaveFields(newBuiltins);
-    onSaveCustom(newCustoms);
-    onSaveOrder?.(newOrder);
+    if (onSaveDrag) {
+      onSaveDrag(newBuiltins, newCustoms, newOrder);
+    } else {
+      onSaveFields(newBuiltins);
+      onSaveCustom(newCustoms);
+      onSaveOrder?.(newOrder);
+    }
     dragIdxRef.current = null;
     setDragOverIdx(null);
   };
@@ -1309,6 +1314,9 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
   const saveFields = (newFields: BuiltinFieldConfig[]) => saveConfig(makeConfig({ builtinFields: newFields }));
   const saveCustom = (newCustom: CustomFormField[]) => saveConfig(makeConfig({ customFields: newCustom }));
   const saveOrder = (order: string[]) => saveConfig(makeConfig({ fieldOrder: order }));
+  // 드래그 순서 변경 시 builtinFields + customFields + fieldOrder를 한 번에 저장 (경쟁 조건 방지)
+  const saveDrag = (newFields: BuiltinFieldConfig[], newCustom: CustomFormField[], newOrder: string[]) =>
+    saveConfig({ ...makeConfig({}), builtinFields: newFields, customFields: newCustom, fieldOrder: newOrder });
 
   const executeCopyForm = (sourceId: string) => {
     if (sourceId === 'all') {
@@ -1468,6 +1476,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
         onSaveOrder={saveOrder}
+        onSaveDrag={saveDrag}
       />
     </div>
   );

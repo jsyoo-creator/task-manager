@@ -268,6 +268,8 @@ function App() {
           endDate:   entry.endDate   ?? '',
           weeklyHours: entry.weeklyHours,
           totalHours:  entry.totalHours,
+          substituteWeeklyHours: entry.substituteWeeklyHours,
+          substituteTotalHours:  entry.substituteTotalHours,
           revisionLevel: 0,
           createdAt: task.createdAt,
         }))

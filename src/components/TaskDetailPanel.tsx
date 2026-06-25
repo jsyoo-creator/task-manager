@@ -43,6 +43,8 @@ type SubTaskEntry = {
   endDate?: string;
   weeklyHours: Record<string, number>; // keys: w1d1~w5d5
   totalHours: number;
+  substituteWeeklyHours?: Record<string, number>;
+  substituteTotalHours?: number;
 };
 
 function getWeekDays(startDate: string, endDate?: string) {
@@ -713,7 +715,10 @@ export default function TaskDetailPanel({
               }).map(type => {
                 const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
                 const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
+                const subTotal = Object.values(entry.substituteWeeklyHours ?? {}).reduce((a, b) => a + b, 0);
                 const isVacation = isAssigneeOnVacation(entry.assignee);
+                const isSubstituteUser = !!entry.substitute && entry.substitute === currentUserName;
+                const canEditSubstituteHours = isSubstituteUser || canSeeAll;
 
                 // 직군에 맞는 담당자 필터링
                 const filtered = type.department && teamMembers?.length
@@ -790,6 +795,9 @@ export default function TaskDetailPanel({
                       {total > 0 && (
                         <span className="text-xs font-semibold text-blue-500 flex-shrink-0">{total}h</span>
                       )}
+                      {subTotal > 0 && (
+                        <span className="text-xs font-semibold text-orange-400 flex-shrink-0">대무 {subTotal}h</span>
+                      )}
                     </div>
 
                     {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우) */}
@@ -848,6 +856,9 @@ export default function TaskDetailPanel({
                       <p className="text-[11px] text-gray-400 text-center py-1.5">{fieldLabel('startDate')}을 설정하면 {fieldLabel('weeklyHours')}을 입력할 수 있습니다</p>
                     ) : (
                     <>
+                    {entry.substitute && (
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1">담당자 시간</p>
+                    )}
                     <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-0.5">
                       <span />
                       {['월', '화', '수', '목', '금'].map(d => (
@@ -919,6 +930,86 @@ export default function TaskDetailPanel({
                         </div>
                       );
                     })}
+
+                    {/* 대무자 시간 그리드 */}
+                    {entry.substitute && (
+                      <>
+                        <div className="flex items-center gap-1.5 mt-2 mb-1">
+                          <p className="text-[10px] font-semibold text-orange-500">대무자 시간</p>
+                          <span className="text-[10px] text-orange-400">({entry.substitute})</span>
+                        </div>
+                        <div className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-0.5">
+                          <span />
+                          {['월', '화', '수', '목', '금'].map(d => (
+                            <span key={d} className="text-center text-[10px] font-medium text-orange-300">{d}</span>
+                          ))}
+                        </div>
+                        {weeks.map(({ weekLabel, days }, wi) => {
+                          const weekNum = wi + 1;
+                          const isLastWeek = wi === weeks.length - 1;
+                          return (
+                            <div key={wi} className="grid grid-cols-[36px_repeat(5,1fr)] gap-x-1 mb-1">
+                              <div className="flex flex-col items-center justify-center">
+                                <span className="text-[10px] font-semibold text-orange-300 leading-none">{weekNum}주</span>
+                                {weekLabel && (
+                                  <span className="text-[8px] text-orange-200 leading-tight mt-0.5">{weekLabel}</span>
+                                )}
+                              </div>
+                              {days.map(({ date }, di) => {
+                                const key = `w${weekNum}d${di + 1}`;
+                                const rawKey = `${type.id}_sub_${key}`;
+                                const val = (entry.substituteWeeklyHours ?? {})[key] ?? 0;
+                                const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && entry.endDate ? di > endDayIdx : false);
+                                return (
+                                  <div key={di} className="flex flex-col items-center gap-0.5">
+                                    <span className={`text-[8px] leading-none ${disabled ? 'text-orange-100' : 'text-orange-300'}`}>
+                                      {date || ' '}
+                                    </span>
+                                    {canEditSubstituteHours && !disabled ? (
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={rawKey in localRaw ? localRaw[rawKey] : (val === 0 ? '' : String(val))}
+                                        placeholder="-"
+                                        onChange={e => {
+                                          const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                          setLocalRaw(prev => ({ ...prev, [rawKey]: raw }));
+                                          const n = Math.min(24, parseFloat(raw) || 0);
+                                          const newHours = { ...(entry.substituteWeeklyHours ?? {}), [key]: n };
+                                          if (n === 0) delete newHours[key];
+                                          setLocalSubTaskData(prev => {
+                                            const cur = prev[type.id] ?? entry;
+                                            const next = {
+                                              ...prev,
+                                              [type.id]: { ...cur, substituteWeeklyHours: newHours, substituteTotalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
+                                            };
+                                            localSubTaskDataRef.current = next;
+                                            return next;
+                                          });
+                                        }}
+                                        onBlur={() => {
+                                          setLocalRaw(prev => { const next = { ...prev }; delete next[rawKey]; return next; });
+                                          saveSubTaskData(localSubTaskDataRef.current);
+                                        }}
+                                        className="w-full text-center text-[10px] bg-orange-50 rounded py-0.5 border border-orange-200 focus:outline-none focus:ring-1 focus:ring-orange-300 text-orange-700 placeholder:text-orange-200"
+                                      />
+                                    ) : (
+                                      <span className={`w-full text-center text-[10px] rounded py-0.5 ${
+                                        disabled
+                                          ? 'bg-orange-50/30 text-orange-200'
+                                          : 'bg-orange-50 text-orange-500'
+                                      }`}>
+                                        {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
                     </>
                     )}
                   </div>

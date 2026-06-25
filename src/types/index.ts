@@ -294,6 +294,8 @@ export interface SubTask {
   endDate: string;
   weeklyHours: Record<string, number>; // week1~week5
   totalHours: number;
+  substituteWeeklyHours?: Record<string, number>;
+  substituteTotalHours?: number;
   revisionLevel: number; // 0~6 (F1~F6)
   createdAt: string;
 }
@@ -325,6 +327,8 @@ export interface Task {
     endDate?: string;
     weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)
     totalHours: number;
+    substituteWeeklyHours?: Record<string, number>; // 대무자 주차별 시간
+    substituteTotalHours?: number;
     memos?: SubTaskMemo[];
   }>;
   memo?: string;

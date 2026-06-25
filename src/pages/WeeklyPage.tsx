@@ -114,7 +114,7 @@ function getPersonVacationInfo(personName: string, vacations: Vacation[], weekMo
 }
 
 // 태스크 시작일 기준 상대 주차를 계산해 해당 주의 시간 합산
-function getSubWeekHours(sub: SubTask, currentWeekMonday: Date): number {
+function getSubWeekHours(sub: SubTask, currentWeekMonday: Date, useSubstitute = false): number {
   if (!sub.startDate) return 0;
   const taskStart = toDate(sub.startDate);
   const dow = taskStart.getDay();
@@ -124,7 +124,8 @@ function getSubWeekHours(sub: SubTask, currentWeekMonday: Date): number {
   const diffWeeks = Math.round((currentWeekMonday.getTime() - taskMonday.getTime()) / (7 * 24 * 60 * 60 * 1000));
   if (diffWeeks < 0) return 0;
   const relWeek = diffWeeks + 1;
-  return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (sub.weeklyHours?.[`w${relWeek}d${d}`] ?? 0), 0);
+  const hours = useSubstitute ? (sub.substituteWeeklyHours ?? {}) : sub.weeklyHours;
+  return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (hours[`w${relWeek}d${d}`] ?? 0), 0);
 }
 
 function fmtDate(dateStr: string) {
@@ -248,7 +249,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
           const task = weekTaskMap.get(taskId);
           if (!task) return null;
           const subs = subSubs.filter(s => s.taskId === taskId);
-          const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0);
+          const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start, true), 0);
           return { task, subs, taskH, isSubstitute: true };
         }),
       ].filter((g): g is { task: Task; subs: SubTask[]; taskH: number; isSubstitute: boolean } => g !== null);
@@ -416,7 +417,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                     {/* 세부업무 */}
                     <div className="space-y-2 pl-4 border-l-2 border-gray-100">
                       {subs.map(s => {
-                        const h = getSubWeekHours(s, start);
+                        const h = getSubWeekHours(s, start, isSubstitute);
                         return (
                           <div key={s.id} className="flex items-center gap-2">
                             <span className="text-xs text-gray-600 flex-1 truncate">

@@ -1203,9 +1203,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
 
   const handleCopyFrom = (sourceId: string) => {
     setShowCopyMenu(false);
-    const hasOwn = !!currentPart?.formConfig;
-    if (hasOwn) { setPendingCopySource(sourceId); return; }
-    executeCopyForm(sourceId);
+    setPendingCopySource(sourceId);
   };
 
   return (
@@ -1414,9 +1412,7 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
 
   const handleCopyFrom = (sourceId: string) => {
     setShowCopyMenu(false);
-    const hasOwn = !!currentPart?.metaFields;
-    if (hasOwn) { setPendingCopySource(sourceId); return; }
-    executeCopyMeta(sourceId);
+    setPendingCopySource(sourceId);
   };
 
   return (
@@ -1686,9 +1682,7 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
 
   const handleCopyFrom = (sourceId: string) => {
     setShowCopyMenu(false);
-    const hasOwn = !isInherited;
-    if (hasOwn) { setPendingCopySource(sourceId); return; }
-    executeCopySubTask(sourceId);
+    setPendingCopySource(sourceId);
   };
 
   return (

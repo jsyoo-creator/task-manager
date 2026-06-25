@@ -96,6 +96,7 @@ export interface BuiltinFieldConfig {
   departments?: Department[]; // 복수 직군 선택 (신버전)
   options?: string[]; // select 타입: 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
+  showIn?: 'both' | 'list' | 'detail'; // 표시 위치: 목록/상세/둘다
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [

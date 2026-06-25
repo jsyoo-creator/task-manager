@@ -767,10 +767,23 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                   >
                     <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
                       <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                      {isTableField(fc.key)
-                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium flex-shrink-0 border border-sky-100">목록+상세</span>
-                        : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium flex-shrink-0 border border-violet-100">상세</span>
-                      }
+                      {(() => {
+                        const isFixed = fc.key === 'taskMonth' || isTitle;
+                        const showIn = fc.showIn ?? (isTableField(fc.key) ? 'both' : 'detail') as 'both' | 'list' | 'detail';
+                        const next = showIn === 'both' ? 'list' : showIn === 'list' ? 'detail' : 'both';
+                        const label = showIn === 'list' ? '목록' : showIn === 'detail' ? '상세' : '목록+상세';
+                        const color = showIn === 'list' ? 'bg-blue-50 text-blue-500 border-blue-100'
+                          : showIn === 'detail' ? 'bg-violet-50 text-violet-500 border-violet-100'
+                          : 'bg-sky-50 text-sky-500 border-sky-100';
+                        if (isFixed) return <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 border ${color}`}>{label}</span>;
+                        return (
+                          <button type="button" title="클릭하여 표시 위치 변경"
+                            onClick={e => { e.stopPropagation(); onSaveFields(fields.map(f => f.key === fc.key ? { ...f, showIn: next } : f)); }}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 border transition-colors hover:opacity-70 ${color}`}>
+                            {label}
+                          </button>
+                        );
+                      })()}
                       <div className="flex-1 flex items-center gap-1.5 min-w-0">
                         <input
                           autoFocus
@@ -912,10 +925,23 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       </div>
                     )}
                     <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[116px] justify-end">
-                      {isTableField(fc.key)
-                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-500 font-medium border border-sky-100">목록+상세</span>
-                        : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium border border-violet-100">상세</span>
-                      }
+                      {(() => {
+                        const isFixed = fc.key === 'taskMonth' || isTitle;
+                        const showIn = fc.showIn ?? (isTableField(fc.key) ? 'both' : 'detail') as 'both' | 'list' | 'detail';
+                        const next = showIn === 'both' ? 'list' : showIn === 'list' ? 'detail' : 'both';
+                        const label = showIn === 'list' ? '목록' : showIn === 'detail' ? '상세' : '목록+상세';
+                        const color = showIn === 'list' ? 'bg-blue-50 text-blue-500 border-blue-100'
+                          : showIn === 'detail' ? 'bg-violet-50 text-violet-500 border-violet-100'
+                          : 'bg-sky-50 text-sky-500 border-sky-100';
+                        if (isFixed) return <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${color}`}>{label}</span>;
+                        return (
+                          <button type="button" title="클릭하여 표시 위치 변경"
+                            onClick={e => { e.stopPropagation(); onSaveFields(fields.map(f => f.key === fc.key ? { ...f, showIn: next } : f)); }}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border transition-colors hover:opacity-70 ${color}`}>
+                            {label}
+                          </button>
+                        );
+                      })()}
                       {(fc.key === 'taskMonth' || isTitle)
                         ? <span className="text-[11px] text-gray-300 italic">고정</span>
                         : <Toggle on={fc.enabled} onToggle={() => toggleBuiltin(fc.key)} />

@@ -526,7 +526,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setPreviewUpdateSet(new Set());
   };
 
-  const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key));
+  const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key) && fc.showIn !== 'detail');
   const statusConfigs = resolveStatusConfigs(formConfig);
   const colTemplate = buildCols(tableFields);
   const colMinWidth = buildMinWidth(tableFields);

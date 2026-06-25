@@ -194,9 +194,12 @@ function App() {
   }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig]);
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
-  const filteredTasks = activeParts.length > 0
-    ? tasks.filter(t => activeParts.some(p => p.name === t.category))
-    : tasks;
+  const filteredTasks = useMemo(
+    () => activeParts.length > 0
+      ? tasks.filter(t => activeParts.some(p => p.name === t.category))
+      : tasks,
+    [tasks, activeParts]
+  );
 
   const validCategories = activeParts.map(p => p.name);
   const orphanTaskCount = activeParts.length > 0
@@ -250,9 +253,15 @@ function App() {
   }, [selectedTeam?.subTaskTypes, activeParts]);
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
+  // 각 업무의 파트별 유효 타입만 포함 (삭제/변경된 타입 데이터 자동 제외)
   const subtasks = useMemo<SubTask[]>(() =>
-    filteredTasks.flatMap(task =>
-      Object.entries(task.subTaskData ?? {})
+    filteredTasks.flatMap(task => {
+      const taskPartObj = activeParts.find(p => p.name === task.category);
+      const validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
+      const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
+
+      return Object.entries(task.subTaskData ?? {})
+        .filter(([key]) => !validTypeIds || validTypeIds.has(key))
         .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
         .map(([key, entry]) => ({
           id: `${task.id}__${key}`,
@@ -272,9 +281,9 @@ function App() {
           substituteTotalHours:  entry.substituteTotalHours,
           revisionLevel: 0,
           createdAt: task.createdAt,
-        }))
-    )
-  , [filteredTasks, subTaskTypeOrder]);
+        }));
+    })
+  , [filteredTasks, subTaskTypeOrder, subTaskTypeMap, activeParts, selectedTeam]);
 
   // 캘린더 전용 서브태스크: showInCalendar !== false 인 타입만 포함
   const calendarSubtasks = useMemo(

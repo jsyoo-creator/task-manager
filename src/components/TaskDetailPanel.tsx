@@ -838,12 +838,12 @@ export default function TaskDetailPanel({
                                 {isChecked && (
                                   <div className="flex items-center gap-1.5 px-2.5 pb-1.5">
                                     <span className="text-[11px] text-violet-500 w-10">시간</span>
-                                    <input type="number" min={0} step={0.5}
+                                    <input type="number" min={0} step={0.1}
                                       disabled={!canManage}
                                       value={h || ''}
                                       placeholder="0"
                                       onChange={e => setHours(rt.id, parseFloat(e.target.value) || 0)}
-                                      className="w-16 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 text-right disabled:opacity-50"
+                                      className="w-16 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 text-right disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <span className="text-[11px] text-gray-400">h</span>
                                   </div>

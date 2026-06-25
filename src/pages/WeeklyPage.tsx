@@ -313,14 +313,14 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
               const rows = groups.map(({ task, subs, taskH, isSubstitute }) => {
                 const isNew      = task.type === '신규'  ? 1 : 0;
                 const isDerived  = task.type === '파생'  ? 1 : 0;
-                const isOther    = (task.type !== '신규' && task.type !== '파생') ? 1 : 0;
+                const isOther    = (task.type !== '신규' && task.type !== '파생' && task.type !== '기타') ? 1 : 0;
                 const dateRange = (rawStart: string, rawEnd: string) => {
                   const s = effectiveStart(rawStart, start);
                   const e = fmtDate(rawEnd || rawStart);
                   if (!s && !e) return '';
                   return s && e && s !== e ? `(${s} ~ ${e})` : `(${e || s})`;
                 };
-                const lines = [`[${task.type}] ${task.title}`];
+                const lines = [task.type === '기타' ? `[${task.title}]` : `[${task.type}] ${task.title}`];
                 subs.forEach(s => {
                   const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
                   const vacType = s.assignee ? (vacTypeMap.get(s.assignee) ?? '휴가') : '휴가';

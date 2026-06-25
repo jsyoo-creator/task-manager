@@ -83,7 +83,22 @@ function getWeekDays(startDate: string, endDate?: string) {
 
 function calcHoursInRange(hours: Record<string, number>, startDate: string, endDate?: string): number {
   const weeks = getWeekDays(startDate, endDate);
-  const validKeys = new Set(weeks.flatMap((_, wi) => Array.from({ length: 5 }, (__, di) => `w${wi + 1}d${di + 1}`)));
+  if (weeks.length === 0) return 0;
+  const sd = new Date(startDate);
+  const sdDow = sd.getDay();
+  const startDayIdx = (sdDow === 0 || sdDow === 6) ? 0 : sdDow - 1;
+  const endDayIdx = (() => {
+    if (!endDate) return 4;
+    const ed = new Date(endDate);
+    const edDow = ed.getDay();
+    return (edDow === 0 || edDow === 6) ? 4 : edDow - 1;
+  })();
+  const validKeys = new Set<string>();
+  weeks.forEach((_, wi) => {
+    const fromDay = wi === 0 ? startDayIdx : 0;
+    const toDay = wi === weeks.length - 1 ? endDayIdx : 4;
+    for (let di = fromDay; di <= toDay; di++) validKeys.add(`w${wi + 1}d${di + 1}`);
+  });
   return Object.entries(hours).filter(([k]) => validKeys.has(k)).reduce((s, [, v]) => s + v, 0);
 }
 

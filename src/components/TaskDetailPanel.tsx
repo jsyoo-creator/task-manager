@@ -601,7 +601,7 @@ export default function TaskDetailPanel({
 
         {/* 커스텀 폼 필드 */}
         {(() => {
-          const enabledCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false) ?? [];
+          const enabledCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
           const fo = formConfig?.fieldOrder;
           const cfs = fo?.length
             ? [...enabledCfs].sort((a, b) => {

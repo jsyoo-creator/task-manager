@@ -1163,7 +1163,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
     setTimeout(() => setCopiedUrlKey(null), 1500);
   };
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
-  const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false);
+  const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
 
   const copyMetaFields = async () => {
     const entries: { label: string; value: string; isUrl: boolean }[] = [];

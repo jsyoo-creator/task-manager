@@ -68,6 +68,7 @@ export interface CustomFormField {
   type: FormFieldType;
   required: boolean;
   enabled?: boolean; // undefined = true (하위 호환)
+  showIn?: 'both' | 'list' | 'detail'; // undefined = 'both' (하위 호환)
   options?: string[]; // select 타입일 때 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   department?: Department; // name 타입: 해당 직군 사람만 표시 (구버전 호환)

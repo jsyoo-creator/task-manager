@@ -1106,7 +1106,25 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                   </button>
                 )}
                 <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[116px] justify-end">
-                  {!isEditingCF && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-500 font-medium border border-violet-100">상세</span>}
+                  {!isEditingCF && (() => {
+                    const showIn = cf.showIn ?? 'both';
+                    const next = showIn === 'both' ? 'list' : showIn === 'list' ? 'detail' : 'both';
+                    const label = showIn === 'list' ? '목록' : showIn === 'detail' ? '상세' : '목록+상세';
+                    const color = showIn === 'list'
+                      ? 'bg-blue-50 text-blue-500 border-blue-100'
+                      : showIn === 'detail'
+                      ? 'bg-violet-50 text-violet-500 border-violet-100'
+                      : 'bg-gray-100 text-gray-500 border-gray-200';
+                    return (
+                      <button
+                        type="button"
+                        title="클릭하여 표시 위치 변경 (목록+상세 → 목록 → 상세)"
+                        onClick={e => { e.stopPropagation(); onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, showIn: next } : f)); }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border transition-colors hover:opacity-70 ${color}`}>
+                        {label}
+                      </button>
+                    );
+                  })()}
                   {!isEditingCF && <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? cf.type}</span>}
                   {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (['전체', ...DEPARTMENTS] as const).map(d => {
                     const val = d === '전체' ? undefined : d as Department;

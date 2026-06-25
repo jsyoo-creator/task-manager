@@ -124,24 +124,56 @@ export function useAllUsers() {
       const oldName = users.find(u => u.uid === uid)?.displayName;
       const newName = data.displayName;
       if (oldName && oldName !== newName) {
-        const [assigneeSnap, receiverSnap, vacSnap, postSnap, commentSnap, subtaskSnap] = await Promise.all([
-          getDocs(query(collection(db, 'tasks'), where('assignee', '==', oldName))),
-          getDocs(query(collection(db, 'tasks'), where('receiver', '==', oldName))),
+        const [vacSnap, postSnap, commentSnap, seatSnap, allTasksSnap] = await Promise.all([
           getDocs(query(collection(db, 'vacations'), where('memberName', '==', oldName))),
           getDocs(query(collection(db, 'posts'), where('authorName', '==', oldName))),
           getDocs(query(collection(db, 'comments'), where('authorName', '==', oldName))),
-          getDocs(query(collection(db, 'subtasks'), where('assignee', '==', oldName))),
+          getDocs(collection(db, 'seatGroups')),
+          getDocs(collection(db, 'tasks')),
         ]);
 
-        type UpdateEntry = { ref: ReturnType<typeof doc>; data: Record<string, string> };
-        const updates: UpdateEntry[] = [
-          ...assigneeSnap.docs.map(d => ({ ref: d.ref, data: { assignee: newName } })),
-          ...receiverSnap.docs.map(d => ({ ref: d.ref, data: { receiver: newName } })),
+        type Update = { ref: ReturnType<typeof doc>; data: Record<string, unknown> };
+        const updates: Update[] = [
           ...vacSnap.docs.map(d => ({ ref: d.ref, data: { memberName: newName } })),
           ...postSnap.docs.map(d => ({ ref: d.ref, data: { authorName: newName } })),
           ...commentSnap.docs.map(d => ({ ref: d.ref, data: { authorName: newName } })),
-          ...subtaskSnap.docs.map(d => ({ ref: d.ref, data: { assignee: newName } })),
         ];
+
+        // seatGroups: seats는 { "r-c": displayName } 형태
+        seatSnap.docs.forEach(d => {
+          const seats = (d.data().seats ?? {}) as Record<string, string>;
+          if (!Object.values(seats).includes(oldName)) return;
+          const newSeats = Object.fromEntries(
+            Object.entries(seats).map(([k, v]) => [k, v === oldName ? newName : v])
+          );
+          updates.push({ ref: d.ref, data: { seats: newSeats } });
+        });
+
+        // tasks: assignee / receiver / subTaskData 내 assignee·substitute
+        allTasksSnap.docs.forEach(d => {
+          const t = d.data() as {
+            assignee?: string;
+            receiver?: string;
+            subTaskData?: Record<string, { assignee?: string; substitute?: string; [k: string]: unknown }>;
+          };
+          const fields: Record<string, unknown> = {};
+          if (t.assignee === oldName) fields.assignee = newName;
+          if (t.receiver === oldName) fields.receiver = newName;
+
+          const subData = t.subTaskData ?? {};
+          let subChanged = false;
+          const newSubData = Object.fromEntries(
+            Object.entries(subData).map(([key, entry]) => {
+              const e = { ...entry };
+              if (e.assignee === oldName) { e.assignee = newName; subChanged = true; }
+              if (e.substitute === oldName) { e.substitute = newName; subChanged = true; }
+              return [key, e];
+            })
+          );
+          if (subChanged) fields.subTaskData = newSubData;
+
+          if (Object.keys(fields).length > 0) updates.push({ ref: d.ref, data: fields });
+        });
 
         const CHUNK = 450;
         for (let i = 0; i < updates.length; i += CHUNK) {

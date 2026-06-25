@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
@@ -2223,60 +2223,65 @@ function PLMainTaskTypesEditor({ team, onSave }: {
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
           메인업무 목록
-          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정 · ▸ 클릭으로 세부업무 편집</span>
+          <span className="text-gray-300 font-normal normal-case ml-1">클릭으로 세부업무 펼침 · 이름 더블클릭으로 수정</span>
         </p>
         {types.length > 0 ? (
-          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+          <div className="rounded-xl border border-black/7 overflow-hidden">
             {types.map((t, i) => (
-              <div key={t.id}>
+              <div key={t.id} className={`${i > 0 ? 'border-t border-black/5' : ''} ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                {/* 메인 행 */}
                 <div draggable
                   onDragStart={() => { dragIdxRef.current = i; }}
                   onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
                   onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
                   onDrop={() => onDrop(i)}
                   onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-                  <GripVertical size={13} className="text-gray-300 cursor-grab flex-shrink-0" />
-                  {/* 세부업무 펼침 토글 */}
-                  <button type="button" onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
-                    className="text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0 w-4 text-center text-xs">
-                    {expandedId === t.id ? '▾' : '▸'}
+                  className={`flex items-center gap-1.5 py-1 px-2 transition-colors ${expandedId === t.id ? 'bg-blue-50/60' : 'hover:bg-black/2'}`}>
+                  <GripVertical size={12} className="text-gray-300 cursor-grab flex-shrink-0" />
+                  {/* 펼침 토글 — 아이콘 + 업무명 묶어서 클릭 */}
+                  <button type="button"
+                    onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
+                    className={`flex items-center gap-1 flex-1 min-w-0 text-left transition-colors ${expandedId === t.id ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}>
+                    {expandedId === t.id
+                      ? <ChevronDown size={12} className="flex-shrink-0" />
+                      : <ChevronRight size={12} className="flex-shrink-0" />}
+                    {editingId === t.id ? (
+                      <input autoFocus
+                        className="flex-1 min-w-0 text-xs px-1 py-0 rounded border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                        value={nameInput} onChange={e => setNameInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                        onBlur={() => saveName(t.id)}
+                        onClick={e => e.stopPropagation()} />
+                    ) : (
+                      <span
+                        onDoubleClick={e => { e.stopPropagation(); setEditingId(t.id); setNameInput(t.name); }}
+                        className="text-xs font-medium text-gray-700 truncate min-w-0 select-none">
+                        {t.name}
+                      </span>
+                    )}
                   </button>
-                  {editingId === t.id ? (
-                    <input autoFocus
-                      className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                      value={nameInput} onChange={e => setNameInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
-                      onBlur={() => saveName(t.id)} />
-                  ) : (
-                    <button type="button"
-                      onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
-                      className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 truncate min-w-0">
-                      {t.name}
-                    </button>
-                  )}
                   {t.subFields && t.subFields.length > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-medium flex-shrink-0">
-                      세부 {t.subFields.length}
+                    <span className="text-[10px] px-1.5 py-px rounded-full bg-blue-100 text-blue-500 font-medium flex-shrink-0 tabular-nums">
+                      {t.subFields.length}
                     </span>
                   )}
                   <div className="flex items-center gap-0.5 flex-shrink-0">
                     {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
                       <button key={d} type="button" onClick={() => toggleDept(t.id, d)}
-                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
-                          t.department === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                        className={`text-[10px] px-1.5 py-px rounded font-medium transition-colors ${
+                          t.department === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                         }`}>
                         {d}
                       </button>
                     ))}
                   </div>
-                  <button type="button" onClick={() => deleteType(t.id)} className="text-gray-300 hover:text-red-400 ml-0.5">
+                  <button type="button" onClick={() => deleteType(t.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5 flex-shrink-0">
                     <X size={11} />
                   </button>
                 </div>
                 {/* 세부업무 편집 패널 */}
                 {expandedId === t.id && (
-                  <div className="bg-black/[0.02] border-t border-black/5">
+                  <div className="bg-blue-50/30 border-t border-blue-100">
                     <PLSubFieldsEditor
                       fields={t.subFields ?? []}
                       onChange={subFields => updateSubFields(t.id, subFields)}

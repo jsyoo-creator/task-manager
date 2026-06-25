@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -29,7 +29,7 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
-  onUpdatePlMainTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
@@ -2053,22 +2053,132 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
+const PL_FIELD_TYPE_LABEL: Record<PLSubTaskFieldType, string> = { text: '텍스트', review: '검수' };
+const PL_FIELD_TYPE_COLOR: Record<PLSubTaskFieldType, string> = {
+  text: 'bg-gray-100 text-gray-600',
+  review: 'bg-violet-100 text-violet-600',
+};
+
+function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onChange: (f: PLSubTaskField[]) => void }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newFieldType, setNewFieldType] = useState<PLSubTaskFieldType>('text');
+  const [newDept, setNewDept] = useState<Department | ''>('');
+  const dragIdxRef = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const iCls = "text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  const save = (next: PLSubTaskField[]) => onChange(next);
+  const saveName = (id: string) => {
+    const name = nameInput.trim();
+    if (name) save(fields.map(f => f.id === id ? { ...f, name } : f));
+    setEditingId(null);
+  };
+  const toggleFieldType = (id: string) => save(fields.map(f => f.id === id ? { ...f, fieldType: f.fieldType === 'text' ? 'review' : 'text' } : f));
+  const toggleDept = (id: string, dept: Department) => save(fields.map(f => f.id === id ? { ...f, department: f.department === dept ? undefined : dept } : f));
+  const deleteField = (id: string) => save(fields.filter(f => f.id !== id));
+  const addField = () => {
+    const name = newName.trim();
+    if (!name) return;
+    save([...fields, { id: `plf_${Date.now()}`, name, fieldType: newFieldType, department: newDept || undefined }]);
+    setNewName(''); setNewDept('');
+  };
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...fields];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  return (
+    <div className="ml-5 mt-2 space-y-2 pb-2">
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">세부업무 필드</p>
+      {fields.length > 0 && (
+        <div className="rounded-lg border border-black/7 overflow-hidden divide-y divide-black/5">
+          {fields.map((f, i) => (
+            <div key={f.id}
+              draggable
+              onDragStart={() => { dragIdxRef.current = i; }}
+              onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+              onDrop={() => onDrop(i)}
+              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+              className={`flex items-center gap-1.5 py-1.5 px-2 hover:bg-black/2 cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+              <GripVertical size={11} className="text-gray-300 cursor-grab flex-shrink-0" />
+              {editingId === f.id ? (
+                <input autoFocus className="flex-1 min-w-0 text-xs px-1 py-0.5 rounded border border-blue-400 bg-white focus:outline-none"
+                  value={nameInput} onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(f.id); if (e.key === 'Escape') setEditingId(null); }}
+                  onBlur={() => saveName(f.id)} />
+              ) : (
+                <button type="button" onClick={() => { setEditingId(f.id); setNameInput(f.name); }}
+                  className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 truncate min-w-0">
+                  {f.name}
+                </button>
+              )}
+              <button type="button" onClick={() => toggleFieldType(f.id)}
+                className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[f.fieldType]}`}>
+                {PL_FIELD_TYPE_LABEL[f.fieldType]}
+              </button>
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                  <button key={d} type="button" onClick={() => toggleDept(f.id, d)}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${f.department === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => deleteField(f.id)} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input className={`${iCls} flex-1 min-w-0`} placeholder="세부업무명"
+          value={newName} onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addField()} />
+        <button type="button" onClick={() => setNewFieldType(t => t === 'text' ? 'review' : 'text')}
+          className={`text-[10px] px-1.5 py-1 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[newFieldType]}`}>
+          {PL_FIELD_TYPE_LABEL[newFieldType]}
+        </button>
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+            <button key={d} type="button" onClick={() => setNewDept(p => p === d ? '' : d)}
+              className={`text-[10px] px-1.5 py-1 rounded-md font-medium ${newDept === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
+              {d}
+            </button>
+          ))}
+        </div>
+        <button onClick={addField} disabled={!newName.trim()}
+          className="flex-shrink-0 flex items-center gap-0.5 px-2 py-1 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40">
+          <Plus size={10} />추가
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PLMainTaskTypesEditor({ team, onSave }: {
   team: Team;
-  onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onSave: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [newName, setNewName] = useState('');
   const [newDept, setNewDept] = useState<Department | ''>('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
-  useEffect(() => { setEditingId(null); }, [team.id]);
+  useEffect(() => { setEditingId(null); setExpandedId(null); }, [team.id]);
 
-  const types: SubTaskType[] = team.plMainTaskTypes ?? [];
-
-  const save = (next: SubTaskType[]) => onSave(team.id, next);
+  const types: PLMainTaskType[] = team.plMainTaskTypes ?? [];
+  const save = (next: PLMainTaskType[]) => onSave(team.id, next);
 
   const onDrop = (toIdx: number) => {
     const from = dragIdxRef.current;
@@ -2092,65 +2202,87 @@ function PLMainTaskTypesEditor({ team, onSave }: {
 
   const deleteType = (id: string) => save(types.filter(t => t.id !== id));
 
+  const updateSubFields = (id: string, subFields: PLSubTaskField[]) => {
+    save(types.map(t => t.id === id ? { ...t, subFields } : t));
+  };
+
   const addType = () => {
     const name = newName.trim();
     if (!name) return;
-    save([...types, { id: `pl_${Date.now()}`, name, department: newDept || undefined }]);
+    const newId = `pl_${Date.now()}`;
+    save([...types, { id: newId, name, department: newDept || undefined }]);
     setNewName(''); setNewDept('');
+    setExpandedId(newId);
   };
 
   const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-gray-500">PL업무 등록 시 선택할 수 있는 메인업무 항목을 팀 단위로 설정합니다.</p>
+      <p className="text-xs text-gray-500">PL업무 등록 시 선택할 수 있는 메인업무 항목과 각 항목의 세부업무 필드를 설정합니다.</p>
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
           메인업무 목록
-          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정 · ▸ 클릭으로 세부업무 편집</span>
         </p>
         {types.length > 0 ? (
           <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
             {types.map((t, i) => (
-              <div key={t.id}
-                draggable
-                onDragStart={() => { dragIdxRef.current = i; }}
-                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
-                onDrop={() => onDrop(i)}
-                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                {editingId === t.id ? (
-                  <input autoFocus
-                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                    value={nameInput} onChange={e => setNameInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
-                    onBlur={() => saveName(t.id)} />
-                ) : (
-                  <button type="button"
-                    onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
-                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
-                    {t.name}
+              <div key={t.id}>
+                <div draggable
+                  onDragStart={() => { dragIdxRef.current = i; }}
+                  onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                  onDrop={() => onDrop(i)}
+                  onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                  <GripVertical size={13} className="text-gray-300 cursor-grab flex-shrink-0" />
+                  {/* 세부업무 펼침 토글 */}
+                  <button type="button" onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
+                    className="text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0 w-4 text-center text-xs">
+                    {expandedId === t.id ? '▾' : '▸'}
                   </button>
-                )}
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-                    <button key={d} type="button"
-                      onClick={() => toggleDept(t.id, d)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
-                        t.department === d
-                          ? SUBTASK_DEPT_COLOR[d]
-                          : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
-                      }`}>
-                      {d}
+                  {editingId === t.id ? (
+                    <input autoFocus
+                      className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                      value={nameInput} onChange={e => setNameInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                      onBlur={() => saveName(t.id)} />
+                  ) : (
+                    <button type="button"
+                      onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
+                      className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 truncate min-w-0">
+                      {t.name}
                     </button>
-                  ))}
+                  )}
+                  {t.subFields && t.subFields.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-medium flex-shrink-0">
+                      세부 {t.subFields.length}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                      <button key={d} type="button" onClick={() => toggleDept(t.id, d)}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                          t.department === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                        }`}>
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => deleteType(t.id)} className="text-gray-300 hover:text-red-400 ml-0.5">
+                    <X size={11} />
+                  </button>
                 </div>
-                <button type="button" onClick={() => deleteType(t.id)}
-                  className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
-                  <X size={11} />
-                </button>
+                {/* 세부업무 편집 패널 */}
+                {expandedId === t.id && (
+                  <div className="bg-black/[0.02] border-t border-black/5">
+                    <PLSubFieldsEditor
+                      fields={t.subFields ?? []}
+                      onChange={subFields => updateSubFields(t.id, subFields)}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -2164,12 +2296,9 @@ function PLMainTaskTypesEditor({ team, onSave }: {
             onKeyDown={e => e.key === 'Enter' && addType()} />
           <div className="flex items-center gap-0.5 flex-shrink-0">
             {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-              <button key={d} type="button"
-                onClick={() => setNewDept(prev => prev === d ? '' : d)}
+              <button key={d} type="button" onClick={() => setNewDept(prev => prev === d ? '' : d)}
                 className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
-                  newDept === d
-                    ? SUBTASK_DEPT_COLOR[d]
-                    : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                  newDept === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
                 }`}>
                 {d}
               </button>
@@ -2504,7 +2633,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
-  onUpdatePlMainTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;

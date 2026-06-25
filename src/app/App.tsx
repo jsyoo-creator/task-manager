@@ -217,7 +217,7 @@ function App() {
     return map;
   }, [selectedTeam?.subTaskTypes, activeParts]);
 
-  // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID)
+  // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID + 모든 PLSubTaskField ID)
   const calendarVisibleTypeIds = useMemo(() => {
     const set = new Set<string>();
     const allTypes = [
@@ -225,26 +225,35 @@ function App() {
       ...activeParts.flatMap(p => p.subTaskTypes ?? []),
     ];
     allTypes.forEach(t => { if (t.showInCalendar !== false) set.add(t.id); });
+    selectedTeam?.plMainTaskTypes?.forEach(m => m.subFields?.forEach(f => set.add(f.id)));
     return set;
-  }, [selectedTeam?.subTaskTypes, activeParts]);
+  }, [selectedTeam?.subTaskTypes, selectedTeam?.plMainTaskTypes, activeParts]);
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   // 파트별 별도 타입 우선, 없으면 팀 기본 타입 사용 (설정 페이지 로직과 동일)
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task => {
       const taskPartObj = activeParts.find(p => p.name === task.category);
-      // PL업무는 plMainTaskTypes 사용 (plSelectedTypes로 추가 필터), 일반 업무는 파트→팀 우선순위
-      const validTypes = task.plTask
-        ? (selectedTeam?.plMainTaskTypes ?? []).filter(t =>
-            !task.plSelectedTypes || task.plSelectedTypes.includes(t.id)
-          )
-        : (taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes);
+      // PL업무: 해당 메인업무 타입의 subFields를 세부업무 타입으로 사용
+      // 일반 업무: 파트→팀 우선순위
+      let validTypes: Array<{ id: string; name: string }> | null | undefined;
+      if (task.plTask) {
+        const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
+          task.plSelectedTypes?.includes(m.id)
+        );
+        validTypes = plMainType?.subFields ?? [];
+      } else {
+        validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
+      }
       const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 
       // 해당 업무의 파트+팀 타입만으로 이름 맵 생성 (다른 파트 타입명 오염 방지)
       const taskNameMap = new Map<string, string>();
       if (task.plTask) {
-        selectedTeam?.plMainTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+        const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
+          task.plSelectedTypes?.includes(m.id)
+        );
+        plMainType?.subFields?.forEach(f => taskNameMap.set(f.id, f.name));
       } else {
         selectedTeam?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
         taskPartObj?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
@@ -421,6 +430,15 @@ function App() {
           const taskPart = activeParts.find(p => p.name === detailTask.category);
           const resolvedMetaFields = taskPart?.metaFields ?? selectedTeam?.metaFields;
           const resolvedFormConfig = mergeFormConfig(taskPart?.formConfig, selectedTeam?.formConfig);
+          const resolvedSubTaskTypes = (() => {
+            if (detailTask.plTask) {
+              const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
+                detailTask.plSelectedTypes?.includes(m.id)
+              );
+              return (plMainType?.subFields ?? []).map(f => ({ id: f.id, name: f.name, department: f.department }));
+            }
+            return taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
+          })();
           return (
             <TaskDetailPanel
               task={detailTask}
@@ -431,7 +449,7 @@ function App() {
               parts={activeParts}
               canManage={permissions.canManageTasks}
               metaFields={resolvedMetaFields}
-              subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
+              subTaskTypes={resolvedSubTaskTypes}
               teamMembers={teamMembers}
               formConfig={resolvedFormConfig}
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}

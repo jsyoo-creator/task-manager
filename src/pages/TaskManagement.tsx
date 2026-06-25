@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, SubTaskType } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -30,7 +30,7 @@ interface Props {
   userPhotoMap?: Map<string, string>;
   excelConfig?: ExcelFieldConfig[];
   allMetaFields?: MetaField[];
-  plMainTaskTypes?: SubTaskType[];
+  plMainTaskTypes?: PLMainTaskType[];
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];

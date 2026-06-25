@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department, SubTaskType } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department, PLMainTaskType } from '../types';
 import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
@@ -13,7 +13,7 @@ interface Props {
   assignees?: string[];
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
-  plMainTaskTypes?: SubTaskType[];
+  plMainTaskTypes?: PLMainTaskType[];
   currentUserName?: string;
 }
 

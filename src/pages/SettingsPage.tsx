@@ -1195,7 +1195,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       ? 'bg-blue-50 text-blue-500 border-blue-100'
                       : showIn === 'detail'
                       ? 'bg-violet-50 text-violet-500 border-violet-100'
-                      : 'bg-gray-100 text-gray-500 border-gray-200';
+                      : 'bg-sky-50 text-sky-500 border-sky-100';
                     return (
                       <button
                         type="button"

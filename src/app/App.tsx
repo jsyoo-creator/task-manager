@@ -435,7 +435,7 @@ function App() {
               const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
                 detailTask.plSelectedTypes?.includes(m.id)
               );
-              return (plMainType?.subFields ?? []).map(f => ({ id: f.id, name: f.name, department: f.department }));
+              return (plMainType?.subFields ?? []).map(f => ({ id: f.id, name: f.name, department: f.department, plFieldType: f.fieldType }));
             }
             return taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
           })();
@@ -456,6 +456,7 @@ function App() {
               canSeeAll={canSeeAll}
               currentUserName={currentUserName}
               vacations={teamVacations}
+              plMainTaskTypes={detailTask.plTask ? selectedTeam?.plMainTaskTypes : undefined}
             />
           );
         })()}

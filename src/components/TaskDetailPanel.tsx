@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, PLMainTaskType } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
@@ -91,7 +91,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage,
   metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
-  canSeeAll = true, currentUserName = '', vacations = [],
+  canSeeAll = true, currentUserName = '', vacations = [], plMainTaskTypes,
 }: {
   task: Task;
   onClose: () => void;
@@ -108,6 +108,7 @@ export default function TaskDetailPanel({
   canSeeAll?: boolean;
   currentUserName?: string;
   vacations?: Vacation[];
+  plMainTaskTypes?: PLMainTaskType[];
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const todayD = new Date();
@@ -767,6 +768,62 @@ export default function TaskDetailPanel({
                 const edDow = ed ? ed.getDay() : 0;
                 const endDayIdx = !ed ? 4 : (edDow === 0 || edDow === 6) ? 4 : edDow - 1;
                 const weeks = getWeekDays(entry.startDate ?? '', entry.endDate);
+
+                // review 타입: 메인업무 다중 선택 체크리스트
+                if (type.plFieldType === 'review') {
+                  const checked: string[] = entry.checkedItems ?? [];
+                  const toggleItem = (id: string) => {
+                    const next = checked.includes(id) ? checked.filter(x => x !== id) : [...checked, id];
+                    const nextData = { ...localSubTaskData, [type.id]: { ...entry, checkedItems: next } };
+                    setLocalSubTaskData(nextData);
+                    saveSubTaskData(nextData);
+                  };
+                  return (
+                    <div key={type.id} className="rounded-xl bg-gray-50 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{type.name}</span>
+                        {type.department && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${DEPT_BADGE[type.department] ?? ''}`}>
+                            {type.department}
+                          </span>
+                        )}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium flex-shrink-0">검수</span>
+                        {checked.length > 0 && (
+                          <span className="text-[10px] text-gray-400">{checked.length}/{(plMainTaskTypes ?? []).length}</span>
+                        )}
+                      </div>
+                      {(plMainTaskTypes ?? []).length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-2">PL 메인업무 항목이 없습니다</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {(plMainTaskTypes ?? []).map(mt => {
+                            const isChecked = checked.includes(mt.id);
+                            return (
+                              <button key={mt.id} type="button"
+                                disabled={!canManage}
+                                onClick={() => toggleItem(mt.id)}
+                                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                                  isChecked
+                                    ? 'bg-violet-100 text-violet-700'
+                                    : 'bg-white hover:bg-gray-100 text-gray-600'
+                                } disabled:cursor-default`}>
+                                <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ${
+                                  isChecked ? 'bg-violet-500 border-violet-500 text-white' : 'border-gray-300'
+                                }`}>
+                                  {isChecked && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </span>
+                                <span className="flex-1 text-left">{mt.name}</span>
+                                {mt.department && (
+                                  <span className={`text-[10px] px-1 py-px rounded font-medium ${DEPT_BADGE[mt.department] ?? ''}`}>{mt.department}</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
                   <div key={type.id} className="rounded-xl bg-gray-50 p-3">

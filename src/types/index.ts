@@ -259,6 +259,23 @@ export interface SubTaskType {
   department?: Department;
   showInCalendar?: boolean; // undefined = true (기본 표시)
   calendarColor?: string;   // undefined = 기본색
+  plFieldType?: PLSubTaskFieldType; // PL세부업무 필드 타입 (text|review)
+}
+
+export type PLSubTaskFieldType = 'text' | 'review'; // 텍스트, 검수
+
+export interface PLSubTaskField {
+  id: string;
+  name: string;
+  fieldType: PLSubTaskFieldType;
+  department?: Department;
+}
+
+export interface PLMainTaskType {
+  id: string;
+  name: string;
+  department?: Department;
+  subFields?: PLSubTaskField[]; // 이 메인업무의 세부업무 필드 목록
 }
 
 export const DEFAULT_META_FIELDS: MetaField[] = [
@@ -311,7 +328,7 @@ export interface Team {
   formConfig?: TeamFormConfig;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
-  plMainTaskTypes?: SubTaskType[]; // PL업무 메인 업무 항목 목록
+  plMainTaskTypes?: PLMainTaskType[]; // PL업무 메인 업무 항목 목록
   holidays?: CustomHoliday[];
   excelConfig?: ExcelFieldConfig[];
 }
@@ -366,6 +383,7 @@ export interface Task {
     substituteWeeklyHours?: Record<string, number>; // 대무자 주차별 시간
     substituteTotalHours?: number;
     memos?: SubTaskMemo[];
+    checkedItems?: string[]; // review 타입 필드: 선택된 메인업무 ID 목록
   }>;
   memo?: string;
   plTask?: boolean;          // PL업무 여부

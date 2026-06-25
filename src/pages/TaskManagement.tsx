@@ -580,7 +580,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     if (canSeeAll) return true;
     if (t.assignee === currentUserName) return true;
     if (t.receiver === currentUserName) return true;
-    return !!t.subTaskData && Object.values(t.subTaskData).some(e => e.assignee === currentUserName);
+    return !!t.subTaskData && Object.values(t.subTaskData).some(
+      e => e.assignee === currentUserName || e.substitute === currentUserName
+    );
   };
 
   const filtered = tasks.filter((t: Task) => {

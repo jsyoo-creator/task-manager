@@ -709,7 +709,7 @@ export default function TaskDetailPanel({
               {subTaskTypes.filter(type => {
                 if (canSeeAll) return true;
                 const entry = localSubTaskData[type.id];
-                return entry?.assignee === currentUserName;
+                return entry?.assignee === currentUserName || entry?.substitute === currentUserName;
               }).map(type => {
                 const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
                 const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);

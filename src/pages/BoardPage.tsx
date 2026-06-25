@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil } from 'lucide-react';
 import type { AppUser, Team } from '../types';
 import { usePosts, useComments, type Post, type PostComment } from '../hooks/usePosts';
 
@@ -320,7 +320,7 @@ function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser 
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-gray-800">{c.authorName}</span>
                   <span className="text-[10px] text-gray-400">{formatRelative(c.createdAt)}</span>
-                  {(c.authorUid === appUser.uid || appUser.role === 'superadmin') && (
+                  {(c.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin') && (
                     <button
                       onClick={() => setDeleteTarget(c)}
                       className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-400 transition-all"
@@ -369,16 +369,86 @@ function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser 
   );
 }
 
+// ─── 글 수정 뷰 ───────────────────────────────────────────────────────
+function EditView({ post, onBack, onSubmit }: {
+  post: Post;
+  onBack: () => void;
+  onSubmit: (title: string, content: string) => Promise<void>;
+}) {
+  const [title, setTitle] = useState(post.title);
+  const [content, setContent] = useState(post.content);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !content.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(title.trim(), content.trim());
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="glass-card">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-black/5">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-all"
+        >
+          <ArrowLeft size={14} />
+          취소
+        </button>
+        <span className="text-sm font-semibold text-gray-700">글 수정</span>
+      </div>
+
+      <div className="px-6 py-5 space-y-4">
+        <input
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="제목을 입력하세요"
+          className="w-full text-base font-semibold px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 focus:border-[#6C63FF]/50 text-gray-800 placeholder:text-gray-400 transition-all"
+        />
+        <textarea
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          placeholder="내용을 입력하세요"
+          rows={10}
+          className="w-full text-sm px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 focus:border-[#6C63FF]/50 resize-none text-gray-800 placeholder:text-gray-400 transition-all"
+        />
+      </div>
+
+      <div className="flex justify-end gap-2.5 px-6 pb-5">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+        >
+          취소
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!title.trim() || !content.trim() || submitting}
+          className="px-5 py-2 rounded-xl text-sm font-semibold bg-[#6C63FF] text-white hover:bg-[#5a52e0] disabled:opacity-40 transition-colors shadow-md shadow-[#6C63FF]/25"
+        >
+          {submitting ? '저장 중…' : '수정 완료'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── 글 읽기 뷰 ───────────────────────────────────────────────────────
-function ReadView({ post, appUser, onBack, onDelete, onSetNotice, onReadNotice }: {
+function ReadView({ post, appUser, onBack, onDelete, onEdit, onSetNotice, onReadNotice }: {
   post: Post;
   appUser: AppUser;
   onBack: () => void;
   onDelete: () => void;
+  onEdit: () => void;
   onSetNotice: (isNotice: boolean) => void;
   onReadNotice?: (postId: string) => void;
 }) {
-  const canDelete = post.authorUid === appUser.uid || appUser.role === 'superadmin';
+  const canManage = post.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin';
   const canManageNotice = appUser.role === 'manager' || appUser.role === 'superadmin';
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -415,8 +485,17 @@ function ReadView({ post, appUser, onBack, onDelete, onSetNotice, onReadNotice }
               {post.isNotice ? '공지 해제' : '공지 설정'}
             </button>
           )}
-          {/* 삭제 버튼 */}
-          {canDelete && (
+          {/* 수정/삭제 버튼 */}
+          {canManage && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
+            >
+              <Pencil size={12} />
+              수정
+            </button>
+          )}
+          {canManage && (
             <button
               onClick={() => setShowDeleteModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-400 hover:bg-red-100 transition-all"
@@ -475,7 +554,7 @@ function ReadView({ post, appUser, onBack, onDelete, onSetNotice, onReadNotice }
 }
 
 // ─── 메인 페이지 ──────────────────────────────────────────────────────
-type BoardView = { type: 'list' } | { type: 'write' } | { type: 'read'; postId: string };
+type BoardView = { type: 'list' } | { type: 'write' } | { type: 'read'; postId: string } | { type: 'edit'; postId: string };
 
 interface Props {
   appUser: AppUser;
@@ -503,17 +582,23 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userTeams.map(t => t.id).join(',')]);
 
-  const { posts, loading, addPost, deletePost, setNotice } = usePosts(activeTeamId);
+  const { posts, loading, addPost, updatePost, deletePost, setNotice } = usePosts(activeTeamId);
   const activeTeam = userTeams.find(t => t.id === activeTeamId) ?? null;
 
-  // 읽기 뷰에서 글이 삭제됐으면 목록으로
+  // 읽기/수정 뷰에서 글이 삭제됐으면 목록으로
   useEffect(() => {
-    if (view.type === 'read' && !loading && !posts.find(p => p.id === view.postId)) {
+    if ((view.type === 'read' || view.type === 'edit') && !loading && !posts.find(p => p.id === view.postId)) {
       setView({ type: 'list' });
     }
   }, [posts, loading, view]);
 
-  const selectedPost = view.type === 'read' ? (posts.find(p => p.id === view.postId) ?? null) : null;
+  const selectedPost = (view.type === 'read' || view.type === 'edit') ? (posts.find(p => p.id === view.postId) ?? null) : null;
+
+  const handleEdit = async (title: string, content: string) => {
+    if (view.type !== 'edit') return;
+    await updatePost(view.postId, title, content);
+    setView({ type: 'read', postId: view.postId });
+  };
 
   const handleWrite = async (title: string, content: string, isNotice: boolean) => {
     if (!activeTeamId) return;
@@ -625,8 +710,17 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
           appUser={appUser}
           onBack={() => setView({ type: 'list' })}
           onDelete={() => handleDelete(selectedPost.id)}
+          onEdit={() => setView({ type: 'edit', postId: selectedPost.id })}
           onSetNotice={isNotice => setNotice(selectedPost.id, isNotice)}
           onReadNotice={onReadNotice}
+        />
+      )}
+
+      {view.type === 'edit' && selectedPost && (
+        <EditView
+          post={selectedPost}
+          onBack={() => setView({ type: 'read', postId: selectedPost.id })}
+          onSubmit={handleEdit}
         />
       )}
     </>

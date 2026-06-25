@@ -81,7 +81,11 @@ export function usePosts(teamId: string | null) {
     }
   };
 
-  return { posts, loading, addPost, deletePost, setNotice };
+  const updatePost = async (postId: string, title: string, content: string) => {
+    await updateDoc(doc(db, 'posts', postId), { title, content });
+  };
+
+  return { posts, loading, addPost, updatePost, deletePost, setNotice };
 }
 
 export function useComments(postId: string | null) {

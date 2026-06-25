@@ -233,9 +233,11 @@ function App() {
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task => {
       const taskPartObj = activeParts.find(p => p.name === task.category);
-      // PL업무는 plMainTaskTypes 사용, 일반 업무는 파트→팀 우선순위
+      // PL업무는 plMainTaskTypes 사용 (plSelectedTypes로 추가 필터), 일반 업무는 파트→팀 우선순위
       const validTypes = task.plTask
-        ? (selectedTeam?.plMainTaskTypes ?? [])
+        ? (selectedTeam?.plMainTaskTypes ?? []).filter(t =>
+            !task.plSelectedTypes || task.plSelectedTypes.includes(t.id)
+          )
         : (taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes);
       const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 

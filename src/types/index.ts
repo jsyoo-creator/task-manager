@@ -368,8 +368,9 @@ export interface Task {
     memos?: SubTaskMemo[];
   }>;
   memo?: string;
-  plTask?: boolean;    // PL업무 여부
-  plParts?: string[];  // PL업무 소속 파트 목록
+  plTask?: boolean;          // PL업무 여부
+  plParts?: string[];        // PL업무 소속 파트 목록
+  plSelectedTypes?: string[]; // PL업무에서 선택된 메인업무 타입 ID 목록
   createdAt: string;
   updatedAt: string;
 }

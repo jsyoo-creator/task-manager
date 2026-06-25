@@ -226,11 +226,11 @@ function App() {
   }, [selectedTeam?.subTaskTypes, activeParts]);
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
-  // 각 업무의 파트별 유효 타입만 포함 (삭제/변경된 타입 데이터 자동 제외)
+  // 팀 레벨 타입이 우선 적용되며, 팀 타입이 없는 경우만 파트 레벨 타입 사용
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task => {
       const taskPartObj = activeParts.find(p => p.name === task.category);
-      const validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
+      const validTypes = selectedTeam?.subTaskTypes ?? taskPartObj?.subTaskTypes;
       const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 
       return Object.entries(task.subTaskData ?? {})
@@ -412,7 +412,7 @@ function App() {
               parts={activeParts}
               canManage={permissions.canManageTasks}
               metaFields={resolvedMetaFields}
-              subTaskTypes={taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? []}
+              subTaskTypes={selectedTeam?.subTaskTypes ?? taskPart?.subTaskTypes ?? []}
               teamMembers={teamMembers}
               formConfig={resolvedFormConfig}
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}

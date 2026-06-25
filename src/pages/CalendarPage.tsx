@@ -32,12 +32,19 @@ function vacTypeColor(type: VacationType): string {
   }
 }
 
-const CAT_STYLE: Record<string, { card: string; title: string; dot: string; hover: string }> = {
-  '라이브': { card: 'bg-red-50',    title: 'text-red-600',    dot: 'bg-red-400',    hover: 'hover:bg-red-100' },
-  '복지':   { card: 'bg-orange-50', title: 'text-orange-600', dot: 'bg-orange-400', hover: 'hover:bg-orange-100' },
-  '사업자': { card: 'bg-indigo-50', title: 'text-indigo-600', dot: 'bg-indigo-400', hover: 'hover:bg-indigo-100' },
-  '기타':   { card: 'bg-gray-50',   title: 'text-gray-600',   dot: 'bg-gray-400',   hover: 'hover:bg-gray-100' },
+const TW_TO_CAT: Record<string, { card: string; title: string; dot: string; hover: string }> = {
+  'bg-red-500':    { card: 'bg-red-50',    title: 'text-red-600',    dot: 'bg-red-400',    hover: 'hover:bg-red-100' },
+  'bg-orange-400': { card: 'bg-orange-50', title: 'text-orange-600', dot: 'bg-orange-400', hover: 'hover:bg-orange-100' },
+  'bg-yellow-400': { card: 'bg-yellow-50', title: 'text-yellow-600', dot: 'bg-yellow-400', hover: 'hover:bg-yellow-100' },
+  'bg-green-500':  { card: 'bg-green-50',  title: 'text-green-600',  dot: 'bg-green-500',  hover: 'hover:bg-green-100' },
+  'bg-teal-500':   { card: 'bg-teal-50',   title: 'text-teal-600',   dot: 'bg-teal-500',   hover: 'hover:bg-teal-100' },
+  'bg-blue-500':   { card: 'bg-blue-50',   title: 'text-blue-600',   dot: 'bg-blue-500',   hover: 'hover:bg-blue-100' },
+  'bg-indigo-500': { card: 'bg-indigo-50', title: 'text-indigo-600', dot: 'bg-indigo-500', hover: 'hover:bg-indigo-100' },
+  'bg-purple-500': { card: 'bg-purple-50', title: 'text-purple-600', dot: 'bg-purple-500', hover: 'hover:bg-purple-100' },
+  'bg-pink-500':   { card: 'bg-pink-50',   title: 'text-pink-600',   dot: 'bg-pink-500',   hover: 'hover:bg-pink-100' },
+  'bg-gray-400':   { card: 'bg-gray-50',   title: 'text-gray-600',   dot: 'bg-gray-400',   hover: 'hover:bg-gray-100' },
 };
+const CAT_DEFAULT = { card: 'bg-gray-50', title: 'text-gray-600', dot: 'bg-gray-400', hover: 'hover:bg-gray-100' };
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 
@@ -79,6 +86,12 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
+
+  const partStyleMap = useMemo(() => {
+    const map = new Map<string, { card: string; title: string; dot: string; hover: string }>();
+    parts?.forEach(p => { map.set(p.name, TW_TO_CAT[p.color] ?? CAT_DEFAULT); });
+    return map;
+  }, [parts]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -310,7 +323,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                     })()}
                     <div className="space-y-1.5">
                       {dayItems.map(item => {
-                        const s = CAT_STYLE[item.category] ?? CAT_STYLE['기타'];
+                        const s = partStyleMap.get(item.category) ?? CAT_DEFAULT;
                         const isActive = expandedId === item.id;
                         const isDone = item.status === '완료';
                         const activeMemos = isActive

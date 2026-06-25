@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, deleteField, deleteDoc,
+  doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, writeBatch, deleteField, deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { User } from 'firebase/auth';
@@ -119,6 +119,39 @@ export function useAllUsers() {
     if ('defaultTeamId' in data) {
       payload.defaultTeamId = defaultTeamId ?? deleteField();
     }
+
+    if (data.displayName) {
+      const oldName = users.find(u => u.uid === uid)?.displayName;
+      const newName = data.displayName;
+      if (oldName && oldName !== newName) {
+        const [assigneeSnap, receiverSnap, vacSnap, postSnap, commentSnap, subtaskSnap] = await Promise.all([
+          getDocs(query(collection(db, 'tasks'), where('assignee', '==', oldName))),
+          getDocs(query(collection(db, 'tasks'), where('receiver', '==', oldName))),
+          getDocs(query(collection(db, 'vacations'), where('memberName', '==', oldName))),
+          getDocs(query(collection(db, 'posts'), where('authorName', '==', oldName))),
+          getDocs(query(collection(db, 'comments'), where('authorName', '==', oldName))),
+          getDocs(query(collection(db, 'subtasks'), where('assignee', '==', oldName))),
+        ]);
+
+        type UpdateEntry = { ref: ReturnType<typeof doc>; data: Record<string, string> };
+        const updates: UpdateEntry[] = [
+          ...assigneeSnap.docs.map(d => ({ ref: d.ref, data: { assignee: newName } })),
+          ...receiverSnap.docs.map(d => ({ ref: d.ref, data: { receiver: newName } })),
+          ...vacSnap.docs.map(d => ({ ref: d.ref, data: { memberName: newName } })),
+          ...postSnap.docs.map(d => ({ ref: d.ref, data: { authorName: newName } })),
+          ...commentSnap.docs.map(d => ({ ref: d.ref, data: { authorName: newName } })),
+          ...subtaskSnap.docs.map(d => ({ ref: d.ref, data: { assignee: newName } })),
+        ];
+
+        const CHUNK = 450;
+        for (let i = 0; i < updates.length; i += CHUNK) {
+          const b = writeBatch(db);
+          updates.slice(i, i + CHUNK).forEach(({ ref, data: u }) => b.update(ref, u));
+          await b.commit();
+        }
+      }
+    }
+
     await updateDoc(doc(db, 'users', uid), payload);
   };
 

@@ -756,7 +756,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                   /* onBlur 컨테이너: 라벨/속성 행 + 옵션 에디터를 함께 감싸 포커스 이탈 감지 */
                   <div
                     onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveLabel(fc.key); }}
-                    onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}
+                    onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button, label')) e.preventDefault(); }}
                   >
                     <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
                       <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
@@ -935,7 +935,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                 {isEditingCF ? (
                   <div className="flex-1 min-w-0"
                     onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) saveCustomField(cf.id); }}
-                    onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button')) e.preventDefault(); }}>
+                    onMouseDown={(e) => { if ((e.target as HTMLElement).closest('button, label')) e.preventDefault(); }}>
                     <div className="flex items-center gap-1.5">
                       <input
                         autoFocus

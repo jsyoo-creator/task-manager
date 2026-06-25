@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { AppUser, Team } from '../types';
 import { usePosts, useComments, type Post, type PostComment } from '../hooks/usePosts';
 
@@ -64,10 +64,51 @@ function DeleteModal({ label, onConfirm, onCancel }: {
   );
 }
 
+// ─── 페이지네이션 ─────────────────────────────────────────────────────
+const PAGE_SIZE = 10;
+
+function Pagination({ page, totalPages, onChange }: {
+  page: number; totalPages: number; onChange: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const pages: number[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (page > 3) pages.push(-1);
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+    if (page < totalPages - 2) pages.push(-2);
+    pages.push(totalPages);
+  }
+  return (
+    <div className="flex items-center justify-center gap-1 py-3 border-t border-gray-50">
+      <button disabled={page === 1} onClick={() => onChange(page - 1)}
+        className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+        <ChevronLeft size={13} /> 이전
+      </button>
+      {pages.map((p, i) =>
+        p < 0
+          ? <span key={`e${i}`} className="px-1.5 text-xs text-gray-300">…</span>
+          : <button key={p} onClick={() => onChange(p)}
+              className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
+                p === page ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-100'
+              }`}>{p}</button>
+      )}
+      <button disabled={page === totalPages} onClick={() => onChange(page + 1)}
+        className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+        다음 <ChevronRight size={13} />
+      </button>
+    </div>
+  );
+}
+
 // ─── 목록 뷰 ──────────────────────────────────────────────────────────
-function ListView({ posts, loading, onSelect, onWrite }: {
+function ListView({ posts, loading, page, onPageChange, onSelect, onWrite }: {
   posts: Post[];
   loading: boolean;
+  page: number;
+  onPageChange: (p: number) => void;
   onSelect: (postId: string) => void;
   onWrite: () => void;
 }) {
@@ -75,8 +116,10 @@ function ListView({ posts, loading, onSelect, onWrite }: {
     .filter(p => p.isNotice)
     .sort((a, b) => (a.noticeAt ?? '').localeCompare(b.noticeAt ?? ''));
   const regularPosts = posts.filter(p => !p.isNotice);
-  // 일반 글 번호: 전체 일반 글 수에서 역순
   const totalRegular = regularPosts.length;
+  const totalPages = Math.max(1, Math.ceil(totalRegular / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedRegular = regularPosts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const PostRow = ({ post, index, isNotice }: { post: Post; index?: number; isNotice?: boolean }) => (
     <div
@@ -158,11 +201,12 @@ function ListView({ posts, loading, onSelect, onWrite }: {
             <div className="h-px bg-gray-200 mx-5" />
           )}
           {/* 일반 글 */}
-          {regularPosts.map((post, i) => (
-            <PostRow key={post.id} post={post} index={totalRegular - i} />
+          {pagedRegular.map((post, i) => (
+            <PostRow key={post.id} post={post} index={totalRegular - ((safePage - 1) * PAGE_SIZE + i)} />
           ))}
         </>
       )}
+      <Pagination page={safePage} totalPages={totalPages} onChange={onPageChange} />
     </div>
   );
 }
@@ -499,14 +543,16 @@ function EditView({ post, onBack, onSubmit }: {
 }
 
 // ─── 글 읽기 뷰 ───────────────────────────────────────────────────────
-function ReadView({ post, appUser, onBack, onDelete, onEdit, onSetNotice, onReadNotice }: {
+function ReadView({ post, appUser, regularPosts, onBack, onDelete, onEdit, onSetNotice, onReadNotice, onNavigate }: {
   post: Post;
   appUser: AppUser;
+  regularPosts: Post[];
   onBack: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onSetNotice: (isNotice: boolean) => void;
   onReadNotice?: (postId: string) => void;
+  onNavigate: (postId: string) => void;
 }) {
   const canManage = post.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin';
   const canManageNotice = appUser.role === 'manager' || appUser.role === 'superadmin';
@@ -600,6 +646,32 @@ function ReadView({ post, appUser, onBack, onDelete, onEdit, onSetNotice, onRead
         <div className="px-6 pb-6 pt-2 border-t border-gray-100">
           <CommentSection postId={post.id} appUser={appUser} />
         </div>
+
+        {/* 이전글 / 다음글 */}
+        {!post.isNotice && (() => {
+          const idx = regularPosts.findIndex(p => p.id === post.id);
+          const prevPost = idx < regularPosts.length - 1 ? regularPosts[idx + 1] : null;
+          const nextPost = idx > 0 ? regularPosts[idx - 1] : null;
+          if (!prevPost && !nextPost) return null;
+          return (
+            <div className="border-t border-gray-100">
+              {nextPost && (
+                <button onClick={() => onNavigate(nextPost.id)}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 group">
+                  <span className="text-[11px] font-medium text-gray-400 w-12 flex-shrink-0">다음글</span>
+                  <span className="text-sm text-gray-700 truncate group-hover:text-[#6C63FF] transition-colors">{nextPost.title}</span>
+                </button>
+              )}
+              {prevPost && (
+                <button onClick={() => onNavigate(prevPost.id)}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 transition-colors group">
+                  <span className="text-[11px] font-medium text-gray-400 w-12 flex-shrink-0">이전글</span>
+                  <span className="text-sm text-gray-700 truncate group-hover:text-[#6C63FF] transition-colors">{prevPost.title}</span>
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {showDeleteModal && (
@@ -634,6 +706,7 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
 
   const [activeTeamId, setActiveTeamId] = useState<string | null>(() => resolveTeam(userTeams));
   const [view, setView] = useState<BoardView>({ type: 'list' });
+  const [listPage, setListPage] = useState(1);
 
   useEffect(() => {
     if (userTeams.length > 0 && (!activeTeamId || !userTeams.some(t => t.id === activeTeamId))) {
@@ -682,7 +755,9 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
   const handleTeamChange = (teamId: string) => {
     setActiveTeamId(teamId);
     setView({ type: 'list' });
+    setListPage(1);
   };
+  const regularPosts = posts.filter(p => !p.isNotice);
 
   // 소속 팀 없음
   if (userTeams.length === 0) {
@@ -750,6 +825,8 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
         <ListView
           posts={posts}
           loading={loading}
+          page={listPage}
+          onPageChange={setListPage}
           onSelect={postId => setView({ type: 'read', postId })}
           onWrite={() => setView({ type: 'write' })}
         />
@@ -768,11 +845,13 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
         <ReadView
           post={selectedPost}
           appUser={appUser}
+          regularPosts={regularPosts}
           onBack={() => setView({ type: 'list' })}
           onDelete={() => handleDelete(selectedPost.id)}
           onEdit={() => setView({ type: 'edit', postId: selectedPost.id })}
           onSetNotice={isNotice => setNotice(selectedPost.id, isNotice)}
           onReadNotice={onReadNotice}
+          onNavigate={postId => setView({ type: 'read', postId })}
         />
       )}
 

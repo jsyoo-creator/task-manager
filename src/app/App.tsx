@@ -457,7 +457,12 @@ function App() {
               currentUserName={currentUserName}
               vacations={teamVacations}
               reviewTasks={detailTask.plTask
-                ? tasks.filter(t => !t.plTask && t.projectId === detailTask.projectId && t.id !== detailTask.id)
+                ? tasks.filter(t =>
+                    !t.plTask &&
+                    t.projectId === detailTask.projectId &&
+                    t.id !== detailTask.id &&
+                    (!detailTask.plParts?.length || detailTask.plParts.includes(t.category))
+                  )
                 : undefined}
             />
           );

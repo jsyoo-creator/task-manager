@@ -457,7 +457,7 @@ function App() {
               currentUserName={currentUserName}
               vacations={teamVacations}
               reviewTasks={detailTask.plTask
-                ? tasks.filter(t => t.plTask && t.projectId === detailTask.projectId && t.id !== detailTask.id && t.taskMonth === detailTask.taskMonth)
+                ? tasks.filter(t => !t.plTask && t.projectId === detailTask.projectId && t.id !== detailTask.id && (!detailTask.taskMonth || t.taskMonth === detailTask.taskMonth))
                 : undefined}
             />
           );

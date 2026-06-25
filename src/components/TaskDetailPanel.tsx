@@ -794,7 +794,7 @@ export default function TaskDetailPanel({
                         )}
                       </div>
                       {items.length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-2">같은 월에 등록된 PL업무가 없습니다</p>
+                        <p className="text-xs text-gray-400 text-center py-2">같은 월에 등록된 업무가 없습니다</p>
                       ) : (
                         <div className="space-y-1">
                           {items.map(rt => {

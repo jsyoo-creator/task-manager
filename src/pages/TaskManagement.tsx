@@ -130,6 +130,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     return set;
   }, [tasks, yearFilter]);
 
+  // 현재 팀에서 유효한 엑셀 키 목록 (builtin + metaFields + customFields)
+  const validExcelKeys = useMemo(() => {
+    const builtinKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
+    const metaKeys = (teamMetaFields ?? DEFAULT_META_FIELDS).map(f => f.key);
+    const customKeys = (formConfig?.customFields ?? []).map(f => f.id);
+    return new Set([...builtinKeys, ...metaKeys, ...customKeys]);
+  }, [teamMetaFields, formConfig?.customFields]);
+
   // 파트별 유효 헤더 계산 (customLabel 반영)
   const getPartHeaders = (part: TeamPart): string[] => {
     const pFields = resolveBuiltinFields(part.formConfig ?? formConfig);
@@ -145,7 +153,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       startDate: pBLabel('startDate', '시작일'),
       endDate:   pBLabel('endDate', '종료일'),
     };
-    const ec = (part.excelConfig ?? excelConfig)?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [];
+    const ec = (part.excelConfig ?? excelConfig)?.filter(f => f.enabled && validExcelKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [];
     if (ec.length > 0) return ec.map(f => pLabels[f.key] ?? f.label);
     return Object.values(pLabels);
   };
@@ -226,7 +234,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const selected = parts?.filter(p => importParts.has(p.name)) ?? [];
     return selected.find(p => p.excelConfig)?.excelConfig ?? excelConfig;
   })();
-  const importFields = (effectiveImportConfig?.filter(f => f.enabled).sort((a, b) => a.order - b.order) ?? [])
+  const importFields = (effectiveImportConfig?.filter(f => f.enabled && validExcelKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [])
     .map(f => ({ ...f, label: builtinLabels[f.key] ?? f.label }));
   // 내보내기용 필드 (enabled + exportExcluded 제외)
   const excelFields = importFields.filter(f => !f.exportExcluded);

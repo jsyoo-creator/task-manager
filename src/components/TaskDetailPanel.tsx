@@ -976,16 +976,21 @@ export default function TaskDetailPanel({
                                   )}
                                   {isChecked && (() => {
                                     const rs = (reviewStatus[rt.id] ?? '검수 전') as ReviewStatus;
-                                    const nextStatus = () => {
-                                      const idx = REVIEW_STATUSES.indexOf(rs);
-                                      return REVIEW_STATUSES[(idx + 1) % REVIEW_STATUSES.length];
-                                    };
                                     return (
-                                      <button type="button" disabled={!canManage}
-                                        onClick={e => { e.stopPropagation(); setItemStatus(rt.id, nextStatus()); }}
-                                        className={`text-[10px] px-1.5 py-px rounded font-medium flex-shrink-0 ${REVIEW_STATUS_STYLE[rs]} ${canManage ? 'cursor-pointer hover:opacity-80' : ''}`}>
-                                        {rs}
-                                      </button>
+                                      <div className="relative flex-shrink-0">
+                                        <div className={`flex items-center gap-1 text-[10px] px-1.5 py-px rounded font-medium ${REVIEW_STATUS_STYLE[rs]}`}>
+                                          <span>{rs}</span>
+                                          <ChevronDown size={8} />
+                                        </div>
+                                        <select
+                                          disabled={!canManage}
+                                          value={rs}
+                                          onChange={e => { e.stopPropagation(); setItemStatus(rt.id, e.target.value); }}
+                                          className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
+                                          style={{ cursor: canManage ? 'pointer' : 'default' }}>
+                                          {REVIEW_STATUSES.map(s => <option key={s}>{s}</option>)}
+                                        </select>
+                                      </div>
                                     );
                                   })()}
                                 </div>

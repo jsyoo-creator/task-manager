@@ -149,9 +149,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     if (!plForm.taskMonth) { alert('월을 선택해 주세요.'); return; }
     if (plSelectedParts.length === 0) { alert('파트를 1개 이상 선택해 주세요.'); return; }
     if (plSelectedTypes.length === 0) { alert('메인업무 항목을 1개 이상 선택해 주세요.'); return; }
-    // 선택된 메인업무 항목 각각을 별도 PL 업무로 등록
+    // 선택된 메인업무 항목 각각을 별도 PL 업무로 등록 (역순 제출 → 목록에서 선택 순서대로 표시)
     const selectedTypeObjs = (plMainTaskTypes ?? []).filter(t => plSelectedTypes.includes(t.id));
-    for (const typeObj of selectedTypeObjs) {
+    for (const typeObj of [...selectedTypeObjs].reverse()) {
       onSubmit({
         taskMonth: plForm.taskMonth,
         title: typeObj.name,

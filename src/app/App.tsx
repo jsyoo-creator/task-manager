@@ -233,6 +233,11 @@ function App() {
       const validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
       const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 
+      // 해당 업무의 파트+팀 타입만으로 이름 맵 생성 (다른 파트 타입명 오염 방지)
+      const taskNameMap = new Map<string, string>();
+      selectedTeam?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+      taskPartObj?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+
       return Object.entries(task.subTaskData ?? {})
         .filter(([key]) => !validTypeIds || validTypeIds.has(key))
         .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
@@ -240,7 +245,7 @@ function App() {
           id: `${task.id}__${key}`,
           taskId: task.id,
           projectId: task.projectId ?? '',
-          title: subTaskTypeMap.get(key) ?? key,
+          title: taskNameMap.get(key) ?? key,
           category: task.category,
           type: task.type,
           status: (entry.status || '진행 전') as SubTask['status'],

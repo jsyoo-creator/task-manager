@@ -226,15 +226,12 @@ function App() {
   }, [selectedTeam?.subTaskTypes, activeParts]);
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
-  // 팀 레벨 + 파트 레벨 타입 ID를 합산하여 유효 타입 판단 (어느 레벨에 등록된 타입이든 표시)
+  // 파트별 별도 타입 우선, 없으면 팀 기본 타입 사용 (설정 페이지 로직과 동일)
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task => {
       const taskPartObj = activeParts.find(p => p.name === task.category);
-      const allIds = [
-        ...(selectedTeam?.subTaskTypes ?? []),
-        ...(taskPartObj?.subTaskTypes ?? []),
-      ].map(t => t.id);
-      const validTypeIds = allIds.length > 0 ? new Set(allIds) : null;
+      const validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
+      const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 
       return Object.entries(task.subTaskData ?? {})
         .filter(([key]) => !validTypeIds || validTypeIds.has(key))

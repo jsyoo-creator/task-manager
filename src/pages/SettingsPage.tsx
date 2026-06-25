@@ -2762,7 +2762,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
             fieldType: editFieldType,
             options: needsOptions ? editOptions : undefined,
             textFirst: editFieldType === 'text+select' ? editTextFirst : undefined,
-            ddayAlert: editFieldType === 'date' && editDdayEnabled && editDdayMessage.trim()
+            ddayAlert: editFieldType === 'date' && editDdayEnabled
               ? { days: editDdayDays, message: editDdayMessage.trim() }
               : undefined,
           }
@@ -2794,7 +2794,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       fieldType: newFieldType,
       options: needsOptions ? newOptions : undefined,
       textFirst: newFieldType === 'text+select' ? newTextFirst : undefined,
-      ddayAlert: newFieldType === 'date' && newDdayEnabled && newDdayMessage.trim()
+      ddayAlert: newFieldType === 'date' && newDdayEnabled
         ? { days: newDdayDays, message: newDdayMessage.trim() }
         : undefined,
     };

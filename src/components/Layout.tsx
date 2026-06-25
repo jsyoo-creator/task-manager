@@ -120,7 +120,7 @@ function ProfileDateAlert({ appUser, profileFields }: { appUser: AppUser | null;
         >
           <AlertCircle size={15} className="text-amber-500 flex-shrink-0" />
           <p className="text-xs text-amber-700 flex-1">
-            <span className="font-semibold">{field.ddayAlert!.message}</span>
+            <span className="font-semibold">{field.ddayAlert!.message || field.label}</span>
             {' '}
             {daysLeft === 0 ? '오늘입니다.' : `${daysLeft}일 남았습니다.`}
           </p>

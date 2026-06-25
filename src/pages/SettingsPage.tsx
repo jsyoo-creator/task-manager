@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
@@ -1154,6 +1154,8 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
   const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
 
   const currentPart = selectedTarget !== 'team'
     ? team.parts.find(p => p.id === selectedTarget)
@@ -1190,6 +1192,20 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
     const config = makeConfig({ fieldOrder: order });
     if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
     else onUpdatePartFormConfig(team.id, selectedTarget, config);
+  };
+
+  const executeCopyForm = (sourceId: string) => {
+    const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
+    const srcConfig = sourcePart ? (sourcePart.formConfig ?? team.formConfig) : team.formConfig;
+    if (srcConfig && currentPart) onUpdatePartFormConfig(team.id, currentPart.id, srcConfig);
+    setPendingCopySource(null);
+  };
+
+  const handleCopyFrom = (sourceId: string) => {
+    setShowCopyMenu(false);
+    const hasOwn = !!currentPart?.formConfig;
+    if (hasOwn) { setPendingCopySource(sourceId); return; }
+    executeCopyForm(sourceId);
   };
 
   return (
@@ -1261,6 +1277,57 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
         </div>
       )}
 
+      {/* 복사 */}
+      {selectedTarget !== 'team' && (
+        <div className="relative">
+          <button
+            onClick={() => setShowCopyMenu(v => !v)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors">
+            <Copy size={11} />다른 설정에서 복사
+            <ChevronDown size={10} />
+          </button>
+          {showCopyMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowCopyMenu(false)} />
+              <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-20">
+                <div className="px-2.5 py-1.5 text-[10px] text-gray-400 font-semibold uppercase border-b border-gray-100">복사 원본 선택</div>
+                <button
+                  onClick={() => handleCopyFrom('team')}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                  팀 기본
+                </button>
+                {team.parts.filter(p => p.id !== selectedTarget).map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleCopyFrom(p.id)}
+                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 복사 확인 배너 */}
+      {pendingCopySource !== null && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200">
+          <p className="text-xs text-orange-700 flex-1">
+            <span className="font-semibold">
+              '{pendingCopySource === 'team' ? '팀 기본' : team.parts.find(p => p.id === pendingCopySource)?.name}'
+            </span>의 설정을 복사하면 현재 설정이 덮어씌워집니다.
+          </p>
+          <button
+            onClick={() => setPendingCopySource(null)}
+            className="text-xs text-orange-600 hover:text-orange-800 font-medium flex-shrink-0 px-2 py-0.5">취소</button>
+          <button
+            onClick={() => executeCopyForm(pendingCopySource!)}
+            className="text-xs bg-orange-500 text-white px-2.5 py-0.5 rounded-lg font-medium hover:bg-orange-600 flex-shrink-0">덮어쓰기</button>
+        </div>
+      )}
+
       <FieldConfigEditor
         fields={fields}
         customFields={customFields}
@@ -1294,6 +1361,8 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   const [newIsUrl, setNewIsUrl] = useState(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingKey(null); }, [team.id]);
 
@@ -1335,6 +1404,20 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   };
 
   const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  const executeCopyMeta = (sourceId: string) => {
+    const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
+    const srcFields = sourcePart ? (sourcePart.metaFields ?? (team.metaFields ?? DEFAULT_META_FIELDS)) : (team.metaFields ?? DEFAULT_META_FIELDS);
+    if (currentPart) onSavePart(team.id, currentPart.id, srcFields);
+    setPendingCopySource(null);
+  };
+
+  const handleCopyFrom = (sourceId: string) => {
+    setShowCopyMenu(false);
+    const hasOwn = !!currentPart?.metaFields;
+    if (hasOwn) { setPendingCopySource(sourceId); return; }
+    executeCopyMeta(sourceId);
+  };
 
   return (
     <div className="space-y-4">
@@ -1398,6 +1481,57 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 복사 */}
+      {selectedTarget !== 'team' && (
+        <div className="relative">
+          <button
+            onClick={() => setShowCopyMenu(v => !v)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors">
+            <Copy size={11} />다른 설정에서 복사
+            <ChevronDown size={10} />
+          </button>
+          {showCopyMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowCopyMenu(false)} />
+              <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-20">
+                <div className="px-2.5 py-1.5 text-[10px] text-gray-400 font-semibold uppercase border-b border-gray-100">복사 원본 선택</div>
+                <button
+                  onClick={() => handleCopyFrom('team')}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                  팀 기본
+                </button>
+                {team.parts.filter(p => p.id !== selectedTarget).map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleCopyFrom(p.id)}
+                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 복사 확인 배너 */}
+      {pendingCopySource !== null && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200">
+          <p className="text-xs text-orange-700 flex-1">
+            <span className="font-semibold">
+              '{pendingCopySource === 'team' ? '팀 기본' : team.parts.find(p => p.id === pendingCopySource)?.name}'
+            </span>의 설정을 복사하면 현재 설정이 덮어씌워집니다.
+          </p>
+          <button
+            onClick={() => setPendingCopySource(null)}
+            className="text-xs text-orange-600 hover:text-orange-800 font-medium flex-shrink-0 px-2 py-0.5">취소</button>
+          <button
+            onClick={() => executeCopyMeta(pendingCopySource!)}
+            className="text-xs bg-orange-500 text-white px-2.5 py-0.5 rounded-lg font-medium hover:bg-orange-600 flex-shrink-0">덮어쓰기</button>
         </div>
       )}
 
@@ -1496,6 +1630,8 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [colorPickingId, setColorPickingId] = useState<string | null>(null);
   const dragIdxRef = useRef<number | null>(null);
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -1540,6 +1676,20 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   };
 
   const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  const executeCopySubTask = (sourceId: string) => {
+    const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
+    const srcTypes = sourcePart ? (sourcePart.subTaskTypes ?? (team.subTaskTypes ?? [])) : (team.subTaskTypes ?? []);
+    if (currentPart) onSavePart(team.id, currentPart.id, srcTypes);
+    setPendingCopySource(null);
+  };
+
+  const handleCopyFrom = (sourceId: string) => {
+    setShowCopyMenu(false);
+    const hasOwn = !isInherited;
+    if (hasOwn) { setPendingCopySource(sourceId); return; }
+    executeCopySubTask(sourceId);
+  };
 
   return (
     <div className="space-y-4">
@@ -1603,6 +1753,57 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 복사 */}
+      {selectedTarget !== 'team' && (
+        <div className="relative">
+          <button
+            onClick={() => setShowCopyMenu(v => !v)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1 hover:bg-gray-50 transition-colors">
+            <Copy size={11} />다른 설정에서 복사
+            <ChevronDown size={10} />
+          </button>
+          {showCopyMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowCopyMenu(false)} />
+              <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden z-20">
+                <div className="px-2.5 py-1.5 text-[10px] text-gray-400 font-semibold uppercase border-b border-gray-100">복사 원본 선택</div>
+                <button
+                  onClick={() => handleCopyFrom('team')}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                  팀 기본
+                </button>
+                {team.parts.filter(p => p.id !== selectedTarget).map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleCopyFrom(p.id)}
+                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 복사 확인 배너 */}
+      {pendingCopySource !== null && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200">
+          <p className="text-xs text-orange-700 flex-1">
+            <span className="font-semibold">
+              '{pendingCopySource === 'team' ? '팀 기본' : team.parts.find(p => p.id === pendingCopySource)?.name}'
+            </span>의 설정을 복사하면 현재 설정이 덮어씌워집니다.
+          </p>
+          <button
+            onClick={() => setPendingCopySource(null)}
+            className="text-xs text-orange-600 hover:text-orange-800 font-medium flex-shrink-0 px-2 py-0.5">취소</button>
+          <button
+            onClick={() => executeCopySubTask(pendingCopySource!)}
+            className="text-xs bg-orange-500 text-white px-2.5 py-0.5 rounded-lg font-medium hover:bg-orange-600 flex-shrink-0">덮어쓰기</button>
         </div>
       )}
 

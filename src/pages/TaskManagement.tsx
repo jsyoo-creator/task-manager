@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -883,6 +883,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         {filtered.map(task => {
           const taskPart = parts?.find(p => p.name === task.category);
           const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS;
+          const resolvedFormConfig = taskPart?.formConfig ? mergeFormConfig(taskPart.formConfig, formConfig) : formConfig;
           return (
             <TaskRow
               key={task.id}
@@ -900,7 +901,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               colTemplate={colTemplate}
               colMinWidth={colMinWidth}
               metaFields={resolvedMetaFields}
-              formConfig={formConfig}
+              formConfig={resolvedFormConfig}
               isDragging={dragId === task.id}
               isDragOver={dragOverId === task.id}
               isActive={activeTaskId === task.id}

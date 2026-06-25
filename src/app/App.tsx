@@ -30,34 +30,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, resolveFieldDepts } from '../types';
-/** 파트 formConfig와 팀 formConfig를 병합. customLabel, departments 등은 팀에서 상속. */
-function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConfig: TeamFormConfig | undefined): TeamFormConfig | undefined {
-  if (!partConfig) return teamConfig;
-  if (!teamConfig?.builtinFields?.length) return partConfig;
-  const partFields = resolveBuiltinFields(partConfig);
-  const teamFields = resolveBuiltinFields(teamConfig);
-  const merged = partFields.map(pf => {
-    const tf = teamFields.find(f => f.key === pf.key);
-    if (!tf) return pf;
-    return {
-      ...pf,
-      customLabel: pf.customLabel ?? tf.customLabel,
-      customType: pf.customType ?? tf.customType,
-      options: pf.options ?? tf.options,
-      optionColors: pf.optionColors ?? tf.optionColors,
-      ...(resolveFieldDepts(pf) ? {} : { departments: tf.departments, department: tf.department }),
-    };
-  });
-  // 커스텀 필드: 팀 기본을 베이스로, 파트 오버라이드를 병합 (나중에 팀에 추가된 필드도 포함)
-  const teamCfs = teamConfig.customFields ?? [];
-  const partCfs = partConfig.customFields ?? [];
-  const mergedCfs = [
-    ...teamCfs.map(tcf => partCfs.find(pcf => pcf.id === tcf.id) ?? tcf),
-    ...partCfs.filter(pcf => !teamCfs.some(tcf => tcf.id === pcf.id)),
-  ];
-  return { ...partConfig, builtinFields: merged, customFields: mergedCfs };
-}
+import { getPermissions, resolveBuiltinFields, mergeFormConfig } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 

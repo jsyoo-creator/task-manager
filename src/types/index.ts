@@ -203,6 +203,33 @@ export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfi
   return fields;
 }
 
+/** 파트 formConfig와 팀 formConfig를 병합. 파트 설정이 우선, 없는 필드는 팀에서 상속. */
+export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConfig: TeamFormConfig | undefined): TeamFormConfig | undefined {
+  if (!partConfig) return teamConfig;
+  if (!teamConfig?.builtinFields?.length) return partConfig;
+  const partFields = resolveBuiltinFields(partConfig);
+  const teamFields = resolveBuiltinFields(teamConfig);
+  const merged = partFields.map(pf => {
+    const tf = teamFields.find(f => f.key === pf.key);
+    if (!tf) return pf;
+    return {
+      ...pf,
+      customLabel: pf.customLabel ?? tf.customLabel,
+      customType: pf.customType ?? tf.customType,
+      options: pf.options ?? tf.options,
+      optionColors: pf.optionColors ?? tf.optionColors,
+      ...(resolveFieldDepts(pf) ? {} : { departments: tf.departments, department: tf.department }),
+    };
+  });
+  const teamCfs = teamConfig.customFields ?? [];
+  const partCfs = partConfig.customFields ?? [];
+  const mergedCfs = [
+    ...teamCfs.map(tcf => partCfs.find(pcf => pcf.id === tcf.id) ?? tcf),
+    ...partCfs.filter(pcf => !teamCfs.some(tcf => tcf.id === pcf.id)),
+  ];
+  return { ...partConfig, builtinFields: merged, customFields: mergedCfs };
+}
+
 /** 필드 설정에서 직군 목록을 반환. 구버전 department 단일값도 처리. */
 export function resolveFieldDepts(fc: { department?: Department; departments?: Department[] }): Department[] | null {
   if (fc.departments?.length) return fc.departments;

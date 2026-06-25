@@ -286,7 +286,6 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
                             }
                             <div className="min-w-0">
                               <p className="font-medium text-gray-800 leading-tight">{u.displayName || '—'}</p>
-                              <p className="text-[11px] text-gray-400 truncate">{u.email}</p>
                             </div>
                             {isDefault && <span className="text-yellow-400 text-xs flex-shrink-0" title="기본 팀">★</span>}
                           </div>

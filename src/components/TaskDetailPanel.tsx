@@ -589,8 +589,8 @@ export default function TaskDetailPanel({
             </div>
           )}
 
-          {/* 행 4: 수정단계 항목별 횟수 (활성화된 경우만) */}
-          {builtinFields.find(f => f.key === 'revisionLevel')?.enabled && bfVisible('revisionLevel') && (
+          {/* 행 4: 수정단계 항목별 횟수 (활성화된 경우만, PL업무 제외) */}
+          {!task.plTask && builtinFields.find(f => f.key === 'revisionLevel')?.enabled && bfVisible('revisionLevel') && (
             <div className="py-2.5 border-t border-gray-100">
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-2">
                 {builtinFields.find(f => f.key === 'revisionLevel')?.customLabel ?? '수정단계'}
@@ -1052,8 +1052,8 @@ export default function TaskDetailPanel({
           )}
         </div>
 
-        {/* 업무 정보 */}
-        <div className="px-5 py-3 border-t border-black/[0.08]">
+        {/* 업무 정보 (PL업무 제외) */}
+        {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
             {metaFields.map(({ key, label, isUrl }) => {
@@ -1082,7 +1082,7 @@ export default function TaskDetailPanel({
               );
             })}
           </div>
-        </div>
+        </div>}
 
         <div className="h-6" />
       </div>

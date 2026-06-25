@@ -572,7 +572,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   };
 
   const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
-    onAddTask({ ...data, sortOrder: bottomSortOrder() }).catch((e: unknown) => {
+    const base = bottomSortOrder();
+    onAddTask({ ...data, sortOrder: base + (data.sortOrder ?? 0) }).catch((e: unknown) => {
       alert(`업무 등록 실패: ${e instanceof Error ? e.message : String(e)}`);
     });
   };
@@ -1457,15 +1458,17 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         })}
 
         <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
-          <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
-            title="업무 정보"
-            className={`flex items-center justify-center px-2 py-1 rounded-md transition-all border ${
-              expanded
-                ? 'bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/30'
-                : 'bg-white text-gray-400 border-gray-200 hover:border-[#6C63FF]/40 hover:text-[#6C63FF]'
-            }`}>
-            <Info size={11} />
-          </button>
+          {!task.plTask && (
+            <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
+              title="업무 정보"
+              className={`flex items-center justify-center px-2 py-1 rounded-md transition-all border ${
+                expanded
+                  ? 'bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/30'
+                  : 'bg-white text-gray-400 border-gray-200 hover:border-[#6C63FF]/40 hover:text-[#6C63FF]'
+              }`}>
+              <Info size={11} />
+            </button>
+          )}
           {canManage && <>
             <button onClick={e => { e.stopPropagation(); onCopy(); }}
               title="복사"

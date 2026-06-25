@@ -793,30 +793,38 @@ export default function TaskDetailPanel({
                 // review 타입: 메인업무 다중 선택 체크리스트
                 if (type.plFieldType === 'review') {
                   const checked: string[] = entry.checkedItems ?? [];
-                  const reviewHours: Record<string, number> = entry.reviewHours ?? {};
+                  const reviewWeeklyHours: Record<string, Record<string, number>> = entry.reviewWeeklyHours ?? {};
                   const reviewDates: Record<string, { startDate?: string; endDate?: string }> = entry.reviewDates ?? {};
-                  const reviewTotal = Object.values(reviewHours).reduce((a, b) => a + b, 0);
+
+                  const calcReviewTotal = (
+                    wh: Record<string, Record<string, number>>,
+                    dates: Record<string, { startDate?: string; endDate?: string }>,
+                    ids: string[]
+                  ) => ids.reduce((sum, id) => {
+                    const d = dates[id];
+                    const h = wh[id] ?? {};
+                    if (!d?.startDate) return sum + Object.values(h).reduce((a, b) => a + b, 0);
+                    return sum + calcHoursInRange(h, d.startDate, d.endDate);
+                  }, 0);
+
+                  const reviewTotal = calcReviewTotal(reviewWeeklyHours, reviewDates, checked);
 
                   const toggleItem = (id: string) => {
                     const next = checked.includes(id) ? checked.filter(x => x !== id) : [...checked, id];
-                    const nextHours = { ...reviewHours };
+                    const nextWh = { ...reviewWeeklyHours };
                     const nextDates = { ...reviewDates };
-                    if (!next.includes(id)) { delete nextHours[id]; delete nextDates[id]; }
-                    const nextEntry = { ...entry, checkedItems: next, reviewHours: nextHours, reviewDates: nextDates, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
+                    if (!next.includes(id)) { delete nextWh[id]; delete nextDates[id]; }
+                    const newTotal = calcReviewTotal(nextWh, nextDates, next);
+                    const nextEntry = { ...entry, checkedItems: next, reviewWeeklyHours: nextWh, reviewDates: nextDates, totalHours: newTotal };
                     const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
                   };
-                  const setHours = (id: string, h: number) => {
-                    const nextHours = { ...reviewHours, [id]: h };
-                    const nextEntry = { ...entry, reviewHours: nextHours, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
-                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
-                    setLocalSubTaskData(nextData);
-                    saveSubTaskData(nextData);
-                  };
+
                   const setDate = (id: string, field: 'startDate' | 'endDate', val: string) => {
                     const nextDates = { ...reviewDates, [id]: { ...(reviewDates[id] ?? {}), [field]: val || undefined } };
-                    const nextEntry = { ...entry, reviewDates: nextDates };
+                    const newTotal = calcReviewTotal(reviewWeeklyHours, nextDates, checked);
+                    const nextEntry = { ...entry, reviewDates: nextDates, totalHours: newTotal };
                     const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
@@ -846,9 +854,20 @@ export default function TaskDetailPanel({
                         <div className="space-y-1">
                           {items.map(rt => {
                             const isChecked = checked.includes(rt.id);
-                            const h = reviewHours[rt.id] ?? 0;
+                            const rtDates = reviewDates[rt.id] ?? {};
+                            const rtWeeklyHours = reviewWeeklyHours[rt.id] ?? {};
+                            const rtTotal = rtDates.startDate
+                              ? calcHoursInRange(rtWeeklyHours, rtDates.startDate, rtDates.endDate)
+                              : Object.values(rtWeeklyHours).reduce((a, b) => a + b, 0);
+                            const rtWeeks = rtDates.startDate ? getWeekDays(rtDates.startDate, rtDates.endDate) : [];
+                            const rtSd = rtDates.startDate ? new Date(rtDates.startDate) : null;
+                            const rtSdDow = rtSd ? rtSd.getDay() : 1;
+                            const rtStartDayIdx = !rtSd ? 0 : (rtSdDow === 0 || rtSdDow === 6) ? 0 : rtSdDow - 1;
+                            const rtEd = rtDates.endDate ? new Date(rtDates.endDate) : null;
+                            const rtEdDow = rtEd ? rtEd.getDay() : 0;
+                            const rtEndDayIdx = !rtEd ? 4 : (rtEdDow === 0 || rtEdDow === 6) ? 4 : rtEdDow - 1;
                             return (
-                              <div key={rt.id} className={`rounded-lg text-xs transition-colors ${isChecked ? 'bg-violet-100' : 'bg-white'}`}>
+                              <div key={rt.id} className={`rounded-lg text-xs transition-colors ${isChecked ? 'bg-violet-50' : 'bg-white'}`}>
                                 <div className="flex items-center gap-2 px-2.5 py-1.5">
                                   <button type="button" disabled={!canManage}
                                     onClick={() => toggleItem(rt.id)}
@@ -864,14 +883,17 @@ export default function TaskDetailPanel({
                                   {rt.status && rt.status !== '진행 전' && (
                                     <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-400 flex-shrink-0">{rt.status}</span>
                                   )}
+                                  {rtTotal > 0 && (
+                                    <span className="text-[10px] font-medium text-violet-500 flex-shrink-0">{rtTotal}h</span>
+                                  )}
                                 </div>
                                 {isChecked && (
-                                  <div className="px-2.5 pb-2 space-y-1.5">
+                                  <div className="px-2.5 pb-2.5 space-y-2">
                                     {/* 날짜 */}
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-[11px] text-violet-500 w-10 flex-shrink-0">날짜</span>
                                       <DatePicker
-                                        value={reviewDates[rt.id]?.startDate ?? ''}
+                                        value={rtDates.startDate ?? ''}
                                         onChange={v => setDate(rt.id, 'startDate', v)}
                                         disabled={!canManage}
                                         placeholder="시작일"
@@ -879,25 +901,86 @@ export default function TaskDetailPanel({
                                       />
                                       <span className="text-gray-300 text-xs flex-shrink-0">→</span>
                                       <DatePicker
-                                        value={reviewDates[rt.id]?.endDate ?? ''}
+                                        value={rtDates.endDate ?? ''}
                                         onChange={v => setDate(rt.id, 'endDate', v)}
                                         disabled={!canManage}
                                         placeholder="종료일"
                                         className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50"
                                       />
                                     </div>
-                                    {/* 시간 */}
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-[11px] text-violet-500 w-10 flex-shrink-0">시간</span>
-                                      <input type="number" min={0} step={0.1}
-                                        disabled={!canManage}
-                                        value={h || ''}
-                                        placeholder="0"
-                                        onChange={e => setHours(rt.id, parseFloat(e.target.value) || 0)}
-                                        className="w-20 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 text-right disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                      />
-                                      <span className="text-[11px] text-gray-400">h</span>
-                                    </div>
+                                    {/* 주/요일 시간 그리드 */}
+                                    {!rtDates.startDate ? (
+                                      <p className="text-[11px] text-violet-400 text-center py-1">시작일을 설정하면 시간을 입력할 수 있습니다</p>
+                                    ) : (
+                                      <>
+                                        <div className="grid grid-cols-[28px_repeat(5,1fr)] gap-x-1">
+                                          <span />
+                                          {['월', '화', '수', '목', '금'].map(d => (
+                                            <span key={d} className="text-center text-[10px] font-medium text-violet-400">{d}</span>
+                                          ))}
+                                        </div>
+                                        {rtWeeks.map(({ weekLabel, days }, wi) => {
+                                          const weekNum = wi + 1;
+                                          const isLastRtWeek = wi === rtWeeks.length - 1;
+                                          return (
+                                            <div key={wi} className="grid grid-cols-[28px_repeat(5,1fr)] gap-x-1">
+                                              <div className="flex flex-col items-center justify-center">
+                                                <span className="text-[10px] font-semibold text-violet-500 leading-none">{weekNum}주</span>
+                                                {weekLabel && <span className="text-[8px] text-violet-300 leading-tight mt-0.5">{weekLabel}</span>}
+                                              </div>
+                                              {days.map(({ date }, di) => {
+                                                const wKey = `w${weekNum}d${di + 1}`;
+                                                const rawKey = `${type.id}_rev_${rt.id}_${wKey}`;
+                                                const cellVal = rtWeeklyHours[wKey] ?? 0;
+                                                const disabled = (wi === 0 && di < rtStartDayIdx) || (isLastRtWeek && rtDates.endDate ? di > rtEndDayIdx : false);
+                                                return (
+                                                  <div key={di} className="flex flex-col items-center gap-0.5">
+                                                    <span className={`text-[8px] leading-none ${disabled ? 'text-violet-200' : 'text-violet-300'}`}>
+                                                      {date || ' '}
+                                                    </span>
+                                                    {canManage && !disabled ? (
+                                                      <input
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={rawKey in localRaw ? localRaw[rawKey] : (cellVal === 0 ? '' : String(cellVal))}
+                                                        placeholder="-"
+                                                        onChange={e => {
+                                                          const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                                          setLocalRaw(prev => ({ ...prev, [rawKey]: raw }));
+                                                          const n = Math.min(24, parseFloat(raw) || 0);
+                                                          const newRtHours = { ...rtWeeklyHours, [wKey]: n };
+                                                          if (n === 0) delete newRtHours[wKey];
+                                                          setLocalSubTaskData(prev => {
+                                                            const cur = prev[type.id] ?? entry;
+                                                            const curWh = { ...(cur.reviewWeeklyHours ?? {}), [rt.id]: newRtHours };
+                                                            const curDates = cur.reviewDates ?? {};
+                                                            const newTotal = calcReviewTotal(curWh, curDates, cur.checkedItems ?? []);
+                                                            const next = { ...prev, [type.id]: { ...cur, reviewWeeklyHours: curWh, totalHours: newTotal } };
+                                                            localSubTaskDataRef.current = next;
+                                                            return next;
+                                                          });
+                                                        }}
+                                                        onBlur={() => {
+                                                          setLocalRaw(prev => { const next = { ...prev }; delete next[rawKey]; return next; });
+                                                          saveSubTaskData(localSubTaskDataRef.current);
+                                                        }}
+                                                        className="w-full text-center text-[10px] bg-violet-100 rounded py-0.5 border-none focus:outline-none focus:ring-1 focus:ring-violet-400/50 text-violet-800 placeholder:text-violet-300"
+                                                      />
+                                                    ) : (
+                                                      <span className={`w-full text-center text-[10px] rounded py-0.5 ${
+                                                        disabled ? 'bg-violet-50/50 text-violet-200' : 'bg-violet-100 text-violet-600'
+                                                      }`}>
+                                                        {!disabled && cellVal > 0 ? cellVal : <span className="opacity-30">-</span>}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          );
+                                        })}
+                                      </>
+                                    )}
                                   </div>
                                 )}
                               </div>

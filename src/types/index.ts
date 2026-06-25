@@ -384,7 +384,7 @@ export interface Task {
     substituteTotalHours?: number;
     memos?: SubTaskMemo[];
     checkedItems?: string[]; // review 타입 필드: 선택된 업무 ID 목록
-    reviewHours?: Record<string, number>; // review 타입 필드: taskId → 투입시간
+    reviewWeeklyHours?: Record<string, Record<string, number>>; // review 타입 필드: taskId → { w1d1... }
     reviewDates?: Record<string, { startDate?: string; endDate?: string }>; // review 타입 필드: taskId → 날짜
   }>;
   memo?: string;

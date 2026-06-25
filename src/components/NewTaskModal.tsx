@@ -425,8 +425,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                       </select>
                     )}
                     {cfType === 'date' && (
-                      <input type="date" required={cf.required} className={cls}
-                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                      <DatePicker value={custom[cf.id] ?? ''} onChange={v => setCustom(c => ({ ...c, [cf.id]: v }))} />
                     )}
                     {cfType === 'number' && (
                       <input type="number" required={cf.required} className={cls}

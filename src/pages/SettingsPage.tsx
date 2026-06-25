@@ -80,6 +80,13 @@ const EMOJIS = [
   '🧩','🪄','🏄','🧗','🚴','🤝','👑','🪐','🧬','🎓',
 ];
 
+function hexToTextColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#334155' : '#f8fafc';
+}
+
 // ──────────────────────────────────────────
 // 공통 뱃지
 // ──────────────────────────────────────────
@@ -522,6 +529,12 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
                       className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${optionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
                       style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
                   ))}
+                  <label title="직접 선택" className="w-4 h-4 rounded-full cursor-pointer overflow-hidden flex-shrink-0 hover:scale-110 transition-transform"
+                    style={{ background: 'conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
+                    <input type="color" className="opacity-0 absolute w-0 h-0"
+                      value={optionColors[opt]?.bg ?? '#ffffff'}
+                      onChange={e => { const bg = e.target.value; setOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }} />
+                  </label>
                 </div>
               )}
             </div>
@@ -825,6 +838,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                                     className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${builtinOptionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
                                     style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
                                 ))}
+                                <label title="직접 선택" className="w-4 h-4 rounded-full cursor-pointer overflow-hidden flex-shrink-0 hover:scale-110 transition-transform"
+                                  style={{ background: 'conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
+                                  <input type="color" className="opacity-0 absolute w-0 h-0"
+                                    value={builtinOptionColors[opt]?.bg ?? '#ffffff'}
+                                    onChange={e => { const bg = e.target.value; setBuiltinOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }} />
+                                </label>
                               </div>
                             )}
                           </div>
@@ -978,6 +997,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                                     className={`w-4 h-4 rounded-full flex-shrink-0 hover:scale-110 transition-transform ${customOptionColors[opt]?.bg === p.bg ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
                                     style={{ backgroundColor: p.bg, border: `1.5px solid ${p.text}` }} />
                                 ))}
+                                <label title="직접 선택" className="w-4 h-4 rounded-full cursor-pointer overflow-hidden flex-shrink-0 hover:scale-110 transition-transform"
+                                  style={{ background: 'conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
+                                  <input type="color" className="opacity-0 absolute w-0 h-0"
+                                    value={customOptionColors[opt]?.bg ?? '#ffffff'}
+                                    onChange={e => { const bg = e.target.value; setCustomOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }} />
+                                </label>
                               </div>
                             )}
                           </div>

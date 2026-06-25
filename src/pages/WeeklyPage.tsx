@@ -190,16 +190,19 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
     [filtered, start, end]
   );
 
+  // 세부업무 자체 날짜 기준으로 이번 주 포함 여부 판단
+  // 부모 업무 날짜와 무관하게 세부업무 startDate가 이번 주면 표시
+  const allTaskMap = useMemo(() => new Map(filtered.map(t => [t.id, t])), [filtered]);
+
   const weekSubtasks = useMemo(() => {
-    const taskIdSet = new Set(weekTasks.map(t => t.id));
+    const allTaskIds = new Set(filtered.map(t => t.id));
     return subtasks.filter(s => {
-      if (!taskIdSet.has(s.taskId)) return false;
-      // 세부업무에 날짜가 있으면 이번 주와 겹치는지 확인, 없으면 부모 업무 날짜 기준
+      if (!allTaskIds.has(s.taskId)) return false;
       if (s.startDate) return inRange(s.startDate, s.endDate || s.startDate);
-      const parent = weekTasks.find(t => t.id === s.taskId);
+      const parent = allTaskMap.get(s.taskId);
       return parent ? inRange(parent.startDate, parent.endDate) : false;
     });
-  }, [subtasks, weekTasks, start, end]);
+  }, [subtasks, filtered, allTaskMap, start, end]);
 
   const weekTaskMap = useMemo(() => new Map(weekTasks.map(t => [t.id, t])), [weekTasks]);
 
@@ -222,7 +225,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
     const substituteSet = new Set<string>();
     weekSubtasks.forEach(s => {
       const [, subKey] = s.id.split('__');
-      const sub = weekTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
+      const sub = allTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
       if (sub) substituteSet.add(sub);
     });
 
@@ -234,19 +237,19 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
       const subSubs = weekSubtasks.filter(s => {
         if (s.assignee === person) return false;
         const [, subKey] = s.id.split('__');
-        return weekTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute === person;
+        return allTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute === person;
       });
 
       const groups = [
         ...[...new Set(mySubs.map(s => s.taskId))].map(taskId => {
-          const task = weekTaskMap.get(taskId);
+          const task = allTaskMap.get(taskId);
           if (!task) return null;
           const subs = mySubs.filter(s => s.taskId === taskId);
           const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0);
           return { task, subs, taskH, isSubstitute: false };
         }),
         ...[...new Set(subSubs.map(s => s.taskId))].map(taskId => {
-          const task = weekTaskMap.get(taskId);
+          const task = allTaskMap.get(taskId);
           if (!task) return null;
           const subs = subSubs.filter(s => s.taskId === taskId);
           const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start, true), 0);
@@ -258,7 +261,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
       const vacInfo = getPersonVacationInfo(person, vacations, start);
       return { person, groups, totalH, vacH: vacInfo.h, vacEntries: vacInfo.entries };
     }).filter(p => p.groups.length > 0 || p.vacH > 0);
-  }, [weekSubtasks, weekTaskMap, start, canSeeAll, currentUserName, vacations]);
+  }, [weekSubtasks, allTaskMap, start, canSeeAll, currentUserName, vacations]);
 
   return (
     <div>

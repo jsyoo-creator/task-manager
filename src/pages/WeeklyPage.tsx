@@ -244,14 +244,16 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
         ...[...new Set(mySubs.map(s => s.taskId))].map(taskId => {
           const task = allTaskMap.get(taskId);
           if (!task) return null;
-          const subs = mySubs.filter(s => s.taskId === taskId);
+          const subs = mySubs.filter(s => s.taskId === taskId && getSubWeekHours(s, start) > 0);
+          if (subs.length === 0) return null;
           const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0);
           return { task, subs, taskH, isSubstitute: false };
         }),
         ...[...new Set(subSubs.map(s => s.taskId))].map(taskId => {
           const task = allTaskMap.get(taskId);
           if (!task) return null;
-          const subs = subSubs.filter(s => s.taskId === taskId);
+          const subs = subSubs.filter(s => s.taskId === taskId && getSubWeekHours(s, start, true) > 0);
+          if (subs.length === 0) return null;
           const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start, true), 0);
           return { task, subs, taskH, isSubstitute: true };
         }),

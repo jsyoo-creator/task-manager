@@ -117,5 +117,9 @@ export function useComments(postId: string | null) {
     await updateDoc(doc(db, 'posts', postId), { commentCount: increment(-1) });
   };
 
-  return { comments, addComment, deleteComment };
+  const updateComment = async (commentId: string, content: string) => {
+    await updateDoc(doc(db, 'comments', commentId), { content });
+  };
+
+  return { comments, addComment, updateComment, deleteComment };
 }

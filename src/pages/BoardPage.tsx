@@ -276,10 +276,13 @@ function WriteView({ activeTeam, appUser, onBack, onSubmit }: {
 
 // ─── 댓글 섹션 ────────────────────────────────────────────────────────
 function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser }) {
-  const { comments, addComment, deleteComment } = useComments(postId);
+  const { comments, addComment, updateComment, deleteComment } = useComments(postId);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostComment | null>(null);
+  const [editTarget, setEditTarget] = useState<PostComment | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async () => {
@@ -301,6 +304,27 @@ function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser 
     }
   };
 
+  const startEdit = (c: PostComment) => {
+    setEditTarget(c);
+    setEditText(c.content);
+  };
+
+  const cancelEdit = () => {
+    setEditTarget(null);
+    setEditText('');
+  };
+
+  const handleEditSave = async () => {
+    if (!editTarget || !editText.trim() || editSaving) return;
+    setEditSaving(true);
+    try {
+      await updateComment(editTarget.id, editText.trim());
+      cancelEdit();
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
@@ -313,26 +337,62 @@ function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser 
         <p className="text-xs text-gray-400 py-4 text-center">첫 번째 댓글을 남겨보세요</p>
       ) : (
         <div className="space-y-4 mb-5">
-          {comments.map(c => (
-            <div key={c.id} className="flex gap-3 group">
-              <Avatar name={c.authorName} photoURL={c.authorPhotoURL} size={7} />
-              <div className="flex-1 min-w-0 bg-gray-50 rounded-xl px-3.5 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-800">{c.authorName}</span>
-                  <span className="text-[10px] text-gray-400">{formatRelative(c.createdAt)}</span>
-                  {(c.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin') && (
-                    <button
-                      onClick={() => setDeleteTarget(c)}
-                      className="ml-auto opacity-0 group-hover:opacity-100 p-0.5 text-gray-400 hover:text-red-400 transition-all"
-                    >
-                      <Trash2 size={11} />
-                    </button>
+          {comments.map(c => {
+            const canManage = c.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin';
+            const isEditing = editTarget?.id === c.id;
+            return (
+              <div key={c.id} className="flex gap-3 group">
+                <Avatar name={c.authorName} photoURL={c.authorPhotoURL} size={7} />
+                <div className="flex-1 min-w-0 bg-gray-50 rounded-xl px-3.5 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-gray-800">{c.authorName}</span>
+                    <span className="text-[10px] text-gray-400">{formatRelative(c.createdAt)}</span>
+                    {canManage && !isEditing && (
+                      <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button
+                          onClick={() => startEdit(c)}
+                          className="p-0.5 text-gray-400 hover:text-[#6C63FF] transition-colors"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(c)}
+                          className="p-0.5 text-gray-400 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        value={editText}
+                        onChange={e => setEditText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleEditSave(); if (e.key === 'Escape') cancelEdit(); }}
+                        rows={2}
+                        autoFocus
+                        className="w-full text-sm px-3 py-2 rounded-lg border border-[#6C63FF]/40 bg-white focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 resize-none text-gray-800 transition-all"
+                        style={{ minHeight: 56, maxHeight: 120 }}
+                      />
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button onClick={cancelEdit} className="px-2.5 py-1 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-200 transition-colors">취소</button>
+                        <button
+                          onClick={handleEditSave}
+                          disabled={!editText.trim() || editSaving}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#6C63FF] text-white hover:bg-[#5a52e0] disabled:opacity-40 transition-colors"
+                        >
+                          {editSaving ? '저장 중…' : '저장'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words leading-relaxed">{c.content}</p>
                   )}
                 </div>
-                <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words leading-relaxed">{c.content}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

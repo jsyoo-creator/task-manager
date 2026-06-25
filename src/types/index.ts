@@ -7,7 +7,7 @@ export interface ProfileFieldDef {
   label: string;
   required: boolean;
   order: number;
-  fieldType: 'text' | 'select' | 'text+select';
+  fieldType: 'text' | 'select' | 'text+select' | 'date';
   options?: string[];
   textFirst?: boolean; // text+select일 때 텍스트가 앞(true, 기본) vs 드롭다운이 앞(false)
   showInAccountInfo?: boolean; // 계정 정보 페이지 노출 여부 (undefined = true)

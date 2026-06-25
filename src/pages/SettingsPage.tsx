@@ -351,6 +351,13 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                   <option value="">{field.required ? '선택 (필수)' : '선택'}</option>
                   {field.options.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
+              ) : field.fieldType === 'date' ? (
+                <input
+                  type="date"
+                  value={profileDataInput[field.id] ?? ''}
+                  onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
+                  className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                />
               ) : (
                 <input
                   value={profileDataInput[field.id] ?? ''}
@@ -2579,7 +2586,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 }) {
   const [newLabel, setNewLabel] = useState('');
   const [newRequired, setNewRequired] = useState(false);
-  const [newFieldType, setNewFieldType] = useState<'text' | 'select' | 'text+select'>('text');
+  const [newFieldType, setNewFieldType] = useState<'text' | 'select' | 'text+select' | 'date'>('text');
   const [newOptionInput, setNewOptionInput] = useState('');
   const [newOptions, setNewOptions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -2588,7 +2595,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [editRequired, setEditRequired] = useState(false);
-  const [editFieldType, setEditFieldType] = useState<'text' | 'select' | 'text+select'>('text');
+  const [editFieldType, setEditFieldType] = useState<'text' | 'select' | 'text+select' | 'date'>('text');
   const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editOptionInput, setEditOptionInput] = useState('');
   const [editTextFirst, setEditTextFirst] = useState(true);
@@ -2621,21 +2628,22 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     setEditTextFirst(field.textFirst !== false);
   };
 
-  const cycleFieldType = (t: 'text' | 'select' | 'text+select') =>
-    t === 'text' ? 'select' : t === 'select' ? 'text+select' : 'text' as const;
+  const cycleFieldType = (t: 'text' | 'select' | 'text+select' | 'date') =>
+    t === 'text' ? 'select' : t === 'select' ? 'text+select' : t === 'text+select' ? 'date' : 'text' as const;
 
-  const fieldTypeLabel = (t: 'text' | 'select' | 'text+select') =>
-    t === 'select' ? '드롭다운' : t === 'text+select' ? '텍스트+드롭다운' : '텍스트';
+  const fieldTypeLabel = (t: 'text' | 'select' | 'text+select' | 'date') =>
+    t === 'select' ? '드롭다운' : t === 'text+select' ? '텍스트+드롭다운' : t === 'date' ? '날짜' : '텍스트';
 
   const handleSaveEdit = async () => {
     if (!editingId) return;
-    if (editFieldType !== 'text' && editOptions.length < 1) {
+    const needsOptions = editFieldType === 'select' || editFieldType === 'text+select';
+    if (needsOptions && editOptions.length < 1) {
       alert('드롭다운 옵션을 1개 이상 추가해주세요.');
       return;
     }
     await onUpdateProfileFields(profileFields.map(f =>
       f.id === editingId
-        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: editFieldType !== 'text' ? editOptions : undefined, textFirst: editFieldType === 'text+select' ? editTextFirst : undefined }
+        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: needsOptions ? editOptions : undefined, textFirst: editFieldType === 'text+select' ? editTextFirst : undefined }
         : f
     ));
     setEditingId(null);
@@ -2651,7 +2659,8 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const handleAdd = async () => {
     const label = newLabel.trim();
     if (!label) return;
-    if (newFieldType !== 'text' && newOptions.length < 1) {
+    const needsOptions = newFieldType === 'select' || newFieldType === 'text+select';
+    if (needsOptions && newOptions.length < 1) {
       alert('드롭다운 옵션을 1개 이상 추가해주세요.');
       return;
     }
@@ -2661,7 +2670,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       required: newRequired,
       order: profileFields.length,
       fieldType: newFieldType,
-      options: newFieldType !== 'text' ? newOptions : undefined,
+      options: needsOptions ? newOptions : undefined,
       textFirst: newFieldType === 'text+select' ? newTextFirst : undefined,
     };
     setSaving(true);
@@ -2733,7 +2742,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                       <span className={`font-medium ${!editTextFirst ? 'text-indigo-600' : 'text-gray-400'}`}>드롭다운</span>
                     </button>
                   )}
-                  {editFieldType !== 'text' && (
+                  {(editFieldType === 'select' || editFieldType === 'text+select') && (
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap gap-1.5">
                         {editOptions.map(o => (
@@ -2785,7 +2794,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                   </div>
                   <span className="text-sm text-gray-700 flex-1">{field.label}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500">
-                    {field.fieldType === 'text' ? '텍스트' : field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : `텍스트+드롭다운 ${field.options?.length ?? 0}개`}
+                    {field.fieldType === 'text' ? '텍스트' : field.fieldType === 'select' ? `드롭다운 ${field.options?.length ?? 0}개` : field.fieldType === 'date' ? '날짜' : `텍스트+드롭다운 ${field.options?.length ?? 0}개`}
                   </span>
                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${field.required ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400'}`}>
                     {field.required ? '필수' : '선택'}
@@ -2849,7 +2858,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
           </button>
         )}
 
-        {newFieldType !== 'text' && (
+        {(newFieldType === 'select' || newFieldType === 'text+select') && (
           <div className="space-y-1.5">
             <div className="flex flex-wrap gap-1.5">
               {newOptions.map(o => (

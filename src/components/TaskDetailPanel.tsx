@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, PLMainTaskType } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
@@ -91,7 +91,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage,
   metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
-  canSeeAll = true, currentUserName = '', vacations = [], plMainTaskTypes,
+  canSeeAll = true, currentUserName = '', vacations = [], reviewTasks,
 }: {
   task: Task;
   onClose: () => void;
@@ -108,7 +108,7 @@ export default function TaskDetailPanel({
   canSeeAll?: boolean;
   currentUserName?: string;
   vacations?: Vacation[];
-  plMainTaskTypes?: PLMainTaskType[];
+  reviewTasks?: Task[];
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const todayD = new Date();
@@ -778,6 +778,7 @@ export default function TaskDetailPanel({
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
                   };
+                  const items = reviewTasks ?? [];
                   return (
                     <div key={type.id} className="rounded-xl bg-gray-50 p-3">
                       <div className="flex items-center gap-2 mb-2">
@@ -789,19 +790,19 @@ export default function TaskDetailPanel({
                         )}
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium flex-shrink-0">검수</span>
                         {checked.length > 0 && (
-                          <span className="text-[10px] text-gray-400">{checked.length}/{(plMainTaskTypes ?? []).length}</span>
+                          <span className="text-[10px] text-gray-400">{checked.length}/{items.length}</span>
                         )}
                       </div>
-                      {(plMainTaskTypes ?? []).length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-2">PL 메인업무 항목이 없습니다</p>
+                      {items.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-2">같은 월에 등록된 PL업무가 없습니다</p>
                       ) : (
                         <div className="space-y-1">
-                          {(plMainTaskTypes ?? []).map(mt => {
-                            const isChecked = checked.includes(mt.id);
+                          {items.map(rt => {
+                            const isChecked = checked.includes(rt.id);
                             return (
-                              <button key={mt.id} type="button"
+                              <button key={rt.id} type="button"
                                 disabled={!canManage}
-                                onClick={() => toggleItem(mt.id)}
+                                onClick={() => toggleItem(rt.id)}
                                 className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                                   isChecked
                                     ? 'bg-violet-100 text-violet-700'
@@ -812,9 +813,14 @@ export default function TaskDetailPanel({
                                 }`}>
                                   {isChecked && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                                 </span>
-                                <span className="flex-1 text-left">{mt.name}</span>
-                                {mt.department && (
-                                  <span className={`text-[10px] px-1 py-px rounded font-medium ${DEPT_BADGE[mt.department] ?? ''}`}>{mt.department}</span>
+                                <span className="flex-1 text-left">{rt.title}</span>
+                                {rt.plParts && rt.plParts.length > 0 && (
+                                  <span className="text-[10px] px-1.5 py-px rounded bg-gray-200 text-gray-500 font-medium">
+                                    {rt.plParts.join('·')}
+                                  </span>
+                                )}
+                                {rt.status && rt.status !== '진행 전' && (
+                                  <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-400">{rt.status}</span>
                                 )}
                               </button>
                             );

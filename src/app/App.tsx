@@ -456,7 +456,9 @@ function App() {
               canSeeAll={canSeeAll}
               currentUserName={currentUserName}
               vacations={teamVacations}
-              plMainTaskTypes={detailTask.plTask ? selectedTeam?.plMainTaskTypes : undefined}
+              reviewTasks={detailTask.plTask
+                ? tasks.filter(t => t.plTask && t.projectId === detailTask.projectId && t.id !== detailTask.id && t.taskMonth === detailTask.taskMonth)
+                : undefined}
             />
           );
         })()}

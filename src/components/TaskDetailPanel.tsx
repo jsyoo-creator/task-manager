@@ -81,6 +81,12 @@ function getWeekDays(startDate: string, endDate?: string) {
   });
 }
 
+function calcHoursInRange(hours: Record<string, number>, startDate: string, endDate?: string): number {
+  const weeks = getWeekDays(startDate, endDate);
+  const validKeys = new Set(weeks.flatMap((_, wi) => Array.from({ length: 5 }, (__, di) => `w${wi + 1}d${di + 1}`)));
+  return Object.entries(hours).filter(([k]) => validKeys.has(k)).reduce((s, [, v]) => s + v, 0);
+}
+
 function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
   if (!name) return null;
   return photoURL
@@ -986,7 +992,11 @@ export default function TaskDetailPanel({
                       <DatePicker
                         value={entry.startDate ?? ''}
                         onChange={v => {
-                          const next = { ...localSubTaskData, [type.id]: { ...entry, startDate: v } };
+                          const newStart = v;
+                          const newEnd = entry.endDate;
+                          const newTotal = newStart ? calcHoursInRange(entry.weeklyHours ?? {}, newStart, newEnd) : 0;
+                          const newSubTotal = newStart ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, newStart, newEnd) : 0;
+                          const next = { ...localSubTaskData, [type.id]: { ...entry, startDate: newStart, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
                           setLocalSubTaskData(next);
                           saveSubTaskData(next);
                         }}
@@ -996,7 +1006,11 @@ export default function TaskDetailPanel({
                       <DatePicker
                         value={entry.endDate ?? ''}
                         onChange={v => {
-                          const next = { ...localSubTaskData, [type.id]: { ...entry, endDate: v } };
+                          const newStart = entry.startDate ?? '';
+                          const newEnd = v;
+                          const newTotal = newStart ? calcHoursInRange(entry.weeklyHours ?? {}, newStart, newEnd) : 0;
+                          const newSubTotal = newStart ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, newStart, newEnd) : 0;
+                          const next = { ...localSubTaskData, [type.id]: { ...entry, endDate: newEnd, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
                           setLocalSubTaskData(next);
                           saveSubTaskData(next);
                         }}

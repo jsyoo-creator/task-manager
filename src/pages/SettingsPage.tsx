@@ -29,6 +29,7 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePlMainTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
@@ -2052,6 +2053,138 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
+function PLMainTaskTypesEditor({ team, onSave }: {
+  team: Team;
+  onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newDept, setNewDept] = useState<Department | ''>('');
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  useEffect(() => { setEditingId(null); }, [team.id]);
+
+  const types: SubTaskType[] = team.plMainTaskTypes ?? [];
+
+  const save = (next: SubTaskType[]) => onSave(team.id, next);
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...types];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  const saveName = (id: string) => {
+    const name = nameInput.trim();
+    if (name) save(types.map(t => t.id === id ? { ...t, name } : t));
+    setEditingId(null);
+  };
+
+  const toggleDept = (id: string, dept: Department) => {
+    save(types.map(t => t.id === id ? { ...t, department: t.department === dept ? undefined : dept } : t));
+  };
+
+  const deleteType = (id: string) => save(types.filter(t => t.id !== id));
+
+  const addType = () => {
+    const name = newName.trim();
+    if (!name) return;
+    save([...types, { id: `pl_${Date.now()}`, name, department: newDept || undefined }]);
+    setNewName(''); setNewDept('');
+  };
+
+  const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">PL업무 등록 시 선택할 수 있는 메인업무 항목을 팀 단위로 설정합니다.</p>
+      <div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          메인업무 목록
+          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+        </p>
+        {types.length > 0 ? (
+          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+            {types.map((t, i) => (
+              <div key={t.id}
+                draggable
+                onDragStart={() => { dragIdxRef.current = i; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                onDrop={() => onDrop(i)}
+                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                {editingId === t.id ? (
+                  <input autoFocus
+                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                    value={nameInput} onChange={e => setNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                    onBlur={() => saveName(t.id)} />
+                ) : (
+                  <button type="button"
+                    onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                    {t.name}
+                  </button>
+                )}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                    <button key={d} type="button"
+                      onClick={() => toggleDept(t.id, d)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                        t.department === d
+                          ? SUBTASK_DEPT_COLOR[d]
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                      }`}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => deleteType(t.id)}
+                  className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-3">등록된 메인업무 항목이 없습니다</p>
+        )}
+        <div className="flex items-center gap-2 mt-2">
+          <input className={`${iCls} flex-1 min-w-0`}
+            placeholder="메인업무명 입력"
+            value={newName} onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addType()} />
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+              <button key={d} type="button"
+                onClick={() => setNewDept(prev => prev === d ? '' : d)}
+                className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                  newDept === d
+                    ? SUBTASK_DEPT_COLOR[d]
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                }`}>
+                {d}
+              </button>
+            ))}
+          </div>
+          <button onClick={addType} disabled={!newName.trim()}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+            <Plus size={11} />추가
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HolidayEditor({ customHolidays, onSave, canEdit }: {
   customHolidays: CustomHoliday[];
   onSave: (holidays: CustomHoliday[]) => Promise<void>;
@@ -2355,7 +2488,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -2371,6 +2504,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePlMainTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
@@ -2380,7 +2514,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'excel'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'pl' | 'excel'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -2576,7 +2710,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5">
-                    {(['parts', 'form', 'meta', 'subtask', 'excel'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -2584,7 +2718,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : '엑셀 관리'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'pl' ? 'PL업무' : '엑셀 관리'}
                       </button>
                     ))}
                   </div>
@@ -2659,6 +2793,16 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                         onSave={onUpdateSubTaskTypes}
                         onSavePart={onUpdatePartSubTaskTypes}
                         onClearPart={onClearPartSubTaskTypes}
+                      />
+                    </div>
+                  )}
+
+                  {/* PL업무 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'pl' && (
+                    <div className="px-5 py-4">
+                      <PLMainTaskTypesEditor
+                        team={team}
+                        onSave={onUpdatePlMainTaskTypes}
                       />
                     </div>
                   )}
@@ -3100,7 +3244,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
+  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -3462,6 +3606,7 @@ export default function SettingsPage({
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
+          onUpdatePlMainTaskTypes={onUpdatePlMainTaskTypes}
           onUpdateExcelConfig={onUpdateExcelConfig}
           onUpdatePartExcelConfig={onUpdatePartExcelConfig}
           onClearPartExcelConfig={onClearPartExcelConfig}

@@ -156,6 +156,10 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
+  const updatePlMainTaskTypes = async (teamId: string, types: SubTaskType[]) => {
+    await updateDoc(doc(db, 'teams', teamId), { plMainTaskTypes: types });
+  };
+
   const reorderTeams = async (ordered: Team[]) => {
     const batch = writeBatch(db);
     ordered.forEach((team, i) => {
@@ -164,5 +168,5 @@ export function useTeams(uid?: string) {
     await batch.commit();
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams };
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, SubTaskType } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -30,6 +30,7 @@ interface Props {
   userPhotoMap?: Map<string, string>;
   excelConfig?: ExcelFieldConfig[];
   allMetaFields?: MetaField[];
+  plMainTaskTypes?: SubTaskType[];
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -88,7 +89,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -983,7 +984,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       )}
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
-        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} />
+        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} plMainTaskTypes={plMainTaskTypes} />
 
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {

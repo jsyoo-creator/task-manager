@@ -311,6 +311,7 @@ export interface Team {
   formConfig?: TeamFormConfig;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
+  plMainTaskTypes?: SubTaskType[]; // PL업무 메인 업무 항목 목록
   holidays?: CustomHoliday[];
   excelConfig?: ExcelFieldConfig[];
 }
@@ -367,6 +368,8 @@ export interface Task {
     memos?: SubTaskMemo[];
   }>;
   memo?: string;
+  plTask?: boolean;    // PL업무 여부
+  plParts?: string[];  // PL업무 소속 파트 목록
   createdAt: string;
   updatedAt: string;
 }

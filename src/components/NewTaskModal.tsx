@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department, SubTaskType } from '../types';
 import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts } from '../types';
 import DatePicker from './DatePicker';
 
@@ -13,6 +13,7 @@ interface Props {
   assignees?: string[];
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
+  plMainTaskTypes?: SubTaskType[];
   currentUserName?: string;
 }
 
@@ -37,7 +38,7 @@ const FIELD_PAIRS: [BuiltinFieldKey, BuiltinFieldKey][] = [
   ['startDate', 'endDate'],
 ];
 
-export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig, currentUserName = '' }: Props) {
+export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig, currentUserName = '', plMainTaskTypes }: Props) {
   const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
   const builtinFields = resolveBuiltinFields(formConfig);
   const customFields = formConfig?.customFields ?? [];
@@ -74,6 +75,8 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     return pool[0] ?? '';
   };
 
+  const [activeTab, setActiveTab] = useState<'normal' | 'pl'>('normal');
+
   const [form, setForm] = useState({
     taskMonth: DEFAULT_TASK_MONTH,
     title: '',
@@ -87,6 +90,11 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     revisionLevel: 0,
   });
   const [custom, setCustom] = useState<Record<string, string>>({});
+
+  // PL업무 폼 상태
+  const [plForm, setPlForm] = useState({ taskMonth: DEFAULT_TASK_MONTH, title: '', status: '' as TaskStatus, startDate: '', endDate: '' });
+  const [plSelectedParts, setPlSelectedParts] = useState<string[]>([]);
+  const setPlF = (patch: Partial<typeof plForm>) => setPlForm(f => ({ ...f, ...patch }));
 
   // parts 변경 시 category 유효성 동기화 (파트 이름 변경·삭제·추가 후 stale 값 방지)
   useEffect(() => {
@@ -129,6 +137,34 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const resetForm = () => {
     setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '' as TaskStatus, receiver: getPersonDefault('receiver'), assignee: getPersonDefault('assignee'), startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
+    setPlForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', status: '' as TaskStatus, startDate: '', endDate: '' });
+    setPlSelectedParts([]);
+  };
+
+  const handlePlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!plForm.taskMonth) { alert('월을 선택해 주세요.'); return; }
+    if (!plForm.title.trim()) { alert('업무명을 입력해 주세요.'); return; }
+    if (plSelectedParts.length === 0) { alert('파트를 1개 이상 선택해 주세요.'); return; }
+    onSubmit({
+      taskMonth: plForm.taskMonth,
+      title: plForm.title.trim(),
+      category: plSelectedParts[0],
+      type: '신규',
+      status: plForm.status || '진행 전',
+      receiver: '',
+      assignee: '',
+      startDate: plForm.startDate,
+      endDate: plForm.endDate,
+      weeklyHours: {},
+      totalHours: 0,
+      revisionLevel: 0,
+      projectId,
+      plTask: true,
+      plParts: plSelectedParts,
+    });
+    resetForm();
+    onClose();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -167,6 +203,94 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
           </button>
         </div>
 
+        {/* 탭 전환 — PL업무 타입이 설정된 경우에만 표시 */}
+        {plMainTaskTypes && plMainTaskTypes.length > 0 && (
+          <div className="flex border-b border-black/5 px-5 flex-shrink-0">
+            {(['normal', 'pl'] as const).map(tab => (
+              <button key={tab} type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-2.5 text-xs font-semibold border-b-2 -mb-px transition-colors ${
+                  activeTab === tab
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}>
+                {tab === 'normal' ? '일반 업무' : 'PL 업무'}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* PL업무 폼 */}
+        {activeTab === 'pl' && (
+          <form onSubmit={handlePlSubmit} className="p-5 space-y-3 overflow-y-auto flex-1">
+            <div>
+              <label className={lbl}>월 *</label>
+              <select required className={cls} value={plForm.taskMonth} onChange={e => setPlF({ taskMonth: e.target.value })}>
+                <option value="">월 선택</option>
+                {MONTH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>업무명 *</label>
+              <input required type="text" className={cls} placeholder="PL 업무명을 입력하세요"
+                value={plForm.title} onChange={e => setPlF({ title: e.target.value })} />
+            </div>
+            <div>
+              <label className={lbl}>상태</label>
+              <select className={cls} value={plForm.status} onChange={e => setPlF({ status: e.target.value as TaskStatus })}>
+                <option value="">선택하세요</option>
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={lbl}>시작일</label>
+                <DatePicker value={plForm.startDate} onChange={v => setPlF({ startDate: v })} />
+              </div>
+              <div>
+                <label className={lbl}>종료일</label>
+                <DatePicker value={plForm.endDate} onChange={v => setPlF({ endDate: v })} />
+              </div>
+            </div>
+            {partNames.length > 0 && (
+              <div>
+                <label className={lbl}>파트 선택 * <span className="text-gray-400 font-normal">(1개 이상)</span></label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {partNames.map(p => {
+                    const checked = plSelectedParts.includes(p);
+                    return (
+                      <button key={p} type="button"
+                        onClick={() => setPlSelectedParts(prev =>
+                          checked ? prev.filter(x => x !== p) : [...prev, p]
+                        )}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                          checked
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}>
+                        {checked && <span className="text-[10px]">✓</span>}
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => { resetForm(); onClose(); }}
+                className="px-4 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
+                취소
+              </button>
+              <button type="submit"
+                className="px-4 py-2 rounded-lg text-xs font-semibold btn-shiny-primary">
+                PL 업무 등록
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* 일반 업무 폼 */}
+        {activeTab === 'normal' && (
         <form onSubmit={handleSubmit} className="p-5 space-y-3 overflow-y-auto flex-1">
           {/* 동적 필드 렌더링 — builtinFields 순서 기반 */}
           {(() => {
@@ -454,6 +578,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

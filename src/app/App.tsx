@@ -50,7 +50,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const currentYear = new Date().getFullYear();
@@ -167,12 +167,15 @@ function App() {
   }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig]);
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
-  const filteredTasks = useMemo(
-    () => activeParts.length > 0
-      ? tasks.filter(t => activeParts.some(p => p.name === t.category))
-      : tasks,
-    [tasks, activeParts]
-  );
+  const filteredTasks = useMemo(() => {
+    if (activeParts.length === 0) return tasks;
+    const activePartNames = new Set(activeParts.map(p => p.name));
+    return tasks.filter(t =>
+      t.plTask
+        ? (t.plParts?.some(p => activePartNames.has(p)) ?? false)
+        : activePartNames.has(t.category)
+    );
+  }, [tasks, activeParts]);
 
   const validCategories = activeParts.map(p => p.name);
   const orphanTaskCount = activeParts.length > 0
@@ -230,13 +233,20 @@ function App() {
   const subtasks = useMemo<SubTask[]>(() =>
     filteredTasks.flatMap(task => {
       const taskPartObj = activeParts.find(p => p.name === task.category);
-      const validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
+      // PL업무는 plMainTaskTypes 사용, 일반 업무는 파트→팀 우선순위
+      const validTypes = task.plTask
+        ? (selectedTeam?.plMainTaskTypes ?? [])
+        : (taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes);
       const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 
       // 해당 업무의 파트+팀 타입만으로 이름 맵 생성 (다른 파트 타입명 오염 방지)
       const taskNameMap = new Map<string, string>();
-      selectedTeam?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
-      taskPartObj?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+      if (task.plTask) {
+        selectedTeam?.plMainTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+      } else {
+        selectedTeam?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+        taskPartObj?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
+      }
 
       return Object.entries(task.subTaskData ?? {})
         .filter(([key]) => !validTypeIds || validTypeIds.has(key))
@@ -336,6 +346,7 @@ function App() {
                 currentUserName={currentUserName}
                 canSeeAll={canSeeAll}
                 userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
+                plMainTaskTypes={selectedTeam?.plMainTaskTypes}
               />
             } />
             <Route path="/calendar" element={
@@ -384,6 +395,7 @@ function App() {
                     onUpdateSubTaskTypes={updateSubTaskTypes}
                     onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
+                    onUpdatePlMainTaskTypes={updatePlMainTaskTypes}
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}
                     onClearPartExcelConfig={clearPartExcelConfig}

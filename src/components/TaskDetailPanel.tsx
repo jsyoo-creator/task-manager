@@ -754,8 +754,8 @@ export default function TaskDetailPanel({
                 return entry?.assignee === currentUserName || entry?.substitute === currentUserName;
               }).map(type => {
                 const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
-                const total = Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
-                const subTotal = Object.values(entry.substituteWeeklyHours ?? {}).reduce((a, b) => a + b, 0);
+                const total = entry.startDate ? calcHoursInRange(entry.weeklyHours, entry.startDate, entry.endDate) : Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
+                const subTotal = entry.startDate ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, entry.startDate, entry.endDate) : Object.values(entry.substituteWeeklyHours ?? {}).reduce((a, b) => a + b, 0);
                 const isVacation = isAssigneeOnVacation(entry.assignee);
                 const isSubstituteUser = !!entry.substitute && entry.substitute === currentUserName;
                 const canEditSubstituteHours = isSubstituteUser || canSeeAll;
@@ -1070,7 +1070,7 @@ export default function TaskDetailPanel({
                                         const cur = prev[type.id] ?? entry;
                                         const next = {
                                           ...prev,
-                                          [type.id]: { ...cur, weeklyHours: newHours, totalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
+                                          [type.id]: { ...cur, weeklyHours: newHours, totalHours: cur.startDate ? calcHoursInRange(newHours, cur.startDate, cur.endDate) : Object.values(newHours).reduce((a, b) => a + b, 0) },
                                         };
                                         localSubTaskDataRef.current = next;
                                         return next;
@@ -1148,7 +1148,7 @@ export default function TaskDetailPanel({
                                             const cur = prev[type.id] ?? entry;
                                             const next = {
                                               ...prev,
-                                              [type.id]: { ...cur, substituteWeeklyHours: newHours, substituteTotalHours: Object.values(newHours).reduce((a, b) => a + b, 0) },
+                                              [type.id]: { ...cur, substituteWeeklyHours: newHours, substituteTotalHours: cur.startDate ? calcHoursInRange(newHours, cur.startDate, cur.endDate) : Object.values(newHours).reduce((a, b) => a + b, 0) },
                                             };
                                             localSubTaskDataRef.current = next;
                                             return next;

@@ -195,13 +195,9 @@ export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfi
     const legacy = config.enabledBuiltins ?? DEFAULT_ENABLED_BUILTINS;
     fields = DEFAULT_BUILTIN_FIELD_CONFIGS.map(f => ({ ...f, enabled: legacy.includes(f.key) }));
   }
-  // taskMonth는 항상 맨 앞 고정 (없으면 추가)
-  const monthIdx = fields.findIndex(f => f.key === 'taskMonth');
-  if (monthIdx === -1) {
+  // taskMonth가 없을 때만 맨 앞에 추가 (있으면 저장된 위치 그대로 유지)
+  if (!fields.some(f => f.key === 'taskMonth')) {
     fields.unshift({ key: 'taskMonth', enabled: true, width: 52 });
-  } else if (monthIdx > 0) {
-    const [m] = fields.splice(monthIdx, 1);
-    fields.unshift(m);
   }
   return fields;
 }

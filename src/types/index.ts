@@ -97,6 +97,7 @@ export interface BuiltinFieldConfig {
   options?: string[]; // select 타입: 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   showIn?: 'both' | 'list' | 'detail'; // 표시 위치: 목록/상세/둘다
+  dependsOn?: { fieldId: string; valueMap: Record<string, string[]> }; // 연결 필드
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [

@@ -1300,7 +1300,15 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
           }
           if (fc.key === 'type') {
-            const typeOpts = (fc.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+            const typeOptsBase = (fc.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+            const typeOpts = (() => {
+              if (!fc.dependsOn?.fieldId) return typeOptsBase;
+              const { fieldId, valueMap } = fc.dependsOn;
+              const pVal = ['taskMonth','title','category','type','status','receiver','assignee','startDate','endDate'].includes(fieldId)
+                ? String((task as Record<string, unknown>)[fieldId] ?? '')
+                : (task.customFields?.[fieldId] ?? '');
+              return (pVal && valueMap[pVal]) ? valueMap[pVal] : typeOptsBase;
+            })();
             const typeColor = fc.optionColors?.[task.type];
             if (typeColor) return [
               <div key="type" onClick={e => e.stopPropagation()}

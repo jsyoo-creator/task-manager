@@ -457,7 +457,10 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => void }) {
+function AddFieldForm({ onAdd, parentSelectFields = [] }: {
+  onAdd: (f: Omit<CustomFormField, 'id'>) => void;
+  parentSelectFields?: { id: string; label: string; options: string[] }[];
+}) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [type, setType] = useState<FormFieldType>('text');
@@ -466,18 +469,24 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
   const [optionColors, setOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [colorPickerIdx, setColorPickerIdx] = useState<number | null>(null);
   const [dept, setDept] = useState<Department | ''>('');
+  const [dependsOnId, setDependsOnId] = useState('');
+  const [valueMapInput, setValueMapInput] = useState<Record<string, string[]>>({});
 
   const cls = "text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400";
 
   const handleAdd = () => {
     if (!label.trim()) return;
+    const cleanValueMap: Record<string, string[]> = {};
+    Object.entries(valueMapInput).forEach(([k, v]) => { const clean = v.filter(s => s.trim()); if (clean.length) cleanValueMap[k] = clean; });
     onAdd({
       label: label.trim(), type, required,
-      options: type === 'select' ? options.filter(o => o.trim()) : undefined,
-      optionColors: type === 'select' && Object.keys(optionColors).length > 0 ? optionColors : undefined,
+      options: type === 'select' && !dependsOnId ? options.filter(o => o.trim()) : undefined,
+      optionColors: type === 'select' && !dependsOnId && Object.keys(optionColors).length > 0 ? optionColors : undefined,
       department: type === 'name' && dept ? dept : undefined,
+      dependsOn: type === 'select' && dependsOnId ? { fieldId: dependsOnId, valueMap: cleanValueMap } : undefined,
     });
-    setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setOptionColors({}); setDept(''); setOpen(false);
+    setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setOptionColors({}); setDept('');
+    setDependsOnId(''); setValueMapInput({}); setOpen(false);
   };
 
   if (!open) return (
@@ -502,7 +511,7 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
           필수
         </label>
       </div>
-      {type === 'select' && (
+      {type === 'select' && !dependsOnId && (
         <div className="space-y-1">
           <p className="text-[11px] text-gray-500 font-medium">선택지 <span className="font-normal text-gray-400">· 도트 클릭으로 색상</span></p>
           {options.map((opt, i) => (
@@ -561,16 +570,88 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
           </select>
         </div>
       )}
+      {type === 'select' && (
+        <DependsOnEditor
+          dependsOnId={dependsOnId} setDependsOnId={setDependsOnId}
+          valueMapInput={valueMapInput} setValueMapInput={setValueMapInput}
+          parentSelectFields={parentSelectFields}
+          containerClass="pt-2 border-t border-gray-100"
+        />
+      )}
       <div className="flex gap-2 pt-0.5">
         <button onClick={handleAdd} disabled={!label.trim()}
           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
           추가
         </button>
-        <button onClick={() => { setOpen(false); setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); }}
+        <button onClick={() => { setOpen(false); setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setDependsOnId(''); setValueMapInput({}); }}
           className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
           취소
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── 연결 필드 valueMap 에디터 (공용) ──
+function DependsOnEditor({ dependsOnId, setDependsOnId, valueMapInput, setValueMapInput, parentSelectFields, containerClass = '' }: {
+  dependsOnId: string;
+  setDependsOnId: (v: string) => void;
+  valueMapInput: Record<string, string[]>;
+  setValueMapInput: (v: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => void;
+  parentSelectFields: { id: string; label: string; options: string[] }[];
+  containerClass?: string;
+}) {
+  if (parentSelectFields.length === 0) return null;
+  const parentOpts = parentSelectFields.find(p => p.id === dependsOnId)?.options ?? [];
+  return (
+    <div className={containerClass}>
+      <p className="text-[10px] text-gray-500 font-medium mb-1.5">
+        연결 필드 <span className="text-gray-400 font-normal">· 상위 필드 선택값에 따라 이 드롭다운 옵션 변경</span>
+      </p>
+      <div className="flex items-center gap-1">
+        <select className="flex-1 text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none"
+          value={dependsOnId} onChange={e => { setDependsOnId(e.target.value); setValueMapInput({}); }}>
+          <option value="">연결 안 함</option>
+          {parentSelectFields.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        {dependsOnId && (
+          <button type="button" onClick={() => { setDependsOnId(''); setValueMapInput({}); }}
+            className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
+        )}
+      </div>
+      {dependsOnId && parentOpts.length > 0 && (
+        <div className="mt-1.5 space-y-1.5">
+          {parentOpts.map(parentVal => {
+            const childOpts = valueMapInput[parentVal] ?? [''];
+            return (
+              <div key={parentVal} className="bg-violet-50/60 rounded-lg px-2 py-1.5">
+                <p className="text-[10px] font-semibold text-gray-500 mb-1">
+                  <span className="text-violet-500">"{parentVal}"</span> 선택 시 옵션
+                </p>
+                <div className="space-y-0.5">
+                  {childOpts.map((opt, idx) => (
+                    <div key={idx} className="flex gap-1 items-center">
+                      <input className="flex-1 text-xs px-1.5 py-0.5 rounded border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                        placeholder={`옵션 ${idx + 1}`} value={opt}
+                        onChange={e => { const v = e.target.value; setValueMapInput(prev => ({ ...prev, [parentVal]: (prev[parentVal] ?? ['']).map((o, j) => j === idx ? v : o) })); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setValueMapInput(prev => ({ ...prev, [parentVal]: [...(prev[parentVal] ?? ['']), ''] })); } }}
+                      />
+                      {childOpts.length > 1 && (
+                        <button type="button" onClick={() => setValueMapInput(prev => ({ ...prev, [parentVal]: (prev[parentVal] ?? ['']).filter((_, j) => j !== idx) }))}
+                          className="text-gray-300 hover:text-red-400 transition-colors"><X size={10} /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setValueMapInput(prev => ({ ...prev, [parentVal]: [...(prev[parentVal] ?? ['']), ''] }))}
+                    className="text-xs text-blue-400 hover:text-blue-600 flex items-center gap-0.5 mt-0.5 transition-colors">
+                    <Plus size={9} />옵션 추가
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -600,6 +681,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   const [builtinOptionsInput, setBuiltinOptionsInput] = useState<string[]>(['', '']);
   const [builtinOptionColors, setBuiltinOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [builtinColorPickerIdx, setBuiltinColorPickerIdx] = useState<number | null>(null);
+  const [builtinDependsOnId, setBuiltinDependsOnId] = useState('');
+  const [builtinValueMapInput, setBuiltinValueMapInput] = useState<Record<string, string[]>>({});
   const builtinOptionColorsRef = useRef(builtinOptionColors);
   builtinOptionColorsRef.current = builtinOptionColors;
 
@@ -666,6 +749,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
     const isName = resolvedType === 'name' || (resolvedType as string) === 'textarea' || (resolvedType as string) === '이름';
     const isSelect = resolvedType === 'select';
     const validOpts = builtinOptionsInput.filter(o => o.trim());
+    const cleanValueMap: Record<string, string[]> = {};
+    Object.entries(builtinValueMapInput).forEach(([k, v]) => { const clean = v.filter(s => s.trim()); if (clean.length) cleanValueMap[k] = clean; });
     const updated = fields.map(f =>
       f.key === key ? {
         ...f,
@@ -675,10 +760,13 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
         options: isSelect ? validOpts : undefined,
         optionColors: isSelect && Object.keys(builtinOptionColorsRef.current).length > 0 ? builtinOptionColorsRef.current : undefined,
+        dependsOn: isSelect && builtinDependsOnId ? { fieldId: builtinDependsOnId, valueMap: cleanValueMap } : undefined,
       } : f
     );
     setFields(updated);
     onSaveFields(updated);
+    setBuiltinDependsOnId('');
+    setBuiltinValueMapInput({});
     setEditingKey(null);
   };
 
@@ -818,7 +906,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       }
                     </div>
                     {/* select 타입 옵션 에디터 — onBlur 컨테이너 내부 */}
-                    {typeInput === 'select' && (
+                    {typeInput === 'select' && !builtinDependsOnId && (
                       <div className="px-7 pb-2 pt-1 space-y-1 bg-blue-50/40 border-t border-blue-100/60">
                         <p className="text-[10px] text-gray-500 font-medium mb-1">선택지 <span className="font-normal text-gray-400">· 색상 도트 클릭으로 색상 설정</span></p>
                         {builtinOptionsInput.map((opt, idx) => (
@@ -875,6 +963,24 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                         </button>
                       </div>
                     )}
+                    {typeInput === 'select' && (() => {
+                      const builtinParentOpts = [
+                        ...fields.filter(f => f.key !== editingKey && f.customType === 'select' && f.enabled && (f.options?.length ?? 0) > 0)
+                          .map(f => ({ id: f.key, label: f.customLabel ?? (BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key), options: f.options! })),
+                        ...customFields.filter(f => f.type === 'select' && f.enabled !== false && (f.options?.length ?? 0) > 0)
+                          .map(f => ({ id: f.id, label: f.label, options: f.options! })),
+                      ];
+                      if (builtinParentOpts.length === 0) return null;
+                      return (
+                        <div className="px-7 pb-2 pt-2 border-t border-blue-100/60 bg-blue-50/20">
+                          <DependsOnEditor
+                            dependsOnId={builtinDependsOnId} setDependsOnId={setBuiltinDependsOnId}
+                            valueMapInput={builtinValueMapInput} setValueMapInput={setBuiltinValueMapInput}
+                            parentSelectFields={builtinParentOpts}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default">
@@ -898,12 +1004,15 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                           setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']);
                           setBuiltinOptionColors(fc.optionColors ?? {});
                         }
+                        setBuiltinDependsOnId(fc.dependsOn?.fieldId ?? '');
+                        setBuiltinValueMapInput(fc.dependsOn?.valueMap ?? {});
                       }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {label}
                       {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                       {fc.required && <span className="ml-1 text-[10px] text-red-400 font-medium">필수</span>}
+                      {fc.dependsOn && <span className="ml-1 text-[10px] text-violet-400 font-medium">연결됨</span>}
                     </button>
                     {/* 이름 타입 직군 pill */}
                     {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (
@@ -1050,74 +1159,20 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                     )}
                     {/* 연결 필드 설정 */}
                     {customTypeInput === 'select' && (() => {
-                      const parentSelectFields: { id: string; label: string; options: string[] }[] = [
-                        ...fields
-                          .filter(f => f.customType === 'select' && f.enabled && (f.options?.length ?? 0) > 0)
+                      const cfParentSelectFields = [
+                        ...fields.filter(f => f.customType === 'select' && f.enabled && (f.options?.length ?? 0) > 0)
                           .map(f => ({ id: f.key, label: f.customLabel ?? (BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key), options: f.options! })),
-                        ...customFields
-                          .filter(f => f.type === 'select' && f.enabled !== false && f.id !== cf.id && (f.options?.length ?? 0) > 0)
+                        ...customFields.filter(f => f.type === 'select' && f.enabled !== false && f.id !== cf.id && (f.options?.length ?? 0) > 0)
                           .map(f => ({ id: f.id, label: f.label, options: f.options! })),
                       ];
-                      if (parentSelectFields.length === 0) return null;
-                      const parentOpts = parentSelectFields.find(p => p.id === customDependsOnId)?.options ?? [];
+                      if (cfParentSelectFields.length === 0) return null;
                       return (
                         <div className="mt-2 pt-2 border-t border-gray-100">
-                          <p className="text-[10px] text-gray-500 font-medium mb-1.5">
-                            연결 필드 <span className="text-gray-400 font-normal">· 상위 필드 선택값에 따라 이 드롭다운 옵션 변경</span>
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <select
-                              className="flex-1 text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white text-gray-700 focus:outline-none"
-                              value={customDependsOnId}
-                              onChange={e => { setCustomDependsOnId(e.target.value); setCustomValueMapInput({}); }}>
-                              <option value="">연결 안 함</option>
-                              {parentSelectFields.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                            </select>
-                            {customDependsOnId && (
-                              <button type="button" onClick={() => { setCustomDependsOnId(''); setCustomValueMapInput({}); }}
-                                className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
-                            )}
-                          </div>
-                          {customDependsOnId && parentOpts.length > 0 && (
-                            <div className="mt-1.5 space-y-1.5">
-                              {parentOpts.map(parentVal => {
-                                const childOpts = customValueMapInput[parentVal] ?? [''];
-                                return (
-                                  <div key={parentVal} className="bg-violet-50/60 rounded-lg px-2 py-1.5">
-                                    <p className="text-[10px] font-semibold text-gray-500 mb-1">
-                                      <span className="text-violet-500">"{parentVal}"</span> 선택 시 옵션
-                                    </p>
-                                    <div className="space-y-0.5">
-                                      {childOpts.map((opt, idx) => (
-                                        <div key={idx} className="flex gap-1 items-center">
-                                          <input
-                                            className="flex-1 text-xs px-1.5 py-0.5 rounded border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                                            placeholder={`옵션 ${idx + 1}`}
-                                            value={opt}
-                                            onChange={e => {
-                                              const updated = [...childOpts];
-                                              updated[idx] = e.target.value;
-                                              setCustomValueMapInput(prev => ({ ...prev, [parentVal]: updated }));
-                                            }}
-                                          />
-                                          {childOpts.length > 1 && (
-                                            <button type="button"
-                                              onClick={() => setCustomValueMapInput(prev => ({ ...prev, [parentVal]: childOpts.filter((_, j) => j !== idx) }))}
-                                              className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
-                                          )}
-                                        </div>
-                                      ))}
-                                      <button type="button"
-                                        onClick={() => setCustomValueMapInput(prev => ({ ...prev, [parentVal]: [...(prev[parentVal] ?? ['']), ''] }))}
-                                        className="text-[11px] text-violet-400 hover:text-violet-600 flex items-center gap-0.5 transition-colors mt-0.5">
-                                        <Plus size={10} />옵션 추가
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                          <DependsOnEditor
+                            dependsOnId={customDependsOnId} setDependsOnId={setCustomDependsOnId}
+                            valueMapInput={customValueMapInput} setValueMapInput={setCustomValueMapInput}
+                            parentSelectFields={cfParentSelectFields}
+                          />
                         </div>
                       );
                     })()}
@@ -1188,7 +1243,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
       {/* 커스텀 필드 추가 */}
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">커스텀 필드</p>
-        <AddFieldForm onAdd={addCustomField} />
+        <AddFieldForm onAdd={addCustomField} parentSelectFields={[
+          ...fields.filter(f => f.customType === 'select' && f.enabled && (f.options?.length ?? 0) > 0)
+            .map(f => ({ id: f.key, label: f.customLabel ?? (BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key), options: f.options! })),
+          ...customFields.filter(f => f.type === 'select' && f.enabled !== false && (f.options?.length ?? 0) > 0)
+            .map(f => ({ id: f.id, label: f.label, options: f.options! })),
+        ]} />
       </div>
     </div>
   );

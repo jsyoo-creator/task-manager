@@ -199,6 +199,17 @@ export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfi
   if (!fields.some(f => f.key === 'taskMonth')) {
     fields.unshift({ key: 'taskMonth', enabled: true, width: 52 });
   }
+  // fieldOrder가 있으면 builtin 필드를 fieldOrder 순서로 재정렬 (fieldOrder가 정식 순서 기준)
+  if (config?.fieldOrder?.length) {
+    const fo = config.fieldOrder;
+    const keyIdx: Record<string, number> = {};
+    fo.forEach((k, i) => { keyIdx[k] = i; });
+    fields.sort((a, b) => {
+      const ai = keyIdx[a.key] ?? Infinity;
+      const bi = keyIdx[b.key] ?? Infinity;
+      return ai - bi;
+    });
+  }
   return fields;
 }
 

@@ -383,7 +383,8 @@ export interface Task {
     substituteWeeklyHours?: Record<string, number>; // 대무자 주차별 시간
     substituteTotalHours?: number;
     memos?: SubTaskMemo[];
-    checkedItems?: string[]; // review 타입 필드: 선택된 메인업무 ID 목록
+    checkedItems?: string[]; // review 타입 필드: 선택된 업무 ID 목록
+    reviewHours?: Record<string, number>; // review 타입 필드: taskId → 투입시간
   }>;
   memo?: string;
   plTask?: boolean;          // PL업무 여부

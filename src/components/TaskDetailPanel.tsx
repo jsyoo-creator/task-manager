@@ -772,12 +772,26 @@ export default function TaskDetailPanel({
                 // review 타입: 메인업무 다중 선택 체크리스트
                 if (type.plFieldType === 'review') {
                   const checked: string[] = entry.checkedItems ?? [];
+                  const reviewHours: Record<string, number> = entry.reviewHours ?? {};
+                  const reviewTotal = Object.values(reviewHours).reduce((a, b) => a + b, 0);
+
                   const toggleItem = (id: string) => {
                     const next = checked.includes(id) ? checked.filter(x => x !== id) : [...checked, id];
-                    const nextData = { ...localSubTaskData, [type.id]: { ...entry, checkedItems: next } };
+                    const nextHours = { ...reviewHours };
+                    if (!next.includes(id)) delete nextHours[id];
+                    const nextEntry = { ...entry, checkedItems: next, reviewHours: nextHours, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
+                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
                   };
+                  const setHours = (id: string, h: number) => {
+                    const nextHours = { ...reviewHours, [id]: h };
+                    const nextEntry = { ...entry, reviewHours: nextHours, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
+                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
+                    setLocalSubTaskData(nextData);
+                    saveSubTaskData(nextData);
+                  };
+
                   const items = reviewTasks ?? [];
                   return (
                     <div key={type.id} className="rounded-xl bg-gray-50 p-3">
@@ -792,37 +806,49 @@ export default function TaskDetailPanel({
                         {checked.length > 0 && (
                           <span className="text-[10px] text-gray-400">{checked.length}/{items.length}</span>
                         )}
+                        {reviewTotal > 0 && (
+                          <span className="text-[10px] font-medium text-violet-600">{reviewTotal}h</span>
+                        )}
                       </div>
                       {items.length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-2">같은 월에 등록된 업무가 없습니다</p>
+                        <p className="text-xs text-gray-400 text-center py-2">등록된 업무가 없습니다</p>
                       ) : (
                         <div className="space-y-1">
                           {items.map(rt => {
                             const isChecked = checked.includes(rt.id);
+                            const h = reviewHours[rt.id] ?? 0;
                             return (
-                              <button key={rt.id} type="button"
-                                disabled={!canManage}
-                                onClick={() => toggleItem(rt.id)}
-                                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                                  isChecked
-                                    ? 'bg-violet-100 text-violet-700'
-                                    : 'bg-white hover:bg-gray-100 text-gray-600'
-                                } disabled:cursor-default`}>
-                                <span className={`w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center ${
-                                  isChecked ? 'bg-violet-500 border-violet-500 text-white' : 'border-gray-300'
-                                }`}>
-                                  {isChecked && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                                </span>
-                                <span className="flex-1 text-left">{rt.title}</span>
-                                {rt.plParts && rt.plParts.length > 0 && (
-                                  <span className="text-[10px] px-1.5 py-px rounded bg-gray-200 text-gray-500 font-medium">
-                                    {rt.plParts.join('·')}
-                                  </span>
+                              <div key={rt.id} className={`rounded-lg text-xs transition-colors ${isChecked ? 'bg-violet-100' : 'bg-white'}`}>
+                                <div className="flex items-center gap-2 px-2.5 py-1.5">
+                                  <button type="button" disabled={!canManage}
+                                    onClick={() => toggleItem(rt.id)}
+                                    className="flex-shrink-0">
+                                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
+                                      isChecked ? 'bg-violet-500 border-violet-500 text-white' : 'border-gray-300 hover:border-violet-400'
+                                    }`}>
+                                      {isChecked && <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                    </span>
+                                  </button>
+                                  <span className={`flex-1 min-w-0 truncate ${isChecked ? 'text-violet-700 font-medium' : 'text-gray-600'}`}>{rt.title}</span>
+                                  {rt.taskMonth && <span className="text-[10px] text-gray-400 flex-shrink-0">{rt.taskMonth}</span>}
+                                  {rt.status && rt.status !== '진행 전' && (
+                                    <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-400 flex-shrink-0">{rt.status}</span>
+                                  )}
+                                </div>
+                                {isChecked && (
+                                  <div className="flex items-center gap-1.5 px-2.5 pb-1.5">
+                                    <span className="text-[11px] text-violet-500 w-10">시간</span>
+                                    <input type="number" min={0} step={0.5}
+                                      disabled={!canManage}
+                                      value={h || ''}
+                                      placeholder="0"
+                                      onChange={e => setHours(rt.id, parseFloat(e.target.value) || 0)}
+                                      className="w-16 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 text-right disabled:opacity-50"
+                                    />
+                                    <span className="text-[11px] text-gray-400">h</span>
+                                  </div>
                                 )}
-                                {rt.status && rt.status !== '진행 전' && (
-                                  <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-400">{rt.status}</span>
-                                )}
-                              </button>
+                              </div>
                             );
                           })}
                         </div>

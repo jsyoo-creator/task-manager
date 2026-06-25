@@ -92,7 +92,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const [custom, setCustom] = useState<Record<string, string>>({});
 
   // PL업무 폼 상태
-  const [plForm, setPlForm] = useState({ taskMonth: DEFAULT_TASK_MONTH, title: '', status: '' as TaskStatus, startDate: '', endDate: '' });
+  const [plForm, setPlForm] = useState({ taskMonth: DEFAULT_TASK_MONTH, status: '' as TaskStatus, startDate: '', endDate: '' });
   const [plSelectedParts, setPlSelectedParts] = useState<string[]>([]);
   // 메인업무 항목 선택 — 기본값: 전체 선택
   const [plSelectedTypes, setPlSelectedTypes] = useState<string[]>(() => plMainTaskTypes?.map(t => t.id) ?? []);
@@ -139,7 +139,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const resetForm = () => {
     setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '' as TaskStatus, receiver: getPersonDefault('receiver'), assignee: getPersonDefault('assignee'), startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
-    setPlForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', status: '' as TaskStatus, startDate: '', endDate: '' });
+    setPlForm({ taskMonth: DEFAULT_TASK_MONTH, status: '' as TaskStatus, startDate: '', endDate: '' });
     setPlSelectedParts([]);
     setPlSelectedTypes(plMainTaskTypes?.map(t => t.id) ?? []);
   };
@@ -147,27 +147,30 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const handlePlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!plForm.taskMonth) { alert('월을 선택해 주세요.'); return; }
-    if (!plForm.title.trim()) { alert('업무명을 입력해 주세요.'); return; }
     if (plSelectedParts.length === 0) { alert('파트를 1개 이상 선택해 주세요.'); return; }
-    if (plMainTaskTypes && plMainTaskTypes.length > 0 && plSelectedTypes.length === 0) { alert('메인업무 항목을 1개 이상 선택해 주세요.'); return; }
-    onSubmit({
-      taskMonth: plForm.taskMonth,
-      title: plForm.title.trim(),
-      category: plSelectedParts[0],
-      type: '신규',
-      status: plForm.status || '진행 전',
-      receiver: '',
-      assignee: '',
-      startDate: plForm.startDate,
-      endDate: plForm.endDate,
-      weeklyHours: {},
-      totalHours: 0,
-      revisionLevel: 0,
-      projectId,
-      plTask: true,
-      plParts: plSelectedParts,
-      plSelectedTypes: plSelectedTypes.length > 0 ? plSelectedTypes : undefined,
-    });
+    if (plSelectedTypes.length === 0) { alert('메인업무 항목을 1개 이상 선택해 주세요.'); return; }
+    // 선택된 메인업무 항목 각각을 별도 PL 업무로 등록
+    const selectedTypeObjs = (plMainTaskTypes ?? []).filter(t => plSelectedTypes.includes(t.id));
+    for (const typeObj of selectedTypeObjs) {
+      onSubmit({
+        taskMonth: plForm.taskMonth,
+        title: typeObj.name,
+        category: plSelectedParts[0],
+        type: '신규',
+        status: plForm.status || '진행 전',
+        receiver: '',
+        assignee: '',
+        startDate: plForm.startDate,
+        endDate: plForm.endDate,
+        weeklyHours: {},
+        totalHours: 0,
+        revisionLevel: 0,
+        projectId,
+        plTask: true,
+        plParts: plSelectedParts,
+        plSelectedTypes: [typeObj.id],
+      });
+    }
     resetForm();
     onClose();
   };
@@ -235,11 +238,48 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 {MONTH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-            <div>
-              <label className={lbl}>업무명 *</label>
-              <input required type="text" className={cls} placeholder="PL 업무명을 입력하세요"
-                value={plForm.title} onChange={e => setPlF({ title: e.target.value })} />
-            </div>
+            {/* 메인업무 항목 선택 — 각 항목이 별도 업무명이 됨 */}
+            {plMainTaskTypes && plMainTaskTypes.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className={lbl + ' mb-0'}>업무명(메인업무) * <span className="text-gray-400 font-normal">선택한 항목마다 업무 1개씩 등록</span></label>
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={() => setPlSelectedTypes(plMainTaskTypes.map(t => t.id))}
+                      className="text-[10px] text-blue-500 hover:text-blue-700 font-medium">전체</button>
+                    <span className="text-gray-300 text-[10px]">|</span>
+                    <button type="button" onClick={() => setPlSelectedTypes([])}
+                      className="text-[10px] text-gray-400 hover:text-gray-600 font-medium">해제</button>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-black/8 divide-y divide-black/5 overflow-hidden">
+                  {plMainTaskTypes.map(t => {
+                    const checked = plSelectedTypes.includes(t.id);
+                    return (
+                      <button key={t.id} type="button"
+                        onClick={() => setPlSelectedTypes(prev =>
+                          checked ? prev.filter(x => x !== t.id) : [...prev, t.id]
+                        )}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                          checked ? 'bg-blue-50' : 'hover:bg-gray-50'
+                        }`}>
+                        <span className={`w-4 h-4 rounded flex-shrink-0 border flex items-center justify-center text-[10px] transition-all ${
+                          checked
+                            ? 'bg-blue-500 border-blue-500 text-white'
+                            : 'border-gray-300 text-transparent'
+                        }`}>✓</span>
+                        <span className={`text-xs flex-1 ${checked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{t.name}</span>
+                        {t.department && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium flex-shrink-0">{t.department}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {plSelectedTypes.length > 0 && (
+                  <p className="text-[11px] text-blue-500 mt-1">{plSelectedTypes.length}개 업무가 등록됩니다</p>
+                )}
+              </div>
+            )}
             <div>
               <label className={lbl}>상태</label>
               <select className={cls} value={plForm.status} onChange={e => setPlF({ status: e.target.value as TaskStatus })}>
@@ -281,44 +321,6 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 </div>
               </div>
             )}
-            {plMainTaskTypes && plMainTaskTypes.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className={lbl + ' mb-0'}>메인업무 항목 * <span className="text-gray-400 font-normal">(1개 이상)</span></label>
-                  <div className="flex gap-1.5">
-                    <button type="button" onClick={() => setPlSelectedTypes(plMainTaskTypes.map(t => t.id))}
-                      className="text-[10px] text-blue-500 hover:text-blue-700 font-medium">전체 선택</button>
-                    <span className="text-gray-300 text-[10px]">|</span>
-                    <button type="button" onClick={() => setPlSelectedTypes([])}
-                      className="text-[10px] text-gray-400 hover:text-gray-600 font-medium">전체 해제</button>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-black/8 divide-y divide-black/5 overflow-hidden">
-                  {plMainTaskTypes.map(t => {
-                    const checked = plSelectedTypes.includes(t.id);
-                    return (
-                      <button key={t.id} type="button"
-                        onClick={() => setPlSelectedTypes(prev =>
-                          checked ? prev.filter(x => x !== t.id) : [...prev, t.id]
-                        )}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                          checked ? 'bg-blue-50' : 'hover:bg-gray-50'
-                        }`}>
-                        <span className={`w-4 h-4 rounded flex-shrink-0 border flex items-center justify-center text-[10px] transition-all ${
-                          checked
-                            ? 'bg-blue-500 border-blue-500 text-white'
-                            : 'border-gray-300 text-transparent'
-                        }`}>✓</span>
-                        <span className={`text-xs flex-1 ${checked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{t.name}</span>
-                        {t.department && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium flex-shrink-0">{t.department}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => { resetForm(); onClose(); }}
                 className="px-4 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
@@ -326,7 +328,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
               </button>
               <button type="submit"
                 className="px-4 py-2 rounded-lg text-xs font-semibold btn-shiny-primary">
-                PL 업무 등록
+                {plSelectedTypes.length > 1 ? `PL 업무 ${plSelectedTypes.length}개 등록` : 'PL 업무 등록'}
               </button>
             </div>
           </form>

@@ -30,7 +30,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
@@ -151,10 +151,13 @@ function App() {
   // 'all' 뷰: allFormConfig(전체 설정)가 있으면 팀 기본 위에 덮어씀
   const effectiveFormConfig = useMemo(() => {
     if (activePart) return mergeFormConfig(activePart.formConfig, selectedTeam?.formConfig);
-    // 전체 뷰 — allFormConfig가 있으면 우선 적용
-    const base = selectedTeam?.allFormConfig
-      ? mergeFormConfig(selectedTeam.allFormConfig, selectedTeam?.formConfig)
+    // 전체 뷰 — allFormConfig가 있으면 우선 적용, 없으면 파트 합집합 fallback
+    const partsUnion = activeParts.length > 0
+      ? mergeAllPartsConfig(activeParts, selectedTeam?.formConfig)
       : selectedTeam?.formConfig;
+    const base = selectedTeam?.allFormConfig
+      ? mergeFormConfig(selectedTeam.allFormConfig, partsUnion)
+      : partsUnion;
     // 팀 config에 status customType이 없으면 activeParts에서 찾아 보충
     const baseBuiltins = resolveBuiltinFields(base);
     const baseStatusFc = baseBuiltins.find(f => f.key === 'status');

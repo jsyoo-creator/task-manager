@@ -233,6 +233,38 @@ export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConf
   return { ...partConfig, builtinFields: merged, customFields: mergedCfs };
 }
 
+/**
+ * 여러 파트의 formConfig를 합집합(union)으로 병합.
+ * 어느 한 파트라도 활성화한 필드는 전체 뷰에서도 표시.
+ * 파트별 설정이 없는 파트는 teamConfig를 fallback으로 사용.
+ */
+export function mergeAllPartsConfig(parts: { formConfig?: TeamFormConfig }[], teamConfig: TeamFormConfig | undefined): TeamFormConfig | undefined {
+  if (parts.length === 0) return teamConfig;
+  // 각 파트의 실효 config (파트 설정 없으면 팀 기본)
+  const resolved = parts.map(p => mergeFormConfig(p.formConfig, teamConfig) ?? teamConfig);
+  const base = resolveBuiltinFields(teamConfig);
+  // 어느 파트에서든 enabled=true면 전체에서도 enabled
+  const mergedBuiltins = base.map(bf => {
+    const enabledInAny = resolved.some(cfg => {
+      const f = resolveBuiltinFields(cfg).find(f => f.key === bf.key);
+      return f?.enabled ?? false;
+    });
+    // label, customType 등은 첫 번째로 활성화한 파트의 값 사용
+    const firstActive = resolved.find(cfg => resolveBuiltinFields(cfg).find(f => f.key === bf.key)?.enabled);
+    const overrideField = firstActive ? resolveBuiltinFields(firstActive).find(f => f.key === bf.key) : undefined;
+    return { ...(overrideField ?? bf), enabled: enabledInAny };
+  });
+  // 커스텀 필드: 각 파트에서 나타나는 모든 필드 합집합 (id 기준 중복 제거, 첫 등장 파트 설정 우선)
+  const seenCfIds = new Set<string>();
+  const mergedCustoms: CustomFormField[] = [];
+  for (const cfg of resolved) {
+    for (const cf of (cfg?.customFields ?? [])) {
+      if (!seenCfIds.has(cf.id)) { seenCfIds.add(cf.id); mergedCustoms.push(cf); }
+    }
+  }
+  return { builtinFields: mergedBuiltins, customFields: mergedCustoms };
+}
+
 /** 필드 설정에서 직군 목록을 반환. 구버전 department 단일값도 처리. */
 export function resolveFieldDepts(fc: { department?: Department; departments?: Department[] }): Department[] | null {
   if (fc.departments?.length) return fc.departments;

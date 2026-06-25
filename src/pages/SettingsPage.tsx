@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1278,9 +1278,12 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
     : undefined;
 
   // 현재 편집 대상의 formConfig
-  // 전체: allFormConfig (없으면 팀 상속), 파트: 파트 formConfig (없으면 팀 상속)
+  // 전체: allFormConfig (없으면 파트 합집합 fallback), 파트: 파트 formConfig (없으면 팀 상속)
+  const partsUnionConfig = team.parts.length > 0
+    ? mergeAllPartsConfig(team.parts, team.formConfig)
+    : team.formConfig;
   const rawConfig = isAllTarget
-    ? (team.allFormConfig ?? team.formConfig)
+    ? (team.allFormConfig ?? partsUnionConfig)
     : (currentPart?.formConfig ?? team.formConfig);
   const isInherited = isAllTarget
     ? !team.allFormConfig

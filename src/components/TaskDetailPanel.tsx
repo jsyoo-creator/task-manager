@@ -108,14 +108,16 @@ export default function TaskDetailPanel({
   vacations?: Vacation[];
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
-  const today = new Date().toISOString().slice(0, 10);
+  const todayD = new Date();
+  const today = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}-${String(todayD.getDate()).padStart(2, '0')}`;
   const isAssigneeOnVacation = (name: string | undefined): boolean => {
     if (!name || !vacations.length) return false;
     return vacations.some(v => {
-      if (v.memberName !== name) return false;
-      const end = new Date(v.date);
-      end.setDate(end.getDate() + Math.max(Math.ceil(v.days) - 1, 0));
-      return today >= v.date && today <= end.toISOString().slice(0, 10);
+      if (v.memberName !== name.trim()) return false;
+      const [y, m, d] = v.date.split('-').map(Number);
+      const end = new Date(y, m - 1, d + Math.max(Math.ceil(v.days) - 1, 0));
+      const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+      return today >= v.date && today <= endStr;
     });
   };
   const builtinFields = resolveBuiltinFields(formConfig);

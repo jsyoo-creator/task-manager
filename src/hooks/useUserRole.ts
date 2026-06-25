@@ -120,10 +120,16 @@ export function useAllUsers() {
       payload.defaultTeamId = defaultTeamId ?? deleteField();
     }
 
-    if (data.displayName) {
-      const oldName = users.find(u => u.uid === uid)?.displayName;
-      const newName = data.displayName;
-      if (oldName && oldName !== newName) {
+    // 이름 변경 전에 oldName을 미리 읽어둠
+    const oldName = data.displayName ? users.find(u => u.uid === uid)?.displayName : undefined;
+    const newName = data.displayName;
+
+    // users 컬렉션 업데이트를 먼저 실행 (이후 배치 실패와 무관하게 저장)
+    await updateDoc(doc(db, 'users', uid), payload);
+
+    // 비정규화된 이름 일괄 동기화
+    if (oldName && newName && oldName !== newName) {
+      try {
         const [vacSnap, postSnap, commentSnap, seatSnap, allTasksSnap] = await Promise.all([
           getDocs(query(collection(db, 'vacations'), where('memberName', '==', oldName))),
           getDocs(query(collection(db, 'posts'), where('authorName', '==', oldName))),
@@ -181,10 +187,10 @@ export function useAllUsers() {
           updates.slice(i, i + CHUNK).forEach(({ ref, data: u }) => b.update(ref, u));
           await b.commit();
         }
+      } catch (e) {
+        console.error('이름 동기화 실패:', e);
       }
     }
-
-    await updateDoc(doc(db, 'users', uid), payload);
   };
 
   const deleteUser = async (uid: string) => {

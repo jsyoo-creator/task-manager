@@ -533,7 +533,8 @@ function AddFieldForm({ onAdd }: { onAdd: (f: Omit<CustomFormField, 'id'>) => vo
                     style={{ background: 'conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
                     <input type="color" className="opacity-0 absolute w-0 h-0"
                       value={optionColors[opt]?.bg ?? '#ffffff'}
-                      onChange={e => { const bg = e.target.value; setOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }} />
+                      onChange={e => { const bg = e.target.value; setOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }}
+                      onBlur={e => { e.stopPropagation(); setColorPickerIdx(null); }} />
                   </label>
                 </div>
               )}
@@ -842,7 +843,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                                   style={{ background: 'conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
                                   <input type="color" className="opacity-0 absolute w-0 h-0"
                                     value={builtinOptionColors[opt]?.bg ?? '#ffffff'}
-                                    onChange={e => { const bg = e.target.value; setBuiltinOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }} />
+                                    onChange={e => { const bg = e.target.value; setBuiltinOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }}
+                                    onBlur={e => { e.stopPropagation(); setBuiltinColorPickerIdx(null); }} />
                                 </label>
                               </div>
                             )}
@@ -1001,7 +1003,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                                   style={{ background: 'conic-gradient(from 0deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
                                   <input type="color" className="opacity-0 absolute w-0 h-0"
                                     value={customOptionColors[opt]?.bg ?? '#ffffff'}
-                                    onChange={e => { const bg = e.target.value; setCustomOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }} />
+                                    onChange={e => { const bg = e.target.value; setCustomOptionColors(prev => ({ ...prev, [opt]: { bg, text: hexToTextColor(bg) } })); }}
+                                    onBlur={e => { e.stopPropagation(); setCustomColorPickerIdx(null); }} />
                                 </label>
                               </div>
                             )}

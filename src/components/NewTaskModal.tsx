@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department, PLMainTaskType } from '../types';
-import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts, mergeFormConfig } from '../types';
 import DatePicker from './DatePicker';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   parts?: TeamPart[];
   assignees?: string[];
   teamMembers?: { name: string; department?: Department }[];
-  formConfig?: TeamFormConfig;
+  formConfig?: TeamFormConfig;       // 팀 기본 config
   plMainTaskTypes?: PLMainTaskType[];
   currentUserName?: string;
 }
@@ -40,9 +40,29 @@ const FIELD_PAIRS: [BuiltinFieldKey, BuiltinFieldKey][] = [
 
 export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig, currentUserName = '', plMainTaskTypes }: Props) {
   const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
-  const builtinFields = resolveBuiltinFields(formConfig);
-  const customFields = formConfig?.customFields ?? [];
-  const statusConfigs = resolveStatusConfigs(formConfig);
+
+  const [activeTab, setActiveTab] = useState<'normal' | 'pl'>('normal');
+  const hasPl = !!(plMainTaskTypes && plMainTaskTypes.length > 0);
+  const totalPaths = partNames.length + (hasPl ? 1 : 0);
+  const showSelection = totalPaths > 1;
+  const [step, setStep] = useState<'select' | 'form'>(showSelection ? 'select' : 'form');
+  const [selectedPartName, setSelectedPartName] = useState<string>(partNames[0] ?? '');
+
+  useEffect(() => {
+    if (open) {
+      setStep(showSelection ? 'select' : 'form');
+      setSelectedPartName(partNames[0] ?? '');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // 선택된 파트의 formConfig와 팀 기본 config를 병합
+  const selectedPart = parts?.find(p => p.name === selectedPartName);
+  const activeFormConfig = mergeFormConfig(selectedPart?.formConfig, formConfig) ?? formConfig;
+
+  const builtinFields = resolveBuiltinFields(activeFormConfig);
+  const customFields = activeFormConfig?.customFields ?? [];
+  const statusConfigs = resolveStatusConfigs(activeFormConfig);
   // fieldOrder 적용: 기본+커스텀 통합 순서
   const enabledBuiltins = builtinFields.filter(fc => fc.enabled && fc.key !== 'weeklyHours' && fc.key !== 'revisionLevel');
   const enabledCustoms = customFields.filter(cf => cf.enabled !== false);
@@ -74,17 +94,6 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     if (key === 'assignee' && currentUserName && pool.includes(currentUserName)) return currentUserName;
     return pool[0] ?? '';
   };
-
-  const [activeTab, setActiveTab] = useState<'normal' | 'pl'>('normal');
-  const hasPl = !!(plMainTaskTypes && plMainTaskTypes.length > 0);
-  const totalPaths = partNames.length + (hasPl ? 1 : 0);
-  const showSelection = totalPaths > 1;
-  const [step, setStep] = useState<'select' | 'form'>(showSelection ? 'select' : 'form');
-
-  useEffect(() => {
-    if (open) setStep(showSelection ? 'select' : 'form');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   const [form, setForm] = useState({
     taskMonth: DEFAULT_TASK_MONTH,
@@ -146,6 +155,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   if (!open) return null;
 
   const resetForm = () => {
+    setSelectedPartName(partNames[0] ?? '');
     setForm({ taskMonth: DEFAULT_TASK_MONTH, title: '', category: partNames[0] ?? '', type: '신규', status: '' as TaskStatus, receiver: getPersonDefault('receiver'), assignee: getPersonDefault('assignee'), startDate: '', endDate: '', revisionLevel: 0 });
     setCustom({});
     setPlForm({ taskMonth: DEFAULT_TASK_MONTH, status: '' as TaskStatus, startDate: '', endDate: '' });
@@ -243,6 +253,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 return (
                   <button key={p} type="button"
                     onClick={() => {
+                      setSelectedPartName(p);
                       setForm(f => ({ ...f, category: p }));
                       setActiveTab('normal');
                       setStep('form');

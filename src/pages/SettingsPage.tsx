@@ -2692,6 +2692,9 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [newFieldType, setNewFieldType] = useState<'text' | 'select' | 'text+select' | 'date'>('text');
   const [newOptionInput, setNewOptionInput] = useState('');
   const [newOptions, setNewOptions] = useState<string[]>([]);
+  const [newDdayEnabled, setNewDdayEnabled] = useState(false);
+  const [newDdayDays, setNewDdayDays] = useState(10);
+  const [newDdayMessage, setNewDdayMessage] = useState('');
   const [saving, setSaving] = useState(false);
 
   // 편집 상태
@@ -2703,6 +2706,9 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   const [editOptionInput, setEditOptionInput] = useState('');
   const [editTextFirst, setEditTextFirst] = useState(true);
   const [newTextFirst, setNewTextFirst] = useState(true);
+  const [editDdayEnabled, setEditDdayEnabled] = useState(false);
+  const [editDdayDays, setEditDdayDays] = useState(10);
+  const [editDdayMessage, setEditDdayMessage] = useState('');
 
   // 드래그 순서 변경
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -2729,6 +2735,9 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     setEditOptions(field.options ?? []);
     setEditOptionInput('');
     setEditTextFirst(field.textFirst !== false);
+    setEditDdayEnabled(!!field.ddayAlert);
+    setEditDdayDays(field.ddayAlert?.days ?? 10);
+    setEditDdayMessage(field.ddayAlert?.message ?? '');
   };
 
   const cycleFieldType = (t: 'text' | 'select' | 'text+select' | 'date') =>
@@ -2746,7 +2755,17 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     }
     await onUpdateProfileFields(profileFields.map(f =>
       f.id === editingId
-        ? { ...f, label: editLabel.trim() || f.label, required: editRequired, fieldType: editFieldType, options: needsOptions ? editOptions : undefined, textFirst: editFieldType === 'text+select' ? editTextFirst : undefined }
+        ? {
+            ...f,
+            label: editLabel.trim() || f.label,
+            required: editRequired,
+            fieldType: editFieldType,
+            options: needsOptions ? editOptions : undefined,
+            textFirst: editFieldType === 'text+select' ? editTextFirst : undefined,
+            ddayAlert: editFieldType === 'date' && editDdayEnabled && editDdayMessage.trim()
+              ? { days: editDdayDays, message: editDdayMessage.trim() }
+              : undefined,
+          }
         : f
     ));
     setEditingId(null);
@@ -2775,6 +2794,9 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       fieldType: newFieldType,
       options: needsOptions ? newOptions : undefined,
       textFirst: newFieldType === 'text+select' ? newTextFirst : undefined,
+      ddayAlert: newFieldType === 'date' && newDdayEnabled && newDdayMessage.trim()
+        ? { days: newDdayDays, message: newDdayMessage.trim() }
+        : undefined,
     };
     setSaving(true);
     await onUpdateProfileFields([...profileFields, newField]);
@@ -2784,6 +2806,9 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
     setNewFieldType('text');
     setNewOptions([]);
     setNewOptionInput('');
+    setNewDdayEnabled(false);
+    setNewDdayDays(10);
+    setNewDdayMessage('');
   };
 
   const handleDelete = async (id: string) => {
@@ -2879,6 +2904,38 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                       </div>
                     </div>
                   )}
+                  {editFieldType === 'date' && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-100 p-2.5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-amber-700 font-medium">디데이 알림</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditDdayEnabled(v => !v)}
+                          className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border transition-colors ${
+                            editDdayEnabled ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-white text-gray-400 border-gray-200'
+                          }`}
+                        >{editDdayEnabled ? '켜짐' : '꺼짐'}</button>
+                      </div>
+                      {editDdayEnabled && (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number" min={1} max={365} value={editDdayDays}
+                              onChange={e => setEditDdayDays(Math.max(1, Number(e.target.value)))}
+                              className="w-14 text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 text-center"
+                            />
+                            <span className="text-xs text-gray-500">일 전부터 알림</span>
+                          </div>
+                          <input
+                            value={editDdayMessage}
+                            onChange={e => setEditDdayMessage(e.target.value)}
+                            placeholder="알림 메시지 (예: 계약 만료가)"
+                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button onClick={handleSaveEdit} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition-colors">저장</button>
                     <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
@@ -2902,6 +2959,11 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${field.required ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400'}`}>
                     {field.required ? '필수' : '선택'}
                   </span>
+                  {field.fieldType === 'date' && field.ddayAlert && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 font-medium whitespace-nowrap">
+                      D-{field.ddayAlert.days}일
+                    </span>
+                  )}
                   <button
                     title="계정 정보 페이지 노출 여부"
                     onClick={() => onUpdateProfileFields(profileFields.map(f =>
@@ -2985,6 +3047,39 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                 추가
               </button>
             </div>
+          </div>
+        )}
+
+        {newFieldType === 'date' && (
+          <div className="rounded-lg bg-amber-50 border border-amber-100 p-2.5 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-amber-700 font-medium">디데이 알림</span>
+              <button
+                type="button"
+                onClick={() => setNewDdayEnabled(v => !v)}
+                className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border transition-colors ${
+                  newDdayEnabled ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-white text-gray-400 border-gray-200'
+                }`}
+              >{newDdayEnabled ? '켜짐' : '꺼짐'}</button>
+            </div>
+            {newDdayEnabled && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" min={1} max={365} value={newDdayDays}
+                    onChange={e => setNewDdayDays(Math.max(1, Number(e.target.value)))}
+                    className="w-14 text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50 text-center"
+                  />
+                  <span className="text-xs text-gray-500">일 전부터 알림</span>
+                </div>
+                <input
+                  value={newDdayMessage}
+                  onChange={e => setNewDdayMessage(e.target.value)}
+                  placeholder="알림 메시지 (예: 계약 만료가)"
+                  className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/50"
+                />
+              </div>
+            )}
           </div>
         )}
 

@@ -5,7 +5,7 @@ import {
   Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import type { Project, TaskCategory, AppUser, Team } from '../types';
+import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef } from '../types';
 
 interface Props {
   children: React.ReactNode;
@@ -22,6 +22,7 @@ interface Props {
   activeTeamId: string | null;
   onActiveTeamChange: (id: string) => void;
   unreadNoticeCount?: number;
+  profileFields?: ProfileFieldDef[];
 }
 
 const NAV_ALL = [
@@ -90,6 +91,46 @@ function TeamAlert({ appUser, teamsLoading, teams }: { appUser: AppUser | null; 
   }
 
   return null;
+}
+
+function ProfileDateAlert({ appUser, profileFields }: { appUser: AppUser | null; profileFields: ProfileFieldDef[] }) {
+  const navigate = useNavigate();
+  if (!appUser) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const activeAlerts: { field: ProfileFieldDef; daysLeft: number }[] = [];
+  for (const field of profileFields) {
+    if (field.fieldType !== 'date' || !field.ddayAlert) continue;
+    const val = appUser.profileData?.[field.id];
+    if (!val) continue;
+    const target = new Date(val);
+    target.setHours(0, 0, 0, 0);
+    const diff = Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff >= 0 && diff <= field.ddayAlert.days) {
+      activeAlerts.push({ field, daysLeft: diff });
+    }
+  }
+  if (!activeAlerts.length) return null;
+  return (
+    <>
+      {activeAlerts.map(({ field, daysLeft }) => (
+        <div key={field.id}
+          onClick={() => navigate('/settings')}
+          className="cursor-pointer flex items-center gap-2.5 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-2xl mb-3 hover:bg-amber-100 transition-colors group"
+        >
+          <AlertCircle size={15} className="text-amber-500 flex-shrink-0" />
+          <p className="text-xs text-amber-700 flex-1">
+            <span className="font-semibold">{field.ddayAlert!.message}</span>
+            {' '}
+            {daysLeft === 0 ? '오늘입니다.' : `${daysLeft}일 남았습니다.`}
+          </p>
+          <span className="text-xs text-amber-500 font-medium group-hover:underline flex-shrink-0">
+            {daysLeft === 0 ? 'D-day' : `D-${daysLeft}`}
+          </span>
+        </div>
+      ))}
+    </>
+  );
 }
 
 function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
@@ -168,7 +209,7 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
 
 export default function Layout({
   children, user, appUser, onSignOut, teams, teamsLoading,
-  activeTeamId, onActiveTeamChange, unreadNoticeCount = 0,
+  activeTeamId, onActiveTeamChange, unreadNoticeCount = 0, profileFields = [],
 }: Props) {
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
   const hasTeamSelected = userSelectedTeams.length > 0;
@@ -297,6 +338,7 @@ export default function Layout({
           >
             <DepartmentAlert appUser={appUser} />
             <TeamAlert appUser={appUser} teamsLoading={teamsLoading} teams={teams} />
+            <ProfileDateAlert appUser={appUser} profileFields={profileFields} />
             {children}
           </div>
         </div>

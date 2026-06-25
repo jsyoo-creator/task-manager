@@ -308,6 +308,7 @@ function App() {
           activeTeamId={activeTeamId}
           onActiveTeamChange={handleActiveTeamChange}
           unreadNoticeCount={unreadNoticeCount}
+          profileFields={profileFields}
         >
           <Routes>
             <Route path="/" element={

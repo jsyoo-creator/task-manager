@@ -11,6 +11,7 @@ export interface ProfileFieldDef {
   options?: string[];
   textFirst?: boolean; // text+select일 때 텍스트가 앞(true, 기본) vs 드롭다운이 앞(false)
   showInAccountInfo?: boolean; // 계정 정보 페이지 노출 여부 (undefined = true)
+  ddayAlert?: { days: number; message: string }; // date 타입: N일 전부터 알림
 }
 
 export interface AppUser {

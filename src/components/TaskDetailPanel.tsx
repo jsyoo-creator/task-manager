@@ -45,6 +45,11 @@ type SubTaskEntry = {
   totalHours: number;
   substituteWeeklyHours?: Record<string, number>;
   substituteTotalHours?: number;
+  // review type fields
+  checkedItems?: string[];
+  reviewWeeklyHours?: Record<string, Record<string, number>>;
+  reviewDates?: Record<string, { startDate?: string; endDate?: string }>;
+  reviewStatus?: Record<string, string>;
 };
 
 function getWeekDays(startDate: string, endDate?: string) {
@@ -101,6 +106,65 @@ function calcHoursInRange(hours: Record<string, number>, startDate: string, endD
   });
   return Object.entries(hours).filter(([k]) => validKeys.has(k)).reduce((s, [, v]) => s + v, 0);
 }
+
+function aggregateReviewToWeekly(
+  reviewWeeklyHours: Record<string, Record<string, number>>,
+  reviewDates: Record<string, { startDate?: string; endDate?: string }>,
+  checkedItems: string[]
+): { weeklyHours: Record<string, number>; totalHours: number; startDate?: string; endDate?: string } {
+  const validItems = checkedItems.filter(id => reviewDates[id]?.startDate);
+  if (validItems.length === 0) return { weeklyHours: {}, totalHours: 0 };
+  const dateMap: Record<string, number> = {};
+  validItems.forEach(id => {
+    const startDate = reviewDates[id].startDate!;
+    const base = new Date(startDate);
+    const dow = base.getDay();
+    const monday = new Date(base);
+    monday.setDate(base.getDate() + (dow === 0 ? -6 : 1 - dow));
+    const wh = reviewWeeklyHours[id] ?? {};
+    Object.entries(wh).forEach(([key, h]) => {
+      if (!h) return;
+      const m = key.match(/^w(\d+)d(\d+)$/);
+      if (!m) return;
+      const wi = parseInt(m[1]) - 1;
+      const di = parseInt(m[2]) - 1;
+      if (di < 0 || di > 4) return;
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + wi * 7 + di);
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      dateMap[ds] = (dateMap[ds] ?? 0) + h;
+    });
+  });
+  if (Object.keys(dateMap).length === 0) return { weeklyHours: {}, totalHours: 0 };
+  const sorted = Object.keys(dateMap).sort();
+  const overallStart = sorted[0];
+  const overallEnd = sorted[sorted.length - 1];
+  const ob = new Date(overallStart);
+  const odow = ob.getDay();
+  const overallMonday = new Date(ob);
+  overallMonday.setDate(ob.getDate() + (odow === 0 ? -6 : 1 - odow));
+  const weeklyHours: Record<string, number> = {};
+  Object.entries(dateMap).forEach(([ds, h]) => {
+    if (!h) return;
+    const d = new Date(ds);
+    const diffDays = Math.round((d.getTime() - overallMonday.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays < 0) return;
+    const wi = Math.floor(diffDays / 7);
+    const di = diffDays % 7;
+    if (di > 4) return;
+    weeklyHours[`w${wi+1}d${di+1}`] = h;
+  });
+  const totalHours = Object.values(weeklyHours).reduce((a, b) => a + b, 0);
+  return { weeklyHours, totalHours, startDate: overallStart, endDate: overallEnd };
+}
+
+const REVIEW_STATUSES = ['검수 전', '검수 중', '검수 완료'] as const;
+type ReviewStatus = typeof REVIEW_STATUSES[number];
+const REVIEW_STATUS_STYLE: Record<ReviewStatus, string> = {
+  '검수 전': 'bg-gray-100 text-gray-500',
+  '검수 중': 'bg-amber-100 text-amber-600',
+  '검수 완료': 'bg-green-100 text-green-600',
+};
 
 function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
   if (!name) return null;
@@ -231,8 +295,25 @@ export default function TaskDetailPanel({
   };
 
   const saveSubTaskData = (next: Record<string, SubTaskEntry>) => {
-    const totalHours = Object.values(next).reduce((sum, e) => sum + e.totalHours, 0);
-    onUpdate(task.id, { subTaskData: next, totalHours });
+    const finalNext: Record<string, SubTaskEntry> = {};
+    Object.keys(next).forEach(key => {
+      const e = next[key];
+      if (e.checkedItems !== undefined) {
+        const agg = aggregateReviewToWeekly(e.reviewWeeklyHours ?? {}, e.reviewDates ?? {}, e.checkedItems);
+        const rs = e.reviewStatus ?? {};
+        let autoStatus: TaskStatus = '진행 전';
+        if (e.checkedItems.length > 0) {
+          const statuses = e.checkedItems.map(id => rs[id] ?? '검수 전');
+          if (statuses.every(s => s === '검수 완료')) autoStatus = '완료';
+          else if (statuses.some(s => s !== '검수 전')) autoStatus = '진행 중';
+        }
+        finalNext[key] = { ...e, weeklyHours: agg.weeklyHours, totalHours: agg.totalHours, status: autoStatus, ...(agg.startDate ? { startDate: agg.startDate, endDate: agg.endDate } : {}) };
+      } else {
+        finalNext[key] = e;
+      }
+    });
+    const totalHours = Object.values(finalNext).reduce((sum, e) => sum + e.totalHours, 0);
+    onUpdate(task.id, { subTaskData: finalNext, totalHours });
   };
 
   const handleDelete = () => {
@@ -795,6 +876,7 @@ export default function TaskDetailPanel({
                   const checked: string[] = entry.checkedItems ?? [];
                   const reviewWeeklyHours: Record<string, Record<string, number>> = entry.reviewWeeklyHours ?? {};
                   const reviewDates: Record<string, { startDate?: string; endDate?: string }> = entry.reviewDates ?? {};
+                  const reviewStatus: Record<string, string> = entry.reviewStatus ?? {};
 
                   const calcReviewTotal = (
                     wh: Record<string, Record<string, number>>,
@@ -813,9 +895,10 @@ export default function TaskDetailPanel({
                     const next = checked.includes(id) ? checked.filter(x => x !== id) : [...checked, id];
                     const nextWh = { ...reviewWeeklyHours };
                     const nextDates = { ...reviewDates };
-                    if (!next.includes(id)) { delete nextWh[id]; delete nextDates[id]; }
+                    const nextRs = { ...reviewStatus };
+                    if (!next.includes(id)) { delete nextWh[id]; delete nextDates[id]; delete nextRs[id]; }
                     const newTotal = calcReviewTotal(nextWh, nextDates, next);
-                    const nextEntry = { ...entry, checkedItems: next, reviewWeeklyHours: nextWh, reviewDates: nextDates, totalHours: newTotal };
+                    const nextEntry = { ...entry, checkedItems: next, reviewWeeklyHours: nextWh, reviewDates: nextDates, reviewStatus: nextRs, totalHours: newTotal };
                     const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
@@ -825,6 +908,14 @@ export default function TaskDetailPanel({
                     const nextDates = { ...reviewDates, [id]: { ...(reviewDates[id] ?? {}), [field]: val || undefined } };
                     const newTotal = calcReviewTotal(reviewWeeklyHours, nextDates, checked);
                     const nextEntry = { ...entry, reviewDates: nextDates, totalHours: newTotal };
+                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
+                    setLocalSubTaskData(nextData);
+                    saveSubTaskData(nextData);
+                  };
+
+                  const setItemStatus = (id: string, status: string) => {
+                    const nextRs = { ...reviewStatus, [id]: status };
+                    const nextEntry = { ...entry, reviewStatus: nextRs };
                     const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
@@ -880,12 +971,23 @@ export default function TaskDetailPanel({
                                   </button>
                                   <span className={`flex-1 min-w-0 truncate ${isChecked ? 'text-violet-700 font-medium' : 'text-gray-600'}`}>{rt.title}</span>
                                   {rt.taskMonth && <span className="text-[10px] text-gray-400 flex-shrink-0">{rt.taskMonth}</span>}
-                                  {rt.status && rt.status !== '진행 전' && (
-                                    <span className="text-[10px] px-1.5 py-px rounded bg-gray-100 text-gray-400 flex-shrink-0">{rt.status}</span>
-                                  )}
                                   {rtTotal > 0 && (
                                     <span className="text-[10px] font-medium text-violet-500 flex-shrink-0">{rtTotal}h</span>
                                   )}
+                                  {isChecked && (() => {
+                                    const rs = (reviewStatus[rt.id] ?? '검수 전') as ReviewStatus;
+                                    const nextStatus = () => {
+                                      const idx = REVIEW_STATUSES.indexOf(rs);
+                                      return REVIEW_STATUSES[(idx + 1) % REVIEW_STATUSES.length];
+                                    };
+                                    return (
+                                      <button type="button" disabled={!canManage}
+                                        onClick={e => { e.stopPropagation(); setItemStatus(rt.id, nextStatus()); }}
+                                        className={`text-[10px] px-1.5 py-px rounded font-medium flex-shrink-0 ${REVIEW_STATUS_STYLE[rs]} ${canManage ? 'cursor-pointer hover:opacity-80' : ''}`}>
+                                        {rs}
+                                      </button>
+                                    );
+                                  })()}
                                 </div>
                                 {isChecked && (
                                   <div className="px-2.5 pb-2.5 space-y-2">

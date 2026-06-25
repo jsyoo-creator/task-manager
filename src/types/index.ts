@@ -262,7 +262,9 @@ export function mergeAllPartsConfig(parts: { formConfig?: TeamFormConfig }[], te
       if (!seenCfIds.has(cf.id)) { seenCfIds.add(cf.id); mergedCustoms.push(cf); }
     }
   }
-  return { builtinFields: mergedBuiltins, customFields: mergedCustoms };
+  // teamConfig의 fieldOrder를 우선, 없으면 파트 중 첫 번째 fieldOrder 사용
+  const fieldOrder = teamConfig?.fieldOrder ?? parts.find(p => p.formConfig?.fieldOrder?.length)?.formConfig?.fieldOrder;
+  return { builtinFields: mergedBuiltins, customFields: mergedCustoms, ...(fieldOrder ? { fieldOrder } : {}) };
 }
 
 /** 필드 설정에서 직군 목록을 반환. 구버전 department 단일값도 처리. */

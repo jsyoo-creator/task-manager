@@ -21,6 +21,8 @@ interface Props {
   onSetParts: (teamId: string, parts: TeamPart[]) => Promise<void>;
   onDeleteTeam: (teamId: string) => Promise<void>;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onUpdateAllFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onClearAllFormConfig: (teamId: string) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
@@ -1255,26 +1257,34 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   );
 }
 
-function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
+function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
   team: Team;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onUpdateAllFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onClearAllFormConfig: (teamId: string) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
 }) {
-  // 선택된 편집 대상: 'team' 또는 파트 ID
-  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  // 선택된 편집 대상: 'team' | 'all' | 파트 ID
+  const [selectedTarget, setSelectedTarget] = useState<'team' | 'all' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
   const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
 
-  const currentPart = selectedTarget !== 'team'
+  const isAllTarget = selectedTarget === 'all';
+  const currentPart = (selectedTarget !== 'team' && selectedTarget !== 'all')
     ? team.parts.find(p => p.id === selectedTarget)
     : undefined;
 
-  // 현재 편집 대상의 formConfig (파트는 없으면 팀 상속)
-  const rawConfig = currentPart?.formConfig ?? team.formConfig;
-  const isInherited = selectedTarget !== 'team' && !currentPart?.formConfig;
+  // 현재 편집 대상의 formConfig
+  // 전체: allFormConfig (없으면 팀 상속), 파트: 파트 formConfig (없으면 팀 상속)
+  const rawConfig = isAllTarget
+    ? (team.allFormConfig ?? team.formConfig)
+    : (currentPart?.formConfig ?? team.formConfig);
+  const isInherited = isAllTarget
+    ? !team.allFormConfig
+    : (selectedTarget !== 'team' && !currentPart?.formConfig);
 
   const fields = resolveBuiltinFields(rawConfig);
   const customFields = rawConfig?.customFields ?? [];
@@ -1287,28 +1297,25 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
     ...overrides,
   });
 
-  const saveFields = (newFields: BuiltinFieldConfig[]) => {
-    const config = makeConfig({ builtinFields: newFields });
+  const saveConfig = (config: TeamFormConfig) => {
     if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else if (isAllTarget) onUpdateAllFormConfig(team.id, config);
     else onUpdatePartFormConfig(team.id, selectedTarget, config);
   };
 
-  const saveCustom = (newCustom: CustomFormField[]) => {
-    const config = makeConfig({ customFields: newCustom });
-    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
-    else onUpdatePartFormConfig(team.id, selectedTarget, config);
-  };
-
-  const saveOrder = (order: string[]) => {
-    const config = makeConfig({ fieldOrder: order });
-    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
-    else onUpdatePartFormConfig(team.id, selectedTarget, config);
-  };
+  const saveFields = (newFields: BuiltinFieldConfig[]) => saveConfig(makeConfig({ builtinFields: newFields }));
+  const saveCustom = (newCustom: CustomFormField[]) => saveConfig(makeConfig({ customFields: newCustom }));
+  const saveOrder = (order: string[]) => saveConfig(makeConfig({ fieldOrder: order }));
 
   const executeCopyForm = (sourceId: string) => {
-    const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
-    const srcConfig = sourcePart ? (sourcePart.formConfig ?? team.formConfig) : team.formConfig;
-    if (srcConfig && currentPart) onUpdatePartFormConfig(team.id, currentPart.id, srcConfig);
+    if (sourceId === 'all') {
+      const srcConfig = team.allFormConfig ?? team.formConfig;
+      if (srcConfig) saveConfig(srcConfig);
+    } else {
+      const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
+      const srcConfig = sourcePart ? (sourcePart.formConfig ?? team.formConfig) : team.formConfig;
+      if (srcConfig) saveConfig(srcConfig);
+    }
     setPendingCopySource(null);
   };
 
@@ -1324,10 +1331,11 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
         <div>
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
           <div className="flex flex-wrap gap-1.5">
-            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+            {(['team', 'all', ...team.parts.map(p => p.id)] as ('team' | 'all' | string)[]).map(target => {
               const isTeam = target === 'team';
-              const part = isTeam ? null : team.parts.find(p => p.id === target);
-              const hasOwn = !isTeam && !!part?.formConfig;
+              const isAll = target === 'all';
+              const part = (!isTeam && !isAll) ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = isAll ? !!team.allFormConfig : (!isTeam && !!part?.formConfig);
               return (
                 <button
                   key={target}
@@ -1337,8 +1345,8 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
                       ? 'bg-blue-500 text-white border-blue-500'
                       : 'border-gray-200 text-gray-600 hover:bg-gray-100'
                   }`}>
-                  {!isTeam && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
-                  {isTeam ? '팀 기본' : part?.name}
+                  {part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeam ? '팀 기본' : isAll ? '전체' : part?.name}
                   {hasOwn && (
                     <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
                       별도
@@ -1354,30 +1362,36 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
       {/* 상속 안내 + 초기화 */}
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-          <p className="text-xs text-amber-700">팀 기본 설정 상속 중 — 아래 필드를 수정하면 이 파트만 다르게 저장됩니다</p>
-          <button
-            onClick={() => onClearPartFormConfig(team.id, selectedTarget)}
-            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
-            <RotateCcw size={11} />초기화
-          </button>
+          <p className="text-xs text-amber-700">
+            {isAllTarget
+              ? '팀 기본 설정 상속 중 — 아래 필드를 수정하면 전체 뷰만 다르게 저장됩니다'
+              : '팀 기본 설정 상속 중 — 아래 필드를 수정하면 이 파트만 다르게 저장됩니다'}
+          </p>
         </div>
       )}
       {!isInherited && selectedTarget !== 'team' && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
-          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          <p className="text-xs text-blue-700">
+            {isAllTarget ? '전체 뷰 별도 설정이 적용 중' : '이 파트의 별도 설정이 적용 중'}
+          </p>
           {flash ? (
             <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold ml-3 flex-shrink-0">
               <Check size={11} />{flash === 'saved' ? '팀 기본 저장됨' : '초기화됨'}
             </span>
           ) : (
             <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+              {!isAllTarget && (
+                <button
+                  onClick={() => { if (rawConfig) { onUpdateFormConfig(team.id, rawConfig); doFlash('saved'); } }}
+                  className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
+                  <ArrowUpToLine size={11} />팀 기본으로 지정
+                </button>
+              )}
               <button
-                onClick={() => { if (rawConfig) { onUpdateFormConfig(team.id, rawConfig); doFlash('saved'); } }}
-                className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
-                <ArrowUpToLine size={11} />팀 기본으로 지정
-              </button>
-              <button
-                onClick={() => { onClearPartFormConfig(team.id, selectedTarget); doFlash('reset'); }}
+                onClick={() => {
+                  if (isAllTarget) { onClearAllFormConfig(team.id); doFlash('reset'); }
+                  else { onClearPartFormConfig(team.id, selectedTarget); doFlash('reset'); }
+                }}
                 className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
                 <RotateCcw size={11} />초기화
               </button>
@@ -1405,6 +1419,13 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
                   className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
                   팀 기본
                 </button>
+                {selectedTarget !== 'all' && team.allFormConfig && (
+                  <button
+                    onClick={() => handleCopyFrom('all')}
+                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                    전체
+                  </button>
+                )}
                 {team.parts.filter(p => p.id !== selectedTarget).map(p => (
                   <button
                     key={p.id}
@@ -1425,7 +1446,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClear
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200">
           <p className="text-xs text-orange-700 flex-1">
             <span className="font-semibold">
-              '{pendingCopySource === 'team' ? '팀 기본' : team.parts.find(p => p.id === pendingCopySource)?.name}'
+              '{pendingCopySource === 'team' ? '팀 기본' : pendingCopySource === 'all' ? '전체' : team.parts.find(p => p.id === pendingCopySource)?.name}'
             </span>의 설정을 복사하면 현재 설정이 덮어씌워집니다.
           </p>
           <button
@@ -2622,7 +2643,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -2630,6 +2651,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onDeleteTeam: (teamId: string) => Promise<void>;
   onReorderTeams: (ordered: Team[]) => Promise<void>;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onUpdateAllFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onClearAllFormConfig: (teamId: string) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdateMetaFields: (teamId: string, fields: MetaField[]) => Promise<void>;
@@ -2901,6 +2924,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                       <FormBuilder
                         team={team}
                         onUpdateFormConfig={onUpdateFormConfig}
+                        onUpdateAllFormConfig={onUpdateAllFormConfig}
+                        onClearAllFormConfig={onClearAllFormConfig}
                         onUpdatePartFormConfig={onUpdatePartFormConfig}
                         onClearPartFormConfig={onClearPartFormConfig}
                       />
@@ -3378,7 +3403,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -3732,6 +3757,8 @@ export default function SettingsPage({
           onDeleteTeam={onDeleteTeam}
           onReorderTeams={onReorderTeams}
           onUpdateFormConfig={onUpdateFormConfig}
+          onUpdateAllFormConfig={onUpdateAllFormConfig}
+          onClearAllFormConfig={onClearAllFormConfig}
           onUpdatePartFormConfig={onUpdatePartFormConfig}
           onClearPartFormConfig={onClearPartFormConfig}
           onUpdateMetaFields={onUpdateMetaFields}

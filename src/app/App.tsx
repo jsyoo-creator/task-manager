@@ -50,7 +50,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const currentYear = new Date().getFullYear();
@@ -148,10 +148,13 @@ function App() {
     ? activeParts.find(p => p.name === activeCategory)
     : undefined;
   // 파트 formConfig가 있으면 사용하되, 팀 레벨의 department/departments 설정을 필드별로 fallback 병합
-  // 'all' 뷰에서 팀 config에 customType이 없으면 파트 중 하나에서 상속
+  // 'all' 뷰: allFormConfig(전체 설정)가 있으면 팀 기본 위에 덮어씀
   const effectiveFormConfig = useMemo(() => {
-    const base = mergeFormConfig(activePart?.formConfig, selectedTeam?.formConfig);
-    if (activePart) return base;
+    if (activePart) return mergeFormConfig(activePart.formConfig, selectedTeam?.formConfig);
+    // 전체 뷰 — allFormConfig가 있으면 우선 적용
+    const base = selectedTeam?.allFormConfig
+      ? mergeFormConfig(selectedTeam.allFormConfig, selectedTeam?.formConfig)
+      : selectedTeam?.formConfig;
     // 팀 config에 status customType이 없으면 activeParts에서 찾아 보충
     const baseBuiltins = resolveBuiltinFields(base);
     const baseStatusFc = baseBuiltins.find(f => f.key === 'status');
@@ -164,7 +167,7 @@ function App() {
     if (partWithStatus) return mergeFormConfig(partWithStatus.formConfig, base);
     return base;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig]);
+  }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig, selectedTeam?.allFormConfig]);
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
   const filteredTasks = useMemo(() => {
@@ -434,6 +437,8 @@ function App() {
                     onSetParts={setParts}
                     onDeleteTeam={deleteTeam}
                     onUpdateFormConfig={updateFormConfig}
+                    onUpdateAllFormConfig={updateAllFormConfig}
+                    onClearAllFormConfig={clearAllFormConfig}
                     onUpdatePartFormConfig={updatePartFormConfig}
                     onClearPartFormConfig={clearPartFormConfig}
                     onUpdateMetaFields={updateMetaFields}

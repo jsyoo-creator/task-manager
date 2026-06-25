@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, CustomHoliday, ExcelFieldConfig } from '../types';
+import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, PLMainTaskType, CustomHoliday, ExcelFieldConfig } from '../types';
 
 export function useTeams(uid?: string) {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -59,6 +59,14 @@ export function useTeams(uid?: string) {
 
   const updateFormConfig = async (teamId: string, config: TeamFormConfig) => {
     await updateDoc(doc(db, 'teams', teamId), { formConfig: config });
+  };
+
+  const updateAllFormConfig = async (teamId: string, config: TeamFormConfig) => {
+    await updateDoc(doc(db, 'teams', teamId), { allFormConfig: config });
+  };
+
+  const clearAllFormConfig = async (teamId: string) => {
+    await updateDoc(doc(db, 'teams', teamId), { allFormConfig: null });
   };
 
   const updatePartFormConfig = async (teamId: string, partId: string, config: TeamFormConfig) => {
@@ -156,7 +164,7 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
-  const updatePlMainTaskTypes = async (teamId: string, types: SubTaskType[]) => {
+  const updatePlMainTaskTypes = async (teamId: string, types: PLMainTaskType[]) => {
     await updateDoc(doc(db, 'teams', teamId), { plMainTaskTypes: types });
   };
 
@@ -168,5 +176,5 @@ export function useTeams(uid?: string) {
     await batch.commit();
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams };
 }

@@ -326,6 +326,7 @@ export interface Team {
   parts: TeamPart[];
   createdAt: string;
   formConfig?: TeamFormConfig;
+  allFormConfig?: TeamFormConfig;  // 전체 뷰(파트 필터 없음) 전용 설정
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
   plMainTaskTypes?: PLMainTaskType[]; // PL업무 메인 업무 항목 목록

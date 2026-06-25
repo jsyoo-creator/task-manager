@@ -231,28 +231,27 @@ function App() {
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   // 파트별 별도 타입 우선, 없으면 팀 기본 타입 사용 (설정 페이지 로직과 동일)
-  const subtasks = useMemo<SubTask[]>(() =>
-    filteredTasks.flatMap(task => {
+  const subtasks = useMemo<SubTask[]>(() => {
+    const reviewStatusToTaskStatus = (rs: string): SubTask['status'] => {
+      if (rs === '검수 완료') return '완료';
+      if (rs === '검수 중') return '진행 중';
+      return '진행 전';
+    };
+    return filteredTasks.flatMap(task => {
       const taskPartObj = activeParts.find(p => p.name === task.category);
-      // PL업무: 해당 메인업무 타입의 subFields를 세부업무 타입으로 사용
-      // 일반 업무: 파트→팀 우선순위
+      const plMainType = task.plTask
+        ? (selectedTeam?.plMainTaskTypes ?? []).find(m => task.plSelectedTypes?.includes(m.id))
+        : undefined;
       let validTypes: Array<{ id: string; name: string }> | null | undefined;
       if (task.plTask) {
-        const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
-          task.plSelectedTypes?.includes(m.id)
-        );
         validTypes = plMainType?.subFields ?? [];
       } else {
         validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
       }
       const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
 
-      // 해당 업무의 파트+팀 타입만으로 이름 맵 생성 (다른 파트 타입명 오염 방지)
       const taskNameMap = new Map<string, string>();
       if (task.plTask) {
-        const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
-          task.plSelectedTypes?.includes(m.id)
-        );
         plMainType?.subFields?.forEach(f => taskNameMap.set(f.id, f.name));
       } else {
         selectedTeam?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
@@ -262,27 +261,64 @@ function App() {
       return Object.entries(task.subTaskData ?? {})
         .filter(([key]) => !validTypeIds || validTypeIds.has(key))
         .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
-        .map(([key, entry]) => ({
-          id: `${task.id}__${key}`,
-          taskId: task.id,
-          projectId: task.projectId ?? '',
-          title: taskNameMap.get(key) ?? key,
-          category: task.category,
-          type: task.type,
-          status: (entry.status || '진행 전') as SubTask['status'],
-          assignee:  entry.assignee ?? '',
-          receiver:  '',
-          startDate: entry.startDate ?? '',
-          endDate:   entry.endDate   ?? '',
-          weeklyHours: entry.weeklyHours,
-          totalHours:  entry.totalHours,
-          substituteWeeklyHours: entry.substituteWeeklyHours,
-          substituteTotalHours:  entry.substituteTotalHours,
-          revisionLevel: 0,
-          createdAt: task.createdAt,
-        }));
-    })
-  , [filteredTasks, subTaskTypeOrder, subTaskTypeMap, activeParts, selectedTeam]);
+        .flatMap(([key, entry]) => {
+          // PL review 타입: 체크된 항목별로 개별 SubTask 생성
+          const subField = plMainType?.subFields?.find(f => f.id === key);
+          if (subField?.fieldType === 'review') {
+            const checkedItems = (entry.checkedItems ?? []).filter(id =>
+              (entry.reviewDates ?? {})[id]?.startDate
+            );
+            return checkedItems.map(itemId => {
+              const reviewTask = tasks.find(t => t.id === itemId);
+              const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
+              const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
+              const itemTotalHours = Object.values(itemWeeklyHours).reduce((a: number, b: number) => a + b, 0);
+              const rs = (entry.reviewStatus ?? {})[itemId] ?? '검수 전';
+              return {
+                id: `${task.id}__${key}__${itemId}`,
+                taskId: task.id,
+                projectId: task.projectId ?? '',
+                title: reviewTask?.title ?? itemId,
+                category: task.category,
+                type: task.type,
+                status: reviewStatusToTaskStatus(rs),
+                assignee: task.assignee ?? task.receiver ?? '',
+                receiver: '',
+                startDate: itemDates.startDate ?? '',
+                endDate: itemDates.endDate ?? '',
+                weeklyHours: itemWeeklyHours,
+                totalHours: itemTotalHours,
+                substituteWeeklyHours: undefined,
+                substituteTotalHours: undefined,
+                revisionLevel: 0,
+                createdAt: task.createdAt,
+              };
+            });
+          }
+
+          // 일반 엔트리
+          return [{
+            id: `${task.id}__${key}`,
+            taskId: task.id,
+            projectId: task.projectId ?? '',
+            title: taskNameMap.get(key) ?? key,
+            category: task.category,
+            type: task.type,
+            status: (entry.status || '진행 전') as SubTask['status'],
+            assignee:  entry.assignee ?? '',
+            receiver:  '',
+            startDate: entry.startDate ?? '',
+            endDate:   entry.endDate   ?? '',
+            weeklyHours: entry.weeklyHours,
+            totalHours:  entry.totalHours,
+            substituteWeeklyHours: entry.substituteWeeklyHours,
+            substituteTotalHours:  entry.substituteTotalHours,
+            revisionLevel: 0,
+            createdAt: task.createdAt,
+          }];
+        });
+    });
+  }, [filteredTasks, subTaskTypeOrder, subTaskTypeMap, activeParts, selectedTeam, tasks]);
 
   // 캘린더 전용 서브태스크: showInCalendar !== false 인 타입만 포함
   const calendarSubtasks = useMemo(

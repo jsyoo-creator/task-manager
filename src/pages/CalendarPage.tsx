@@ -168,6 +168,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
 
   const handleCardClick = (e: React.MouseEvent, itemId: string) => {
     e.stopPropagation();
+    if (itemId.split('__').length > 2) return; // review 개별 항목은 캘린더에서 편집 불가
     if (expandedId === itemId) {
       setExpandedId(null);
       setExpandedSubKey('');

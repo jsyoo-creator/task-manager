@@ -276,6 +276,21 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                 </div>
               </div>
             )}
+            {plMainTaskTypes && plMainTaskTypes.length > 0 && (
+              <div>
+                <label className={lbl}>메인업무 항목 <span className="text-gray-400 font-normal">(설정에서 관리)</span></label>
+                <div className="rounded-xl border border-black/8 divide-y divide-black/5 overflow-hidden">
+                  {plMainTaskTypes.map(t => (
+                    <div key={t.id} className="flex items-center gap-2 px-3 py-2">
+                      <span className="text-xs text-gray-700 flex-1">{t.name}</span>
+                      {t.department && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">{t.department}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => { resetForm(); onClose(); }}
                 className="px-4 py-2 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">

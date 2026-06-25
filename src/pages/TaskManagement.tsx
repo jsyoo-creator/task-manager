@@ -984,7 +984,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       )}
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
-        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} plMainTaskTypes={plMainTaskTypes} />
+        projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} plMainTaskTypes={canSeeAll ? plMainTaskTypes : undefined} />
 
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {

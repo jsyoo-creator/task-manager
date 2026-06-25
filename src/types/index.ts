@@ -142,16 +142,20 @@ export interface StatusConfig {
 }
 
 export const STATUS_COLOR_PRESETS: { bg: string; text: string; label: string }[] = [
-  { label: '파랑',  bg: '#dbeafe', text: '#2563eb' },
-  { label: '하늘',  bg: '#e0f2fe', text: '#0284c7' },
-  { label: '초록',  bg: '#dcfce7', text: '#16a34a' },
-  { label: '청록',  bg: '#ccfbf1', text: '#0d9488' },
-  { label: '노랑',  bg: '#fef9c3', text: '#a16207' },
-  { label: '주황',  bg: '#ffedd5', text: '#ea580c' },
-  { label: '빨강',  bg: '#fee2e2', text: '#dc2626' },
-  { label: '분홍',  bg: '#fce7f3', text: '#db2777' },
-  { label: '보라',  bg: '#f3e8ff', text: '#7c3aed' },
-  { label: '회색',  bg: '#e2e8f0', text: '#475569' },
+  { label: '파랑',    bg: '#dbeafe', text: '#2563eb' },
+  { label: '하늘',    bg: '#e0f2fe', text: '#0284c7' },
+  { label: '초록',    bg: '#dcfce7', text: '#16a34a' },
+  { label: '청록',    bg: '#ccfbf1', text: '#0d9488' },
+  { label: '노랑',    bg: '#fef9c3', text: '#a16207' },
+  { label: '주황',    bg: '#ffedd5', text: '#ea580c' },
+  { label: '빨강',    bg: '#fee2e2', text: '#dc2626' },
+  { label: '분홍',    bg: '#fce7f3', text: '#db2777' },
+  { label: '보라',    bg: '#f3e8ff', text: '#7c3aed' },
+  { label: '흰회색',  bg: '#f8fafc', text: '#94a3b8' },
+  { label: '연회색',  bg: '#f1f5f9', text: '#64748b' },
+  { label: '회색',    bg: '#e2e8f0', text: '#475569' },
+  { label: '진회색',  bg: '#cbd5e1', text: '#334155' },
+  { label: '검정',    bg: '#334155', text: '#f1f5f9' },
 ];
 
 export const DEFAULT_STATUS_CONFIGS: StatusConfig[] = [

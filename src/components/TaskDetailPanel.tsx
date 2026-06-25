@@ -773,13 +773,15 @@ export default function TaskDetailPanel({
                 if (type.plFieldType === 'review') {
                   const checked: string[] = entry.checkedItems ?? [];
                   const reviewHours: Record<string, number> = entry.reviewHours ?? {};
+                  const reviewDates: Record<string, { startDate?: string; endDate?: string }> = entry.reviewDates ?? {};
                   const reviewTotal = Object.values(reviewHours).reduce((a, b) => a + b, 0);
 
                   const toggleItem = (id: string) => {
                     const next = checked.includes(id) ? checked.filter(x => x !== id) : [...checked, id];
                     const nextHours = { ...reviewHours };
-                    if (!next.includes(id)) delete nextHours[id];
-                    const nextEntry = { ...entry, checkedItems: next, reviewHours: nextHours, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
+                    const nextDates = { ...reviewDates };
+                    if (!next.includes(id)) { delete nextHours[id]; delete nextDates[id]; }
+                    const nextEntry = { ...entry, checkedItems: next, reviewHours: nextHours, reviewDates: nextDates, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
                     const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
@@ -787,6 +789,13 @@ export default function TaskDetailPanel({
                   const setHours = (id: string, h: number) => {
                     const nextHours = { ...reviewHours, [id]: h };
                     const nextEntry = { ...entry, reviewHours: nextHours, totalHours: Object.values(nextHours).reduce((a, b) => a + b, 0) };
+                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
+                    setLocalSubTaskData(nextData);
+                    saveSubTaskData(nextData);
+                  };
+                  const setDate = (id: string, field: 'startDate' | 'endDate', val: string) => {
+                    const nextDates = { ...reviewDates, [id]: { ...(reviewDates[id] ?? {}), [field]: val || undefined } };
+                    const nextEntry = { ...entry, reviewDates: nextDates };
                     const nextData = { ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
@@ -836,16 +845,38 @@ export default function TaskDetailPanel({
                                   )}
                                 </div>
                                 {isChecked && (
-                                  <div className="flex items-center gap-1.5 px-2.5 pb-1.5">
-                                    <span className="text-[11px] text-violet-500 w-10">시간</span>
-                                    <input type="number" min={0} step={0.1}
-                                      disabled={!canManage}
-                                      value={h || ''}
-                                      placeholder="0"
-                                      onChange={e => setHours(rt.id, parseFloat(e.target.value) || 0)}
-                                      className="w-16 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 text-right disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <span className="text-[11px] text-gray-400">h</span>
+                                  <div className="px-2.5 pb-2 space-y-1.5">
+                                    {/* 날짜 */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[11px] text-violet-500 w-10 flex-shrink-0">날짜</span>
+                                      <DatePicker
+                                        value={reviewDates[rt.id]?.startDate ?? ''}
+                                        onChange={v => setDate(rt.id, 'startDate', v)}
+                                        disabled={!canManage}
+                                        placeholder="시작일"
+                                        className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50"
+                                      />
+                                      <span className="text-gray-300 text-xs flex-shrink-0">→</span>
+                                      <DatePicker
+                                        value={reviewDates[rt.id]?.endDate ?? ''}
+                                        onChange={v => setDate(rt.id, 'endDate', v)}
+                                        disabled={!canManage}
+                                        placeholder="종료일"
+                                        className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50"
+                                      />
+                                    </div>
+                                    {/* 시간 */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[11px] text-violet-500 w-10 flex-shrink-0">시간</span>
+                                      <input type="number" min={0} step={0.1}
+                                        disabled={!canManage}
+                                        value={h || ''}
+                                        placeholder="0"
+                                        onChange={e => setHours(rt.id, parseFloat(e.target.value) || 0)}
+                                        className="w-20 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 text-right disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                      />
+                                      <span className="text-[11px] text-gray-400">h</span>
+                                    </div>
                                   </div>
                                 )}
                               </div>

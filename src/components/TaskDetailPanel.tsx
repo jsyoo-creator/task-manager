@@ -161,9 +161,9 @@ function aggregateReviewToWeekly(
 const REVIEW_STATUSES = ['검수 전', '검수 중', '검수 완료'] as const;
 type ReviewStatus = typeof REVIEW_STATUSES[number];
 const REVIEW_STATUS_STYLE: Record<ReviewStatus, string> = {
-  '검수 전': 'bg-gray-100 text-gray-500',
-  '검수 중': 'bg-amber-100 text-amber-600',
-  '검수 완료': 'bg-green-100 text-green-600',
+  '검수 전': 'bg-white border border-gray-300 text-gray-500',
+  '검수 중': 'bg-white border border-amber-400 text-amber-600',
+  '검수 완료': 'bg-white border border-green-400 text-green-600',
 };
 
 function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
@@ -1003,16 +1003,14 @@ export default function TaskDetailPanel({
                                         value={rtDates.startDate ?? ''}
                                         onChange={v => setDate(rt.id, 'startDate', v)}
                                         disabled={!canManage}
-                                        placeholder="시작일"
-                                        className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50"
+                                        btnClassName="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 disabled:opacity-50"
                                       />
                                       <span className="text-gray-300 text-xs flex-shrink-0">→</span>
                                       <DatePicker
                                         value={rtDates.endDate ?? ''}
                                         onChange={v => setDate(rt.id, 'endDate', v)}
                                         disabled={!canManage}
-                                        placeholder="종료일"
-                                        className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 focus:outline-none focus:ring-1 focus:ring-violet-400 disabled:opacity-50"
+                                        btnClassName="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 disabled:opacity-50"
                                       />
                                     </div>
                                     {/* 주/요일 시간 그리드 */}

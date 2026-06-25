@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -56,7 +56,7 @@ const now = new Date();
 const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-function buildCols(tableFields: BuiltinFieldConfig[]): string {
+function buildCols(tableFields: BuiltinFieldConfig[], cfCount: number = 0): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
   for (const fc of tableFields) {
     if (fc.key === 'title') {
@@ -67,11 +67,14 @@ function buildCols(tableFields: BuiltinFieldConfig[]): string {
       cols.push(`${fc.width}px`);
     }
   }
+  for (let i = 0; i < cfCount; i++) {
+    cols.push('100px');
+  }
   cols.push('110px'); // expand + copy + delete
   return cols.join(' ');
 }
 
-function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
+function buildMinWidth(tableFields: BuiltinFieldConfig[], cfCount: number = 0): number {
   let w = 46; // checkbox(28) + drag handle(18)
   let colCount = 2;
   for (const fc of tableFields) {
@@ -79,6 +82,7 @@ function buildMinWidth(tableFields: BuiltinFieldConfig[]): number {
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }
+  w += cfCount * 100; colCount += cfCount;
   w += 110; colCount++; // expand + copy + delete
   w += (colCount - 1) * 12; // gap-x-3
   w += 24; // px-3 양쪽
@@ -528,9 +532,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   };
 
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key) && fc.showIn !== 'detail');
+  const tableCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
   const statusConfigs = resolveStatusConfigs(formConfig);
-  const colTemplate = buildCols(tableFields);
-  const colMinWidth = buildMinWidth(tableFields);
+  const colTemplate = buildCols(tableFields, tableCfs.length);
+  const colMinWidth = buildMinWidth(tableFields, tableCfs.length);
 
   const handleDrop = (dropOnId: string) => {
     if (!dragId || dragId === dropOnId) { setDragId(null); setDragOverId(null); return; }
@@ -875,6 +880,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </div>,
             ];
           })}
+          {tableCfs.map(cf => (
+            <div key={cf.id} className="flex items-center select-none pl-2">
+              <span>{cf.label}</span>
+            </div>
+          ))}
           <span />
         </div>
 
@@ -899,6 +909,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               assignees={assignees}
               teamMembers={teamMembers}
               tableFields={tableFields}
+              tableCfs={tableCfs}
               statusConfigs={statusConfigs}
               colTemplate={colTemplate}
               colMinWidth={colMinWidth}
@@ -1128,7 +1139,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, tableCfs, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1139,6 +1150,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   assignees: string[];
   teamMembers?: { name: string; department?: Department }[];
   tableFields: BuiltinFieldConfig[];
+  tableCfs: CustomFormField[];
   statusConfigs: StatusConfig[];
   colTemplate: string;
   colMinWidth: number;
@@ -1166,7 +1178,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
     setTimeout(() => setCopiedUrlKey(null), 1500);
   };
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
-  const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
+  const tableCfIds = new Set(tableCfs.map(cf => cf.id));
+  const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail' && !tableCfIds.has(cf.id));
 
   const copyMetaFields = async () => {
     const entries: { label: string; value: string; isUrl: boolean }[] = [];
@@ -1457,6 +1470,38 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           return [];
         })}
 
+        {tableCfs.map(cf => {
+          const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+          const cfType = cf.type as string;
+          const opts = (cfType === 'name' || cfType === '이름') ? assignees : (cf.options ?? []);
+          const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
+          return (
+            <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+              {isSelectable ? (
+                <div className="relative">
+                  <span className="text-xs text-gray-700 truncate block pr-3">{val || '-'}</span>
+                  {canManage && (
+                    <select value={val}
+                      onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                      <option value="">-</option>
+                      {opts.map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  )}
+                </div>
+              ) : cfType === 'link' ? (
+                val
+                  ? <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full">{val}</a>
+                  : <span className="text-xs text-gray-400">-</span>
+              ) : (
+                <span className="text-xs text-gray-700 truncate block">{val || '-'}</span>
+              )}
+            </div>
+          );
+        })}
+
         <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
           {!task.plTask && (
             <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
@@ -1569,9 +1614,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   );
 }
 
-function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap, partColor }: {
+function SubTaskRow({ sub, onDelete, tableFields, tableCfsCount = 0, colTemplate, userPhotoMap, partColor }: {
   sub: SubTask; onDelete: () => void;
   tableFields: BuiltinFieldConfig[];
+  tableCfsCount?: number;
   colTemplate: string;
   userPhotoMap?: Map<string, string>;
   partColor: (cat: string) => string;
@@ -1625,6 +1671,7 @@ function SubTaskRow({ sub, onDelete, tableFields, colTemplate, userPhotoMap, par
         ];
         return [];
       })}
+      {Array.from({ length: tableCfsCount }).map((_, i) => <span key={`cf-${i}`} />)}
       <span />
       <button onClick={onDelete} className="flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors">
         <Trash2 size={11} />

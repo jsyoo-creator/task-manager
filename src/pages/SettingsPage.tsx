@@ -352,11 +352,10 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
                   {field.options.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               ) : field.fieldType === 'date' ? (
-                <input
-                  type="date"
+                <DatePicker
                   value={profileDataInput[field.id] ?? ''}
-                  onChange={e => setProfileDataInput(prev => ({ ...prev, [field.id]: e.target.value }))}
-                  className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  onChange={v => setProfileDataInput(prev => ({ ...prev, [field.id]: v }))}
+                  btnClassName="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                 />
               ) : (
                 <input
@@ -3140,11 +3139,10 @@ export default function SettingsPage({
                       {field.options.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : field.fieldType === 'date' ? (
-                    <input
-                      type="date"
+                    <DatePicker
                       value={myProfileData[field.id] ?? ''}
-                      onChange={e => setMyProfileData(prev => ({ ...prev, [field.id]: e.target.value }))}
-                      className="w-full max-w-xs text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      onChange={v => setMyProfileData(prev => ({ ...prev, [field.id]: v }))}
+                      btnClassName="w-full max-w-xs text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                     />
                   ) : (
                     <input

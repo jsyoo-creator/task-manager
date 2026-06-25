@@ -15,12 +15,20 @@ function getUserTeamId(user: AppUser): string | null {
   return null;
 }
 
+function formatDate(v: string): string {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  return `${v.slice(0, 4)}.${v.slice(5, 7)}.${v.slice(8, 10)}`;
+}
+
 function getCellValue(user: AppUser, field: ProfileFieldDef): string {
   if (field.fieldType === 'text+select') {
     const text = user.profileData?.[field.id] ?? '';
     const sel = user.profileData?.[`${field.id}__sel`] ?? '';
     if (text && sel) return `${text} / ${sel}`;
     return text || sel || '';
+  }
+  if (field.fieldType === 'date') {
+    return formatDate(user.profileData?.[field.id] ?? '');
   }
   return user.profileData?.[field.id] ?? '';
 }

@@ -19,6 +19,7 @@ interface Props {
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
   canManage: boolean;
+  canDelete?: boolean;
   parts?: TeamPart[];
   assignees?: string[];
   teamMembers?: { name: string; department?: Department }[];
@@ -93,7 +94,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
@@ -914,6 +915,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               onOpenDetail={() => onOpenDetail(task.id)}
               onCopy={() => handleCopyTask(task)}
               canManage={canManage}
+              canDelete={canDelete}
               assignees={assignees}
               teamMembers={teamMembers}
               tableFields={tableFields}
@@ -988,12 +990,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
             <Copy size={13} /> 복사
           </button>
-          <div className="w-px h-4 bg-white/20" />
-          <button
-            onClick={() => setPendingBulkDelete(true)}
-            className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-sm font-semibold transition-colors">
-            <Trash2 size={13} /> 삭제
-          </button>
+          {canDelete && <>
+            <div className="w-px h-4 bg-white/20" />
+            <button
+              onClick={() => setPendingBulkDelete(true)}
+              className="flex items-center gap-1.5 text-red-400 hover:text-red-300 text-sm font-semibold transition-colors">
+              <Trash2 size={13} /> 삭제
+            </button>
+          </>}
           <div className="w-px h-4 bg-white/20" />
           <button
             onClick={() => setSelectedIds(new Set())}
@@ -1147,7 +1151,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, assignees, teamMembers, tableFields, tableCfs, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, assignees, teamMembers, tableFields, tableCfs, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1155,6 +1159,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   onOpenDetail: () => void;
   onCopy: () => void;
   canManage: boolean;
+  canDelete?: boolean;
   assignees: string[];
   teamMembers?: { name: string; department?: Department }[];
   tableFields: BuiltinFieldConfig[];
@@ -1522,18 +1527,20 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               <Info size={11} />
             </button>
           )}
-          {canManage && <>
+          {canManage && (
             <button onClick={e => { e.stopPropagation(); onCopy(); }}
               title="복사"
               className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
               <Copy size={11} />
             </button>
+          )}
+          {canDelete && (
             <button onClick={e => { e.stopPropagation(); onDeleteRequest(task.id, task.title); }}
               title="삭제"
               className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
               <Trash2 size={11} />
             </button>
-          </>}
+          )}
         </div>
       </div>
 

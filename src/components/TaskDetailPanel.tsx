@@ -174,7 +174,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 }
 
 export default function TaskDetailPanel({
-  task, onClose, onUpdate, onDelete, assignees, parts, canManage,
+  task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
   metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', vacations = [], reviewTasks,
 }: {
@@ -185,6 +185,7 @@ export default function TaskDetailPanel({
   assignees: string[];
   parts: TeamPart[];
   canManage: boolean;
+  canDelete?: boolean;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
   teamMembers?: { name: string; department?: Department }[];
@@ -1425,15 +1426,17 @@ export default function TaskDetailPanel({
       </div>
 
       {/* 하단 액션 */}
-      {canManage && (
+      {(canManage || canDelete) && (
         <div className="px-5 py-3 border-t border-black/[0.08] flex justify-between items-center flex-shrink-0">
           <span className="text-[11px] text-gray-500">
             {task.updatedAt ? `수정 ${new Date(task.updatedAt).toLocaleDateString('ko-KR')}` : ''}
           </span>
-          <button onClick={handleDelete}
-            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50">
-            <Trash2 size={12} /> 업무 삭제
-          </button>
+          {(canDelete ?? canManage) && (
+            <button onClick={handleDelete}
+              className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50">
+              <Trash2 size={12} /> 업무 삭제
+            </button>
+          )}
         </div>
       )}
     </div>

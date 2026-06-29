@@ -347,7 +347,7 @@ function App() {
   }
 
   const permissions = getPermissions(appUser?.role ?? 'user');
-  const canSeeAll = appUser?.role === 'manager' || appUser?.role === 'superadmin';
+  const canSeeAll = true;
   const currentUserName = appUser?.displayName ?? '';
 
   return (
@@ -388,6 +388,7 @@ function App() {
                 onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} activeTaskId={detailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canManage={permissions.canManageTasks}
+                canDelete={permissions.canDeleteTasks}
                 parts={activeParts}
                 assignees={teamAssignees}
                 teamMembers={teamMembers}
@@ -492,6 +493,7 @@ function App() {
               assignees={teamAssignees}
               parts={activeParts}
               canManage={permissions.canManageTasks}
+              canDelete={permissions.canDeleteTasks}
               metaFields={resolvedMetaFields}
               subTaskTypes={resolvedSubTaskTypes}
               teamMembers={teamMembers}

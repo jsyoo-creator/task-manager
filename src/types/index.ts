@@ -29,7 +29,8 @@ export interface AppUser {
 }
 
 export interface UserPermissions {
-  canManageTasks: boolean;   // 업무 등록/수정/삭제
+  canManageTasks: boolean;   // 업무 등록/수정
+  canDeleteTasks: boolean;   // 업무 삭제 (manager 이상)
   canManageUsers: boolean;   // 사용자 권한 관리 (최고관리자만)
   canInputTime: boolean;     // 세부업무 시간/날짜 입력
   canAddVacation: boolean;   // 휴가 등록
@@ -38,6 +39,7 @@ export interface UserPermissions {
 export function getPermissions(role: UserRole): UserPermissions {
   return {
     canManageTasks: true,
+    canDeleteTasks: role !== 'user',
     canManageUsers: role === 'superadmin',
     canInputTime: true,
     canAddVacation: true,

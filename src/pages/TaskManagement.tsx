@@ -1338,11 +1338,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       <ChevronDown size={10} className="flex-shrink-0 ml-1" />
                     </div>
                   ) : (
-                    <>
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
-                      <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.category || '-'}</span>
-                      <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
-                    </>
+                    <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium text-white ${partColor(task.category)}`}>
+                      <span className="truncate">{task.category || '-'}</span>
+                      <ChevronDown size={10} className="flex-shrink-0 ml-1" />
+                    </div>
                   )}
                   {canManage && (
                     <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.category}
@@ -1357,12 +1356,19 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               ];
             }
             return [
-              <span key="category" className="text-xs truncate">
-                <span className={`inline-flex items-center gap-1.5`}>
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
-                  <span className="text-gray-700 truncate">{task.category}</span>
-                </span>
-              </span>
+              <div key="category" className="relative flex items-center min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium text-white ${partColor(task.category)}`}>
+                  <span className="truncate">{task.category}</span>
+                  {canManage && <ChevronDown size={10} className="flex-shrink-0 ml-1" />}
+                </div>
+                {canManage && (
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.category}
+                    onChange={e => onUpdate(task.id, { category: e.target.value })}>
+                    <option value="">-</option>
+                    {parts?.map(p => <option key={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
             ];
           }
           if (fc.key === 'type') {

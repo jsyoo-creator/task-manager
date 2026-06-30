@@ -527,10 +527,9 @@ export default function TaskDetailPanel({
                             <span className="truncate">{task.category || '-'}</span><ChevronDown size={9} />
                           </div>
                         ) : (
-                          <div className="flex w-full items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs text-gray-700 bg-black/[0.06] cursor-pointer">
-                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partDotColor}`} />
-                            <span className="truncate flex-1">{task.category || '-'}</span>
-                            <ChevronDown size={9} className="text-gray-400 flex-shrink-0" />
+                          <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium text-white cursor-pointer ${partDotColor}`}>
+                            <span className="truncate">{task.category || '-'}</span>
+                            <ChevronDown size={9} className="flex-shrink-0" />
                           </div>
                         )}
                         <select className="absolute inset-0 opacity-0 cursor-pointer w-full"
@@ -548,8 +547,7 @@ export default function TaskDetailPanel({
                           {task.category || '-'}
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1.5 text-sm text-gray-700">
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partDotColor}`} />
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium text-white ${partDotColor}`}>
                           {task.category || '-'}
                         </span>
                       )

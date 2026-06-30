@@ -273,7 +273,7 @@ export function mergeAllPartsConfig(parts: { formConfig?: TeamFormConfig }[], te
     }
   }
   // teamConfig의 fieldOrder를 우선. 없으면 모든 파트의 fieldOrder가 동일할 때만 사용.
-  // 파트마다 fieldOrder가 다르면 undefined → resolveBuiltinFields에서 DEFAULT 순서 적용.
+  // 파트마다 fieldOrder가 다르면 undefined → DEFAULT_BUILTIN_FIELD_CONFIGS 순서로 재정렬.
   let fieldOrder: string[] | undefined = teamConfig?.fieldOrder;
   if (!fieldOrder) {
     const allOrders = parts
@@ -283,6 +283,12 @@ export function mergeAllPartsConfig(parts: { formConfig?: TeamFormConfig }[], te
       const first = JSON.stringify(allOrders[0]);
       fieldOrder = allOrders.every(o => JSON.stringify(o) === first) ? allOrders[0] : undefined;
     }
+  }
+  // fieldOrder가 없으면 builtinFields를 DEFAULT 순서로 재정렬 (팀/파트마다 순서가 달라지는 문제 방지)
+  if (!fieldOrder) {
+    const defaultIdx: Record<string, number> = {};
+    DEFAULT_BUILTIN_FIELD_CONFIGS.forEach((f, i) => { defaultIdx[f.key] = i; });
+    mergedBuiltins.sort((a, b) => (defaultIdx[a.key] ?? Infinity) - (defaultIdx[b.key] ?? Infinity));
   }
   return { builtinFields: mergedBuiltins, customFields: mergedCustoms, ...(fieldOrder ? { fieldOrder } : {}) };
 }

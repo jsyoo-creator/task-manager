@@ -30,7 +30,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
@@ -169,14 +169,25 @@ function App() {
     // 팀 config에 status customType이 없으면 activeParts에서 찾아 보충
     const baseBuiltins = resolveBuiltinFields(base);
     const baseStatusFc = baseBuiltins.find(f => f.key === 'status');
-    if (baseStatusFc?.customType === 'select' && baseStatusFc.options?.length) return base;
-    const partWithStatus = activeParts.find(p => {
-      const pBuiltins = resolveBuiltinFields(p.formConfig);
-      const pSt = pBuiltins.find(f => f.key === 'status');
-      return pSt?.customType === 'select' && pSt.options?.length;
-    });
-    if (partWithStatus) return mergeFormConfig(partWithStatus.formConfig, base);
-    return base;
+    let result = base;
+    if (baseStatusFc?.customType !== 'select' || !baseStatusFc.options?.length) {
+      const partWithStatus = activeParts.find(p => {
+        const pBuiltins = resolveBuiltinFields(p.formConfig);
+        const pSt = pBuiltins.find(f => f.key === 'status');
+        return pSt?.customType === 'select' && pSt.options?.length;
+      });
+      if (partWithStatus) result = mergeFormConfig(partWithStatus.formConfig, base);
+    }
+    // 전체 탭: 파트마다 fieldOrder가 달라 컬럼 순서가 역전되는 문제 방지.
+    // fieldOrder를 제거하고 builtinFields를 DEFAULT 순서로 재정렬.
+    if (result) {
+      const defaultIdx: Record<string, number> = {};
+      DEFAULT_BUILTIN_FIELD_CONFIGS.forEach((f, i) => { defaultIdx[f.key] = i; });
+      const sortedBuiltins = resolveBuiltinFields(result)
+        .sort((a, b) => (defaultIdx[a.key] ?? Infinity) - (defaultIdx[b.key] ?? Infinity));
+      result = { ...result, builtinFields: sortedBuiltins, fieldOrder: undefined };
+    }
+    return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig, selectedTeam?.allFormConfig]);
 

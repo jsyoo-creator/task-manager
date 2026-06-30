@@ -3,6 +3,7 @@ import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls } from '../types';
 import DatePicker from './DatePicker';
+import ConfirmDialog from './ConfirmDialog';
 
 const PANEL_W = 540;
 
@@ -255,6 +256,7 @@ export default function TaskDetailPanel({
   const localSubTaskDataRef = useRef(localSubTaskData);
   localSubTaskDataRef.current = localSubTaskData;
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
+  const [pendingDeleteSubTask, setPendingDeleteSubTask] = useState<{ id: string; name: string } | null>(null);
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1183,13 +1185,7 @@ export default function TaskDetailPanel({
                           type="button"
                           title="세부업무 삭제"
                           className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors"
-                          onClick={() => {
-                            if (!confirm(`"${type.name}" 세부업무 데이터를 삭제하시겠습니까?`)) return;
-                            const next = { ...localSubTaskData };
-                            delete next[type.id];
-                            setLocalSubTaskData(next);
-                            saveSubTaskData(next);
-                          }}
+                          onClick={() => setPendingDeleteSubTask({ id: type.id, name: type.name })}
                         >
                           <Trash2 size={13} />
                         </button>
@@ -1575,5 +1571,20 @@ export default function TaskDetailPanel({
       )}
     </div>
     </div>
+
+    <ConfirmDialog
+      open={!!pendingDeleteSubTask}
+      title="세부업무 삭제"
+      taskTitle={pendingDeleteSubTask?.name ?? ''}
+      onConfirm={() => {
+        if (!pendingDeleteSubTask) return;
+        const next = { ...localSubTaskData };
+        delete next[pendingDeleteSubTask.id];
+        setLocalSubTaskData(next);
+        saveSubTaskData(next);
+        setPendingDeleteSubTask(null);
+      }}
+      onCancel={() => setPendingDeleteSubTask(null)}
+    />
   );
 }

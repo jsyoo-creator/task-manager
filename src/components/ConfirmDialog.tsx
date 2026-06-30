@@ -3,11 +3,12 @@ import { Trash2, X } from 'lucide-react';
 interface Props {
   open: boolean;
   taskTitle: string;
+  title?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export default function ConfirmDialog({ open, taskTitle, onConfirm, onCancel }: Props) {
+export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제', onConfirm, onCancel }: Props) {
   if (!open) return null;
   return (
     <div
@@ -20,7 +21,7 @@ export default function ConfirmDialog({ open, taskTitle, onConfirm, onCancel }: 
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
-          <h2 className="text-sm font-semibold text-gray-900">업무 삭제</h2>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
           <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X size={17} />
           </button>

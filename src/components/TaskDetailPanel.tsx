@@ -1178,6 +1178,22 @@ export default function TaskDetailPanel({
                       {subTotal > 0 && (
                         <span className="text-xs font-semibold text-orange-400 flex-shrink-0">대무 {subTotal}h</span>
                       )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          title="세부업무 삭제"
+                          className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                          onClick={() => {
+                            if (!confirm(`"${type.name}" 세부업무 데이터를 삭제하시겠습니까?`)) return;
+                            const next = { ...localSubTaskData };
+                            delete next[type.id];
+                            setLocalSubTaskData(next);
+                            saveSubTaskData(next);
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
 
                     {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우) */}

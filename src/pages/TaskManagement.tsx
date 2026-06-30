@@ -235,8 +235,28 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const selected = parts?.filter(p => importParts.has(p.name)) ?? [];
     return selected.find(p => p.excelConfig)?.excelConfig ?? excelConfig;
   })();
+  // 선택된 파트의 formConfig customLabel 반영 — 파트별 템플릿 헤더와 일치하도록
+  const importBuiltinLabels = (() => {
+    const selected = parts?.filter(p => importParts.has(p.name)) ?? [];
+    const partWithConfig = selected.find(p => p.formConfig);
+    const pFields = partWithConfig?.formConfig
+      ? resolveBuiltinFields(mergeFormConfig(partWithConfig.formConfig, formConfig))
+      : builtinFields;
+    const pb = (key: string, fb: string) => pFields.find(f => f.key === key)?.customLabel ?? fb;
+    return {
+      taskMonth: pb('taskMonth', '월'),
+      title:     pb('title', '업무명'),
+      category:  pb('category', '파트'),
+      type:      pb('type', '유형'),
+      status:    pb('status', '상태'),
+      receiver:  pb('receiver', '접수자'),
+      assignee:  pb('assignee', '담당자'),
+      startDate: pb('startDate', '시작일'),
+      endDate:   pb('endDate', '종료일'),
+    };
+  })();
   const importFields = (effectiveImportConfig?.filter(f => f.enabled && validExcelKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [])
-    .map(f => ({ ...f, label: builtinLabels[f.key] ?? f.label }));
+    .map(f => ({ ...f, label: importBuiltinLabels[f.key] ?? f.label }));
   // 내보내기용 필드 (enabled + exportExcluded 제외)
   const excelFields = importFields.filter(f => !f.exportExcluded);
   const labelToKey = Object.fromEntries(importFields.map(f => [f.label, f.key]));
@@ -428,8 +448,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           category: String(keyMap.category ?? get('파트') ?? '').trim() as TaskCategory,
           type: String(keyMap.type ?? get('유형') ?? '신규').trim() as TaskType,
           status: parseStatus(String(keyMap.status ?? get('상태') ?? '')) as TaskStatus,
-          receiver: String(keyMap.receiver ?? get('접수자') ?? '').trim(),
-          assignee: String(keyMap.assignee ?? get('담당자') ?? '').trim(),
+          receiver: String(keyMap.receiver ?? get(importBuiltinLabels.receiver) ?? '').trim(),
+          assignee: String(keyMap.assignee ?? get(importBuiltinLabels.assignee) ?? '').trim(),
           startDate: parseDate(keyMap.startDate ?? get('시작일') ?? ''),
           endDate: parseDate(keyMap.endDate ?? get('종료일') ?? ''),
           ...(Object.keys(customFields).length > 0 ? { customFields } : {}),

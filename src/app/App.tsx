@@ -50,7 +50,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const currentYear = new Date().getFullYear();
@@ -486,6 +486,8 @@ function App() {
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}
                     onClearPartExcelConfig={clearPartExcelConfig}
+                    onUpdatePartWeeklyConfig={updatePartWeeklyConfig}
+                    onClearPartWeeklyConfig={clearPartWeeklyConfig}
                     onReorderTeams={reorderTeams}
                     customHolidays={customHolidays}
                     onUpdateHolidays={updateHolidays}

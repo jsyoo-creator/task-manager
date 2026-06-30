@@ -61,6 +61,7 @@ export interface TeamPart {
   metaFields?: MetaField[]; // 파트별 업무 정보 필드 (없으면 팀 기본 상속)
   subTaskTypes?: SubTaskType[]; // 파트별 세부 업무 목록 (없으면 팀 기본 상속)
   excelConfig?: ExcelFieldConfig[]; // 파트별 엑셀 필드 설정 (없으면 팀 기본 상속)
+  weeklyExportConfig?: WeeklyExportConfig; // 파트별 위클리 컬럼 설정 (없으면 팀 기본 상속)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

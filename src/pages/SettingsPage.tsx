@@ -36,6 +36,8 @@ interface Props {
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartWeeklyConfig: (teamId: string, partId: string, config: WeeklyExportConfig) => Promise<void>;
+  onClearPartWeeklyConfig: (teamId: string, partId: string) => Promise<void>;
   customHolidays: CustomHoliday[];
   onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
   onReorderTeams: (ordered: Team[]) => Promise<void>;
@@ -2478,28 +2480,41 @@ const DEFAULT_WEEKLY_EXPORT_COLS: WeeklyColumnDef[] = [
   { id: 'desc', type: 'desc', enabled: true },
 ];
 
-function WeeklyExportManager({ team, onSave }: {
+function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (cfg: WeeklyExportConfig) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, cfg: WeeklyExportConfig) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
-  const [cols, setCols] = useState<WeeklyColumnDef[]>(
-    () => team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS
-  );
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const isTeamTarget = selectedTarget === 'team';
+  const currentPart = !isTeamTarget ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = !isTeamTarget && !currentPart?.weeklyExportConfig;
+
+  const allMetaFields = team.metaFields ?? DEFAULT_META_FIELDS;
+
+  const getEffectiveCols = () => {
+    if (isTeamTarget) return team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS;
+    return currentPart?.weeklyExportConfig?.columns ?? team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS;
+  };
+
+  const [cols, setCols] = useState<WeeklyColumnDef[]>(getEffectiveCols);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
-  const [addSelect, setAddSelect] = useState('');
-
-  const allMetaFields = team.metaFields ?? DEFAULT_META_FIELDS;
 
   useEffect(() => {
-    setCols(team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS);
-  }, [team.id, team.weeklyExportConfig]);
+    setCols(getEffectiveCols());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTarget, team.id, team.weeklyExportConfig, currentPart?.weeklyExportConfig]);
+
+  useEffect(() => { setSelectedTarget('team'); }, [team.id]);
 
   const doSave = async (next: WeeklyColumnDef[]) => {
     setSaving(true);
-    await onSave({ columns: next });
+    if (isTeamTarget) await onSave({ columns: next });
+    else if (currentPart) await onSavePart(team.id, currentPart.id, { columns: next });
     setSaving(false);
     setFlash('saved');
     setTimeout(() => setFlash(null), 1500);
@@ -2521,24 +2536,28 @@ function WeeklyExportManager({ team, onSave }: {
     doSave(next);
   };
 
-  const handleAdd = () => {
-    if (!addSelect) return;
+  // 빈칸 행의 타입을 인라인으로 변경
+  const handleChangeColType = (colId: string, value: string) => {
     let next: WeeklyColumnDef[];
-    if (addSelect === '__empty__') {
-      const existingIds = cols.map(c => c.id);
-      let n = 1;
-      while (existingIds.includes(`empty_${n}`)) n++;
-      next = [...cols, { id: `empty_${n}`, type: 'empty', enabled: true }];
+    if (value === '__empty__') {
+      next = cols.map(c => c.id === colId ? { ...c, type: 'empty' as const, metaKey: undefined } : c);
     } else {
-      const field = allMetaFields.find(f => f.key === addSelect);
+      const field = allMetaFields.find(f => f.key === value);
       if (!field) return;
-      const id = `meta_${field.key}`;
-      if (cols.some(c => c.id === id)) { setAddSelect(''); return; }
-      next = [...cols, { id, type: 'meta', enabled: true, metaKey: field.key }];
+      if (cols.some(c => c.id !== colId && c.type === 'meta' && c.metaKey === value)) return;
+      next = cols.map(c => c.id === colId ? { ...c, type: 'meta' as const, metaKey: field.key } : c);
     }
     setCols(next);
     doSave(next);
-    setAddSelect('');
+  };
+
+  const handleAddEmpty = () => {
+    const existingIds = cols.map(c => c.id);
+    let n = 1;
+    while (existingIds.includes(`empty_${n}`)) n++;
+    const next = [...cols, { id: `empty_${n}`, type: 'empty' as const, enabled: true }];
+    setCols(next);
+    doSave(next);
   };
 
   const removeCol = (id: string) => {
@@ -2548,8 +2567,9 @@ function WeeklyExportManager({ team, onSave }: {
   };
 
   const resetToDefault = () => {
-    setCols(DEFAULT_WEEKLY_EXPORT_COLS);
-    doSave(DEFAULT_WEEKLY_EXPORT_COLS);
+    const next = DEFAULT_WEEKLY_EXPORT_COLS;
+    setCols(next);
+    doSave(next);
     setFlash('reset');
     setTimeout(() => setFlash(null), 1500);
   };
@@ -2567,8 +2587,59 @@ function WeeklyExportManager({ team, onSave }: {
 
   return (
     <div className="space-y-3">
+      {/* 파트별 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.weeklyExportConfig;
+              return (
+                <button key={target}
+                  onClick={() => setSelectedTarget(target)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>별도</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상속/별도 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중</p>
+          <button onClick={() => doSave(cols)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
+            <ArrowDownToLine size={11} />팀 기본 가져오기
+          </button>
+        </div>
+      )}
+      {!isTeamTarget && !isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); } }}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
+              <RotateCcw size={11} />초기화
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">드래그로 순서 변경 · 토글로 포함/제외 설정</p>
+        <p className="text-xs text-gray-500">드래그로 순서 변경 · 토글로 포함/제외 · 빈칸 클릭으로 내용 변경</p>
         <div className="flex items-center gap-2">
           {flash && (
             <span className={`text-[10px] font-medium ${flash === 'saved' ? 'text-green-500' : 'text-blue-500'}`}>
@@ -2598,8 +2669,32 @@ function WeeklyExportManager({ team, onSave }: {
             } ${!col.enabled ? 'opacity-40' : ''}`}
           >
             <GripVertical size={13} className="text-gray-300 flex-shrink-0" />
-            <span className="text-xs flex-1 text-gray-700">{getColLabel(col)}</span>
-            {(col.type === 'empty' || col.type === 'meta') && (
+            {/* 빈칸/메타 행: 인라인 select로 변경 가능 */}
+            {(col.type === 'empty' || col.type === 'meta') ? (
+              <div className="relative flex-1">
+                <select
+                  value={col.type === 'meta' ? (col.metaKey ?? '') : '__empty__'}
+                  onChange={e => handleChangeColType(col.id, e.target.value)}
+                  className="w-full text-xs bg-transparent focus:outline-none cursor-pointer text-gray-700 appearance-none pr-4"
+                  disabled={isInherited}
+                >
+                  <option value="__empty__">빈칸</option>
+                  {allMetaFields.map(f => (
+                    <option
+                      key={f.key}
+                      value={f.key}
+                      disabled={col.metaKey !== f.key && addedMetaKeys.has(f.key)}
+                    >
+                      {f.label}{f.isUrl ? ' (링크)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={10} className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+              </div>
+            ) : (
+              <span className="text-xs flex-1 text-gray-700">{getColLabel(col)}</span>
+            )}
+            {(col.type === 'empty' || col.type === 'meta') && !isInherited && (
               <button onClick={() => removeCol(col.id)}
                 className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                 <X size={12} />
@@ -2607,7 +2702,8 @@ function WeeklyExportManager({ team, onSave }: {
             )}
             <button
               onClick={() => toggle(col.id)}
-              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
+              disabled={isInherited}
+              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative disabled:cursor-default ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${col.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
             </button>
@@ -2615,29 +2711,15 @@ function WeeklyExportManager({ team, onSave }: {
         ))}
       </div>
 
-      {/* 필드 추가 */}
-      <div className="flex gap-2 pt-1">
-        <select
-          value={addSelect}
-          onChange={e => setAddSelect(e.target.value)}
-          className="flex-1 text-xs px-2.5 py-1.5 rounded-xl border border-black/8 bg-white text-gray-700 focus:outline-none focus:border-blue-400"
-        >
-          <option value="">컬럼 추가...</option>
-          <option value="__empty__">빈칸</option>
-          {allMetaFields.map(f => (
-            <option key={f.key} value={f.key} disabled={addedMetaKeys.has(f.key)}>
-              {f.label}{f.isUrl ? ' (링크)' : ''}
-            </option>
-          ))}
-        </select>
+      {/* 빈칸 추가 */}
+      {!isInherited && (
         <button
-          onClick={handleAdd}
-          disabled={!addSelect}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white transition-colors"
+          onClick={handleAddEmpty}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
         >
-          <Plus size={11} />추가
+          <Plus size={11} />빈칸 추가
         </button>
-      </div>
+      )}
 
       <div className="pt-0.5">
         <p className="text-[10px] text-gray-400">
@@ -2865,7 +2947,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig }: {
+function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
@@ -2887,6 +2969,8 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartWeeklyConfig: (teamId: string, partId: string, config: WeeklyExportConfig) => Promise<void>;
+  onClearPartWeeklyConfig: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -3251,7 +3335,12 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                   {/* 위클리 관리 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'weekly' && (
                     <div className="px-5 py-4">
-                      <WeeklyExportManager team={team} onSave={cfg => onUpdateTeam(team.id, { weeklyExportConfig: cfg })} />
+                      <WeeklyExportManager
+                        team={team}
+                        onSave={cfg => onUpdateTeam(team.id, { weeklyExportConfig: cfg })}
+                        onSavePart={onUpdatePartWeeklyConfig}
+                        onClearPart={onClearPartWeeklyConfig}
+                      />
                     </div>
                   )}
 
@@ -3685,7 +3774,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -4053,6 +4142,8 @@ export default function SettingsPage({
           onUpdateExcelConfig={onUpdateExcelConfig}
           onUpdatePartExcelConfig={onUpdatePartExcelConfig}
           onClearPartExcelConfig={onClearPartExcelConfig}
+          onUpdatePartWeeklyConfig={onUpdatePartWeeklyConfig}
+          onClearPartWeeklyConfig={onClearPartWeeklyConfig}
         />
       )}
 

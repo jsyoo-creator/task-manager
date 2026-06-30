@@ -331,7 +331,9 @@ export default function TaskDetailPanel({
     const prevRcvrMember = teamMembers?.find(m => m.name === prevReceiver);
     const prevAsgnMember = teamMembers?.find(m => m.name === prevAssignee);
 
-    const current = localSubTaskDataRef.current;
+    // task.subTaskData(Firestore)를 base로, 로컬 편집값을 위에 올려 병합
+    // localSubTaskData가 비어있을 때도 Firestore 데이터가 보존됨
+    const current = { ...(task.subTaskData ?? {}), ...localSubTaskDataRef.current };
     let changed = false;
     const next: Record<string, SubTaskEntry> = { ...current };
 

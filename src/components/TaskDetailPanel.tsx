@@ -1570,6 +1570,7 @@ export default function TaskDetailPanel({
           )}
         </div>
       )}
+
     </div>
 
     <ConfirmDialog

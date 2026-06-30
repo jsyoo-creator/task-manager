@@ -1395,10 +1395,17 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               </div>
             ];
             return [
-              <select key="type" className={`${sel} text-gray-700`} value={task.type}
-                onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })} onClick={e => e.stopPropagation()}>
-                {typeOpts.map(t => <option key={t}>{t}</option>)}
-              </select>
+              <div key="type" onClick={e => e.stopPropagation()}
+                className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer bg-gray-100">
+                <span className="text-xs font-medium text-gray-600 whitespace-nowrap">{task.type || '-'}</span>
+                {canManage && <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />}
+                {canManage && (
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    {typeOpts.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                )}
+              </div>
             ];
           }
           if (fc.key === 'status') {

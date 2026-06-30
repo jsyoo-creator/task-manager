@@ -464,12 +464,24 @@ export default function TaskDetailPanel({
                         </select>
                       </div>
                     ) : (
-                      <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full"
-                        value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
-                        {typeOpts.map(t => <option key={t}>{t}</option>)}
-                      </select>
+                      <div className="relative block w-full">
+                        <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer bg-gray-100 text-gray-600">
+                          <span>{task.type}</span><ChevronDown size={9} />
+                        </div>
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.type}
+                          onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                          {typeOpts.map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
                     )
-                  ) : <span className="text-sm text-gray-700">{task.type}</span>}
+                  ) : (
+                    typeColor ? (
+                      <span className="inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium"
+                        style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
+                        {task.type}
+                      </span>
+                    ) : <span className="inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">{task.type}</span>
+                  )}
                 </div>
               );
             };

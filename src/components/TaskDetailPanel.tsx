@@ -883,7 +883,13 @@ export default function TaskDetailPanel({
                 const entry = localSubTaskData[type.id];
                 return entry?.assignee === currentUserName || entry?.substitute === currentUserName;
               }).map(type => {
-                const entry: SubTaskEntry = localSubTaskData[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
+                // task.subTaskData(Firestore)를 base로, localSubTaskData를 위에 올려 병합
+                // localSubTaskData가 {}이어도 Firestore의 startDate/weeklyHours 등이 보존됨
+                const entry: SubTaskEntry = {
+                  assignee: '', weeklyHours: {}, totalHours: 0,
+                  ...(task.subTaskData?.[type.id] ?? {}),
+                  ...(localSubTaskData[type.id] ?? {}),
+                };
                 const total = entry.startDate ? calcHoursInRange(entry.weeklyHours, entry.startDate, entry.endDate) : Object.values(entry.weeklyHours).reduce((a, b) => a + b, 0);
                 const subTotal = entry.startDate ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, entry.startDate, entry.endDate) : Object.values(entry.substituteWeeklyHours ?? {}).reduce((a, b) => a + b, 0);
                 const isVacation = isAssigneeOnVacation(entry.assignee);

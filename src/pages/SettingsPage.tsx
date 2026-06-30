@@ -2489,6 +2489,9 @@ function WeeklyExportManager({ team, onSave }: {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+  const [addSelect, setAddSelect] = useState('');
+
+  const allMetaFields = team.metaFields ?? DEFAULT_META_FIELDS;
 
   useEffect(() => {
     setCols(team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS);
@@ -2518,13 +2521,24 @@ function WeeklyExportManager({ team, onSave }: {
     doSave(next);
   };
 
-  const addEmpty = () => {
-    const existingIds = cols.map(c => c.id);
-    let n = 1;
-    while (existingIds.includes(`empty_${n}`)) n++;
-    const next = [...cols, { id: `empty_${n}`, type: 'empty' as const, enabled: true }];
+  const handleAdd = () => {
+    if (!addSelect) return;
+    let next: WeeklyColumnDef[];
+    if (addSelect === '__empty__') {
+      const existingIds = cols.map(c => c.id);
+      let n = 1;
+      while (existingIds.includes(`empty_${n}`)) n++;
+      next = [...cols, { id: `empty_${n}`, type: 'empty', enabled: true }];
+    } else {
+      const field = allMetaFields.find(f => f.key === addSelect);
+      if (!field) return;
+      const id = `meta_${field.key}`;
+      if (cols.some(c => c.id === id)) { setAddSelect(''); return; }
+      next = [...cols, { id, type: 'meta', enabled: true, metaKey: field.key }];
+    }
     setCols(next);
     doSave(next);
+    setAddSelect('');
   };
 
   const removeCol = (id: string) => {
@@ -2540,6 +2554,17 @@ function WeeklyExportManager({ team, onSave }: {
     setTimeout(() => setFlash(null), 1500);
   };
 
+  const getColLabel = (col: WeeklyColumnDef) => {
+    if (col.type === 'meta' && col.metaKey) {
+      const field = allMetaFields.find(f => f.key === col.metaKey);
+      if (field) return field.isUrl ? `${field.label} (링크)` : field.label;
+      return col.metaKey;
+    }
+    return WEEKLY_COL_LABELS[col.type] ?? col.type;
+  };
+
+  const addedMetaKeys = new Set(cols.filter(c => c.type === 'meta').map(c => c.metaKey));
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -2550,13 +2575,10 @@ function WeeklyExportManager({ team, onSave }: {
               {flash === 'saved' ? '저장됨' : '초기화됨'}
             </span>
           )}
+          {saving && <span className="text-[10px] text-gray-400">저장 중...</span>}
           <button onClick={resetToDefault}
             className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
             <RotateCcw size={10} />초기화
-          </button>
-          <button onClick={addEmpty}
-            className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors font-medium">
-            <Plus size={10} />빈칸 추가
           </button>
         </div>
       </div>
@@ -2576,8 +2598,8 @@ function WeeklyExportManager({ team, onSave }: {
             } ${!col.enabled ? 'opacity-40' : ''}`}
           >
             <GripVertical size={13} className="text-gray-300 flex-shrink-0" />
-            <span className="text-xs flex-1 text-gray-700">{WEEKLY_COL_LABELS[col.type] ?? col.type}</span>
-            {col.type === 'empty' && (
+            <span className="text-xs flex-1 text-gray-700">{getColLabel(col)}</span>
+            {(col.type === 'empty' || col.type === 'meta') && (
               <button onClick={() => removeCol(col.id)}
                 className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                 <X size={12} />
@@ -2585,21 +2607,43 @@ function WeeklyExportManager({ team, onSave }: {
             )}
             <button
               onClick={() => toggle(col.id)}
-              className={`w-8 h-4 rounded-full transition-colors flex-shrink-0 relative ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
+              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
             >
-              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${col.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${col.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
             </button>
           </div>
         ))}
       </div>
 
-      <div className="pt-1">
-        <p className="text-[10px] text-gray-400">
-          미리보기: {cols.filter(c => c.enabled).map(c => WEEKLY_COL_LABELS[c.type] ?? '빈칸').join(' | ')}
-        </p>
+      {/* 필드 추가 */}
+      <div className="flex gap-2 pt-1">
+        <select
+          value={addSelect}
+          onChange={e => setAddSelect(e.target.value)}
+          className="flex-1 text-xs px-2.5 py-1.5 rounded-xl border border-black/8 bg-white text-gray-700 focus:outline-none focus:border-blue-400"
+        >
+          <option value="">컬럼 추가...</option>
+          <option value="__empty__">빈칸</option>
+          {allMetaFields.map(f => (
+            <option key={f.key} value={f.key} disabled={addedMetaKeys.has(f.key)}>
+              {f.label}{f.isUrl ? ' (링크)' : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleAdd}
+          disabled={!addSelect}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white transition-colors"
+        >
+          <Plus size={11} />추가
+        </button>
       </div>
 
-      {saving && <p className="text-[10px] text-gray-400">저장 중...</p>}
+      <div className="pt-0.5">
+        <p className="text-[10px] text-gray-400">
+          미리보기: {cols.filter(c => c.enabled).map(c => getColLabel(c)).join(' | ')}
+        </p>
+      </div>
     </div>
   );
 }

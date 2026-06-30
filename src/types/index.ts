@@ -386,12 +386,13 @@ export interface ExcelFieldConfig {
   exportExcluded?: boolean; // true면 내보내기에서 제외 (가져오기는 유지)
 }
 
-export type WeeklyColumnType = 'new' | 'derived' | 'other' | 'hours' | 'desc' | 'empty';
+export type WeeklyColumnType = 'new' | 'derived' | 'other' | 'hours' | 'desc' | 'empty' | 'meta';
 
 export interface WeeklyColumnDef {
   id: string;
   type: WeeklyColumnType;
   enabled: boolean;
+  metaKey?: string; // type === 'meta'일 때 MetaField.key
 }
 
 export interface WeeklyExportConfig {

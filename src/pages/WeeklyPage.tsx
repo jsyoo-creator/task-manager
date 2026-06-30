@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 
@@ -27,6 +27,7 @@ interface Props {
   currentUserName?: string;
   canSeeAll?: boolean;
   weeklyExportConfig?: WeeklyExportConfig;
+  metaFields?: MetaField[];
 }
 
 const TW_TO_HEX: Record<string, string> = {
@@ -155,7 +156,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig }: Props) {
+export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [] }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const { start, end, weekNum, now, weekdays } = useMemo(getWeekBounds, []);
   const { holidays: publicHolidays } = usePublicHolidays(now.getFullYear());
@@ -322,13 +323,23 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
             const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
               const activeCols = (weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
-              const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string }) =>
+              const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string; task: typeof groups[0]['task'] }) =>
                 activeCols.map(col => {
                   if (col.type === 'new') return vals.isNew;
                   if (col.type === 'derived') return vals.isDerived;
                   if (col.type === 'other') return vals.isOther;
                   if (col.type === 'hours') return vals.taskH;
                   if (col.type === 'desc') return vals.desc;
+                  if (col.type === 'meta' && col.metaKey) {
+                    const rawVal = vals.task.customFields?.[col.metaKey] ?? '';
+                    const fieldDef = metaFields.find(f => f.key === col.metaKey);
+                    if (fieldDef?.isUrl && rawVal) {
+                      const safeUrl = rawVal.replace(/"/g, '""');
+                      const safeLabel = fieldDef.label.replace(/"/g, '""');
+                      return `=HYPERLINK("${safeUrl}","${safeLabel}")`;
+                    }
+                    return rawVal;
+                  }
                   return '';
                 }).join('\t');
 
@@ -352,11 +363,11 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const desc = lines.length > 1
                   ? `"${lines.join('\n').replace(/"/g, '""')}"`
                   : lines[0];
-                return buildRow({ isNew, isDerived, isOther, taskH, desc });
+                return buildRow({ isNew, isDerived, isOther, taskH, desc, task });
               });
               if (vacH > 0) {
                 const vacLines = vacEntries.map(e => `※ ${e.type} ${e.dateStr}`).join('\n');
-                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"` }));
+                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"`, task: groups[0]?.task ?? {} as typeof groups[0]['task'] }));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);

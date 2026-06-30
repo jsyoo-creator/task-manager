@@ -98,7 +98,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(now.getFullYear());
   const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
-  const [assigneeFilter, setAssigneeFilter] = useState('전체');
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
@@ -626,7 +625,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (myTasksOnly && !isMyTask(t)) return false;
-    if (!myTasksOnly && canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
       if (t.taskMonth) return t.taskMonth === prefix;
@@ -860,14 +858,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
-        {canSeeAll && !myTasksOnly && (
-          <FilterSelect label={bLabel('assignee', '담당자')} value={assigneeFilter} onChange={v => setAssigneeFilter(v)}>
-            <option>전체</option>
-            {assignees.map(a => <option key={a}>{a}</option>)}
-          </FilterSelect>
-        )}
         <button
-          onClick={() => { setMyTasksOnly(o => !o); setAssigneeFilter('전체'); }}
+          onClick={() => setMyTasksOnly(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             myTasksOnly
               ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'

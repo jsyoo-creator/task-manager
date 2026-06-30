@@ -409,6 +409,8 @@ export default function TaskDetailPanel({
   };
 
   const saveSubTaskData = (next: Record<string, SubTaskEntry>) => {
+    // 빈 object 저장 방지 — Firestore에 기존 데이터가 있을 때 {}로 덮어쓰지 않음
+    if (Object.keys(next).length === 0) return;
     const finalNext: Record<string, SubTaskEntry> = {};
     Object.keys(next).forEach(key => {
       const e = next[key];
@@ -932,7 +934,7 @@ export default function TaskDetailPanel({
                     if (!next.includes(id)) { delete nextWh[id]; delete nextDates[id]; delete nextRs[id]; }
                     const newTotal = calcReviewTotal(nextWh, nextDates, next);
                     const nextEntry = { ...entry, checkedItems: next, reviewWeeklyHours: nextWh, reviewDates: nextDates, reviewStatus: nextRs, totalHours: newTotal };
-                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
+                    const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
                   };
@@ -941,7 +943,7 @@ export default function TaskDetailPanel({
                     const nextDates = { ...reviewDates, [id]: { ...(reviewDates[id] ?? {}), [field]: val || undefined } };
                     const newTotal = calcReviewTotal(reviewWeeklyHours, nextDates, checked);
                     const nextEntry = { ...entry, reviewDates: nextDates, totalHours: newTotal };
-                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
+                    const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
                   };
@@ -949,7 +951,7 @@ export default function TaskDetailPanel({
                   const setItemStatus = (id: string, status: string) => {
                     const nextRs = { ...reviewStatus, [id]: status };
                     const nextEntry = { ...entry, reviewStatus: nextRs };
-                    const nextData = { ...localSubTaskData, [type.id]: nextEntry };
+                    const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
                     setLocalSubTaskData(nextData);
                     saveSubTaskData(nextData);
                   };
@@ -1087,11 +1089,12 @@ export default function TaskDetailPanel({
                                                           const newRtHours = { ...rtWeeklyHours, [wKey]: n };
                                                           if (n === 0) delete newRtHours[wKey];
                                                           setLocalSubTaskData(prev => {
-                                                            const cur = prev[type.id] ?? entry;
+                                                            const base = { ...(task.subTaskData ?? {}), ...prev };
+                                                            const cur = base[type.id] ?? entry;
                                                             const curWh = { ...(cur.reviewWeeklyHours ?? {}), [rt.id]: newRtHours };
                                                             const curDates = cur.reviewDates ?? {};
                                                             const newTotal = calcReviewTotal(curWh, curDates, cur.checkedItems ?? []);
-                                                            const next = { ...prev, [type.id]: { ...cur, reviewWeeklyHours: curWh, totalHours: newTotal } };
+                                                            const next = { ...base, [type.id]: { ...cur, reviewWeeklyHours: curWh, totalHours: newTotal } };
                                                             localSubTaskDataRef.current = next;
                                                             return next;
                                                           });
@@ -1152,7 +1155,7 @@ export default function TaskDetailPanel({
                               className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default"
                               value={subKey}
                               onChange={e => {
-                                const next = { ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
+                                const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
                                 setLocalSubTaskData(next);
                                 saveSubTaskData(next);
                               }}>
@@ -1178,7 +1181,7 @@ export default function TaskDetailPanel({
                               style={{ cursor: canManage ? 'pointer' : 'default' }}
                               value={entry.assignee ?? ''}
                               onChange={e => {
-                                const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
+                                const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
                                 setLocalSubTaskData(next);
                                 saveSubTaskData(next);
                               }}>
@@ -1222,7 +1225,7 @@ export default function TaskDetailPanel({
                             value={entry.substitute ?? ''}
                             onChange={e => {
                               const val = e.target.value;
-                              const next = { ...localSubTaskData, [type.id]: { ...entry, substitute: val || undefined } };
+                              const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, substitute: val || undefined } };
                               setLocalSubTaskData(next);
                               saveSubTaskData(next);
                             }}>
@@ -1243,7 +1246,7 @@ export default function TaskDetailPanel({
                           const newEnd = entry.endDate;
                           const newTotal = newStart ? calcHoursInRange(entry.weeklyHours ?? {}, newStart, newEnd) : 0;
                           const newSubTotal = newStart ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, newStart, newEnd) : 0;
-                          const next = { ...localSubTaskData, [type.id]: { ...entry, startDate: newStart, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
+                          const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, startDate: newStart, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
                           setLocalSubTaskData(next);
                           saveSubTaskData(next);
                         }}
@@ -1257,7 +1260,7 @@ export default function TaskDetailPanel({
                           const newEnd = v;
                           const newTotal = newStart ? calcHoursInRange(entry.weeklyHours ?? {}, newStart, newEnd) : 0;
                           const newSubTotal = newStart ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, newStart, newEnd) : 0;
-                          const next = { ...localSubTaskData, [type.id]: { ...entry, endDate: newEnd, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
+                          const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, endDate: newEnd, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
                           setLocalSubTaskData(next);
                           saveSubTaskData(next);
                         }}
@@ -1314,9 +1317,10 @@ export default function TaskDetailPanel({
                                       const newHours = { ...entry.weeklyHours, [key]: n };
                                       if (n === 0) delete newHours[key];
                                       setLocalSubTaskData(prev => {
-                                        const cur = prev[type.id] ?? entry;
+                                        const base = { ...(task.subTaskData ?? {}), ...prev };
+                                        const cur = base[type.id] ?? entry;
                                         const next = {
-                                          ...prev,
+                                          ...base,
                                           [type.id]: { ...cur, weeklyHours: newHours, totalHours: cur.startDate ? calcHoursInRange(newHours, cur.startDate, cur.endDate) : Object.values(newHours).reduce((a, b) => a + b, 0) },
                                         };
                                         localSubTaskDataRef.current = next;
@@ -1392,9 +1396,10 @@ export default function TaskDetailPanel({
                                           const newHours = { ...(entry.substituteWeeklyHours ?? {}), [key]: n };
                                           if (n === 0) delete newHours[key];
                                           setLocalSubTaskData(prev => {
-                                            const cur = prev[type.id] ?? entry;
+                                            const base = { ...(task.subTaskData ?? {}), ...prev };
+                                            const cur = base[type.id] ?? entry;
                                             const next = {
-                                              ...prev,
+                                              ...base,
                                               [type.id]: { ...cur, substituteWeeklyHours: newHours, substituteTotalHours: cur.startDate ? calcHoursInRange(newHours, cur.startDate, cur.endDate) : Object.values(newHours).reduce((a, b) => a + b, 0) },
                                             };
                                             localSubTaskDataRef.current = next;

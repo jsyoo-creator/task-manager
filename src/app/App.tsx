@@ -243,13 +243,18 @@ function App() {
   }, [selectedTeam?.subTaskTypes, activeParts]);
 
   // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID + 모든 PLSubTaskField ID)
+  // 파트에 별도 subTaskTypes가 있으면 파트 설정 우선, 없으면 팀 기본 (SettingsPage 로직과 동일)
   const calendarVisibleTypeIds = useMemo(() => {
     const set = new Set<string>();
-    const allTypes = [
-      ...(selectedTeam?.subTaskTypes ?? []),
-      ...activeParts.flatMap(p => p.subTaskTypes ?? []),
-    ];
-    allTypes.forEach(t => { if (t.showInCalendar !== false) set.add(t.id); });
+    const teamTypes = selectedTeam?.subTaskTypes ?? [];
+    if (activeParts.length === 0) {
+      teamTypes.forEach(t => { if (t.showInCalendar !== false) set.add(t.id); });
+    } else {
+      activeParts.forEach(p => {
+        const types = p.subTaskTypes ?? teamTypes;
+        types.forEach(t => { if (t.showInCalendar !== false) set.add(t.id); });
+      });
+    }
     selectedTeam?.plMainTaskTypes?.forEach(m => m.subFields?.forEach(f => set.add(f.id)));
     return set;
   }, [selectedTeam?.subTaskTypes, selectedTeam?.plMainTaskTypes, activeParts]);

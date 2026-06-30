@@ -533,7 +533,9 @@ export default function TaskDetailPanel({
                         <select className="absolute inset-0 opacity-0 cursor-pointer w-full"
                           value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
                           <option value="">-</option>
-                          {categoryFc!.options!.map(o => <option key={o}>{o}</option>)}
+                          {parts.length > 0
+                            ? parts.map(p => <option key={p.id}>{p.name}</option>)
+                            : categoryFc!.options!.map(o => <option key={o}>{o}</option>)}
                         </select>
                       </div>
                     ) : (

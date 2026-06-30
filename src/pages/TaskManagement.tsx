@@ -969,6 +969,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               onDragEnd={() => { setDragId(null); setDragOverId(null); }}
               userPhotoMap={userPhotoMap}
               partColor={partColor}
+              parts={parts}
               selected={selectedIds.has(task.id)}
               onSelect={() => setSelectedIds(prev => {
                 const next = new Set(prev);
@@ -1184,7 +1185,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, assignees, teamMembers, tableFields, tableCfs, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1193,6 +1194,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   onCopy: () => void;
   canManage: boolean;
   canDelete?: boolean;
+  parts?: TeamPart[];
   assignees: string[];
   teamMembers?: { name: string; department?: Department }[];
   tableFields: BuiltinFieldConfig[];
@@ -1345,7 +1347,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.category}
                       onChange={e => onUpdate(task.id, { category: e.target.value })}>
                       <option value="">-</option>
-                      {fc.options.map(o => <option key={o}>{o}</option>)}
+                      {parts && parts.length > 0
+                        ? parts.map(p => <option key={p.id}>{p.name}</option>)
+                        : fc.options.map(o => <option key={o}>{o}</option>)}
                     </select>
                   )}
                 </div>

@@ -278,6 +278,20 @@ export default function TaskDetailPanel({
     setDeletedSubTaskIds(new Set());
   }, [task.id]);
 
+  // task.subTaskData가 외부에서 변경될 때(초기 Firestore 로드 포함) 동기화
+  useEffect(() => {
+    setLocalSubTaskData(prev => {
+      // 로컬이 비어있고 실제 데이터가 있으면 무조건 동기화
+      if (Object.keys(prev).length === 0) return task.subTaskData ?? {};
+      // 로컬에 데이터가 있으면 외부 변경은 새 키만 병합 (로컬 편집 유지)
+      const incoming = task.subTaskData ?? {};
+      const merged = { ...incoming };
+      Object.keys(prev).forEach(k => { if (!incoming[k]) merged[k] = prev[k]; });
+      return merged;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.subTaskData]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
     document.addEventListener('keydown', handler);

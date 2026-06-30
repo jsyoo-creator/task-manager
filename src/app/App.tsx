@@ -517,6 +517,7 @@ function App() {
               subTaskTypes={resolvedSubTaskTypes}
               teamMembers={teamMembers}
               formConfig={resolvedFormConfig}
+              teamFormConfig={selectedTeam?.formConfig}
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
               canSeeAll={canSeeAll}
               currentUserName={currentUserName}

@@ -175,7 +175,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
-  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, userPhotoMap,
+  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', vacations = [], reviewTasks,
 }: {
   task: Task;
@@ -190,6 +190,7 @@ export default function TaskDetailPanel({
   subTaskTypes?: SubTaskType[];
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
+  teamFormConfig?: TeamFormConfig;
   userPhotoMap?: Map<string, string>;
   canSeeAll?: boolean;
   currentUserName?: string;
@@ -216,9 +217,14 @@ export default function TaskDetailPanel({
   };
   const statusConfigs = resolveStatusConfigs(formConfig);
   const typeField = builtinFields.find(f => f.key === 'type');
+  const teamBuiltinFields = teamFormConfig ? resolveBuiltinFields(teamFormConfig) : [];
   const fieldLabel = (key: BuiltinFieldKey) => {
     const bf = builtinFields.find(f => f.key === key);
-    return bf?.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
+    if (bf?.customLabel) return bf.customLabel;
+    // 파트에 customLabel 없으면 팀 레벨 formConfig에서 fallback
+    const tbf = teamBuiltinFields.find(f => f.key === key);
+    if (tbf?.customLabel) return tbf.customLabel;
+    return BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
   };
   // formConfig 순서 기준: receiver와 assignee 중 어느 쪽이 먼저인지
   const receiverIdx = builtinFields.findIndex(f => f.key === 'receiver');

@@ -274,8 +274,26 @@ export default function TaskDetailPanel({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  // 메인 업무 담당자 변경 시 → 직군 매칭되는 세부업무 중 담당자가 비어있는 항목에 자동 반영
+  // 이전 메인 담당자 값 추적 (수동 설정한 담당자와 자동 설정한 담당자 구분용)
+  const prevReceiverRef = useRef(task.receiver);
+  const prevAssigneeRef = useRef(task.assignee);
+
+  // task.id 전환 시 이전값 리셋
   useEffect(() => {
+    prevReceiverRef.current = task.receiver;
+    prevAssigneeRef.current = task.assignee;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id]);
+
+  // 메인 업무 담당자 변경 시 → 직군 매칭 세부업무 자동 반영
+  // - 담당자가 비어있거나 이전 메인 담당자와 같으면 새 값으로 교체
+  // - 수동으로 다른 사람 지정한 경우에는 유지
+  useEffect(() => {
+    const prevReceiver = prevReceiverRef.current;
+    const prevAssignee = prevAssigneeRef.current;
+    prevReceiverRef.current = task.receiver;
+    prevAssigneeRef.current = task.assignee;
+
     if (!subTaskTypes.length || !formConfig) return;
     const builtins = resolveBuiltinFields(formConfig);
     const rcvrFc = builtins.find(f => f.key === 'receiver');
@@ -292,15 +310,25 @@ export default function TaskDetailPanel({
       const typeDepts = resolveFieldDepts(type);
       if (!typeDepts) return;
       const entry = next[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
-      if (entry.assignee) return; // 이미 담당자 있으면 스킵
 
-      let auto = '';
-      if (rcvrDepts && typeDepts.some(d => rcvrDepts.includes(d)) && task.receiver) {
-        auto = task.receiver;
-      } else if (asgnDepts && typeDepts.some(d => asgnDepts.includes(d)) && task.assignee) {
-        auto = task.assignee;
+      // 이 세부업무 직군에 매칭되는 메인 담당자(신규/이전) 결정
+      let newAuto = '';
+      let oldAuto = '';
+      if (rcvrDepts && typeDepts.some(d => rcvrDepts.includes(d))) {
+        newAuto = task.receiver ?? '';
+        oldAuto = prevReceiver ?? '';
+      } else if (asgnDepts && typeDepts.some(d => asgnDepts.includes(d))) {
+        newAuto = task.assignee ?? '';
+        oldAuto = prevAssignee ?? '';
       }
-      if (auto) { next[type.id] = { ...entry, assignee: auto }; changed = true; }
+      if (!newAuto && !oldAuto) return;
+
+      const cur = entry.assignee ?? '';
+      // 비어있거나 이전 자동값과 같을 때만 업데이트
+      if ((!cur || cur === oldAuto) && newAuto !== cur) {
+        next[type.id] = { ...entry, assignee: newAuto };
+        changed = true;
+      }
     });
 
     if (changed) {

@@ -864,6 +864,7 @@ export default function TaskDetailPanel({
             <div className="space-y-3">
               {subTaskTypes.filter(type => {
                 if (deletedSubTaskIds.has(type.id)) return false;
+                if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
                 if (canSeeAll) return true;
                 const entry = localSubTaskData[type.id];
                 return entry?.assignee === currentUserName || entry?.substitute === currentUserName;
@@ -1594,6 +1595,8 @@ export default function TaskDetailPanel({
         delete next[pendingDeleteSubTask.id];
         setLocalSubTaskData(next);
         saveSubTaskData(next);
+        const hiddenIds = [...(task.hiddenSubTaskTypeIds ?? []), pendingDeleteSubTask.id];
+        onUpdate(task.id, { hiddenSubTaskTypeIds: hiddenIds });
         setDeletedSubTaskIds(prev => new Set([...prev, pendingDeleteSubTask.id]));
         setPendingDeleteSubTask(null);
       }}

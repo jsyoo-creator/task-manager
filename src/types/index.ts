@@ -459,6 +459,7 @@ export interface Task {
     reviewStatus?: Record<string, string>; // review 타입 필드: taskId → 검수 상태
   }>;
   memo?: string;
+  hiddenSubTaskTypeIds?: string[]; // 이 업무에서 숨긴 세부업무 타입 ID 목록
   plTask?: boolean;          // PL업무 여부
   plParts?: string[];        // PL업무 소속 파트 목록
   plSelectedTypes?: string[]; // PL업무에서 선택된 메인업무 타입 ID 목록

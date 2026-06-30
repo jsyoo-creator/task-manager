@@ -294,13 +294,20 @@ export default function TaskDetailPanel({
     prevReceiverRef.current = task.receiver;
     prevAssigneeRef.current = task.assignee;
 
-    if (!subTaskTypes.length || !formConfig) return;
-    const builtins = resolveBuiltinFields(formConfig);
+    if (!subTaskTypes.length) return;
+
+    // formConfig의 receiver/assignee department 설정 (설정 없는 파트도 있음)
+    const builtins = formConfig ? resolveBuiltinFields(formConfig) : [];
     const rcvrFc = builtins.find(f => f.key === 'receiver');
     const asgnFc = builtins.find(f => f.key === 'assignee');
     const rcvrDepts = rcvrFc ? resolveFieldDepts(rcvrFc) : null;
     const asgnDepts = asgnFc ? resolveFieldDepts(asgnFc) : null;
-    if (!rcvrDepts && !asgnDepts) return;
+
+    // teamMembers로 receiver/assignee 각각의 실제 직군 파악 (formConfig 설정 없을 때 fallback)
+    const rcvrMember = teamMembers?.find(m => m.name === task.receiver);
+    const asgnMember = teamMembers?.find(m => m.name === task.assignee);
+    const prevRcvrMember = teamMembers?.find(m => m.name === prevReceiver);
+    const prevAsgnMember = teamMembers?.find(m => m.name === prevAssignee);
 
     const current = localSubTaskDataRef.current;
     let changed = false;
@@ -314,6 +321,8 @@ export default function TaskDetailPanel({
       // 이 세부업무 직군에 매칭되는 메인 담당자(신규/이전) 결정
       let newAuto = '';
       let oldAuto = '';
+
+      // 1순위: formConfig department 설정으로 매칭
       if (rcvrDepts && typeDepts.some(d => rcvrDepts.includes(d))) {
         newAuto = task.receiver ?? '';
         oldAuto = prevReceiver ?? '';
@@ -321,6 +330,24 @@ export default function TaskDetailPanel({
         newAuto = task.assignee ?? '';
         oldAuto = prevAssignee ?? '';
       }
+
+      // 2순위: teamMembers의 실제 department로 매칭 (formConfig 설정 없는 파트 fallback)
+      if (!newAuto && !oldAuto) {
+        if (rcvrMember?.department && typeDepts.includes(rcvrMember.department)) {
+          newAuto = task.receiver ?? '';
+          oldAuto = prevReceiver ?? '';
+        } else if (asgnMember?.department && typeDepts.includes(asgnMember.department)) {
+          newAuto = task.assignee ?? '';
+          oldAuto = prevAssignee ?? '';
+        } else if (prevRcvrMember?.department && typeDepts.includes(prevRcvrMember.department)) {
+          newAuto = task.receiver ?? '';
+          oldAuto = prevReceiver ?? '';
+        } else if (prevAsgnMember?.department && typeDepts.includes(prevAsgnMember.department)) {
+          newAuto = task.assignee ?? '';
+          oldAuto = prevAssignee ?? '';
+        }
+      }
+
       if (!newAuto && !oldAuto) return;
 
       const cur = entry.assignee ?? '';

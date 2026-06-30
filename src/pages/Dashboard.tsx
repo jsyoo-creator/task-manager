@@ -275,19 +275,28 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     const builtins = resolveBuiltinFields(formConfig);
     const statusFc = builtins.find(f => f.key === 'status');
     const effStatus = (t: { status?: string }) => (t.status as string) || firstStatusOption;
+    let data;
     if (statusFc?.customType === 'select' && !!statusFc.options?.length) {
-      return statusFc!.options!.map((opt, i) => ({
+      data = statusFc!.options!.map((opt, i) => ({
         label: opt,
         count: tasks.filter(t => sameStatus(effStatus(t), opt)).length,
         color: statusFc.optionColors?.[opt]?.text ?? PALETTE[i % PALETTE.length],
       }));
+    } else {
+      data = statusConfigs.map(s => ({
+        label: s.label,
+        count: tasks.filter(t => sameStatus(effStatus(t), s.key)).length,
+        color: s.text,
+      }));
     }
-    return statusConfigs.map(s => ({
-      label: s.label,
-      count: tasks.filter(t => sameStatus(effStatus(t), s.key)).length,
-      color: s.text,
-    }));
-  }, [tasks, formConfig, statusConfigs]);
+    // 정의된 status에 매핑 안 된 업무(과거 값 등)를 회색으로 표시
+    const definedTotal = data.reduce((sum, s) => sum + s.count, 0);
+    const otherCount = tasks.length - definedTotal;
+    if (otherCount > 0) {
+      data = [...data, { label: '기타', count: otherCount, color: '#9ca3af' }];
+    }
+    return data;
+  }, [tasks, formConfig, statusConfigs, firstStatusOption]);
 
   const stats = useMemo(() => {
     const total = tasks.length;

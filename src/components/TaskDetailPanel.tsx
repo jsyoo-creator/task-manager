@@ -425,7 +425,8 @@ export default function TaskDetailPanel({
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
 
   return (
-    // width 0→PANEL_W 확장: 왼쪽 라운드 고정, 오른쪽으로 열림 → 패딩 이동과 완벽 동기화
+    <>
+    {/* width 0→PANEL_W 확장: 왼쪽 라운드 고정, 오른쪽으로 열림 → 패딩 이동과 완벽 동기화 */}
     <div
       style={{
         position: 'fixed',
@@ -1599,5 +1600,6 @@ export default function TaskDetailPanel({
       }}
       onCancel={() => setPendingDeleteSubTask(null)}
     />
+    </>
   );
 }

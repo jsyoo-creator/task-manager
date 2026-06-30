@@ -756,140 +756,6 @@ export default function TaskDetailPanel({
           )}
         </div>
 
-        {/* 커스텀 폼 필드 */}
-        {(() => {
-          const enabledCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
-          const fo = formConfig?.fieldOrder;
-          const cfs = fo?.length
-            ? [...enabledCfs].sort((a, b) => {
-                const ai = fo.indexOf(a.id);
-                const bi = fo.indexOf(b.id);
-                const aIdx = ai === -1 ? Infinity : ai;
-                const bIdx = bi === -1 ? Infinity : bi;
-                return aIdx - bIdx;
-              })
-            : enabledCfs;
-          if (cfs.length === 0) return null;
-          const cls = "w-full text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
-          const linkInputCls = "flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
-          return (
-            <div className="px-5 py-3 border-t border-black/[0.08]">
-              <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">추가 정보</p>
-              <div className="space-y-2">
-                {cfs.map(cf => {
-                  const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
-                  const handleBlur = (v: string) => {
-                    onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } });
-                  };
-                  const cfType = cf.type as string;
-                  const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
-                  const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
-                  let opts = isNameType
-                    ? (cfDepts && teamMembers?.length
-                        ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
-                        : assignees)
-                    : (cf.options ?? []);
-                  // 연결 필드: 부모 필드 값에 따라 표시 옵션 결정
-                  if (cf.dependsOn && cfType === 'select') {
-                    const builtinKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
-                    const pid = cf.dependsOn.fieldId;
-                    const pVal = builtinKeys.includes(pid)
-                      ? String((task as Record<string, unknown>)[pid] ?? '')
-                      : (task.customFields?.[pid] ?? '');
-                    const mapped = pVal ? cf.dependsOn.valueMap[pVal] : undefined;
-                    if (mapped !== undefined) opts = mapped;
-                  }
-                  return (
-                    <div key={cf.id} className="flex items-center gap-2">
-                      <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
-                      <div className="flex-1 min-w-0">
-                        {(isNameType || cfType === 'select') ? (
-                          <div className="relative w-full">
-                            {cfType === 'select' && cf.optionColors?.[val] ? (
-                              <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium"
-                                style={{ backgroundColor: cf.optionColors[val].bg, color: cf.optionColors[val].text }}>
-                                <span className="truncate">{val || '-'}</span>
-                                <ChevronDown size={11} className="flex-shrink-0 ml-1.5 opacity-60" />
-                              </div>
-                            ) : (
-                              <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-gray-800 bg-black/[0.07]">
-                                <span className="truncate">{val || '-'}</span>
-                                <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
-                              </div>
-                            )}
-                            <select disabled={!canManage} value={val}
-                              onChange={e => handleBlur(e.target.value)}
-                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
-                              <option value="">-</option>
-                              {opts.map(o => <option key={o}>{o}</option>)}
-                            </select>
-                          </div>
-                        ) : cfType === 'date' ? (
-                          <input type="date" readOnly={!canManage} value={val}
-                            onChange={e => handleBlur(e.target.value)}
-                            className={cls} />
-                        ) : cfType === 'number' ? (
-                          <input type="number" readOnly={!canManage} value={val}
-                            onChange={e => handleBlur(e.target.value)}
-                            onBlur={e => handleBlur(e.target.value)}
-                            className={cls} />
-                        ) : cfType === 'link' ? (
-                          <div className="flex items-center gap-px">
-                            <input type="url" readOnly={!canManage} value={val}
-                              onChange={e => handleBlur(e.target.value)}
-                              onBlur={e => handleBlur(e.target.value)}
-                              placeholder="https://"
-                              className={linkInputCls} />
-                            {val && <a href={val} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-blue-400 hover:text-blue-500"><ExternalLink size={13} /></a>}
-                          </div>
-                        ) : (
-                          <input type="text" readOnly={!canManage} value={val}
-                            onChange={e => handleBlur(e.target.value)}
-                            onBlur={e => handleBlur(e.target.value)}
-                            placeholder="-"
-                            className={cls} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* 업무 정보 (PL업무 제외) */}
-        {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
-          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
-          <div className="space-y-2">
-            {metaFields.map(({ key, label, isUrl }) => {
-              const val = localMeta[key] ?? '';
-              return (
-                <div key={key} className="flex items-center gap-2">
-                  <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
-                  <div className="flex-1 flex items-center gap-1 min-w-0">
-                    <input
-                      type={isUrl ? 'url' : 'text'}
-                      readOnly={!canManage}
-                      placeholder={canManage ? (isUrl ? 'https://' : '-') : '-'}
-                      value={val}
-                      onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
-                      onBlur={e => handleMetaBlur(key, e.target.value)}
-                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors"
-                    />
-                    {isUrl && val && (
-                      <a href={val} target="_blank" rel="noopener noreferrer"
-                        className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
-                        <ExternalLink size={13} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>}
-
         {/* 세부업무 & 주차별 시간 */}
         <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">세부업무 & 주차별 시간</p>
@@ -1438,6 +1304,139 @@ export default function TaskDetailPanel({
             </div>
           )}
         </div>
+
+        {/* 커스텀 폼 필드 */}
+        {(() => {
+          const enabledCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
+          const fo = formConfig?.fieldOrder;
+          const cfs = fo?.length
+            ? [...enabledCfs].sort((a, b) => {
+                const ai = fo.indexOf(a.id);
+                const bi = fo.indexOf(b.id);
+                const aIdx = ai === -1 ? Infinity : ai;
+                const bIdx = bi === -1 ? Infinity : bi;
+                return aIdx - bIdx;
+              })
+            : enabledCfs;
+          if (cfs.length === 0) return null;
+          const cls = "w-full text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
+          const linkInputCls = "flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors";
+          return (
+            <div className="px-5 py-3 border-t border-black/[0.08]">
+              <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">추가 정보</p>
+              <div className="space-y-2">
+                {cfs.map(cf => {
+                  const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const handleBlur = (v: string) => {
+                    onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } });
+                  };
+                  const cfType = cf.type as string;
+                  const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+                  const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
+                  let opts = isNameType
+                    ? (cfDepts && teamMembers?.length
+                        ? teamMembers.filter(m => m.department && cfDepts.includes(m.department)).map(m => m.name)
+                        : assignees)
+                    : (cf.options ?? []);
+                  if (cf.dependsOn && cfType === 'select') {
+                    const builtinKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
+                    const pid = cf.dependsOn.fieldId;
+                    const pVal = builtinKeys.includes(pid)
+                      ? String((task as Record<string, unknown>)[pid] ?? '')
+                      : (task.customFields?.[pid] ?? '');
+                    const mapped = pVal ? cf.dependsOn.valueMap[pVal] : undefined;
+                    if (mapped !== undefined) opts = mapped;
+                  }
+                  return (
+                    <div key={cf.id} className="flex items-center gap-2">
+                      <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
+                      <div className="flex-1 min-w-0">
+                        {(isNameType || cfType === 'select') ? (
+                          <div className="relative w-full">
+                            {cfType === 'select' && cf.optionColors?.[val] ? (
+                              <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                                style={{ backgroundColor: cf.optionColors[val].bg, color: cf.optionColors[val].text }}>
+                                <span className="truncate">{val || '-'}</span>
+                                <ChevronDown size={11} className="flex-shrink-0 ml-1.5 opacity-60" />
+                              </div>
+                            ) : (
+                              <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-gray-800 bg-black/[0.07]">
+                                <span className="truncate">{val || '-'}</span>
+                                <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
+                              </div>
+                            )}
+                            <select disabled={!canManage} value={val}
+                              onChange={e => handleBlur(e.target.value)}
+                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
+                              <option value="">-</option>
+                              {opts.map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </div>
+                        ) : cfType === 'date' ? (
+                          <input type="date" readOnly={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            className={cls} />
+                        ) : cfType === 'number' ? (
+                          <input type="number" readOnly={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            onBlur={e => handleBlur(e.target.value)}
+                            className={cls} />
+                        ) : cfType === 'link' ? (
+                          <div className="flex items-center gap-px">
+                            <input type="url" readOnly={!canManage} value={val}
+                              onChange={e => handleBlur(e.target.value)}
+                              onBlur={e => handleBlur(e.target.value)}
+                              placeholder="https://"
+                              className={linkInputCls} />
+                            {val && <a href={val} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-blue-400 hover:text-blue-500"><ExternalLink size={13} /></a>}
+                          </div>
+                        ) : (
+                          <input type="text" readOnly={!canManage} value={val}
+                            onChange={e => handleBlur(e.target.value)}
+                            onBlur={e => handleBlur(e.target.value)}
+                            placeholder="-"
+                            className={cls} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 업무 정보 (PL업무 제외) */}
+        {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
+          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
+          <div className="space-y-2">
+            {metaFields.map(({ key, label, isUrl }) => {
+              const val = localMeta[key] ?? '';
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
+                  <div className="flex-1 flex items-center gap-1 min-w-0">
+                    <input
+                      type={isUrl ? 'url' : 'text'}
+                      readOnly={!canManage}
+                      placeholder={canManage ? (isUrl ? 'https://' : '-') : '-'}
+                      value={val}
+                      onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
+                      onBlur={e => handleMetaBlur(key, e.target.value)}
+                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors"
+                    />
+                    {isUrl && val && (
+                      <a href={val} target="_blank" rel="noopener noreferrer"
+                        className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>}
 
         <div className="h-6" />
       </div>

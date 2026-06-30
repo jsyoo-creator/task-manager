@@ -2710,6 +2710,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
   const [editingPartName, setEditingPartName] = useState('');
   const [editingPartColor, setEditingPartColor] = useState(PART_COLORS[0].cls);
+  const [editingPartDepts, setEditingPartDepts] = useState<Department[]>([]);
   const [dragOverTeamId, setDragOverTeamId] = useState<string | null>(null);
   const [draggingTeamId, setDraggingTeamId] = useState<string | null>(null);
   const dragTeamIdRef = useRef<string | null>(null);
@@ -2740,7 +2741,9 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const updated = team.parts.map(p =>
-      p.id === editingPartId ? { ...p, name: editingPartName.trim(), color: editingPartColor } : p
+      p.id === editingPartId
+        ? { ...p, name: editingPartName.trim(), color: editingPartColor, departments: editingPartDepts.length ? editingPartDepts : undefined }
+        : p
     );
     await onSetParts(team.id, updated);
     setEditingPartId(null);
@@ -2929,7 +2932,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                         <div className="flex flex-wrap gap-2">
                           {team.parts.map(p => (
                             editingPartId === p.id ? (
-                              <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs">
+                              <div key={p.id} className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs">
                                 <div className="flex gap-1">
                                   {PART_COLORS.map(c => (
                                     <button key={c.cls} type="button" onClick={() => setEditingPartColor(c.cls)}
@@ -2942,6 +2945,15 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                                   autoFocus
                                   className="text-xs px-1.5 py-0.5 rounded border border-blue-300 bg-white focus:outline-none w-24 text-gray-900"
                                 />
+                                <div className="flex gap-1">
+                                  {(['기획','디자인','퍼블'] as Department[]).map(d => (
+                                    <button key={d} type="button"
+                                      onClick={() => setEditingPartDepts(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${editingPartDepts.includes(d) ? DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
+                                      {d}
+                                    </button>
+                                  ))}
+                                </div>
                                 <button onClick={() => handleSavePartEdit(team)}
                                   className="text-blue-500 hover:text-blue-700 transition-colors">
                                   <Check size={11} />
@@ -2955,7 +2967,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                               <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/8 text-xs group">
                                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
                                 <span className="text-gray-700 font-medium">{p.name}</span>
-                                <button onClick={() => { setEditingPartId(p.id); setEditingPartName(p.name); setEditingPartColor(p.color); }}
+                                <button onClick={() => { setEditingPartId(p.id); setEditingPartName(p.name); setEditingPartColor(p.color); setEditingPartDepts(p.departments ?? []); }}
                                   className="text-gray-300 hover:text-blue-400 transition-colors">
                                   <Pencil size={9} />
                                 </button>

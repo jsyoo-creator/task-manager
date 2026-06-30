@@ -56,6 +56,7 @@ export interface TeamPart {
   id: string;
   name: string;
   color: string; // tailwind bg class e.g. 'bg-red-500'
+  departments?: Department[]; // 파트에 연결된 직군 — 담당자/접수자 드롭다운 필터링용
   formConfig?: TeamFormConfig; // 파트별 별도 폼 설정 (없으면 팀 기본 상속)
   metaFields?: MetaField[]; // 파트별 업무 정보 필드 (없으면 팀 기본 상속)
   subTaskTypes?: SubTaskType[]; // 파트별 세부 업무 목록 (없으면 팀 기본 상속)

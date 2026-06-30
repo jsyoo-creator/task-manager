@@ -136,7 +136,11 @@ function App() {
           : u.selectedTeamIds?.includes(selectedTeam.id)
       ).map(u => ({ name: u.displayName, department: u.department }))
     : [];
-  const teamAssignees = teamMembers.map(m => m.name);
+  // 파트에 직군이 연결된 경우 해당 직군 팀원만 표시
+  const filteredTeamMembers = activePart?.departments?.length
+    ? teamMembers.filter(m => m.department && activePart.departments!.includes(m.department))
+    : teamMembers;
+  const teamAssignees = filteredTeamMembers.map(m => m.name);
 
   // 휴가 표시용: defaultTeamId 기준, 미설정 시 selectedTeamIds 폴백
   const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
@@ -395,7 +399,7 @@ function App() {
                 canDelete={permissions.canDeleteTasks}
                 parts={activeParts}
                 assignees={teamAssignees}
-                teamMembers={teamMembers}
+                teamMembers={filteredTeamMembers}
                 formConfig={effectiveFormConfig}
                 builtinFields={resolveBuiltinFields(effectiveFormConfig)}
                 metaFields={selectedTeam?.metaFields}

@@ -2707,6 +2707,9 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  const [editingPartName, setEditingPartName] = useState('');
+  const [editingPartColor, setEditingPartColor] = useState(PART_COLORS[0].cls);
   const [dragOverTeamId, setDragOverTeamId] = useState<string | null>(null);
   const [draggingTeamId, setDraggingTeamId] = useState<string | null>(null);
   const dragTeamIdRef = useRef<string | null>(null);
@@ -2732,6 +2735,15 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
 
   const handleDeletePart = async (team: Team, partId: string) => {
     await onSetParts(team.id, team.parts.filter(p => p.id !== partId));
+  };
+
+  const handleSavePartEdit = async (team: Team) => {
+    if (!editingPartId || !editingPartName.trim()) return;
+    const updated = team.parts.map(p =>
+      p.id === editingPartId ? { ...p, name: editingPartName.trim(), color: editingPartColor } : p
+    );
+    await onSetParts(team.id, updated);
+    setEditingPartId(null);
   };
 
   return (
@@ -2916,14 +2928,43 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                       {team.parts.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {team.parts.map(p => (
-                            <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/8 text-xs">
-                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
-                              <span className="text-gray-700 font-medium">{p.name}</span>
-                              <button onClick={() => handleDeletePart(team, p.id)}
-                                className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
-                                <X size={10} />
-                              </button>
-                            </div>
+                            editingPartId === p.id ? (
+                              <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs">
+                                <div className="flex gap-1">
+                                  {PART_COLORS.map(c => (
+                                    <button key={c.cls} type="button" onClick={() => setEditingPartColor(c.cls)}
+                                      className={`w-4 h-4 rounded-full transition-all ${c.cls} ${editingPartColor === c.cls ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'opacity-60 hover:opacity-100'}`} />
+                                  ))}
+                                </div>
+                                <input
+                                  value={editingPartName} onChange={e => setEditingPartName(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') handleSavePartEdit(team); if (e.key === 'Escape') setEditingPartId(null); }}
+                                  autoFocus
+                                  className="text-xs px-1.5 py-0.5 rounded border border-blue-300 bg-white focus:outline-none w-24 text-gray-900"
+                                />
+                                <button onClick={() => handleSavePartEdit(team)}
+                                  className="text-blue-500 hover:text-blue-700 transition-colors">
+                                  <Check size={11} />
+                                </button>
+                                <button onClick={() => setEditingPartId(null)}
+                                  className="text-gray-300 hover:text-gray-500 transition-colors">
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div key={p.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-black/8 text-xs group">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                                <span className="text-gray-700 font-medium">{p.name}</span>
+                                <button onClick={() => { setEditingPartId(p.id); setEditingPartName(p.name); setEditingPartColor(p.color); }}
+                                  className="text-gray-300 hover:text-blue-400 transition-colors">
+                                  <Pencil size={9} />
+                                </button>
+                                <button onClick={() => handleDeletePart(team, p.id)}
+                                  className="text-gray-300 hover:text-red-400 transition-colors">
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            )
                           ))}
                         </div>
                       )}

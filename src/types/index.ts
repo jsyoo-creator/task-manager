@@ -311,7 +311,8 @@ export interface PLSubTaskField {
   id: string;
   name: string;
   fieldType: PLSubTaskFieldType;
-  department?: Department;
+  department?: Department;    // 구버전 호환
+  departments?: Department[]; // 복수 직군 선택 (신버전)
 }
 
 export interface PLMainTaskType {

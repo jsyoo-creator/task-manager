@@ -857,9 +857,10 @@ export default function TaskDetailPanel({
                 const isSubstituteUser = !!entry.substitute && entry.substitute === currentUserName;
                 const canEditSubstituteHours = isSubstituteUser || canSeeAll;
 
-                // 직군에 맞는 담당자 필터링
-                const filtered = type.department && teamMembers?.length
-                  ? teamMembers.filter(m => m.department === type.department).map(m => m.name)
+                // 직군에 맞는 담당자 필터링 (복수 직군 지원)
+                const typeDepts = resolveFieldDepts(type);
+                const filtered = typeDepts && teamMembers?.length
+                  ? teamMembers.filter(m => m.department && typeDepts.includes(m.department)).map(m => m.name)
                   : null;
                 const displayAssignees = (filtered && filtered.length > 0) ? filtered : assignees;
 
@@ -927,11 +928,9 @@ export default function TaskDetailPanel({
                     <div key={type.id} className="rounded-xl bg-gray-50 p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{type.name}</span>
-                        {type.department && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${DEPT_BADGE[type.department] ?? ''}`}>
-                            {type.department}
-                          </span>
-                        )}
+                        {resolveFieldDepts(type)?.map(d => (
+                          <span key={d} className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${DEPT_BADGE[d] ?? ''}`}>{d}</span>
+                        ))}
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium flex-shrink-0">검수</span>
                         {checked.length > 0 && (
                           <span className="text-[10px] text-gray-400">{checked.length}/{items.length}</span>
@@ -1103,11 +1102,9 @@ export default function TaskDetailPanel({
                     {/* 헤더: 이름 + 직군 배지 + 상태 + 담당자 + 총시간 */}
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{type.name}</span>
-                      {type.department && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${DEPT_BADGE[type.department] ?? ''}`}>
-                          {type.department}
-                        </span>
-                      )}
+                      {resolveFieldDepts(type)?.map(d => (
+                        <span key={d} className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${DEPT_BADGE[d] ?? ''}`}>{d}</span>
+                      ))}
                       {/* 세부업무 상태 선택 */}
                       {(() => {
                         const subKey = (entry.status ?? '진행 전') as TaskStatus;

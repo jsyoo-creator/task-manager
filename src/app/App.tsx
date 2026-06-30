@@ -480,7 +480,7 @@ function App() {
               const plMainType = (selectedTeam?.plMainTaskTypes ?? []).find(m =>
                 detailTask.plSelectedTypes?.includes(m.id)
               );
-              return (plMainType?.subFields ?? []).map(f => ({ id: f.id, name: f.name, department: f.department, plFieldType: f.fieldType }));
+              return (plMainType?.subFields ?? []).map(f => ({ id: f.id, name: f.name, department: f.department, departments: f.departments, plFieldType: f.fieldType }));
             }
             return taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
           })();

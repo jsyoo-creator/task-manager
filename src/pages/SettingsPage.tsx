@@ -2098,7 +2098,7 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
   const [nameInput, setNameInput] = useState('');
   const [newName, setNewName] = useState('');
   const [newFieldType, setNewFieldType] = useState<PLSubTaskFieldType>('text');
-  const [newDept, setNewDept] = useState<Department | ''>('');
+  const [newDepts, setNewDepts] = useState<Department[]>([]);
   const dragIdxRef = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -2111,13 +2111,20 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
     setEditingId(null);
   };
   const toggleFieldType = (id: string) => save(fields.map(f => f.id === id ? { ...f, fieldType: f.fieldType === 'text' ? 'review' : 'text' } : f));
-  const toggleDept = (id: string, dept: Department) => save(fields.map(f => f.id === id ? { ...f, department: f.department === dept ? undefined : dept } : f));
+  const toggleDept = (id: string, dept: Department) => {
+    save(fields.map(f => {
+      if (f.id !== id) return f;
+      const cur = (f.departments?.length ? f.departments : f.department ? [f.department] : []);
+      const next = cur.includes(dept) ? cur.filter(d => d !== dept) : [...cur, dept];
+      return { ...f, departments: next.length ? next : undefined, department: undefined };
+    }));
+  };
   const deleteField = (id: string) => save(fields.filter(f => f.id !== id));
   const addField = () => {
     const name = newName.trim();
     if (!name) return;
-    save([...fields, { id: `plf_${Date.now()}`, name, fieldType: newFieldType, department: newDept || undefined }]);
-    setNewName(''); setNewDept('');
+    save([...fields, { id: `plf_${Date.now()}`, name, fieldType: newFieldType, departments: newDepts.length ? newDepts : undefined }]);
+    setNewName(''); setNewDepts([]);
   };
   const onDrop = (toIdx: number) => {
     const from = dragIdxRef.current;
@@ -2160,12 +2167,15 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
                 {PL_FIELD_TYPE_LABEL[f.fieldType]}
               </button>
               <div className="flex items-center gap-0.5 flex-shrink-0">
-                {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-                  <button key={d} type="button" onClick={() => toggleDept(f.id, d)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${f.department === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
-                    {d}
-                  </button>
-                ))}
+                {(['기획', '디자인', '퍼블'] as Department[]).map(d => {
+                  const cur = f.departments?.length ? f.departments : f.department ? [f.department] : [];
+                  return (
+                    <button key={d} type="button" onClick={() => toggleDept(f.id, d)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${cur.includes(d) ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
+                      {d}
+                    </button>
+                  );
+                })}
               </div>
               <button type="button" onClick={() => deleteField(f.id)} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
             </div>
@@ -2182,8 +2192,9 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
         </button>
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-            <button key={d} type="button" onClick={() => setNewDept(p => p === d ? '' : d)}
-              className={`text-[10px] px-1.5 py-1 rounded-md font-medium ${newDept === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
+            <button key={d} type="button"
+              onClick={() => setNewDepts(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])}
+              className={`text-[10px] px-1.5 py-1 rounded-md font-medium ${newDepts.includes(d) ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
               {d}
             </button>
           ))}

@@ -136,11 +136,6 @@ function App() {
           : u.selectedTeamIds?.includes(selectedTeam.id)
       ).map(u => ({ name: u.displayName, department: u.department }))
     : [];
-  // 파트에 직군이 연결된 경우 해당 직군 팀원만 표시
-  const filteredTeamMembers = activePart?.departments?.length
-    ? teamMembers.filter(m => m.department && activePart.departments!.includes(m.department))
-    : teamMembers;
-  const teamAssignees = filteredTeamMembers.map(m => m.name);
 
   // 휴가 표시용: defaultTeamId 기준, 미설정 시 selectedTeamIds 폴백
   const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
@@ -155,6 +150,11 @@ function App() {
   const activePart = activeCategory !== 'all'
     ? activeParts.find(p => p.name === activeCategory)
     : undefined;
+  // 파트에 직군이 연결된 경우 해당 직군 팀원만 표시
+  const filteredTeamMembers = activePart?.departments?.length
+    ? teamMembers.filter(m => m.department && activePart.departments!.includes(m.department))
+    : teamMembers;
+  const teamAssignees = filteredTeamMembers.map(m => m.name);
   // 파트 formConfig가 있으면 사용하되, 팀 레벨의 department/departments 설정을 필드별로 fallback 병합
   // 'all' 뷰: allFormConfig(전체 설정)가 있으면 팀 기본 위에 덮어씀
   const effectiveFormConfig = useMemo(() => {

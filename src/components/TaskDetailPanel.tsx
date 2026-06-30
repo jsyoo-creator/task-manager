@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
-import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts } from '../types';
+import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls } from '../types';
 import DatePicker from './DatePicker';
 
 const PANEL_W = 540;
@@ -527,7 +527,7 @@ export default function TaskDetailPanel({
                             <span className="truncate">{task.category || '-'}</span><ChevronDown size={9} />
                           </div>
                         ) : (
-                          <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium text-white cursor-pointer ${partDotColor}`}>
+                          <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer ${partBadgeCls(partDotColor)}`}>
                             <span className="truncate">{task.category || '-'}</span>
                             <ChevronDown size={9} className="flex-shrink-0" />
                           </div>
@@ -547,7 +547,7 @@ export default function TaskDetailPanel({
                           {task.category || '-'}
                         </span>
                       ) : (
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium text-white ${partDotColor}`}>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium ${partBadgeCls(partDotColor)}`}>
                           {task.category || '-'}
                         </span>
                       )

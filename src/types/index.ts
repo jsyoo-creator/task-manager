@@ -479,3 +479,18 @@ export interface Vacation {
   days: number;
   createdAt: string;
 }
+
+const PART_BADGE_MAP: Record<string, string> = {
+  'bg-red-500':    'bg-red-100 text-red-700',
+  'bg-orange-400': 'bg-orange-100 text-orange-700',
+  'bg-yellow-400': 'bg-yellow-100 text-yellow-700',
+  'bg-green-500':  'bg-green-100 text-green-700',
+  'bg-teal-500':   'bg-teal-100 text-teal-700',
+  'bg-blue-500':   'bg-blue-100 text-blue-700',
+  'bg-indigo-500': 'bg-indigo-100 text-indigo-700',
+  'bg-purple-500': 'bg-purple-100 text-purple-700',
+  'bg-pink-500':   'bg-pink-100 text-pink-700',
+  'bg-gray-400':   'bg-gray-100 text-gray-600',
+};
+export const partBadgeCls = (colorCls: string): string =>
+  PART_BADGE_MAP[colorCls] ?? 'bg-gray-100 text-gray-700';

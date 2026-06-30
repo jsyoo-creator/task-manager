@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -1338,7 +1338,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       <ChevronDown size={10} className="flex-shrink-0 ml-1" />
                     </div>
                   ) : (
-                    <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium text-white ${partColor(task.category)}`}>
+                    <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium ${partBadgeCls(partColor(task.category))}`}>
                       <span className="truncate">{task.category || '-'}</span>
                       <ChevronDown size={10} className="flex-shrink-0 ml-1" />
                     </div>
@@ -1357,7 +1357,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             }
             return [
               <div key="category" className="relative flex items-center min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium text-white ${partColor(task.category)}`}>
+                <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium ${partBadgeCls(partColor(task.category))}`}>
                   <span className="truncate">{task.category}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 ml-1" />}
                 </div>

@@ -386,6 +386,18 @@ export interface ExcelFieldConfig {
   exportExcluded?: boolean; // true면 내보내기에서 제외 (가져오기는 유지)
 }
 
+export type WeeklyColumnType = 'new' | 'derived' | 'other' | 'hours' | 'desc' | 'empty';
+
+export interface WeeklyColumnDef {
+  id: string;
+  type: WeeklyColumnType;
+  enabled: boolean;
+}
+
+export interface WeeklyExportConfig {
+  columns: WeeklyColumnDef[];
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -401,6 +413,7 @@ export interface Team {
   plMainTaskTypes?: PLMainTaskType[]; // PL업무 메인 업무 항목 목록
   holidays?: CustomHoliday[];
   excelConfig?: ExcelFieldConfig[];
+  weeklyExportConfig?: WeeklyExportConfig;
 }
 
 export interface SubTask {

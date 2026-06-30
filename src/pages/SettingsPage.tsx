@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig } from '../types';
 import { resolvePLMainDepts } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig } from '../types';
@@ -2456,6 +2456,154 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
   );
 }
 
+// ──────────────────────────────────────────
+// 위클리 내보내기 컬럼 관리
+// ──────────────────────────────────────────
+const WEEKLY_COL_LABELS: Record<string, string> = {
+  new: '신규 (0/1)',
+  derived: '파생 (0/1)',
+  other: '기타 (0/1)',
+  hours: '업무시간',
+  desc: '업무설명',
+  empty: '빈칸',
+};
+
+const DEFAULT_WEEKLY_EXPORT_COLS: WeeklyColumnDef[] = [
+  { id: 'new', type: 'new', enabled: true },
+  { id: 'derived', type: 'derived', enabled: true },
+  { id: 'other', type: 'other', enabled: true },
+  { id: 'hours', type: 'hours', enabled: true },
+  { id: 'empty_1', type: 'empty', enabled: true },
+  { id: 'empty_2', type: 'empty', enabled: true },
+  { id: 'desc', type: 'desc', enabled: true },
+];
+
+function WeeklyExportManager({ team, onSave }: {
+  team: Team;
+  onSave: (cfg: WeeklyExportConfig) => Promise<void>;
+}) {
+  const [cols, setCols] = useState<WeeklyColumnDef[]>(
+    () => team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS
+  );
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+
+  useEffect(() => {
+    setCols(team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS);
+  }, [team.id, team.weeklyExportConfig]);
+
+  const doSave = async (next: WeeklyColumnDef[]) => {
+    setSaving(true);
+    await onSave({ columns: next });
+    setSaving(false);
+    setFlash('saved');
+    setTimeout(() => setFlash(null), 1500);
+  };
+
+  const toggle = (id: string) => {
+    const next = cols.map(c => c.id === id ? { ...c, enabled: !c.enabled } : c);
+    setCols(next);
+    doSave(next);
+  };
+
+  const handleDrop = (toIdx: number) => {
+    if (dragIdx === null || dragIdx === toIdx) return;
+    const next = [...cols];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setCols(next);
+    setDragIdx(null); setDragOverIdx(null);
+    doSave(next);
+  };
+
+  const addEmpty = () => {
+    const existingIds = cols.map(c => c.id);
+    let n = 1;
+    while (existingIds.includes(`empty_${n}`)) n++;
+    const next = [...cols, { id: `empty_${n}`, type: 'empty' as const, enabled: true }];
+    setCols(next);
+    doSave(next);
+  };
+
+  const removeCol = (id: string) => {
+    const next = cols.filter(c => c.id !== id);
+    setCols(next);
+    doSave(next);
+  };
+
+  const resetToDefault = () => {
+    setCols(DEFAULT_WEEKLY_EXPORT_COLS);
+    doSave(DEFAULT_WEEKLY_EXPORT_COLS);
+    setFlash('reset');
+    setTimeout(() => setFlash(null), 1500);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500">드래그로 순서 변경 · 토글로 포함/제외 설정</p>
+        <div className="flex items-center gap-2">
+          {flash && (
+            <span className={`text-[10px] font-medium ${flash === 'saved' ? 'text-green-500' : 'text-blue-500'}`}>
+              {flash === 'saved' ? '저장됨' : '초기화됨'}
+            </span>
+          )}
+          <button onClick={resetToDefault}
+            className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
+            <RotateCcw size={10} />초기화
+          </button>
+          <button onClick={addEmpty}
+            className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 transition-colors font-medium">
+            <Plus size={10} />빈칸 추가
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {cols.map((col, idx) => (
+          <div
+            key={col.id}
+            draggable
+            onDragStart={() => setDragIdx(idx)}
+            onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
+            onDragLeave={() => setDragOverIdx(null)}
+            onDrop={() => handleDrop(idx)}
+            onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
+              dragOverIdx === idx ? 'border-blue-300 bg-blue-50' : 'border-black/8 bg-white'
+            } ${!col.enabled ? 'opacity-40' : ''}`}
+          >
+            <GripVertical size={13} className="text-gray-300 flex-shrink-0" />
+            <span className="text-xs flex-1 text-gray-700">{WEEKLY_COL_LABELS[col.type] ?? col.type}</span>
+            {col.type === 'empty' && (
+              <button onClick={() => removeCol(col.id)}
+                className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                <X size={12} />
+              </button>
+            )}
+            <button
+              onClick={() => toggle(col.id)}
+              className={`w-8 h-4 rounded-full transition-colors flex-shrink-0 relative ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
+            >
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${col.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-1">
+        <p className="text-[10px] text-gray-400">
+          미리보기: {cols.filter(c => c.enabled).map(c => WEEKLY_COL_LABELS[c.type] ?? '빈칸').join(' | ')}
+        </p>
+      </div>
+
+      {saving && <p className="text-[10px] text-gray-400">저장 중...</p>}
+    </div>
+  );
+}
+
 function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -2701,7 +2849,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'pl' | 'excel'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'pl' | 'excel' | 'weekly'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -2912,7 +3060,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5">
-                    {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel', 'weekly'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -2920,7 +3068,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'pl' ? 'PL업무' : '엑셀 관리'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : '위클리 관리'}
                       </button>
                     ))}
                   </div>
@@ -3053,6 +3201,13 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                   {(teamTab[team.id] ?? 'parts') === 'excel' && (
                     <div className="px-5 py-4">
                       <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} onSavePart={onUpdatePartExcelConfig} onClearPart={onClearPartExcelConfig} />
+                    </div>
+                  )}
+
+                  {/* 위클리 관리 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'weekly' && (
+                    <div className="px-5 py-4">
+                      <WeeklyExportManager team={team} onSave={cfg => onUpdateTeam(team.id, { weeklyExportConfig: cfg })} />
                     </div>
                   )}
 

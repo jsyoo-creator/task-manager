@@ -1,8 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
+
+const DEFAULT_WEEKLY_COLS: WeeklyColumnDef[] = [
+  { id: 'new', type: 'new', enabled: true },
+  { id: 'derived', type: 'derived', enabled: true },
+  { id: 'other', type: 'other', enabled: true },
+  { id: 'hours', type: 'hours', enabled: true },
+  { id: 'empty_1', type: 'empty', enabled: true },
+  { id: 'empty_2', type: 'empty', enabled: true },
+  { id: 'desc', type: 'desc', enabled: true },
+];
 
 interface Props {
   tasks: Task[];
@@ -16,6 +26,7 @@ interface Props {
   vacations?: Vacation[];
   currentUserName?: string;
   canSeeAll?: boolean;
+  weeklyExportConfig?: WeeklyExportConfig;
 }
 
 const TW_TO_HEX: Record<string, string> = {
@@ -144,7 +155,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false }: Props) {
+export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const { start, end, weekNum, now, weekdays } = useMemo(getWeekBounds, []);
   const { holidays: publicHolidays } = usePublicHolidays(now.getFullYear());
@@ -310,6 +321,17 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
           {personData.map(({ person, groups, totalH, vacH, vacEntries }) => {
             const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
+              const activeCols = (weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
+              const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string }) =>
+                activeCols.map(col => {
+                  if (col.type === 'new') return vals.isNew;
+                  if (col.type === 'derived') return vals.isDerived;
+                  if (col.type === 'other') return vals.isOther;
+                  if (col.type === 'hours') return vals.taskH;
+                  if (col.type === 'desc') return vals.desc;
+                  return '';
+                }).join('\t');
+
               const rows = groups.map(({ task, subs, taskH, isSubstitute }) => {
                 const isNew      = task.plTask ? 0 : (task.type === '신규'  ? 1 : 0);
                 const isDerived  = task.plTask ? 0 : (task.type === '파생'  ? 1 : 0);
@@ -330,11 +352,11 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const desc = lines.length > 1
                   ? `"${lines.join('\n').replace(/"/g, '""')}"`
                   : lines[0];
-                return [isNew, isDerived, isOther, taskH, '', '', desc].join('\t');
+                return buildRow({ isNew, isDerived, isOther, taskH, desc });
               });
               if (vacH > 0) {
                 const vacLines = vacEntries.map(e => `※ ${e.type} ${e.dateStr}`).join('\n');
-                rows.push([0, 0, 0, 0, '', '', `"${vacLines}"`].join('\t'));
+                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"` }));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);

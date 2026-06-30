@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef } from '../types';
+import { resolvePLMainDepts } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -2203,7 +2204,7 @@ function PLMainTaskTypesEditor({ team, onSave }: {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const [newName, setNewName] = useState('');
-  const [newDept, setNewDept] = useState<Department | ''>('');
+  const [newDepts, setNewDepts] = useState<Department[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
@@ -2230,7 +2231,12 @@ function PLMainTaskTypesEditor({ team, onSave }: {
   };
 
   const toggleDept = (id: string, dept: Department) => {
-    save(types.map(t => t.id === id ? { ...t, department: t.department === dept ? undefined : dept } : t));
+    save(types.map(t => {
+      if (t.id !== id) return t;
+      const cur = resolvePLMainDepts(t);
+      const next = cur.includes(dept) ? cur.filter(d => d !== dept) : [...cur, dept];
+      return { ...t, departments: next.length ? next : undefined, department: undefined };
+    }));
   };
 
   const deleteType = (id: string) => save(types.filter(t => t.id !== id));
@@ -2243,8 +2249,8 @@ function PLMainTaskTypesEditor({ team, onSave }: {
     const name = newName.trim();
     if (!name) return;
     const newId = `pl_${Date.now()}`;
-    save([...types, { id: newId, name, department: newDept || undefined }]);
-    setNewName(''); setNewDept('');
+    save([...types, { id: newId, name, departments: newDepts.length ? newDepts : undefined }]);
+    setNewName(''); setNewDepts([]);
     setExpandedId(newId);
   };
 
@@ -2302,7 +2308,7 @@ function PLMainTaskTypesEditor({ team, onSave }: {
                     {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
                       <button key={d} type="button" onClick={() => toggleDept(t.id, d)}
                         className={`text-[10px] px-1.5 py-px rounded font-medium transition-colors ${
-                          t.department === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                          resolvePLMainDepts(t).includes(d) ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                         }`}>
                         {d}
                       </button>
@@ -2334,9 +2340,10 @@ function PLMainTaskTypesEditor({ team, onSave }: {
             onKeyDown={e => e.key === 'Enter' && addType()} />
           <div className="flex items-center gap-0.5 flex-shrink-0">
             {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-              <button key={d} type="button" onClick={() => setNewDept(prev => prev === d ? '' : d)}
+              <button key={d} type="button"
+                onClick={() => setNewDepts(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])}
                 className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
-                  newDept === d ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                  newDepts.includes(d) ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
                 }`}>
                 {d}
               </button>

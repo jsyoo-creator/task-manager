@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, TeamFormConfig, BuiltinFieldKey, Department, PLMainTaskType } from '../types';
-import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts, mergeFormConfig } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs, resolveFieldDepts, mergeFormConfig, resolvePLMainDepts } from '../types';
 import DatePicker from './DatePicker';
 
 interface Props {
@@ -316,9 +316,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                             : 'border-gray-300 text-transparent'
                         }`}>✓</span>
                         <span className={`text-xs flex-1 ${checked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{t.name}</span>
-                        {t.department && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium flex-shrink-0">{t.department}</span>
-                        )}
+                        {resolvePLMainDepts(t).map(d => (
+                          <span key={d} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium flex-shrink-0">{d}</span>
+                        ))}
                       </button>
                     );
                   })}

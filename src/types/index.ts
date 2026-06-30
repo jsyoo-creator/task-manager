@@ -317,8 +317,16 @@ export interface PLSubTaskField {
 export interface PLMainTaskType {
   id: string;
   name: string;
-  department?: Department;
+  department?: Department;      // 구버전 호환
+  departments?: Department[];   // 복수 직군 선택 (신버전)
   subFields?: PLSubTaskField[]; // 이 메인업무의 세부업무 필드 목록
+}
+
+/** PLMainTaskType의 직군 목록 반환. 구버전 department 단일값도 처리. */
+export function resolvePLMainDepts(t: { department?: Department; departments?: Department[] }): Department[] {
+  if (t.departments?.length) return t.departments;
+  if (t.department) return [t.department];
+  return [];
 }
 
 export const DEFAULT_META_FIELDS: MetaField[] = [

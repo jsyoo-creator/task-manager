@@ -418,11 +418,9 @@ export default function TaskDetailPanel({
     onUpdate(task.id, { subTaskData: finalNext, totalHours });
   };
 
-  const handleDelete = () => {
-    if (!confirm(`"${task.title}" 업무를 삭제하시겠습니까?`)) return;
-    handleClose();
-    setTimeout(() => onDelete(task.id), 300);
-  };
+  const [pendingDeleteTask, setPendingDeleteTask] = useState(false);
+
+  const handleDelete = () => setPendingDeleteTask(true);
 
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
 
@@ -1574,6 +1572,17 @@ export default function TaskDetailPanel({
       )}
     </div>
     </div>
+
+    <ConfirmDialog
+      open={pendingDeleteTask}
+      taskTitle={task.title}
+      onConfirm={() => {
+        setPendingDeleteTask(false);
+        handleClose();
+        setTimeout(() => onDelete(task.id), 300);
+      }}
+      onCancel={() => setPendingDeleteTask(false)}
+    />
 
     <ConfirmDialog
       open={!!pendingDeleteSubTask}

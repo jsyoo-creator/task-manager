@@ -503,7 +503,7 @@ export default function TaskDetailPanel({
           {/* 행 2: 파트 / 담당자(접수자) / 접수자(담당자) — formConfig 순서 반영 */}
           {(() => {
             const categoryFc = builtinFields.find(f => f.key === 'category');
-            const isCustomCategory = categoryFc?.customType === 'select' && !!categoryFc.options?.length;
+            const isCustomCategory = categoryFc?.customType === 'select' && !!categoryFc.options?.length && parts.length === 0;
             const showCategory = (parts.length > 0 || isCustomCategory) && bfVisible('category');
             const showReceiverCol = bfVisible('receiver');
             const showAssigneeCol = bfVisible('assignee');

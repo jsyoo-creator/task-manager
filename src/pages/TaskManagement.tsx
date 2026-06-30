@@ -1327,7 +1327,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             </button>,
           ];
           if (fc.key === 'category') {
-            if (fc.customType === 'select' && fc.options?.length) {
+            if (fc.customType === 'select' && fc.options?.length && !(parts && parts.length > 0)) {
               const custColor = fc.optionColors?.[task.category];
               return [
                 <div key="category" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>

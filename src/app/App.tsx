@@ -128,9 +128,13 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
+  // 담당자 목록: defaultTeamId가 현재 팀인 사람 우선, 미설정 시 selectedTeamIds 폴백
   const teamMembers = selectedTeam
-    ? allUsers.filter(u => u.selectedTeamIds?.includes(selectedTeam.id))
-        .map(u => ({ name: u.displayName, department: u.department }))
+    ? allUsers.filter(u =>
+        u.defaultTeamId
+          ? u.defaultTeamId === selectedTeam.id
+          : u.selectedTeamIds?.includes(selectedTeam.id)
+      ).map(u => ({ name: u.displayName, department: u.department }))
     : [];
   const teamAssignees = teamMembers.map(m => m.name);
 

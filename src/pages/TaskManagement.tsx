@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig } from '../types';
@@ -612,8 +612,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     });
   };
 
-  const isTaskVisible = (t: Task): boolean => {
-    if (canSeeAll) return true;
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
+
+  const isMyTask = (t: Task): boolean => {
+    if (!currentUserName) return false;
     if (t.assignee === currentUserName) return true;
     if (t.receiver === currentUserName) return true;
     return !!t.subTaskData && Object.values(t.subTaskData).some(
@@ -623,8 +625,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
-    if (!canSeeAll && !isTaskVisible(t)) return false;
-    if (canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
+    if (myTasksOnly && !isMyTask(t)) return false;
+    if (!myTasksOnly && canSeeAll && assigneeFilter !== '전체' && t.assignee !== assigneeFilter) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
       if (t.taskMonth) return t.taskMonth === prefix;
@@ -858,12 +860,23 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
-        {canSeeAll && (
+        {canSeeAll && !myTasksOnly && (
           <FilterSelect label={bLabel('assignee', '담당자')} value={assigneeFilter} onChange={v => setAssigneeFilter(v)}>
             <option>전체</option>
             {assignees.map(a => <option key={a}>{a}</option>)}
           </FilterSelect>
         )}
+        <button
+          onClick={() => { setMyTasksOnly(o => !o); setAssigneeFilter('전체'); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            myTasksOnly
+              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+              : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-indigo-600'
+          }`}
+        >
+          <User size={11} />
+          내 업무만
+        </button>
         <div className="flex-1" />
         <span className="text-xs text-gray-400">총 {filtered.length}건</span>
       </div>

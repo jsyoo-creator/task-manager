@@ -272,8 +272,18 @@ export function mergeAllPartsConfig(parts: { formConfig?: TeamFormConfig }[], te
       if (!seenCfIds.has(cf.id)) { seenCfIds.add(cf.id); mergedCustoms.push(cf); }
     }
   }
-  // teamConfig의 fieldOrder를 우선, 없으면 파트 중 첫 번째 fieldOrder 사용
-  const fieldOrder = teamConfig?.fieldOrder ?? parts.find(p => p.formConfig?.fieldOrder?.length)?.formConfig?.fieldOrder;
+  // teamConfig의 fieldOrder를 우선. 없으면 모든 파트의 fieldOrder가 동일할 때만 사용.
+  // 파트마다 fieldOrder가 다르면 undefined → resolveBuiltinFields에서 DEFAULT 순서 적용.
+  let fieldOrder: string[] | undefined = teamConfig?.fieldOrder;
+  if (!fieldOrder) {
+    const allOrders = parts
+      .filter(p => p.formConfig?.fieldOrder?.length)
+      .map(p => p.formConfig!.fieldOrder!);
+    if (allOrders.length > 0) {
+      const first = JSON.stringify(allOrders[0]);
+      fieldOrder = allOrders.every(o => JSON.stringify(o) === first) ? allOrders[0] : undefined;
+    }
+  }
   return { builtinFields: mergedBuiltins, customFields: mergedCustoms, ...(fieldOrder ? { fieldOrder } : {}) };
 }
 

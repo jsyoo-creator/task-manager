@@ -257,6 +257,7 @@ export default function TaskDetailPanel({
   localSubTaskDataRef.current = localSubTaskData;
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
   const [pendingDeleteSubTask, setPendingDeleteSubTask] = useState<{ id: string; name: string } | null>(null);
+  const [deletedSubTaskIds, setDeletedSubTaskIds] = useState<Set<string>>(new Set());
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -274,6 +275,7 @@ export default function TaskDetailPanel({
     setTitle(task.title);
     setLocalMeta(task.customFields ?? {});
     setLocalSubTaskData(task.subTaskData ?? {});
+    setDeletedSubTaskIds(new Set());
   }, [task.id]);
 
   useEffect(() => {
@@ -863,6 +865,7 @@ export default function TaskDetailPanel({
           ) : (
             <div className="space-y-3">
               {subTaskTypes.filter(type => {
+                if (deletedSubTaskIds.has(type.id)) return false;
                 if (canSeeAll) return true;
                 const entry = localSubTaskData[type.id];
                 return entry?.assignee === currentUserName || entry?.substitute === currentUserName;
@@ -1582,6 +1585,7 @@ export default function TaskDetailPanel({
         delete next[pendingDeleteSubTask.id];
         setLocalSubTaskData(next);
         saveSubTaskData(next);
+        setDeletedSubTaskIds(prev => new Set([...prev, pendingDeleteSubTask.id]));
         setPendingDeleteSubTask(null);
       }}
       onCancel={() => setPendingDeleteSubTask(null)}

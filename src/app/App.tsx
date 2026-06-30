@@ -350,13 +350,20 @@ function App() {
     });
   }, [filteredTasks, subTaskTypeOrder, subTaskTypeMap, activeParts, selectedTeam, tasks]);
 
-  // 캘린더 전용 서브태스크: showInCalendar !== false 인 타입만 포함
+  // 캘린더 전용 서브태스크: task 파트의 별도 설정 우선, 없으면 팀 기본, 타입 없으면 fallback
   const calendarSubtasks = useMemo(
     () => subtasks.filter(s => {
       const subKey = s.id.split('__')[1];
+      const taskObj = filteredTasks.find(t => t.id === s.taskId);
+      const partObj = taskObj ? activeParts.find(p => p.name === taskObj.category) : undefined;
+      // 파트 별도 설정 우선, 없으면 팀 기본 사용 (SettingsPage 로직과 동일)
+      const types = partObj?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
+      const typeConfig = types.find(t => t.id === subKey);
+      if (typeConfig) return typeConfig.showInCalendar !== false;
+      // subTaskTypes에 없는 타입 (PL 등): calendarVisibleTypeIds fallback
       return calendarVisibleTypeIds.has(subKey);
     }),
-    [subtasks, calendarVisibleTypeIds]
+    [subtasks, calendarVisibleTypeIds, filteredTasks, activeParts, selectedTeam]
   );
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>

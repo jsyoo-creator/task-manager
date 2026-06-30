@@ -880,8 +880,8 @@ export default function TaskDetailPanel({
                 if (deletedSubTaskIds.has(type.id)) return false;
                 if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
                 if (canSeeAll) return true;
-                const entry = localSubTaskData[type.id];
-                return entry?.assignee === currentUserName || entry?.substitute === currentUserName;
+                const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
+                return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;
               }).map(type => {
                 // task.subTaskData(Firestore)를 base로, localSubTaskData를 위에 올려 병합
                 // localSubTaskData가 {}이어도 Firestore의 startDate/weeklyHours 등이 보존됨

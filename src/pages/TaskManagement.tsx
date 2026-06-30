@@ -1219,6 +1219,11 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   };
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const tableCfIds = new Set(tableCfs.map(cf => cf.id));
+  // 전체 탭에서도 task.category에 맞는 파트 설정으로 receiver/assignee department 결정
+  const taskPartFields = useMemo(() => {
+    const taskPart = parts?.find(p => p.name === task.category);
+    return taskPart?.formConfig ? resolveBuiltinFields(taskPart.formConfig) : null;
+  }, [parts, task.category]);
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail' && !tableCfIds.has(cf.id));
 
   const copyMetaFields = async () => {
@@ -1442,7 +1447,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 </div>
               ];
             }
-            const rdepts = resolveFieldDepts(fc);
+            const rcvrFc = taskPartFields?.find(f => f.key === 'receiver') ?? fc;
+            const rdepts = resolveFieldDepts(rcvrFc);
             const base = rdepts && teamMembers?.length
               ? (teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
@@ -1473,7 +1479,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 </div>
               ];
             }
-            const adepts = resolveFieldDepts(fc);
+            const asgnFc = taskPartFields?.find(f => f.key === 'assignee') ?? fc;
+            const adepts = resolveFieldDepts(asgnFc);
             const base = adepts && teamMembers?.length
               ? (teamMembers.filter(m => m.department && adepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;

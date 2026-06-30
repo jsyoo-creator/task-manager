@@ -274,6 +274,42 @@ export default function TaskDetailPanel({
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // 메인 업무 담당자 변경 시 → 직군 매칭되는 세부업무 중 담당자가 비어있는 항목에 자동 반영
+  useEffect(() => {
+    if (!subTaskTypes.length || !formConfig) return;
+    const builtins = resolveBuiltinFields(formConfig);
+    const rcvrFc = builtins.find(f => f.key === 'receiver');
+    const asgnFc = builtins.find(f => f.key === 'assignee');
+    const rcvrDepts = rcvrFc ? resolveFieldDepts(rcvrFc) : null;
+    const asgnDepts = asgnFc ? resolveFieldDepts(asgnFc) : null;
+    if (!rcvrDepts && !asgnDepts) return;
+
+    const current = localSubTaskDataRef.current;
+    let changed = false;
+    const next: Record<string, SubTaskEntry> = { ...current };
+
+    subTaskTypes.forEach(type => {
+      const typeDepts = resolveFieldDepts(type);
+      if (!typeDepts) return;
+      const entry = next[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };
+      if (entry.assignee) return; // 이미 담당자 있으면 스킵
+
+      let auto = '';
+      if (rcvrDepts && typeDepts.some(d => rcvrDepts.includes(d)) && task.receiver) {
+        auto = task.receiver;
+      } else if (asgnDepts && typeDepts.some(d => asgnDepts.includes(d)) && task.assignee) {
+        auto = task.assignee;
+      }
+      if (auto) { next[type.id] = { ...entry, assignee: auto }; changed = true; }
+    });
+
+    if (changed) {
+      setLocalSubTaskData(next);
+      saveSubTaskData(next);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.receiver, task.assignee, task.id, subTaskTypes]);
+
   const handleClose = () => {
     setVisible(false);
     document.documentElement.style.setProperty('--detail-panel-w', '0px');

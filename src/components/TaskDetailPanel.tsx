@@ -1146,8 +1146,7 @@ export default function TaskDetailPanel({
                         );
                       })()}
                       {(() => {
-                        // 세부업무 타입 이름을 placeholder로 사용
-                        const typeDeptLabel = type.name;
+                        const typeDeptLabel = '-';
                         return (
                           <div className="relative max-w-[120px]">
                             <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">

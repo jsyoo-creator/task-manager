@@ -96,8 +96,14 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
 
 export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [yearFilter, setYearFilter] = useState(now.getFullYear());
-  const [monthFilter, setMonthFilter] = useState(now.getMonth() + 1);
+  const [yearFilter, setYearFilter] = useState(() => {
+    const saved = localStorage.getItem('tm_yearFilter');
+    return saved ? Number(saved) : now.getFullYear();
+  });
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('tm_monthFilter');
+    return saved ? Number(saved) : now.getMonth() + 1;
+  });
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
@@ -175,6 +181,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     return new Set(signatures).size === 1;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importParts, parts, formConfig, excelConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('tm_yearFilter', String(yearFilter));
+    localStorage.setItem('tm_monthFilter', String(monthFilter));
+  }, [yearFilter, monthFilter]);
 
   useEffect(() => {
     if (!exportDropOpen) return;

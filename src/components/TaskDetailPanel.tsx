@@ -1145,28 +1145,34 @@ export default function TaskDetailPanel({
                           </div>
                         );
                       })()}
-                      <div className="relative max-w-[120px]">
-                        <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">
-                          <span className="truncate">{entry.assignee || fieldLabel('assignee')}</span>
-                          {isVacation && (
-                            <span className="text-[9px] px-1 rounded font-medium bg-orange-100 text-orange-500 flex-shrink-0">휴가</span>
-                          )}
-                          <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
-                        </div>
-                        <select
-                          disabled={!canManage}
-                          className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
-                          style={{ cursor: canManage ? 'pointer' : 'default' }}
-                          value={entry.assignee ?? ''}
-                          onChange={e => {
-                            const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
-                            setLocalSubTaskData(next);
-                            saveSubTaskData(next);
-                          }}>
-                          <option value="">{fieldLabel('assignee')}</option>
-                          {displayAssignees.map(a => <option key={a}>{a}</option>)}
-                        </select>
-                      </div>
+                      {(() => {
+                        // 세부업무 타입의 직군명을 placeholder로 사용 (없으면 fieldLabel fallback)
+                        const typeDeptLabel = resolveFieldDepts(type)?.[0] ?? fieldLabel('assignee');
+                        return (
+                          <div className="relative max-w-[120px]">
+                            <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">
+                              <span className="truncate">{entry.assignee || typeDeptLabel}</span>
+                              {isVacation && (
+                                <span className="text-[9px] px-1 rounded font-medium bg-orange-100 text-orange-500 flex-shrink-0">휴가</span>
+                              )}
+                              <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
+                            </div>
+                            <select
+                              disabled={!canManage}
+                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
+                              style={{ cursor: canManage ? 'pointer' : 'default' }}
+                              value={entry.assignee ?? ''}
+                              onChange={e => {
+                                const next = { ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
+                                setLocalSubTaskData(next);
+                                saveSubTaskData(next);
+                              }}>
+                              <option value="">{typeDeptLabel}</option>
+                              {displayAssignees.map(a => <option key={a}>{a}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })()}
                       {total > 0 && (
                         <span className="text-xs font-semibold text-blue-500 flex-shrink-0">{total}h</span>
                       )}

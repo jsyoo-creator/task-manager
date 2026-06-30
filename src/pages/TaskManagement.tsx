@@ -1219,11 +1219,22 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   };
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const tableCfIds = new Set(tableCfs.map(cf => cf.id));
-  // 전체 탭에서도 task.category에 맞는 파트 설정으로 receiver/assignee department 결정
-  const taskPartFields = useMemo(() => {
+  // task.category 파트의 receiver/assignee 순서가 전체 탭(tableFields)과 반대이면 swap
+  const { taskPartFields, swapReceiverAssignee } = useMemo(() => {
     const taskPart = parts?.find(p => p.name === task.category);
-    return taskPart?.formConfig ? resolveBuiltinFields(taskPart.formConfig) : null;
-  }, [parts, task.category]);
+    const partFields = taskPart?.formConfig ? resolveBuiltinFields(taskPart.formConfig) : null;
+    const partFO = taskPart?.formConfig?.fieldOrder;
+    const globalRIdx = tableFields.findIndex(f => f.key === 'receiver');
+    const globalAIdx = tableFields.findIndex(f => f.key === 'assignee');
+    const partRIdx = partFO ? partFO.indexOf('receiver') : -1;
+    const partAIdx = partFO ? partFO.indexOf('assignee') : -1;
+    const swap =
+      partFO != null &&
+      globalRIdx !== -1 && globalAIdx !== -1 &&
+      partRIdx !== -1 && partAIdx !== -1 &&
+      (partAIdx < partRIdx) !== (globalAIdx < globalRIdx);
+    return { taskPartFields: partFields, swapReceiverAssignee: swap };
+  }, [parts, task.category, tableFields]);
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail' && !tableCfIds.has(cf.id));
 
   const copyMetaFields = async () => {
@@ -1447,18 +1458,21 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 </div>
               ];
             }
-            const rcvrFc = taskPartFields?.find(f => f.key === 'receiver') ?? fc;
+            // swapReceiverAssignee: 파트 fieldOrder가 전체 탭과 반대일 때 값·키를 교환
+            const rcvrKey = swapReceiverAssignee ? 'assignee' : 'receiver';
+            const rcvrVal = swapReceiverAssignee ? task.assignee : task.receiver;
+            const rcvrFc = taskPartFields?.find(f => f.key === rcvrKey) ?? fc;
             const rdepts = resolveFieldDepts(rcvrFc);
-            const base = rdepts && teamMembers?.length
+            const rbase = rdepts && teamMembers?.length
               ? (teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
-            const ropts = base.includes(task.receiver) ? base : (task.receiver ? [task.receiver, ...base] : base);
+            const ropts = rbase.includes(rcvrVal) ? rbase : (rcvrVal ? [rcvrVal, ...rbase] : rbase);
             return [
               <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                <MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} />
-                <span className="text-xs text-gray-600 truncate">{task.receiver || '-'}</span>
-                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
-                  onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
+                <span className="text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
+                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={rcvrVal}
+                  onChange={e => onUpdate(task.id, { [rcvrKey]: e.target.value })}>
                   <option value="">-</option>
                   {ropts.map(a => <option key={a}>{a}</option>)}
                 </select>
@@ -1479,18 +1493,20 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 </div>
               ];
             }
-            const asgnFc = taskPartFields?.find(f => f.key === 'assignee') ?? fc;
+            const asgnKey = swapReceiverAssignee ? 'receiver' : 'assignee';
+            const asgnVal = swapReceiverAssignee ? task.receiver : task.assignee;
+            const asgnFc = taskPartFields?.find(f => f.key === asgnKey) ?? fc;
             const adepts = resolveFieldDepts(asgnFc);
-            const base = adepts && teamMembers?.length
+            const abase = adepts && teamMembers?.length
               ? (teamMembers.filter(m => m.department && adepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
-            const aopts = base.includes(task.assignee) ? base : (task.assignee ? [task.assignee, ...base] : base);
+            const aopts = abase.includes(asgnVal) ? abase : (asgnVal ? [asgnVal, ...abase] : abase);
             return [
               <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                <MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} />
-                <span className="text-xs text-gray-700 truncate">{task.assignee || '-'}</span>
-                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
-                  onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
+                <span className="text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
+                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={asgnVal}
+                  onChange={e => onUpdate(task.id, { [asgnKey]: e.target.value })}>
                   <option value="">-</option>
                   {aopts.map(a => <option key={a}>{a}</option>)}
                 </select>

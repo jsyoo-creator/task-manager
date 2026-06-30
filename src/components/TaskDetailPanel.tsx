@@ -858,6 +858,38 @@ export default function TaskDetailPanel({
           );
         })()}
 
+        {/* 업무 정보 (PL업무 제외) */}
+        {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
+          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
+          <div className="space-y-2">
+            {metaFields.map(({ key, label, isUrl }) => {
+              const val = localMeta[key] ?? '';
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
+                  <div className="flex-1 flex items-center gap-1 min-w-0">
+                    <input
+                      type={isUrl ? 'url' : 'text'}
+                      readOnly={!canManage}
+                      placeholder={canManage ? (isUrl ? 'https://' : '-') : '-'}
+                      value={val}
+                      onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
+                      onBlur={e => handleMetaBlur(key, e.target.value)}
+                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors"
+                    />
+                    {isUrl && val && (
+                      <a href={val} target="_blank" rel="noopener noreferrer"
+                        className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>}
+
         {/* 세부업무 & 주차별 시간 */}
         <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">세부업무 & 주차별 시간</p>
@@ -1406,38 +1438,6 @@ export default function TaskDetailPanel({
             </div>
           )}
         </div>
-
-        {/* 업무 정보 (PL업무 제외) */}
-        {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
-          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
-          <div className="space-y-2">
-            {metaFields.map(({ key, label, isUrl }) => {
-              const val = localMeta[key] ?? '';
-              return (
-                <div key={key} className="flex items-center gap-2">
-                  <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
-                  <div className="flex-1 flex items-center gap-1 min-w-0">
-                    <input
-                      type={isUrl ? 'url' : 'text'}
-                      readOnly={!canManage}
-                      placeholder={canManage ? (isUrl ? 'https://' : '-') : '-'}
-                      value={val}
-                      onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
-                      onBlur={e => handleMetaBlur(key, e.target.value)}
-                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors"
-                    />
-                    {isUrl && val && (
-                      <a href={val} target="_blank" rel="noopener noreferrer"
-                        className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
-                        <ExternalLink size={13} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>}
 
         <div className="h-6" />
       </div>

@@ -1339,6 +1339,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     </div>
                   ) : (
                     <>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${partColor(task.category)}`} />
                       <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.category || '-'}</span>
                       <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
                     </>

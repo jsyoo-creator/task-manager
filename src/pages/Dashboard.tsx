@@ -711,9 +711,10 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
   const isEmpty = chartData.length === 0;
   const total = data.reduce((s, d) => s + d.value, 0);
 
-  const cx = 70, cy = 70, r = 50, sw = 18;
+  const cx = 70, cy = 70, r = 58, sw = 8;
   const circ = 2 * Math.PI * r;
-  const gap = sw * 0.7; // 슬라이스 간 간격 (라운드 끝 기준)
+  // 슬라이스 간 고정 각도 간격 (15°)
+  const gap = circ * (15 / 360);
   let offset = 0;
   const slices = chartData.map(d => {
     const len = (d.value / total) * circ;

@@ -577,20 +577,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const colTemplate = buildCols(tableFields, tableCfs.length);
   const colMinWidth = buildMinWidth(tableFields, tableCfs.length);
 
-  const handleDrop = (dropOnId: string) => {
-    if (!dragId || dragId === dropOnId) { setDragId(null); setDragOverId(null); return; }
-    const ids = filtered.map(t => t.id);
-    const fromIdx = ids.indexOf(dragId);
-    const toIdx = ids.indexOf(dropOnId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const newIds = [...ids];
-    newIds.splice(fromIdx, 1);
-    newIds.splice(toIdx, 0, dragId);
-    newIds.forEach((id, idx) => onUpdateTask(id, { sortOrder: idx }));
-    setDragId(null);
-    setDragOverId(null);
-  };
-
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
 
@@ -648,6 +634,91 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     }
     return true;
   });
+
+  // 전체 보기 시 파트 순서대로 그룹핑
+  const groupedView = (() => {
+    if (activeCategory !== 'all' || !parts || parts.length === 0) return null;
+    const partNameOrder = new Map(parts.map((p, i) => [p.name, i]));
+    const groups = new Map<string, Task[]>();
+    const ungrouped: Task[] = [];
+    filtered.forEach(t => {
+      if (partNameOrder.has(t.category)) {
+        if (!groups.has(t.category)) groups.set(t.category, []);
+        groups.get(t.category)!.push(t);
+      } else {
+        ungrouped.push(t);
+      }
+    });
+    const result: { part: TeamPart | null; tasks: Task[] }[] = [];
+    parts.forEach(part => {
+      const grp = groups.get(part.name);
+      if (grp && grp.length > 0) result.push({ part, tasks: grp });
+    });
+    if (ungrouped.length > 0) result.push({ part: null, tasks: ungrouped });
+    return result;
+  })();
+
+  const displayFlat = groupedView ? groupedView.flatMap(g => g.tasks) : filtered;
+
+  const handleDrop = (dropOnId: string) => {
+    if (!dragId || dragId === dropOnId) { setDragId(null); setDragOverId(null); return; }
+    const ids = displayFlat.map(t => t.id);
+    const fromIdx = ids.indexOf(dragId);
+    const toIdx = ids.indexOf(dropOnId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const newIds = [...ids];
+    newIds.splice(fromIdx, 1);
+    newIds.splice(toIdx, 0, dragId);
+    newIds.forEach((id, idx) => onUpdateTask(id, { sortOrder: idx }));
+    setDragId(null);
+    setDragOverId(null);
+  };
+
+  const renderTaskRow = (task: Task) => {
+    const taskPart = parts?.find(p => p.name === task.category);
+    const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS;
+    const resolvedFormConfig = taskPart?.formConfig ? mergeFormConfig(taskPart.formConfig, formConfig) : formConfig;
+    return (
+      <TaskRow
+        key={task.id}
+        task={task}
+        onUpdate={onUpdateTask}
+        onDelete={onDeleteTask}
+        onDeleteRequest={(id, title) => setPendingDelete({ id, title })}
+        onOpenDetail={() => onOpenDetail(task.id)}
+        onCopy={() => handleCopyTask(task)}
+        canManage={canManage}
+        canDelete={canDelete}
+        assignees={assignees}
+        teamMembers={teamMembers}
+        tableFields={tableFields}
+        tableCfs={tableCfs}
+        statusConfigs={statusConfigs}
+        colTemplate={colTemplate}
+        colMinWidth={colMinWidth}
+        metaFields={resolvedMetaFields}
+        formConfig={resolvedFormConfig}
+        isDragging={dragId === task.id}
+        isDragOver={dragOverId === task.id}
+        isActive={activeTaskId === task.id}
+        expanded={expandedId === task.id}
+        onToggleExpand={() => setExpandedId(prev => prev === task.id ? null : task.id)}
+        onDragStart={() => setDragId(task.id)}
+        onDragOver={() => setDragOverId(task.id)}
+        onDrop={() => handleDrop(task.id)}
+        onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+        userPhotoMap={userPhotoMap}
+        partColor={partColor}
+        parts={parts}
+        selected={selectedIds.has(task.id)}
+        onSelect={() => setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.has(task.id) ? next.delete(task.id) : next.add(task.id);
+          return next;
+        })}
+      />
+    );
+  };
 
   return (
     <div>
@@ -949,55 +1020,29 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <span />
         </div>
 
-        {filtered.length === 0 && (
+        {displayFlat.length === 0 && (
           <div className="py-14 text-center text-sm text-gray-400">등록된 업무가 없습니다</div>
         )}
 
-        {filtered.map(task => {
-          const taskPart = parts?.find(p => p.name === task.category);
-          const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS;
-          const resolvedFormConfig = taskPart?.formConfig ? mergeFormConfig(taskPart.formConfig, formConfig) : formConfig;
-          return (
-            <TaskRow
-              key={task.id}
-              task={task}
-              onUpdate={onUpdateTask}
-              onDelete={onDeleteTask}
-              onDeleteRequest={(id, title) => setPendingDelete({ id, title })}
-              onOpenDetail={() => onOpenDetail(task.id)}
-              onCopy={() => handleCopyTask(task)}
-              canManage={canManage}
-              canDelete={canDelete}
-              assignees={assignees}
-              teamMembers={teamMembers}
-              tableFields={tableFields}
-              tableCfs={tableCfs}
-              statusConfigs={statusConfigs}
-              colTemplate={colTemplate}
-              colMinWidth={colMinWidth}
-              metaFields={resolvedMetaFields}
-              formConfig={resolvedFormConfig}
-              isDragging={dragId === task.id}
-              isDragOver={dragOverId === task.id}
-              isActive={activeTaskId === task.id}
-              expanded={expandedId === task.id}
-              onToggleExpand={() => setExpandedId(prev => prev === task.id ? null : task.id)}
-              onDragStart={() => setDragId(task.id)}
-              onDragOver={() => setDragOverId(task.id)}
-              onDrop={() => handleDrop(task.id)}
-              onDragEnd={() => { setDragId(null); setDragOverId(null); }}
-              userPhotoMap={userPhotoMap}
-              partColor={partColor}
-              parts={parts}
-              selected={selectedIds.has(task.id)}
-              onSelect={() => setSelectedIds(prev => {
-                const next = new Set(prev);
-                next.has(task.id) ? next.delete(task.id) : next.add(task.id);
-                return next;
-              })}
-            />
-          );
-        })}
+        {groupedView ? groupedView.map(({ part, tasks: grpTasks }) => (
+          <div key={part?.id ?? '__ungrouped'}>
+            <div
+              className="flex items-center gap-2 px-3 py-2 bg-gray-50/70 border-b border-black/5"
+              style={{ minWidth: colMinWidth }}
+            >
+              {part ? (
+                <>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />
+                  <span className="text-[11px] font-bold text-gray-700">{part.name}</span>
+                </>
+              ) : (
+                <span className="text-[11px] font-bold text-gray-500">미분류</span>
+              )}
+              <span className="text-[11px] text-gray-400 ml-0.5">{grpTasks.length}건</span>
+            </div>
+            {grpTasks.map(renderTaskRow)}
+          </div>
+        )) : filtered.map(renderTaskRow)}
       </div>
 
       <ConfirmDialog

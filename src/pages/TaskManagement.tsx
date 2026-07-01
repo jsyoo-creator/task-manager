@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, EyeOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls } from '../types';
@@ -623,6 +623,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   };
 
   const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [hideCompleted, setHideCompleted] = useState(false);
 
   const isMyTask = (t: Task): boolean => {
     if (!currentUserName) return false;
@@ -636,6 +637,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (myTasksOnly && !isMyTask(t)) return false;
+    if (hideCompleted && (t.status?.replace(/\s/g, '') === '완료')) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
       if (t.taskMonth) return t.taskMonth === prefix;
@@ -879,6 +881,17 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         >
           <User size={11} />
           내 업무만
+        </button>
+        <button
+          onClick={() => setHideCompleted(o => !o)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            hideCompleted
+              ? 'bg-green-600 text-white shadow-sm shadow-green-200'
+              : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-green-600'
+          }`}
+        >
+          <EyeOff size={11} />
+          완료 숨기기
         </button>
         <div className="flex-1" />
         <span className="text-xs text-gray-400">총 {filtered.length}건</span>

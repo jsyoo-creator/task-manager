@@ -713,8 +713,7 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
 
   const cx = 70, cy = 70, r = 56, sw = 12;
   const circ = 2 * Math.PI * r;
-  // 슬라이스 간 고정 각도 간격 (15°)
-  const gap = circ * (15 / 360);
+  const gap = 4; // 슬라이스 간 간격 (px 기준 고정, 전체 진행 현황 bar gap-1과 동일)
   let offset = 0;
   const slices = chartData.map(d => {
     const len = (d.value / total) * circ;

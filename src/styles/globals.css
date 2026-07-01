@@ -148,3 +148,15 @@ body {
   height: 1px;
   background: #EDE9FA;
 }
+
+/* ─────────────────────────────────────
+   Bar grow animation
+───────────────────────────────────── */
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.bar-animate {
+  transform-origin: left;
+  animation: bar-grow 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

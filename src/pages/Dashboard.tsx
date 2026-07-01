@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { FileText, Zap, CheckCircle2, Calendar, BarChart2, Users } from 'lucide-react';
 import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
@@ -211,6 +211,8 @@ function Card({ title, action, children, className = '' }: {
 
 export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamMembers }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
+  const [barVisible, setBarVisible] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setBarVisible(true), 80); return () => clearTimeout(t); }, []);
 
   const statusConfigs = resolveStatusConfigs(formConfig);
 
@@ -496,16 +498,23 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             </div>
           </div>
           <div className="px-5 pb-4">
-            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
-              {stats.total > 0
-                ? legendItems.map((s, i) => (
-                    <div key={i} style={{ width: `${(s.v / stats.total) * 100}%`, backgroundColor: s.c }} />
-                  ))
-                : <div className="flex-1 flex items-center justify-center">
-                    <span className="text-[10px] text-gray-300">업무 없음</span>
+            {stats.total > 0 ? (
+              <div className="flex gap-1 h-3">
+                {legendItems.filter(s => s.v > 0).map((s, i, arr) => (
+                  <div key={i}
+                    className="h-full rounded-full overflow-hidden"
+                    style={{ width: `${(s.v / stats.total) * 100}%`, backgroundColor: '#e9eaf0' }}>
+                    <div className={`h-full rounded-full ${barVisible ? 'bar-animate' : 'scale-x-0'}`}
+                      style={{ backgroundColor: s.c, transformOrigin: 'left',
+                        animationDelay: `${i * 80}ms` }} />
                   </div>
-              }
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-3 rounded-full bg-gray-100 flex items-center justify-center">
+                <span className="text-[10px] text-gray-300">업무 없음</span>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -571,10 +580,11 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                       {rate}%
                     </span>
                   </div>
-                  {/* 진행률 바 — 트랙 뚜렷하게, 두께 증가 */}
-                  <div className="h-2 rounded-full bg-gray-150 overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: rate > 0 ? `${rate}%` : '0%', backgroundColor: catColor(cat), minWidth: rate > 0 ? 6 : 0 }} />
+                  {/* 진행률 바 */}
+                  <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
+                    <div className={`h-full rounded-full ${barVisible && rate > 0 ? 'bar-animate' : ''}`}
+                      style={{ width: `${rate}%`, backgroundColor: catColor(cat),
+                        transformOrigin: 'left', minWidth: rate > 0 ? 4 : 0 }} />
                   </div>
                   {/* 수치 */}
                   <div className="grid text-center gap-y-0.5" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>

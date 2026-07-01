@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
 import CategoryTabs from '../components/CategoryTabs';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
@@ -56,18 +56,17 @@ function StatusPill({ status }: { status: TaskStatus | string }) {
 
 const DAY_NAMES = ['월', '화', '수', '목', '금'];
 
-function getWeekBounds() {
+function getWeekBounds(weekOffset = 0) {
   const now = new Date();
   const day = now.getDay();
   const mon = new Date(now);
-  mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + weekOffset * 7);
   mon.setHours(0, 0, 0, 0);
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
   sun.setHours(23, 59, 59, 999);
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const weekNum = Math.ceil((now.getDate() + firstOfMonth.getDay()) / 7);
-  // 월~금 날짜 배열
+  const firstOfMonth = new Date(mon.getFullYear(), mon.getMonth(), 1);
+  const weekNum = Math.ceil((mon.getDate() + firstOfMonth.getDay()) / 7);
   const weekdays = DAY_NAMES.map((name, i) => {
     const d = new Date(mon);
     d.setDate(mon.getDate() + i);
@@ -158,9 +157,10 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
 
 export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [] }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
-  const { start, end, weekNum, now, weekdays } = useMemo(getWeekBounds, []);
-  const { holidays: publicHolidays } = usePublicHolidays(now.getFullYear());
-  const weekLabel = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${weekNum}주차`;
+  const [weekOffset, setWeekOffset] = useState(0);
+  const { start, end, weekNum, now, weekdays } = useMemo(() => getWeekBounds(weekOffset), [weekOffset]);
+  const { holidays: publicHolidays } = usePublicHolidays(start.getFullYear());
+  const weekLabel = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${weekNum}주차`;
 
   const holidayMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -280,15 +280,30 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="page-title">위클리</h1>
-          <p className="page-subtitle">{weekLabel}</p>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setWeekOffset(o => o - 1)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <ChevronLeft size={16} />
+          </button>
+          <div className="text-center min-w-[110px]">
+            <h1 className="page-title">{weekLabel}</h1>
+            {weekOffset !== 0 && (
+              <button onClick={() => setWeekOffset(0)}
+                className="text-[10px] text-indigo-500 hover:underline font-medium">
+                이번 주로
+              </button>
+            )}
+          </div>
+          <button onClick={() => setWeekOffset(o => o + 1)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <ChevronRight size={16} />
+          </button>
         </div>
         <div className="flex items-center gap-3">
           {/* 월~금 날짜 카드 */}
           <div className="flex gap-1.5">
             {weekdays.map(({ name, date, month, isToday }) => {
-              const dateStr = `${now.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+              const dateStr = `${start.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
               const holidayName = holidayMap.get(dateStr) ?? null;
               return (
                 <div key={name} title={holidayName ?? undefined}

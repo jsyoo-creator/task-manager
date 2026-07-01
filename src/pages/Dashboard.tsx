@@ -539,6 +539,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                   colorMap={Object.fromEntries(
                     fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
                   )}
+                  label={activeFieldLabel}
                   visible={barVisible}
                 />
               </div>
@@ -553,6 +554,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                 <DonutChart
                   data={subDonut}
                   colorMap={subDonutColorMap}
+                  label="세부 상태"
                   visible={barVisible}
                 />
               </div>
@@ -698,9 +700,10 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 }
 
 /* ─── DonutChart ─── */
-function DonutChart({ data, colorMap, visible = true }: {
+function DonutChart({ data, colorMap, label = '전체', visible = true }: {
   data: { name: string; value: number }[];
   colorMap: Record<string, string>;
+  label?: string;
   visible?: boolean;
 }) {
   const colorOf = (name: string) => colorMap[name] ?? '#e5e7eb';
@@ -708,13 +711,14 @@ function DonutChart({ data, colorMap, visible = true }: {
   const isEmpty = chartData.length === 0;
   const total = data.reduce((s, d) => s + d.value, 0);
 
-  // SVG 도넛 (애니메이션 직접 제어)
-  const cx = 65, cy = 65, r = 48, sw = 14;
+  const cx = 70, cy = 70, r = 50, sw = 18;
   const circ = 2 * Math.PI * r;
+  const gap = sw * 0.7; // 슬라이스 간 간격 (라운드 끝 기준)
   let offset = 0;
   const slices = chartData.map(d => {
     const len = (d.value / total) * circ;
-    const slice = { name: d.name, len, offset };
+    const drawLen = Math.max(0, len - gap);
+    const slice = { name: d.name, len: drawLen, offset: offset + gap / 2 };
     offset += len;
     return slice;
   });
@@ -722,24 +726,23 @@ function DonutChart({ data, colorMap, visible = true }: {
   return (
     <div className="flex items-center gap-5 w-full">
       {/* 도넛 SVG */}
-      <div className="flex-shrink-0 relative" style={{ width: 130, height: 130 }}>
-        <svg viewBox="0 0 130 130" width="130" height="130">
+      <div className="flex-shrink-0" style={{ width: 140, height: 140 }}>
+        <svg viewBox="0 0 140 140" width="140" height="140">
           {/* 배경 트랙 */}
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e9eaf0" strokeWidth={sw} />
           {isEmpty ? null : slices.map((s, i) => (
             <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
               stroke={colorOf(s.name)} strokeWidth={sw}
-              strokeDasharray={`${visible ? s.len - 1 : 0} ${circ}`}
-              strokeDashoffset={-(s.offset)}
+              strokeLinecap="round"
+              strokeDasharray={`${visible ? s.len : 0} ${circ}`}
+              strokeDashoffset={-s.offset}
               transform={`rotate(-90 ${cx} ${cy})`}
-              style={{ transition: `stroke-dasharray 0.65s cubic-bezier(0.4,0,0.2,1) ${i * 80}ms` }}
+              style={{ transition: `stroke-dasharray 0.7s cubic-bezier(0.4,0,0.2,1) ${i * 90}ms` }}
             />
           ))}
-          {/* 센터 총 건수 */}
-          <text x={cx} y={cy - 4} textAnchor="middle" fontSize="20" fontWeight="800" fill="#1f2937">
-            {total}
-          </text>
-          <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9.5" fill="#9ca3af">건</text>
+          {/* 센터: 레이블 위, 숫자 아래 */}
+          <text x={cx} y={cy - 7} textAnchor="middle" fontSize="10" fill="#9ca3af" fontWeight="500">{label}</text>
+          <text x={cx} y={cy + 13} textAnchor="middle" fontSize="24" fontWeight="800" fill="#1f2937" letterSpacing="-0.5">{total}</text>
         </svg>
       </div>
 

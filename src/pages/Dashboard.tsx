@@ -519,7 +519,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-2xl p-4" style={{ backgroundColor: '#eeeef8' }}>
 
           {/* 1행: 메인 업무 + 세부 업무 */}
           <div className="grid grid-cols-2 gap-3 items-stretch">

@@ -730,9 +730,8 @@ function DonutChart({ data, colorMap, label = '전체' }: {
               transform={`rotate(-90 ${cx} ${cy})`}
             />
           ))}
-          {/* 센터: 레이블 위, 숫자 아래 */}
-          <text x={cx} y={cy - 7} textAnchor="middle" fontSize="10" fill="#9ca3af" fontWeight="500">{label}</text>
-          <text x={cx} y={cy + 13} textAnchor="middle" fontSize="24" fontWeight="800" fill="#1f2937" letterSpacing="-0.5">{total}</text>
+          {/* 센터: 숫자만 */}
+          <text x={cx} y={cy + 9} textAnchor="middle" fontSize="24" fontWeight="800" fill="#1f2937" letterSpacing="-0.5">{total}</text>
         </svg>
       </div>
 

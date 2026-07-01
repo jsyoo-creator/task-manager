@@ -187,6 +187,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     localStorage.setItem('tm_monthFilter', String(monthFilter));
   }, [yearFilter, monthFilter]);
 
+  useEffect(() => { localStorage.setItem('tm_myTasksOnly', String(myTasksOnly)); }, [myTasksOnly]);
+  useEffect(() => { localStorage.setItem('tm_hideCompleted', String(hideCompleted)); }, [hideCompleted]);
+
   useEffect(() => {
     if (!exportDropOpen) return;
     const handler = (e: MouseEvent) => {
@@ -622,8 +625,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     });
   };
 
-  const [myTasksOnly, setMyTasksOnly] = useState(false);
-  const [hideCompleted, setHideCompleted] = useState(false);
+  const [myTasksOnly, setMyTasksOnly] = useState(() => localStorage.getItem('tm_myTasksOnly') === 'true');
+  const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('tm_hideCompleted') === 'true');
 
   const isMyTask = (t: Task): boolean => {
     if (!currentUserName) return false;

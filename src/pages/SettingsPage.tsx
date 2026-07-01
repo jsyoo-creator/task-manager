@@ -4228,62 +4228,105 @@ export default function SettingsPage({
           <Shield size={15} className="text-gray-400" />
           <span className="text-sm font-semibold text-gray-800">권한 안내</span>
         </div>
-        <div className="p-5">
-          <div className="grid grid-cols-3 gap-4 text-xs">
-            {/* 최고 관리자 */}
-            <div className="flex flex-col gap-3">
+        <div className="p-5 space-y-5">
+          {/* 권한 계층 */}
+          <div className="flex items-center justify-center gap-2">
+            <div className="flex flex-col items-center gap-1.5">
               <RoleBadge role="superadmin" />
-              <ul className="space-y-1.5 text-gray-600">
-                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-0.5">업무</li>
-                <li>· 업무 등록 / 수정</li>
-                <li>· 업무 삭제</li>
-                <li>· 휴가 등록</li>
-                <li>· 세부업무 시간 입력</li>
-                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-1.5">설정</li>
-                <li>· 팀 / 파트 생성 및 관리</li>
-                <li>· 사용자 관리 (전체)</li>
-                <li>· 사용자 권한 변경 (전체)</li>
-                <li>· 구성원 정보 수정 (전체)</li>
-                <li>· 구성원 삭제</li>
-                <li>· 휴일 관리</li>
-                <li>· 프로필 필드 관리</li>
-                <li>· 시스템 탭 접근</li>
-              </ul>
+              <span className="text-[10px] text-gray-400">최고 관리자</span>
             </div>
-            {/* 중간 관리자 */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-0.5 mx-1">
+              <ChevronRight size={13} className="text-gray-300" />
+              <span className="text-[9px] text-gray-300">관리</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5">
               <RoleBadge role="manager" />
-              <ul className="space-y-1.5 text-gray-600">
-                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-0.5">업무</li>
-                <li>· 업무 등록 / 수정</li>
-                <li>· 업무 삭제</li>
-                <li>· 휴가 등록</li>
-                <li>· 세부업무 시간 입력</li>
-                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-1.5">설정</li>
-                <li>· 팀 / 파트 생성 및 관리</li>
-                <li>· 사용자 관리 (같은 팀)</li>
-                <li className="text-gray-400">· 사용자 권한 변경 (같은 팀 일반만)</li>
-                <li className="text-gray-400">· 구성원 정보 수정 (본인 + 같은 팀 일반)</li>
-                <li>· 구성원 삭제 (같은 팀, superadmin 제외)</li>
-                <li>· 휴일 관리</li>
-                <li>· 프로필 필드 관리</li>
-                <li className="text-gray-300">· 시스템 탭 접근 불가</li>
-              </ul>
+              <span className="text-[10px] text-gray-400">중간 관리자</span>
             </div>
-            {/* 일반 사용자 */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-0.5 mx-1">
+              <ChevronRight size={13} className="text-gray-300" />
+              <span className="text-[9px] text-gray-300">관리</span>
+            </div>
+            <div className="flex flex-col items-center gap-1.5">
               <RoleBadge role="user" />
-              <ul className="space-y-1.5 text-gray-600">
-                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-0.5">업무</li>
-                <li>· 업무 등록 / 수정</li>
-                <li className="text-gray-300">· 업무 삭제 불가</li>
-                <li>· 휴가 등록</li>
-                <li>· 세부업무 시간 입력</li>
-                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-1.5">설정</li>
-                <li className="text-gray-300">· 설정 탭 접근 불가</li>
-              </ul>
+              <span className="text-[10px] text-gray-400">일반 사용자</span>
             </div>
           </div>
+
+          {/* 권한 테이블 */}
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left py-2.5 px-4 text-gray-400 font-medium w-[38%]">기능</th>
+                  <th className="py-2.5 px-2 text-center min-w-[80px]"><RoleBadge role="superadmin" /></th>
+                  <th className="py-2.5 px-2 text-center min-w-[80px]"><RoleBadge role="manager" /></th>
+                  <th className="py-2.5 px-2 text-center min-w-[80px]"><RoleBadge role="user" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* 업무 섹션 */}
+                <tr className="bg-gray-50/60 border-t border-gray-100">
+                  <td colSpan={4} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">업무</td>
+                </tr>
+                {[
+                  { label: '업무 등록 / 수정',    sa: true,  mg: true,  us: true  },
+                  { label: '업무 삭제',           sa: true,  mg: true,  us: false },
+                  { label: '휴가 등록',           sa: true,  mg: true,  us: true  },
+                  { label: '세부업무 시간 입력',   sa: true,  mg: true,  us: true  },
+                ].map(row => (
+                  <tr key={row.label} className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
+                    <td className="py-2.5 px-4 text-gray-600">{row.label}</td>
+                    <td className="py-2.5 text-center font-bold">{row.sa ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+                    <td className="py-2.5 text-center font-bold">{row.mg ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+                    <td className="py-2.5 text-center font-bold">{row.us ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+                  </tr>
+                ))}
+
+                {/* 사용자 관리 섹션 */}
+                <tr className="bg-gray-50/60 border-t border-gray-100">
+                  <td colSpan={4} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">사용자 관리</td>
+                </tr>
+                <tr className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
+                  <td className="py-2.5 px-4 text-gray-600">구성원 정보 수정</td>
+                  <td className="py-2.5 text-center text-green-500 font-medium">전체</td>
+                  <td className="py-2.5 text-center text-amber-500 font-medium">본인 + 같은 팀</td>
+                  <td className="py-2.5 text-center font-bold"><span className="text-gray-200">✗</span></td>
+                </tr>
+                <tr className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
+                  <td className="py-2.5 px-4 text-gray-600">권한 변경</td>
+                  <td className="py-2.5 text-center text-green-500 font-medium">manager · user</td>
+                  <td className="py-2.5 text-center text-amber-500 font-medium">같은 팀 user</td>
+                  <td className="py-2.5 text-center font-bold"><span className="text-gray-200">✗</span></td>
+                </tr>
+                <tr className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
+                  <td className="py-2.5 px-4 text-gray-600">구성원 삭제</td>
+                  <td className="py-2.5 text-center text-green-500 font-medium">전체 †</td>
+                  <td className="py-2.5 text-center text-amber-500 font-medium">같은 팀 †</td>
+                  <td className="py-2.5 text-center font-bold"><span className="text-gray-200">✗</span></td>
+                </tr>
+
+                {/* 설정 섹션 */}
+                <tr className="bg-gray-50/60 border-t border-gray-100">
+                  <td colSpan={4} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">설정</td>
+                </tr>
+                {[
+                  { label: '팀 / 파트 생성 및 관리', sa: true,  mg: true,  us: false },
+                  { label: '휴일 관리',              sa: true,  mg: true,  us: false },
+                  { label: '프로필 필드 관리',        sa: true,  mg: true,  us: false },
+                  { label: '시스템 탭 접근',          sa: true,  mg: false, us: false },
+                ].map(row => (
+                  <tr key={row.label} className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
+                    <td className="py-2.5 px-4 text-gray-600">{row.label}</td>
+                    <td className="py-2.5 text-center font-bold">{row.sa ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+                    <td className="py-2.5 text-center font-bold">{row.mg ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+                    <td className="py-2.5 text-center font-bold">{row.us ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-gray-400">† 본인 및 최고 관리자(superadmin) 대상 삭제·권한 변경 불가</p>
         </div>
       </section>}
 

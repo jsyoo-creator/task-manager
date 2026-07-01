@@ -29,7 +29,8 @@ export interface AppUser {
 }
 
 export interface UserPermissions {
-  canManageTasks: boolean;
+  canCreateTasks: boolean;
+  canEditTasks: boolean;
   canDeleteTasks: boolean;
   canManageUsers: boolean;          // 사용자 권한 변경 (최고관리자 전용)
   canInputTime: boolean;
@@ -45,7 +46,8 @@ export interface UserPermissions {
 }
 
 export interface RolePermissionConfig {
-  canManageTasks: boolean;
+  canCreateTasks: boolean;
+  canEditTasks: boolean;
   canDeleteTasks: boolean;
   canInputTime: boolean;
   canAddVacation: boolean;
@@ -66,7 +68,8 @@ export interface RolePermissions {
 
 export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
   manager: {
-    canManageTasks: true,
+    canCreateTasks: true,
+    canEditTasks: true,
     canDeleteTasks: true,
     canInputTime: true,
     canAddVacation: true,
@@ -80,7 +83,8 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canManageBoard: true,
   },
   user: {
-    canManageTasks: true,
+    canCreateTasks: true,
+    canEditTasks: true,
     canDeleteTasks: false,
     canInputTime: true,
     canAddVacation: true,
@@ -98,7 +102,8 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
 export function getPermissions(role: UserRole, rolePerms: RolePermissions = DEFAULT_ROLE_PERMISSIONS): UserPermissions {
   if (role === 'superadmin') {
     return {
-      canManageTasks: true,
+      canCreateTasks: true,
+      canEditTasks: true,
       canDeleteTasks: true,
       canManageUsers: true,
       canInputTime: true,

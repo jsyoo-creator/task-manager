@@ -18,6 +18,7 @@ interface Props {
   projectId: string;
   activeCategory: TaskCategory | 'all';
   onCategoryChange: (cat: TaskCategory | 'all') => void;
+  canCreate: boolean;
   canManage: boolean;
   canDelete?: boolean;
   parts?: TeamPart[];
@@ -94,7 +95,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(() => {
     const saved = localStorage.getItem('tm_yearFilter');
@@ -787,7 +788,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </div>
             )}
           </div>
-          {canManage && (
+          {canCreate && (
             <>
               {parts && parts.length > 0 ? (
                 <div className="relative" ref={importDropRef}>

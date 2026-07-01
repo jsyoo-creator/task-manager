@@ -420,7 +420,8 @@ function App() {
                 tasks={filteredTasks} onAddTask={addTaskForTeam} onUpdateTask={updateTask}
                 onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} activeTaskId={detailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
-                canManage={permissions.canManageTasks}
+                canCreate={permissions.canCreateTasks}
+                canManage={permissions.canEditTasks}
                 canDelete={permissions.canDeleteTasks}
                 parts={activeParts}
                 assignees={teamAssignees}
@@ -529,7 +530,7 @@ function App() {
               onDelete={(id) => { deleteTask(id); setDetailTaskId(null); }}
               assignees={teamAssignees}
               parts={activeParts}
-              canManage={permissions.canManageTasks}
+              canManage={permissions.canEditTasks}
               canDelete={permissions.canDeleteTasks}
               metaFields={resolvedMetaFields}
               subTaskTypes={resolvedSubTaskTypes}

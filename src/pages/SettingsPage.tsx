@@ -99,7 +99,8 @@ function hexToTextColor(hex: string): string {
 // 권한 관리 상수
 // ──────────────────────────────────────────
 const PERM_ROWS: { key: keyof RolePermissionConfig; label: string; group: string }[] = [
-  { key: 'canManageTasks',         label: '업무 등록 / 수정',        group: '업무' },
+  { key: 'canCreateTasks',         label: '업무 등록',               group: '업무' },
+  { key: 'canEditTasks',           label: '업무 수정',               group: '업무' },
   { key: 'canDeleteTasks',         label: '업무 삭제',               group: '업무' },
   { key: 'canAddVacation',         label: '휴가 등록',               group: '업무' },
   { key: 'canInputTime',           label: '세부업무 시간 입력',       group: '업무' },

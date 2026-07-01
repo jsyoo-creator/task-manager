@@ -322,7 +322,13 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
           {personData.map(({ person, groups, totalH, vacH, vacEntries }) => {
             const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
-              const activeCols = (weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
+              // 파트별 설정 우선: 모든 업무가 같은 파트면 그 파트 설정, 혼합이면 팀 기본
+              const partNames = [...new Set(groups.map(g => g.task.category))];
+              const singlePart = partNames.length === 1 ? parts?.find(p => p.name === partNames[0]) : undefined;
+              const effectiveConfig = singlePart?.weeklyExportConfig ?? weeklyExportConfig;
+              const activeCols = (effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
+              // 파트 metaFields 우선, 없으면 팀 metaFields
+              const effectiveMetaFields = singlePart?.metaFields ?? metaFields;
               const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string; task: typeof groups[0]['task'] }) =>
                 activeCols.map(col => {
                   if (col.type === 'new') return vals.isNew;
@@ -332,7 +338,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                   if (col.type === 'desc') return vals.desc;
                   if (col.type === 'meta' && col.metaKey) {
                     const rawVal = vals.task.customFields?.[col.metaKey] ?? '';
-                    const fieldDef = metaFields.find(f => f.key === col.metaKey);
+                    const fieldDef = effectiveMetaFields.find(f => f.key === col.metaKey);
                     if (fieldDef?.isUrl && rawVal) {
                       const safeUrl = rawVal.replace(/"/g, '""');
                       const safeLabel = fieldDef.label.replace(/"/g, '""');

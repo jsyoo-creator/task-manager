@@ -2491,7 +2491,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
   const currentPart = !isTeamTarget ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const isInherited = !isTeamTarget && !currentPart?.weeklyExportConfig;
 
-  const allMetaFields = team.metaFields ?? DEFAULT_META_FIELDS;
+  const allMetaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
 
   const getEffectiveCols = () => {
     if (isTeamTarget) return team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS;

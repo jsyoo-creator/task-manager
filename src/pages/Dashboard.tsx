@@ -559,51 +559,65 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 
           </div>
 
-          {/* 2행: 분류별 완료율 (전체 너비) */}
-          {cats.length > 0 && (
-          <div className="glass-card flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-              <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
-              <span className="text-[11px] text-gray-400">전체 기간</span>
-            </div>
-            <div className="flex flex-wrap">
-              {catStats.map(({ cat, total, statusBreakdown, rate }) => (
-                <div key={cat} className="flex flex-col p-5 gap-3 border-r border-b border-gray-100 last:border-r-0"
-                  style={{ minWidth: 160, flex: '1 1 0' }}>
-                  {/* 카테고리명 + 퍼센트 */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
-                      <span className="text-xs font-bold truncate" style={{ color: catColor(cat) }}>{cat}</span>
-                    </span>
-                    <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>
-                      {rate}%
-                    </span>
-                  </div>
-                  {/* 진행률 바 */}
-                  <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
-                    <div className={`h-full rounded-full ${barVisible && rate > 0 ? 'bar-animate' : ''}`}
-                      style={{ width: `${rate}%`, backgroundColor: catColor(cat),
-                        transformOrigin: 'left', minWidth: rate > 0 ? 4 : 0 }} />
-                  </div>
-                  {/* 수치 */}
-                  <div className="grid text-center gap-y-0.5" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>
-                    <div>
-                      <div className="text-sm font-bold tabular-nums leading-tight text-gray-700">{total}</div>
-                      <div className="text-[9px] text-gray-400 mt-0.5">총</div>
-                    </div>
-                    {statusBreakdown.map(({ key, label, color, count }) => (
-                      <div key={key}>
-                        <div className="text-sm font-bold tabular-nums leading-tight" style={{ color: count > 0 ? color : '#c0c4d0' }}>{count}</div>
-                        <div className="text-[9px] text-gray-400 mt-0.5 truncate">{label}</div>
-                      </div>
-                    ))}
-                  </div>
+          {/* 2행: 분류별 완료율 — 동심원 링 차트 */}
+          {cats.length > 0 && (() => {
+            const overallTotal = catStats.reduce((s, c) => s + c.total, 0);
+            const overallDone  = catStats.reduce((s, c) => s + (c.statusBreakdown.find(b => b.key === '완료' || b.label === '완료')?.count ?? 0), 0);
+            const overallRate  = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
+            const rings = catStats.slice(0, 6);
+            const cx = 100, cy = 100;
+            const baseR = 78, gap = 14, sw = 10;
+            return (
+            <div className="glass-card flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+                <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
+                <span className="text-[11px] text-gray-400">전체 기간</span>
+              </div>
+              <div className="flex items-center gap-6 px-6 py-5">
+                {/* 동심원 SVG */}
+                <div className="flex-shrink-0" style={{ width: 180, height: 180 }}>
+                  <svg viewBox="0 0 200 200" width="180" height="180">
+                    {rings.map(({ cat, rate }, i) => {
+                      const r = baseR - i * gap;
+                      const circ = 2 * Math.PI * r;
+                      const dash = barVisible ? (rate / 100) * circ : 0;
+                      return (
+                        <g key={cat}>
+                          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e9eaf0" strokeWidth={sw} />
+                          <circle cx={cx} cy={cy} r={r} fill="none"
+                            stroke={catColor(cat)} strokeWidth={sw}
+                            strokeLinecap="round"
+                            strokeDasharray={`${dash} ${circ}`}
+                            transform={`rotate(-90 ${cx} ${cy})`}
+                            style={{ transition: `stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1) ${i * 100}ms` }}
+                          />
+                        </g>
+                      );
+                    })}
+                    <text x={cx} y={cy - 5} textAnchor="middle" fontSize="22" fontWeight="800" fill="#374151">{overallRate}%</text>
+                    <text x={cx} y={cy + 13} textAnchor="middle" fontSize="10" fill="#9ca3af">전체 완료율</text>
+                  </svg>
                 </div>
-              ))}
+                {/* 범례 */}
+                <div className="flex-1 space-y-2.5">
+                  {rings.map(({ cat, rate, total, statusBreakdown }) => (
+                    <div key={cat} className="flex items-center gap-3">
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
+                      <span className="text-xs font-semibold text-gray-700 w-16 truncate flex-shrink-0">{cat}</span>
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
+                        <div className={`h-full rounded-full ${barVisible && rate > 0 ? 'bar-animate' : ''}`}
+                          style={{ width: `${rate}%`, backgroundColor: catColor(cat), transformOrigin: 'left' }} />
+                      </div>
+                      <span className="text-xs font-bold tabular-nums w-8 text-right flex-shrink-0"
+                        style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>{rate}%</span>
+                      <span className="text-[11px] text-gray-400 tabular-nums flex-shrink-0">({total})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-          )}
+            );
+          })()}
 
         </div>
       </section>

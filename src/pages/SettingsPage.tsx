@@ -2676,7 +2676,6 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
                   value={col.type === 'meta' ? (col.metaKey ?? '') : '__empty__'}
                   onChange={e => handleChangeColType(col.id, e.target.value)}
                   className="w-full text-xs bg-transparent focus:outline-none cursor-pointer text-gray-700 appearance-none pr-4"
-                  disabled={isInherited}
                 >
                   <option value="__empty__">빈칸</option>
                   {allMetaFields.map(f => (
@@ -2694,7 +2693,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
             ) : (
               <span className="text-xs flex-1 text-gray-700">{getColLabel(col)}</span>
             )}
-            {(col.type === 'empty' || col.type === 'meta') && !isInherited && (
+            {(col.type === 'empty' || col.type === 'meta') && (
               <button onClick={() => removeCol(col.id)}
                 className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                 <X size={12} />
@@ -2702,8 +2701,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
             )}
             <button
               onClick={() => toggle(col.id)}
-              disabled={isInherited}
-              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative disabled:cursor-default ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
+              className={`w-9 h-5 rounded-full transition-colors flex-shrink-0 relative ${col.enabled ? 'bg-blue-500' : 'bg-gray-200'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${col.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
             </button>
@@ -2712,14 +2710,12 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
       </div>
 
       {/* 빈칸 추가 */}
-      {!isInherited && (
-        <button
-          onClick={handleAddEmpty}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
-        >
-          <Plus size={11} />빈칸 추가
-        </button>
-      )}
+      <button
+        onClick={handleAddEmpty}
+        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
+      >
+        <Plus size={11} />빈칸 추가
+      </button>
 
       <div className="pt-0.5">
         <p className="text-[10px] text-gray-400">

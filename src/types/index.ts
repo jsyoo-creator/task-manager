@@ -29,21 +29,72 @@ export interface AppUser {
 }
 
 export interface UserPermissions {
-  canManageTasks: boolean;   // 업무 등록/수정
-  canDeleteTasks: boolean;   // 업무 삭제 (manager 이상)
-  canManageUsers: boolean;   // 사용자 권한 관리 (최고관리자만)
-  canInputTime: boolean;     // 세부업무 시간/날짜 입력
-  canAddVacation: boolean;   // 휴가 등록
+  canManageTasks: boolean;
+  canDeleteTasks: boolean;
+  canManageUsers: boolean;          // 사용자 권한 변경 (최고관리자 전용)
+  canInputTime: boolean;
+  canAddVacation: boolean;
+  canManageTeams: boolean;          // 팀/파트 생성·관리
+  canManageMembers: boolean;        // 구성원 정보 수정·삭제
+  canManageHolidays: boolean;       // 휴일 관리
+  canManageProfileFields: boolean;  // 프로필 필드 관리
 }
 
-export function getPermissions(role: UserRole): UserPermissions {
-  return {
+export interface RolePermissionConfig {
+  canManageTasks: boolean;
+  canDeleteTasks: boolean;
+  canInputTime: boolean;
+  canAddVacation: boolean;
+  canManageTeams: boolean;
+  canManageMembers: boolean;
+  canManageHolidays: boolean;
+  canManageProfileFields: boolean;
+}
+
+export interface RolePermissions {
+  manager: RolePermissionConfig;
+  user: RolePermissionConfig;
+}
+
+export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
+  manager: {
     canManageTasks: true,
-    canDeleteTasks: role !== 'user',
-    canManageUsers: role === 'superadmin',
+    canDeleteTasks: true,
     canInputTime: true,
     canAddVacation: true,
-  };
+    canManageTeams: true,
+    canManageMembers: true,
+    canManageHolidays: true,
+    canManageProfileFields: true,
+  },
+  user: {
+    canManageTasks: true,
+    canDeleteTasks: false,
+    canInputTime: true,
+    canAddVacation: true,
+    canManageTeams: false,
+    canManageMembers: false,
+    canManageHolidays: false,
+    canManageProfileFields: false,
+  },
+};
+
+export function getPermissions(role: UserRole, rolePerms: RolePermissions = DEFAULT_ROLE_PERMISSIONS): UserPermissions {
+  if (role === 'superadmin') {
+    return {
+      canManageTasks: true,
+      canDeleteTasks: true,
+      canManageUsers: true,
+      canInputTime: true,
+      canAddVacation: true,
+      canManageTeams: true,
+      canManageMembers: true,
+      canManageHolidays: true,
+      canManageProfileFields: true,
+    };
+  }
+  const cfg = rolePerms[role] ?? DEFAULT_ROLE_PERMISSIONS[role];
+  return { ...cfg, canManageUsers: false };
 }
 
 export type TaskStatus = '진행 전' | '진행 중' | '완료' | '보류';

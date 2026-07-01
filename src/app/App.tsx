@@ -24,6 +24,7 @@ import { useTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
 import { useProfileFields } from '../hooks/useProfileFields';
+import { useRolePermissions } from '../hooks/useRolePermissions';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
@@ -53,6 +54,7 @@ function App() {
   const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
+  const { rolePermissions, updateRolePermissions } = useRolePermissions();
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
   const { holidays: nextYearHolidays } = usePublicHolidays(currentYear + 1);
@@ -377,7 +379,7 @@ function App() {
     return <LoginPage onSignIn={signIn} onSignInWithEmail={signInWithEmail} onSignUpWithEmail={signUpWithEmail} error={authError} />;
   }
 
-  const permissions = getPermissions(appUser?.role ?? 'user');
+  const permissions = getPermissions(appUser?.role ?? 'user', rolePermissions);
   const canSeeAll = true;
   const currentUserName = appUser?.displayName ?? '';
 
@@ -495,6 +497,8 @@ function App() {
                     onCleanupOrphanTasks={() => cleanupOrphanTasks(validCategories)}
                     profileFields={profileFields}
                     onUpdateProfileFields={updateProfileFields}
+                    rolePermissions={rolePermissions}
+                    onUpdateRolePermissions={updateRolePermissions}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />

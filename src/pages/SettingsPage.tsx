@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig } from '../types';
 import { resolvePLMainDepts } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -45,6 +45,8 @@ interface Props {
   onCleanupOrphanTasks: () => Promise<number>;
   profileFields: ProfileFieldDef[];
   onUpdateProfileFields: (fields: ProfileFieldDef[]) => Promise<void>;
+  rolePermissions: RolePermissions;
+  onUpdateRolePermissions: (perms: RolePermissions) => Promise<void>;
 }
 
 // ──────────────────────────────────────────
@@ -91,6 +93,36 @@ function hexToTextColor(hex: string): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#334155' : '#f8fafc';
+}
+
+// ──────────────────────────────────────────
+// 권한 관리 상수
+// ──────────────────────────────────────────
+const PERM_ROWS: { key: keyof RolePermissionConfig; label: string; group: string }[] = [
+  { key: 'canManageTasks',         label: '업무 등록 / 수정',   group: '업무' },
+  { key: 'canDeleteTasks',         label: '업무 삭제',          group: '업무' },
+  { key: 'canAddVacation',         label: '휴가 등록',          group: '업무' },
+  { key: 'canInputTime',           label: '세부업무 시간 입력',  group: '업무' },
+  { key: 'canManageTeams',         label: '팀 / 파트 관리',     group: '설정' },
+  { key: 'canManageMembers',       label: '사용자 관리',         group: '설정' },
+  { key: 'canManageHolidays',      label: '휴일 관리',          group: '설정' },
+  { key: 'canManageProfileFields', label: '프로필 필드 관리',   group: '설정' },
+];
+
+function PermToggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onChange}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${
+        checked ? 'bg-blue-500' : 'bg-gray-200'
+      } ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200 ${
+        checked ? 'translate-x-4' : 'translate-x-0.5'
+      }`} />
+    </button>
+  );
 }
 
 // ──────────────────────────────────────────
@@ -3785,6 +3817,7 @@ export default function SettingsPage({
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
   profileFields, onUpdateProfileFields,
+  rolePermissions, onUpdateRolePermissions,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
@@ -3792,7 +3825,29 @@ export default function SettingsPage({
   const [myProfileSaved, setMyProfileSaved] = useState(false);
   const { users, updateUserRole, updateUserInfo, deleteUser } = useAllUsers();
 
-  const canManageUsers = appUser.role === 'superadmin' || appUser.role === 'manager';
+  const isRoleSuperadmin = appUser.role === 'superadmin';
+  const isRoleManager = appUser.role === 'manager';
+  const myRolePerms = isRoleSuperadmin
+    ? DEFAULT_ROLE_PERMISSIONS.manager  // superadmin은 항상 전체 권한
+    : rolePermissions[appUser.role as 'manager' | 'user'] ?? DEFAULT_ROLE_PERMISSIONS[isRoleManager ? 'manager' : 'user'];
+  const canManageTeams         = isRoleSuperadmin || myRolePerms.canManageTeams;
+  const canManageMembers       = isRoleSuperadmin || myRolePerms.canManageMembers;
+  const canManageHolidays      = isRoleSuperadmin || myRolePerms.canManageHolidays;
+  const canManageProfileFields = isRoleSuperadmin || myRolePerms.canManageProfileFields;
+  const canManageUsers = canManageMembers; // 하위 호환 — 사용자 탭 접근 여부
+
+  // 권한 에디터 로컬 상태
+  const [localPerms, setLocalPerms] = useState<RolePermissions>(rolePermissions);
+  useEffect(() => { setLocalPerms(rolePermissions); }, [rolePermissions]);
+
+  const handlePermToggle = (role: 'manager' | 'user', key: keyof RolePermissionConfig) => {
+    const next: RolePermissions = {
+      ...localPerms,
+      [role]: { ...localPerms[role], [key]: !localPerms[role][key] },
+    };
+    setLocalPerms(next);
+    onUpdateRolePermissions(next);
+  };
 
   // 구 기본값(15일)으로 저장된 사용자를 0으로 일괄 초기화 (1회 실행)
   const annualMigratedRef = useRef(false);
@@ -3917,11 +3972,11 @@ export default function SettingsPage({
   type SettingsTab = 'profile' | 'teams' | 'users' | 'holidays' | 'fields' | 'system';
   const ALL_TABS: { id: SettingsTab; label: string; icon: React.ReactNode; show: boolean }[] = [
     { id: 'profile',   label: '내 프로필',       icon: <User size={14} />,        show: true },
-    { id: 'teams',     label: '팀 관리',          icon: <Layers size={14} />,      show: canManageUsers },
-    { id: 'users',     label: '사용자 관리',      icon: <Users size={14} />,       show: canManageUsers },
-    { id: 'holidays',  label: '휴일 관리',        icon: <CalendarDays size={14} />,show: canManageUsers },
-    { id: 'fields',    label: '프로필 필드',      icon: <Star size={14} />,        show: canManageUsers },
-    { id: 'system',    label: '시스템',           icon: <Shield size={14} />,      show: appUser.role === 'superadmin' },
+    { id: 'teams',     label: '팀 관리',          icon: <Layers size={14} />,      show: canManageTeams },
+    { id: 'users',     label: '사용자 관리',      icon: <Users size={14} />,       show: canManageMembers },
+    { id: 'holidays',  label: '휴일 관리',        icon: <CalendarDays size={14} />,show: canManageHolidays },
+    { id: 'fields',    label: '프로필 필드',      icon: <Star size={14} />,        show: canManageProfileFields },
+    { id: 'system',    label: '시스템',           icon: <Shield size={14} />,      show: isRoleSuperadmin || isRoleManager },
   ];
   const visibleTabs = ALL_TABS.filter(t => t.show);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>(visibleTabs[0]?.id ?? 'profile');
@@ -4125,7 +4180,7 @@ export default function SettingsPage({
       </section>}
 
       {/* ── 팀 관리 탭 ── */}
-      {activeTab === 'teams' && canManageUsers && (
+      {activeTab === 'teams' && canManageTeams && (
         <TeamSection
           teams={teams}
           onCreateTeam={onCreateTeam}
@@ -4154,7 +4209,7 @@ export default function SettingsPage({
       )}
 
       {/* ── 사용자 관리 탭 ── */}
-      {activeTab === 'users' && canManageUsers && (
+      {activeTab === 'users' && canManageMembers && (
         <section className="glass-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
             <Users size={15} className="text-purple-500" />
@@ -4222,116 +4277,94 @@ export default function SettingsPage({
         </section>
       )}
 
-      {/* ── 시스템 탭: 권한 안내 ── */}
-      {activeTab === 'system' && <section className="glass-card">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-          <Shield size={15} className="text-gray-400" />
-          <span className="text-sm font-semibold text-gray-800">권한 안내</span>
-        </div>
-        <div className="p-5 space-y-5">
-          {/* 권한 계층 */}
-          <div className="flex items-center justify-center gap-2">
-            <div className="flex flex-col items-center gap-1.5">
-              <RoleBadge role="superadmin" />
-              <span className="text-[10px] text-gray-400">최고 관리자</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5 mx-1">
-              <ChevronRight size={13} className="text-gray-300" />
-              <span className="text-[9px] text-gray-300">관리</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <RoleBadge role="manager" />
-              <span className="text-[10px] text-gray-400">중간 관리자</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5 mx-1">
-              <ChevronRight size={13} className="text-gray-300" />
-              <span className="text-[9px] text-gray-300">관리</span>
-            </div>
-            <div className="flex flex-col items-center gap-1.5">
-              <RoleBadge role="user" />
-              <span className="text-[10px] text-gray-400">일반 사용자</span>
-            </div>
+      {/* ── 시스템 탭: 권한 관리 (superadmin·manager 공통) ── */}
+      {activeTab === 'system' && (isRoleSuperadmin || isRoleManager) && (
+        <section className="glass-card">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <Shield size={15} className="text-blue-400" />
+            <span className="text-sm font-semibold text-gray-800">권한 관리</span>
+            <span className="text-xs text-gray-400">
+              {isRoleSuperadmin ? '중간 관리자 · 일반 사용자 권한 설정' : '일반 사용자 권한 설정'}
+            </span>
           </div>
+          <div className="p-5 space-y-4">
+            {/* 권한 계층 안내 */}
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50">
+                <RoleBadge role="superadmin" />
+                <span className="text-[10px] text-purple-400">모든 권한 고정</span>
+              </div>
+              <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50">
+                <RoleBadge role="manager" />
+                <span className="text-[10px] text-blue-400">
+                  {isRoleSuperadmin ? '아래에서 설정 가능' : '설정 권한 없음'}
+                </span>
+              </div>
+              <ChevronRight size={13} className="text-gray-300 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50">
+                <RoleBadge role="user" />
+                <span className="text-[10px] text-gray-400">아래에서 설정 가능</span>
+              </div>
+            </div>
 
-          {/* 권한 테이블 */}
-          <div className="overflow-x-auto rounded-xl border border-gray-100">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="text-left py-2.5 px-4 text-gray-400 font-medium w-[38%]">기능</th>
-                  <th className="py-2.5 px-2 text-center min-w-[80px]"><RoleBadge role="superadmin" /></th>
-                  <th className="py-2.5 px-2 text-center min-w-[80px]"><RoleBadge role="manager" /></th>
-                  <th className="py-2.5 px-2 text-center min-w-[80px]"><RoleBadge role="user" /></th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* 업무 섹션 */}
-                <tr className="bg-gray-50/60 border-t border-gray-100">
-                  <td colSpan={4} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">업무</td>
-                </tr>
-                {[
-                  { label: '업무 등록 / 수정',    sa: true,  mg: true,  us: true  },
-                  { label: '업무 삭제',           sa: true,  mg: true,  us: false },
-                  { label: '휴가 등록',           sa: true,  mg: true,  us: true  },
-                  { label: '세부업무 시간 입력',   sa: true,  mg: true,  us: true  },
-                ].map(row => (
-                  <tr key={row.label} className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
-                    <td className="py-2.5 px-4 text-gray-600">{row.label}</td>
-                    <td className="py-2.5 text-center font-bold">{row.sa ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
-                    <td className="py-2.5 text-center font-bold">{row.mg ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
-                    <td className="py-2.5 text-center font-bold">{row.us ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
+            {/* 권한 토글 테이블 */}
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left py-2.5 px-4 text-gray-400 font-medium">기능</th>
+                    {isRoleSuperadmin && (
+                      <th className="py-2.5 px-4 text-center w-28">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <RoleBadge role="manager" />
+                        </div>
+                      </th>
+                    )}
+                    <th className="py-2.5 px-4 text-center w-28">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <RoleBadge role="user" />
+                      </div>
+                    </th>
                   </tr>
-                ))}
-
-                {/* 사용자 관리 섹션 */}
-                <tr className="bg-gray-50/60 border-t border-gray-100">
-                  <td colSpan={4} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">사용자 관리</td>
-                </tr>
-                <tr className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
-                  <td className="py-2.5 px-4 text-gray-600">구성원 정보 수정</td>
-                  <td className="py-2.5 text-center text-green-500 font-medium">전체</td>
-                  <td className="py-2.5 text-center text-amber-500 font-medium">본인 + 같은 팀</td>
-                  <td className="py-2.5 text-center font-bold"><span className="text-gray-200">✗</span></td>
-                </tr>
-                <tr className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
-                  <td className="py-2.5 px-4 text-gray-600">권한 변경</td>
-                  <td className="py-2.5 text-center text-green-500 font-medium">manager · user</td>
-                  <td className="py-2.5 text-center text-amber-500 font-medium">같은 팀 user</td>
-                  <td className="py-2.5 text-center font-bold"><span className="text-gray-200">✗</span></td>
-                </tr>
-                <tr className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
-                  <td className="py-2.5 px-4 text-gray-600">구성원 삭제</td>
-                  <td className="py-2.5 text-center text-green-500 font-medium">전체 †</td>
-                  <td className="py-2.5 text-center text-amber-500 font-medium">같은 팀 †</td>
-                  <td className="py-2.5 text-center font-bold"><span className="text-gray-200">✗</span></td>
-                </tr>
-
-                {/* 설정 섹션 */}
-                <tr className="bg-gray-50/60 border-t border-gray-100">
-                  <td colSpan={4} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">설정</td>
-                </tr>
-                {[
-                  { label: '팀 / 파트 생성 및 관리', sa: true,  mg: true,  us: false },
-                  { label: '휴일 관리',              sa: true,  mg: true,  us: false },
-                  { label: '프로필 필드 관리',        sa: true,  mg: true,  us: false },
-                  { label: '시스템 탭 접근',          sa: true,  mg: false, us: false },
-                ].map(row => (
-                  <tr key={row.label} className="border-t border-gray-50 hover:bg-gray-50/40 transition-colors">
-                    <td className="py-2.5 px-4 text-gray-600">{row.label}</td>
-                    <td className="py-2.5 text-center font-bold">{row.sa ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
-                    <td className="py-2.5 text-center font-bold">{row.mg ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
-                    <td className="py-2.5 text-center font-bold">{row.us ? <span className="text-green-500">✓</span> : <span className="text-gray-200">✗</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(['업무', '설정'] as const).map(group => (
+                    <>
+                      <tr key={`group-${group}`} className="bg-gray-50/60 border-t border-gray-100">
+                        <td colSpan={isRoleSuperadmin ? 3 : 2} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">{group}</td>
+                      </tr>
+                      {PERM_ROWS.filter(r => r.group === group).map(row => (
+                        <tr key={row.key} className="border-t border-gray-50 hover:bg-gray-50/30 transition-colors">
+                          <td className="py-3 px-4 text-gray-600">{row.label}</td>
+                          {isRoleSuperadmin && (
+                            <td className="py-3 px-4 text-center">
+                              <PermToggle
+                                checked={localPerms.manager[row.key]}
+                                onChange={() => handlePermToggle('manager', row.key)}
+                              />
+                            </td>
+                          )}
+                          <td className="py-3 px-4 text-center">
+                            <PermToggle
+                              checked={localPerms.user[row.key]}
+                              onChange={() => handlePermToggle('user', row.key)}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] text-gray-400">최고 관리자(superadmin) 권한은 항상 전체 접근이 허용되며 변경할 수 없습니다.</p>
           </div>
-          <p className="text-[10px] text-gray-400">† 본인 및 최고 관리자(superadmin) 대상 삭제·권한 변경 불가</p>
-        </div>
-      </section>}
+        </section>
+      )}
 
       {/* ── 휴일 관리 탭 ── */}
-      {activeTab === 'holidays' && canManageUsers && (
+      {activeTab === 'holidays' && canManageHolidays && (
         <section className="glass-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
             <CalendarDays size={15} className="text-red-400" />
@@ -4342,14 +4375,14 @@ export default function SettingsPage({
             <HolidayEditor
               customHolidays={customHolidays}
               onSave={onUpdateHolidays}
-              canEdit={canManageUsers}
+              canEdit={canManageHolidays}
             />
           </div>
         </section>
       )}
 
       {/* ── 프로필 필드 탭 ── */}
-      {activeTab === 'fields' && canManageUsers && (
+      {activeTab === 'fields' && canManageProfileFields && (
         <ProfileFieldManager profileFields={profileFields} onUpdateProfileFields={onUpdateProfileFields} />
       )}
 

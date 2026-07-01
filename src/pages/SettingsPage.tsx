@@ -4229,21 +4229,60 @@ export default function SettingsPage({
           <span className="text-sm font-semibold text-gray-800">권한 안내</span>
         </div>
         <div className="p-5">
-          <div className="grid grid-cols-3 gap-3 text-xs">
-            {(['superadmin', 'manager', 'user'] as UserRole[]).map(r => (
-              <div key={r} className="flex flex-col gap-3">
-                <div><RoleBadge role={r} /></div>
-                <ul className="space-y-1.5 text-gray-500">
-                  {r !== 'user' && <li>· 팀 / 파트 생성 및 관리</li>}
-                  {r === 'superadmin' && <li>· 사용자 권한 관리</li>}
-                  {r !== 'user' && <li>· 구성원 이름/직군 수정</li>}
-                  <li>· 업무 등록/수정/삭제</li>
-                  <li>· 휴가 등록</li>
-                  <li>· 세부업무 시간 입력</li>
-                  <li>· 시작일/종료일 변경</li>
-                </ul>
-              </div>
-            ))}
+          <div className="grid grid-cols-3 gap-4 text-xs">
+            {/* 최고 관리자 */}
+            <div className="flex flex-col gap-3">
+              <RoleBadge role="superadmin" />
+              <ul className="space-y-1.5 text-gray-600">
+                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-0.5">업무</li>
+                <li>· 업무 등록 / 수정</li>
+                <li>· 업무 삭제</li>
+                <li>· 휴가 등록</li>
+                <li>· 세부업무 시간 입력</li>
+                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-1.5">설정</li>
+                <li>· 팀 / 파트 생성 및 관리</li>
+                <li>· 사용자 관리 (전체)</li>
+                <li>· 사용자 권한 변경 (전체)</li>
+                <li>· 구성원 정보 수정 (전체)</li>
+                <li>· 구성원 삭제</li>
+                <li>· 휴일 관리</li>
+                <li>· 프로필 필드 관리</li>
+                <li>· 시스템 탭 접근</li>
+              </ul>
+            </div>
+            {/* 중간 관리자 */}
+            <div className="flex flex-col gap-3">
+              <RoleBadge role="manager" />
+              <ul className="space-y-1.5 text-gray-600">
+                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-0.5">업무</li>
+                <li>· 업무 등록 / 수정</li>
+                <li>· 업무 삭제</li>
+                <li>· 휴가 등록</li>
+                <li>· 세부업무 시간 입력</li>
+                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-1.5">설정</li>
+                <li>· 팀 / 파트 생성 및 관리</li>
+                <li>· 사용자 관리 (같은 팀)</li>
+                <li className="text-gray-400">· 사용자 권한 변경 (같은 팀 일반만)</li>
+                <li className="text-gray-400">· 구성원 정보 수정 (본인 + 같은 팀 일반)</li>
+                <li>· 구성원 삭제 (같은 팀, superadmin 제외)</li>
+                <li>· 휴일 관리</li>
+                <li>· 프로필 필드 관리</li>
+                <li className="text-gray-300">· 시스템 탭 접근 불가</li>
+              </ul>
+            </div>
+            {/* 일반 사용자 */}
+            <div className="flex flex-col gap-3">
+              <RoleBadge role="user" />
+              <ul className="space-y-1.5 text-gray-600">
+                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-0.5">업무</li>
+                <li>· 업무 등록 / 수정</li>
+                <li className="text-gray-300">· 업무 삭제 불가</li>
+                <li>· 휴가 등록</li>
+                <li>· 세부업무 시간 입력</li>
+                <li className="font-medium text-gray-400 uppercase tracking-wide text-[10px] pt-1.5">설정</li>
+                <li className="text-gray-300">· 설정 탭 접근 불가</li>
+              </ul>
+            </div>
           </div>
         </div>
       </section>}

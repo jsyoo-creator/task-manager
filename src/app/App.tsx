@@ -179,8 +179,8 @@ function App() {
       if (partWithStatus) result = mergeFormConfig(partWithStatus.formConfig, base);
     }
     // 전체 탭: 파트마다 fieldOrder가 달라 컬럼 순서가 역전되는 문제 방지.
-    // 단, allFormConfig에 명시적 fieldOrder가 있으면 사용자 설정을 존중한다.
-    if (result && !selectedTeam?.allFormConfig?.fieldOrder) {
+    // allFormConfig 또는 팀 기본 formConfig에 명시적 fieldOrder가 있으면 사용자 설정을 존중한다.
+    if (result && !selectedTeam?.allFormConfig?.fieldOrder && !selectedTeam?.formConfig?.fieldOrder) {
       const defaultIdx: Record<string, number> = {};
       DEFAULT_BUILTIN_FIELD_CONFIGS.forEach((f, i) => { defaultIdx[f.key] = i; });
       const sortedBuiltins = resolveBuiltinFields(result)

@@ -241,7 +241,9 @@ export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConf
     ...teamCfs.map(tcf => partCfs.find(pcf => pcf.id === tcf.id) ?? tcf),
     ...partCfs.filter(pcf => !teamCfs.some(tcf => tcf.id === pcf.id)),
   ];
-  return { ...partConfig, builtinFields: merged, customFields: mergedCfs };
+  // 파트에 fieldOrder가 없으면 팀 기본 fieldOrder 상속
+  const fieldOrder = partConfig.fieldOrder ?? teamConfig.fieldOrder;
+  return { ...partConfig, builtinFields: merged, customFields: mergedCfs, ...(fieldOrder ? { fieldOrder } : {}) };
 }
 
 /**

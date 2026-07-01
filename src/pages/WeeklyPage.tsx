@@ -285,14 +285,12 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
             <ChevronLeft size={16} />
           </button>
-          <div className="text-center min-w-[110px]">
+          <div className="text-center min-w-[120px]">
             <h1 className="page-title">{weekLabel}</h1>
-            {weekOffset !== 0 && (
-              <button onClick={() => setWeekOffset(0)}
-                className="text-[10px] text-indigo-500 hover:underline font-medium">
-                이번 주로
-              </button>
-            )}
+            <button onClick={() => setWeekOffset(0)}
+              className={`text-[10px] text-indigo-500 hover:underline font-medium transition-opacity ${weekOffset !== 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              이번 주로
+            </button>
           </div>
           <button onClick={() => setWeekOffset(o => o + 1)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">

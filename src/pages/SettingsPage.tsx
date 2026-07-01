@@ -2990,8 +2990,9 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
+  globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
   onSetParts: (teamId: string, parts: TeamPart[]) => Promise<void>;
@@ -3020,7 +3021,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'pl' | 'excel' | 'weekly'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'pl' | 'excel' | 'weekly' | 'permission'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -3231,7 +3232,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto">
-                    {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel', 'weekly'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel', 'weekly', 'permission'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -3239,7 +3240,7 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : '위클리 관리'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : '권한'}
                       </button>
                     ))}
                   </div>
@@ -3384,6 +3385,95 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
                         onSavePart={onUpdatePartWeeklyConfig}
                         onClearPart={onClearPartWeeklyConfig}
                       />
+                    </div>
+                  )}
+
+                  {/* 권한 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'permission' && (
+                    <div className="px-5 py-4 space-y-4">
+                      {/* 팀 개별 권한 활성화 토글 */}
+                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700">팀 개별 권한 사용</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">활성화 시 전체 기본 설정을 무시하고 이 팀에만 적용되는 권한을 설정합니다</p>
+                        </div>
+                        <PermToggle
+                          checked={!!team.rolePermissions}
+                          onChange={() => {
+                            if (team.rolePermissions) {
+                              onUpdateTeam(team.id, { rolePermissions: null });
+                            } else {
+                              onUpdateTeam(team.id, { rolePermissions: globalRolePermissions });
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* 권한 토글 테이블 */}
+                      <div className="overflow-x-auto rounded-xl border border-gray-100">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-100">
+                              <th className="text-left py-2.5 px-4 text-gray-400 font-medium">기능</th>
+                              <th className="py-2.5 px-4 text-center w-28">
+                                <span className={team.rolePermissions ? '' : 'opacity-40'}><RoleBadge role="manager" /></span>
+                              </th>
+                              <th className="py-2.5 px-4 text-center w-28">
+                                <span className={team.rolePermissions ? '' : 'opacity-40'}><RoleBadge role="user" /></span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(['업무', '설정', '게시판'] as const).map(group => (
+                              <>
+                                <tr key={`g-${group}`} className="bg-gray-50/60 border-t border-gray-100">
+                                  <td colSpan={3} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">{group}</td>
+                                </tr>
+                                {PERM_ROWS.filter(r => r.group === group).map(row => {
+                                  const mgVal = team.rolePermissions ? team.rolePermissions.manager[row.key] : globalRolePermissions.manager[row.key];
+                                  const usVal = team.rolePermissions ? team.rolePermissions.user[row.key] : globalRolePermissions.user[row.key];
+                                  const disabled = !team.rolePermissions;
+                                  return (
+                                    <tr key={row.key} className="border-t border-gray-50 hover:bg-gray-50/30 transition-colors">
+                                      <td className={`py-3 px-4 ${disabled ? 'text-gray-300' : 'text-gray-600'}`}>{row.label}</td>
+                                      <td className="py-3 px-4 text-center">
+                                        <PermToggle
+                                          checked={mgVal}
+                                          disabled={disabled}
+                                          onChange={() => onUpdateTeam(team.id, {
+                                            rolePermissions: {
+                                              ...team.rolePermissions!,
+                                              manager: { ...team.rolePermissions!.manager, [row.key]: !mgVal },
+                                            },
+                                          })}
+                                        />
+                                      </td>
+                                      <td className="py-3 px-4 text-center">
+                                        <PermToggle
+                                          checked={usVal}
+                                          disabled={disabled}
+                                          onChange={() => onUpdateTeam(team.id, {
+                                            rolePermissions: {
+                                              ...team.rolePermissions!,
+                                              user: { ...team.rolePermissions!.user, [row.key]: !usVal },
+                                            },
+                                          })}
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {!team.rolePermissions && (
+                        <p className="text-[10px] text-gray-400">현재 전체 기본 설정이 적용 중입니다. 위 토글을 켜면 이 팀만의 권한을 별도로 설정할 수 있습니다.</p>
+                      )}
+                      {team.rolePermissions && (
+                        <p className="text-[10px] text-gray-400">최고 관리자(superadmin) 권한은 항상 전체 접근이 허용됩니다.</p>
+                      )}
                     </div>
                   )}
 
@@ -4188,6 +4278,7 @@ export default function SettingsPage({
       {activeTab === 'teams' && canManageTeams && (
         <TeamSection
           teams={teams}
+          globalRolePermissions={rolePermissions}
           onCreateTeam={onCreateTeam}
           onUpdateTeam={onUpdateTeam}
           onSetParts={onSetParts}

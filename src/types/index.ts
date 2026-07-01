@@ -495,6 +495,7 @@ export interface Team {
   holidays?: CustomHoliday[];
   excelConfig?: ExcelFieldConfig[];
   weeklyExportConfig?: WeeklyExportConfig;
+  rolePermissions?: RolePermissions | null; // 팀별 권한 오버라이드 (null = 전체 기본 설정 사용)
 }
 
 export interface SubTask {

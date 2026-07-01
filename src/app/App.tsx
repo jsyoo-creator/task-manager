@@ -379,7 +379,13 @@ function App() {
     return <LoginPage onSignIn={signIn} onSignInWithEmail={signInWithEmail} onSignUpWithEmail={signUpWithEmail} error={authError} />;
   }
 
-  const permissions = getPermissions(appUser?.role ?? 'user', rolePermissions);
+  const effectiveRolePerms = selectedTeam?.rolePermissions
+    ? {
+        manager: { ...rolePermissions.manager, ...selectedTeam.rolePermissions.manager },
+        user:    { ...rolePermissions.user,    ...selectedTeam.rolePermissions.user },
+      }
+    : rolePermissions;
+  const permissions = getPermissions(appUser?.role ?? 'user', effectiveRolePerms);
   const canSeeAll = true;
   const currentUserName = appUser?.displayName ?? '';
 

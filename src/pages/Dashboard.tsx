@@ -728,8 +728,6 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
       {/* 도넛 SVG */}
       <div className="flex-shrink-0" style={{ width: 140, height: 140 }}>
         <svg viewBox="0 0 140 140" width="140" height="140">
-          {/* 배경 트랙 */}
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e9eaf0" strokeWidth={sw} />
           {isEmpty ? null : slices.map((s, i) => (
             <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
               stroke={colorOf(s.name)} strokeWidth={sw}

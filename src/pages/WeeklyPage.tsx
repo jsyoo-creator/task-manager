@@ -282,17 +282,17 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
       <div className="flex items-center justify-between mb-4">
         <h1 className="page-title">위클리</h1>
         <div className="flex items-center gap-3">
-          {/* 주차 네비게이션 pill */}
-          <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl px-1 py-1">
+          {/* 주차 네비게이션 */}
+          <div className="flex items-center gap-1.5">
             <button onClick={() => setWeekOffset(o => o - 1)}
-              className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white transition-colors">
+              className="flex items-center justify-center w-[34px] py-1.5 rounded-xl border border-gray-200 bg-white text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors">
               <ChevronLeft size={14} />
             </button>
-            <span className={`text-xs font-semibold px-2 whitespace-nowrap ${weekOffset !== 0 ? 'text-[#5B5BD6]' : 'text-gray-600'}`}>
+            <span className={`text-xs font-semibold whitespace-nowrap px-1 ${weekOffset !== 0 ? 'text-[#5B5BD6]' : 'text-gray-500'}`}>
               {weekLabel}
             </span>
             <button onClick={() => setWeekOffset(o => o + 1)}
-              className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white transition-colors">
+              className="flex items-center justify-center w-[34px] py-1.5 rounded-xl border border-gray-200 bg-white text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors">
               <ChevronRight size={14} />
             </button>
           </div>

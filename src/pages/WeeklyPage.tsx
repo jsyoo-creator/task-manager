@@ -280,20 +280,15 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
+        <h1 className="page-title">위클리</h1>
         <div className="flex items-center gap-2">
+          {/* 주차 네비게이션 + 날짜 카드 묶음 */}
           <button onClick={() => setWeekOffset(o => o - 1)}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-            <ChevronLeft size={16} />
+            <ChevronLeft size={15} />
           </button>
-          <h1 className="page-title min-w-[120px] text-center">{weekLabel}</h1>
-          <button onClick={() => setWeekOffset(o => o + 1)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-            <ChevronRight size={16} />
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* 월~금 날짜 카드 */}
-          <div className="flex gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-gray-500 mr-1">{weekLabel}</span>
             {weekdays.map(({ name, date, month, isToday }) => {
               const dateStr = `${start.getFullYear()}-${String(month).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
               const holidayName = holidayMap.get(dateStr) ?? null;
@@ -316,6 +311,10 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
               );
             })}
           </div>
+          <button onClick={() => setWeekOffset(o => o + 1)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <ChevronRight size={15} />
+          </button>
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
         </div>
       </div>

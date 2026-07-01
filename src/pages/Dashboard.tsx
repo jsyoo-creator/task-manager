@@ -519,7 +519,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       ═══════════════════════════════ */}
       <section>
         <SectionLabel title="업무 상태 분석" />
-        <div className="space-y-3 rounded-2xl p-4" style={{ backgroundColor: '#eeeef8' }}>
+        <div className="space-y-3">
 
           {/* 1행: 메인 업무 + 세부 업무 */}
           <div className="grid grid-cols-2 gap-3 items-stretch">
@@ -720,6 +720,8 @@ function DonutChart({ data, colorMap, label = '전체' }: {
       {/* 도넛 SVG */}
       <div className="flex-shrink-0" style={{ width: 140, height: 140 }}>
         <svg viewBox="0 0 140 140" width="140" height="140">
+          {/* 원형 배경 */}
+          <circle cx={cx} cy={cy} r={r + sw / 2 + 2} fill="#eeeef8" />
           {isEmpty ? null : slices.map((s, i) => (
             <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
               stroke={colorOf(s.name)} strokeWidth={sw}

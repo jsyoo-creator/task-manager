@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, type ReactNode } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { FileText, Zap, CheckCircle2, Calendar, BarChart2, Users } from 'lucide-react';
 import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
 import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META } from '../types';
@@ -540,6 +539,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                   colorMap={Object.fromEntries(
                     fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
                   )}
+                  visible={barVisible}
                 />
               </div>
             </div>
@@ -553,71 +553,55 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                 <DonutChart
                   data={subDonut}
                   colorMap={subDonutColorMap}
+                  visible={barVisible}
                 />
               </div>
             </div>
 
           </div>
 
-          {/* 2행: 분류별 완료율 — 동심원 링 차트 */}
-          {cats.length > 0 && (() => {
-            const overallTotal = catStats.reduce((s, c) => s + c.total, 0);
-            const overallDone  = catStats.reduce((s, c) => s + (c.statusBreakdown.find(b => b.key === '완료' || b.label === '완료')?.count ?? 0), 0);
-            const overallRate  = overallTotal > 0 ? Math.round((overallDone / overallTotal) * 100) : 0;
-            const rings = catStats.slice(0, 6);
-            const cx = 100, cy = 100;
-            const baseR = 78, gap = 14, sw = 10;
-            return (
-            <div className="glass-card flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
-                <span className="text-[11px] text-gray-400">전체 기간</span>
-              </div>
-              <div className="flex items-center gap-6 px-6 py-5">
-                {/* 동심원 SVG */}
-                <div className="flex-shrink-0" style={{ width: 180, height: 180 }}>
-                  <svg viewBox="0 0 200 200" width="180" height="180">
-                    {rings.map(({ cat, rate }, i) => {
-                      const r = baseR - i * gap;
-                      const circ = 2 * Math.PI * r;
-                      const dash = barVisible ? (rate / 100) * circ : 0;
-                      return (
-                        <g key={cat}>
-                          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e9eaf0" strokeWidth={sw} />
-                          <circle cx={cx} cy={cy} r={r} fill="none"
-                            stroke={catColor(cat)} strokeWidth={sw}
-                            strokeLinecap="round"
-                            strokeDasharray={`${dash} ${circ}`}
-                            transform={`rotate(-90 ${cx} ${cy})`}
-                            style={{ transition: `stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1) ${i * 100}ms` }}
-                          />
-                        </g>
-                      );
-                    })}
-                    <text x={cx} y={cy - 5} textAnchor="middle" fontSize="22" fontWeight="800" fill="#374151">{overallRate}%</text>
-                    <text x={cx} y={cy + 13} textAnchor="middle" fontSize="10" fill="#9ca3af">전체 완료율</text>
-                  </svg>
-                </div>
-                {/* 범례 */}
-                <div className="flex-1 space-y-2.5">
-                  {rings.map(({ cat, rate, total, statusBreakdown }) => (
-                    <div key={cat} className="flex items-center gap-3">
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
-                      <span className="text-xs font-semibold text-gray-700 w-16 truncate flex-shrink-0">{cat}</span>
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
-                        <div className={`h-full rounded-full ${barVisible && rate > 0 ? 'bar-animate' : ''}`}
-                          style={{ width: `${rate}%`, backgroundColor: catColor(cat), transformOrigin: 'left' }} />
-                      </div>
-                      <span className="text-xs font-bold tabular-nums w-8 text-right flex-shrink-0"
-                        style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>{rate}%</span>
-                      <span className="text-[11px] text-gray-400 tabular-nums flex-shrink-0">({total})</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {/* 2행: 분류별 완료율 */}
+          {cats.length > 0 && (
+          <div className="glass-card flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
+              <span className="text-[11px] text-gray-400">전체 기간</span>
             </div>
-            );
-          })()}
+            <div className="flex flex-wrap">
+              {catStats.map(({ cat, total, statusBreakdown, rate }) => (
+                <div key={cat} className="flex flex-col p-5 gap-3 border-r border-b border-gray-100 last:border-r-0"
+                  style={{ minWidth: 160, flex: '1 1 0' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
+                      <span className="text-xs font-bold truncate" style={{ color: catColor(cat) }}>{cat}</span>
+                    </span>
+                    <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>
+                      {rate}%
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
+                    <div className={`h-full rounded-full ${barVisible ? 'bar-animate' : 'scale-x-0'}`}
+                      style={{ width: rate > 0 ? `${rate}%` : '0%', backgroundColor: catColor(cat),
+                        minWidth: rate > 0 ? 6 : 0, transformOrigin: 'left' }} />
+                  </div>
+                  <div className="grid text-center gap-y-0.5" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>
+                    <div>
+                      <div className="text-sm font-bold tabular-nums leading-tight text-gray-700">{total}</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5">총</div>
+                    </div>
+                    {statusBreakdown.map(({ key, label, color, count }) => (
+                      <div key={key}>
+                        <div className="text-sm font-bold tabular-nums leading-tight" style={{ color: count > 0 ? color : '#c0c4d0' }}>{count}</div>
+                        <div className="text-[9px] text-gray-400 mt-0.5 truncate">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          )}
 
         </div>
       </section>
@@ -714,36 +698,53 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 }
 
 /* ─── DonutChart ─── */
-function DonutChart({ data, colorMap }: {
+function DonutChart({ data, colorMap, visible = true }: {
   data: { name: string; value: number }[];
   colorMap: Record<string, string>;
+  visible?: boolean;
 }) {
   const colorOf = (name: string) => colorMap[name] ?? '#e5e7eb';
-  const chartData = data.filter(d => d.value > 0); // 파이 원형용
+  const chartData = data.filter(d => d.value > 0);
   const isEmpty = chartData.length === 0;
+  const total = data.reduce((s, d) => s + d.value, 0);
+
+  // SVG 도넛 (애니메이션 직접 제어)
+  const cx = 65, cy = 65, r = 48, sw = 14;
+  const circ = 2 * Math.PI * r;
+  let offset = 0;
+  const slices = chartData.map(d => {
+    const len = (d.value / total) * circ;
+    const slice = { name: d.name, len, offset };
+    offset += len;
+    return slice;
+  });
 
   return (
-    <div className="flex items-center gap-4 w-full">
-      <div className="w-[100px] h-[100px] flex-shrink-0 relative flex items-center justify-center">
-        {isEmpty ? (
-          <>
-            <div className="empty-ring absolute inset-0 rounded-full"
-              style={{ boxShadow: 'inset 0 0 0 12px rgba(0,0,0,0.07)' }} />
-            <span className="text-[10px] text-gray-400 text-center leading-tight z-10">데이터<br/>없음</span>
-          </>
-        ) : (
-          <div style={{ width: '100%', height: '100%', animation: 'none' }} className="[&_*]:![animation:none] [&_*]:![transition:none]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={chartData} cx="50%" cy="50%" innerRadius={30} outerRadius={48} dataKey="value" strokeWidth={0} isAnimationActive={false} animationDuration={0}>
-                  {chartData.map(e => <Cell key={e.name} fill={colorOf(e.name)} />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+    <div className="flex items-center gap-5 w-full">
+      {/* 도넛 SVG */}
+      <div className="flex-shrink-0 relative" style={{ width: 130, height: 130 }}>
+        <svg viewBox="0 0 130 130" width="130" height="130">
+          {/* 배경 트랙 */}
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e9eaf0" strokeWidth={sw} />
+          {isEmpty ? null : slices.map((s, i) => (
+            <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
+              stroke={colorOf(s.name)} strokeWidth={sw}
+              strokeDasharray={`${visible ? s.len - 1 : 0} ${circ}`}
+              strokeDashoffset={-(s.offset)}
+              transform={`rotate(-90 ${cx} ${cy})`}
+              style={{ transition: `stroke-dasharray 0.65s cubic-bezier(0.4,0,0.2,1) ${i * 80}ms` }}
+            />
+          ))}
+          {/* 센터 총 건수 */}
+          <text x={cx} y={cy - 4} textAnchor="middle" fontSize="20" fontWeight="800" fill="#1f2937">
+            {total}
+          </text>
+          <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9.5" fill="#9ca3af">건</text>
+        </svg>
       </div>
-      <div className="flex-1 space-y-3 min-w-0">
+
+      {/* 범례 */}
+      <div className="flex-1 space-y-2.5 min-w-0">
         {data.length > 0
           ? data.map(({ name, value }) => (
               <div key={name} className="flex items-center justify-between gap-2">
@@ -757,7 +758,7 @@ function DonutChart({ data, colorMap }: {
               </div>
             ))
           : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {[1,2,3].map(i => (
                 <div key={i} className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 text-xs text-gray-300 min-w-0">

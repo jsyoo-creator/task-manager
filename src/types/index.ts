@@ -305,6 +305,7 @@ export interface MetaField {
   key: string;
   label: string;
   isUrl?: boolean;
+  isPath?: boolean;
 }
 
 export interface SubTaskMemo {

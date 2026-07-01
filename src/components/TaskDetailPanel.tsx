@@ -1,11 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Trash2, ChevronDown, ExternalLink } from 'lucide-react';
+import { X, Trash2, ChevronDown, ExternalLink, Copy } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 
 const PANEL_W = 540;
+
+// OS에 맞게 경로 변환 (Windows ↔ Mac)
+function convertPath(raw: string): string {
+  if (!raw) return raw;
+  const isWin = navigator.userAgent.includes('Windows');
+  const isWinPath = /^[A-Za-z]:\\/.test(raw) || raw.startsWith('\\\\');
+  const isMacPath = raw.startsWith('/');
+  if (isWin && isMacPath) {
+    // Mac → Windows
+    if (raw.startsWith('/Volumes/')) {
+      return '\\\\' + raw.slice('/Volumes/'.length).replace(/\//g, '\\');
+    }
+    return raw.replace(/\//g, '\\');
+  }
+  if (!isWin && isWinPath) {
+    // Windows → Mac
+    if (raw.startsWith('\\\\')) {
+      const parts = raw.slice(2).split('\\').filter(Boolean);
+      return parts.length >= 2 ? '/Volumes/' + parts.slice(1).join('/') : '/' + parts.join('/');
+    }
+    return raw.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/');
+  }
+  return raw;
+}
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
@@ -1558,8 +1582,9 @@ export default function TaskDetailPanel({
         {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
-            {metaFields.map(({ key, label, isUrl }) => {
+            {metaFields.map(({ key, label, isUrl, isPath }) => {
               const val = localMeta[key] ?? '';
+              const displayVal = isPath ? convertPath(val) : val;
               return (
                 <div key={key} className="flex items-center gap-2">
                   <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
@@ -1567,17 +1592,29 @@ export default function TaskDetailPanel({
                     <input
                       type={isUrl ? 'url' : 'text'}
                       readOnly={!canManage}
-                      placeholder={canManage ? (isUrl ? 'https://' : '-') : '-'}
-                      value={val}
-                      onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
-                      onBlur={e => handleMetaBlur(key, e.target.value)}
-                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors"
+                      placeholder={canManage ? (isUrl ? 'https://' : isPath ? '경로 입력' : '-') : '-'}
+                      value={isPath ? displayVal : val}
+                      onChange={e => {
+                        const raw = isPath ? e.target.value : e.target.value;
+                        setLocalMeta(prev => ({ ...prev, [key]: raw }));
+                      }}
+                      onBlur={e => handleMetaBlur(key, isPath ? val : e.target.value)}
+                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors font-mono"
                     />
                     {isUrl && val && (
                       <a href={val} target="_blank" rel="noopener noreferrer"
                         className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
                         <ExternalLink size={13} />
                       </a>
+                    )}
+                    {isPath && displayVal && (
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(displayVal)}
+                        title="경로 복사"
+                        className="flex-shrink-0 text-gray-400 hover:text-orange-500 transition-colors">
+                        <Copy size={13} />
+                      </button>
                     )}
                   </div>
                 </div>

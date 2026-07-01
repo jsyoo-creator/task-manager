@@ -1504,6 +1504,7 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   const [labelInput, setLabelInput] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [newIsUrl, setNewIsUrl] = useState(false);
+  const [newIsPath, setNewIsPath] = useState(false);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
@@ -1538,14 +1539,15 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
     setEditingKey(null);
   };
 
-  const toggleUrl = (key: string) => save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl } : f));
+  const toggleUrl = (key: string) => save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl, isPath: false } : f));
+  const togglePath = (key: string) => save(fields.map(f => f.key === key ? { ...f, isPath: !f.isPath, isUrl: false } : f));
   const deleteField = (key: string) => save(fields.filter(f => f.key !== key));
   const addField = () => {
     const label = newLabel.trim();
     if (!label) return;
     const key = label.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
-    save([...fields, { key, label, isUrl: newIsUrl }]);
-    setNewLabel(''); setNewIsUrl(false);
+    save([...fields, { key, label, isUrl: newIsUrl, isPath: newIsPath }]);
+    setNewLabel(''); setNewIsUrl(false); setNewIsPath(false);
   };
 
   const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
@@ -1711,6 +1713,10 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
                 className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors ${f.isUrl ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
                 URL
               </button>
+              <button type="button" onClick={() => togglePath(f.key)}
+                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors ${f.isPath ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>
+                경로
+              </button>
               <button type="button" onClick={() => deleteField(f.key)}
                 className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                 <X size={11} />
@@ -1721,9 +1727,13 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
         <div className="flex items-center gap-2 mt-2">
           <input className={iCls} placeholder="새 항목 이름" value={newLabel}
             onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addField()} />
-          <button type="button" onClick={() => setNewIsUrl(v => !v)}
+          <button type="button" onClick={() => { setNewIsUrl(v => !v); setNewIsPath(false); }}
             className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsUrl ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
             URL
+          </button>
+          <button type="button" onClick={() => { setNewIsPath(v => !v); setNewIsUrl(false); }}
+            className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsPath ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>
+            경로
           </button>
           <button onClick={addField} disabled={!newLabel.trim()}
             className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">

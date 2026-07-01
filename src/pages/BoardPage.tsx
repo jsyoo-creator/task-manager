@@ -212,9 +212,10 @@ function ListView({ posts, loading, page, onPageChange, onSelect, onWrite }: {
 }
 
 // ─── 글쓰기 뷰 ────────────────────────────────────────────────────────
-function WriteView({ activeTeam, appUser, onBack, onSubmit }: {
+function WriteView({ activeTeam, appUser, canSetNotice, onBack, onSubmit }: {
   activeTeam: Team;
   appUser: AppUser;
+  canSetNotice: boolean;
   onBack: () => void;
   onSubmit: (title: string, content: string, isNotice: boolean) => Promise<void>;
 }) {
@@ -222,7 +223,6 @@ function WriteView({ activeTeam, appUser, onBack, onSubmit }: {
   const [content, setContent] = useState('');
   const [isNotice, setIsNotice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const canSetNotice = appUser.role === 'manager' || appUser.role === 'superadmin';
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim() || submitting) return;
@@ -319,7 +319,7 @@ function WriteView({ activeTeam, appUser, onBack, onSubmit }: {
 }
 
 // ─── 댓글 섹션 ────────────────────────────────────────────────────────
-function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser }) {
+function CommentSection({ postId, appUser, canManageBoard }: { postId: string; appUser: AppUser; canManageBoard: boolean }) {
   const { comments, addComment, updateComment, deleteComment } = useComments(postId);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -382,7 +382,7 @@ function CommentSection({ postId, appUser }: { postId: string; appUser: AppUser 
       ) : (
         <div className="space-y-4 mb-5">
           {comments.map(c => {
-            const canManage = c.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin';
+            const canManage = c.authorUid === appUser.uid || canManageBoard;
             const isEditing = editTarget?.id === c.id;
             return (
               <div key={c.id} className="flex gap-3 group">
@@ -543,10 +543,12 @@ function EditView({ post, onBack, onSubmit }: {
 }
 
 // ─── 글 읽기 뷰 ───────────────────────────────────────────────────────
-function ReadView({ post, appUser, regularPosts, onBack, onDelete, onEdit, onSetNotice, onReadNotice, onNavigate }: {
+function ReadView({ post, appUser, regularPosts, canSetNotice, canManageBoard, onBack, onDelete, onEdit, onSetNotice, onReadNotice, onNavigate }: {
   post: Post;
   appUser: AppUser;
   regularPosts: Post[];
+  canSetNotice: boolean;
+  canManageBoard: boolean;
   onBack: () => void;
   onDelete: () => void;
   onEdit: () => void;
@@ -554,8 +556,8 @@ function ReadView({ post, appUser, regularPosts, onBack, onDelete, onEdit, onSet
   onReadNotice?: (postId: string) => void;
   onNavigate: (postId: string) => void;
 }) {
-  const canManage = post.authorUid === appUser.uid || appUser.role === 'manager' || appUser.role === 'superadmin';
-  const canManageNotice = appUser.role === 'manager' || appUser.role === 'superadmin';
+  const canManage = post.authorUid === appUser.uid || canManageBoard;
+  const canManageNotice = canSetNotice;
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // 공지 글이면 열람 즉시 읽음 처리
@@ -644,7 +646,7 @@ function ReadView({ post, appUser, regularPosts, onBack, onDelete, onEdit, onSet
 
         {/* 댓글 */}
         <div className="px-6 pb-6 pt-2 border-t border-gray-100">
-          <CommentSection postId={post.id} appUser={appUser} />
+          <CommentSection postId={post.id} appUser={appUser} canManageBoard={canManageBoard} />
         </div>
 
         {/* 이전글 / 다음글 */}
@@ -692,9 +694,11 @@ interface Props {
   appUser: AppUser;
   teams: Team[];
   onReadNotice?: (postId: string) => void;
+  canSetNotice: boolean;
+  canManageBoard: boolean;
 }
 
-export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
+export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, canManageBoard }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
   const resolveTeam = (list: typeof userTeams) => {
@@ -836,6 +840,7 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
         <WriteView
           activeTeam={activeTeam}
           appUser={appUser}
+          canSetNotice={canSetNotice}
           onBack={() => setView({ type: 'list' })}
           onSubmit={handleWrite}
         />
@@ -846,6 +851,8 @@ export default function BoardPage({ appUser, teams, onReadNotice }: Props) {
           post={selectedPost}
           appUser={appUser}
           regularPosts={regularPosts}
+          canSetNotice={canSetNotice}
+          canManageBoard={canManageBoard}
           onBack={() => setView({ type: 'list' })}
           onDelete={() => handleDelete(selectedPost.id)}
           onEdit={() => setView({ type: 'edit', postId: selectedPost.id })}

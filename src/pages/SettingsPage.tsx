@@ -99,14 +99,18 @@ function hexToTextColor(hex: string): string {
 // 권한 관리 상수
 // ──────────────────────────────────────────
 const PERM_ROWS: { key: keyof RolePermissionConfig; label: string; group: string }[] = [
-  { key: 'canManageTasks',         label: '업무 등록 / 수정',   group: '업무' },
-  { key: 'canDeleteTasks',         label: '업무 삭제',          group: '업무' },
-  { key: 'canAddVacation',         label: '휴가 등록',          group: '업무' },
-  { key: 'canInputTime',           label: '세부업무 시간 입력',  group: '업무' },
-  { key: 'canManageTeams',         label: '팀 / 파트 관리',     group: '설정' },
-  { key: 'canManageMembers',       label: '사용자 관리',         group: '설정' },
-  { key: 'canManageHolidays',      label: '휴일 관리',          group: '설정' },
-  { key: 'canManageProfileFields', label: '프로필 필드 관리',   group: '설정' },
+  { key: 'canManageTasks',         label: '업무 등록 / 수정',        group: '업무' },
+  { key: 'canDeleteTasks',         label: '업무 삭제',               group: '업무' },
+  { key: 'canAddVacation',         label: '휴가 등록',               group: '업무' },
+  { key: 'canInputTime',           label: '세부업무 시간 입력',       group: '업무' },
+  { key: 'canManageTeams',         label: '팀 / 파트 관리',          group: '설정' },
+  { key: 'canManageMembers',       label: '사용자 관리',              group: '설정' },
+  { key: 'canManageHolidays',      label: '휴일 관리',               group: '설정' },
+  { key: 'canManageProfileFields', label: '프로필 필드 관리',         group: '설정' },
+  { key: 'canViewAccounts',        label: '계정정보 페이지 접근',     group: '설정' },
+  { key: 'canEditSeatMap',         label: '자리 배치도 편집',         group: '설정' },
+  { key: 'canSetNotice',           label: '게시판 공지 설정',         group: '게시판' },
+  { key: 'canManageBoard',         label: '게시판 타인 글 / 댓글 관리', group: '게시판' },
 ];
 
 function PermToggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
@@ -4329,7 +4333,7 @@ export default function SettingsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {(['업무', '설정'] as const).map(group => (
+                  {(['업무', '설정', '게시판'] as const).map(group => (
                     <>
                       <tr key={`group-${group}`} className="bg-gray-50/60 border-t border-gray-100">
                         <td colSpan={isRoleSuperadmin ? 3 : 2} className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 tracking-wider">{group}</td>

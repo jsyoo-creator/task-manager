@@ -4,7 +4,7 @@ import type { UserRole, Team, AppUser, SeatGroup } from '../types';
 import { useSeatGroups } from '../hooks/useSeatGroups';
 
 interface Props {
-  appUserRole: UserRole;
+  canEdit: boolean;
   teams: Team[];
   allUsers: AppUser[];
 }
@@ -311,10 +311,9 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
   );
 }
 
-export default function SeatMapPage({ appUserRole, teams, allUsers }: Props) {
+export default function SeatMapPage({ canEdit, teams, allUsers }: Props) {
   const { groups, addGroup, updateGroup, deleteGroup } = useSeatGroups();
   const [editMode, setEditMode] = useState(false);
-  const canEdit = appUserRole === 'superadmin' || appUserRole === 'manager';
 
   const handleAddGroup = async () => {
     const maxOrder = groups.reduce((m, g) => Math.max(m, g.order ?? 0), -1);

@@ -452,10 +452,10 @@ function App() {
                 onDeleteVacation={deleteVacation}
               />
             } />
-            <Route path="/seats" element={<SeatMapPage appUserRole={appUser?.role ?? 'user'} teams={teams} allUsers={allUsers} />} />
-            <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} /> : null} />
+            <Route path="/seats" element={<SeatMapPage canEdit={permissions.canEditSeatMap} teams={teams} allUsers={allUsers} />} />
+            <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} /> : null} />
             <Route path="/accounts" element={
-              (appUser?.role === 'superadmin' || appUser?.role === 'manager')
+              permissions.canViewAccounts
                 ? <AccountInfoPage allUsers={allUsers} teams={teams} profileFields={profileFields} />
                 : <Navigate to="/" replace />
             } />

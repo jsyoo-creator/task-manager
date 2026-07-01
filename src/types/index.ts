@@ -38,6 +38,10 @@ export interface UserPermissions {
   canManageMembers: boolean;        // 구성원 정보 수정·삭제
   canManageHolidays: boolean;       // 휴일 관리
   canManageProfileFields: boolean;  // 프로필 필드 관리
+  canViewAccounts: boolean;         // 계정정보 페이지 접근
+  canEditSeatMap: boolean;          // 자리 배치도 편집
+  canSetNotice: boolean;            // 게시판 공지 설정
+  canManageBoard: boolean;          // 게시판 타인 글/댓글 관리
 }
 
 export interface RolePermissionConfig {
@@ -49,6 +53,10 @@ export interface RolePermissionConfig {
   canManageMembers: boolean;
   canManageHolidays: boolean;
   canManageProfileFields: boolean;
+  canViewAccounts: boolean;
+  canEditSeatMap: boolean;
+  canSetNotice: boolean;
+  canManageBoard: boolean;
 }
 
 export interface RolePermissions {
@@ -66,6 +74,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canManageMembers: true,
     canManageHolidays: true,
     canManageProfileFields: true,
+    canViewAccounts: true,
+    canEditSeatMap: true,
+    canSetNotice: true,
+    canManageBoard: true,
   },
   user: {
     canManageTasks: true,
@@ -76,6 +88,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canManageMembers: false,
     canManageHolidays: false,
     canManageProfileFields: false,
+    canViewAccounts: false,
+    canEditSeatMap: false,
+    canSetNotice: false,
+    canManageBoard: false,
   },
 };
 
@@ -91,6 +107,10 @@ export function getPermissions(role: UserRole, rolePerms: RolePermissions = DEFA
       canManageMembers: true,
       canManageHolidays: true,
       canManageProfileFields: true,
+      canViewAccounts: true,
+      canEditSeatMap: true,
+      canSetNotice: true,
+      canManageBoard: true,
     };
   }
   const cfg = rolePerms[role] ?? DEFAULT_ROLE_PERMISSIONS[role];

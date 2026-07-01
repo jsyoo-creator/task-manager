@@ -299,6 +299,7 @@ export default function TaskDetailPanel({
   // 이전 메인 담당자 값 추적 (수동 설정한 담당자와 자동 설정한 담당자 구분용)
   const prevReceiverRef = useRef(task.receiver);
   const prevAssigneeRef = useRef(task.assignee);
+  const prevTaskIdForAutoAssignRef = useRef(task.id);
 
   // task.id 전환 시 이전값 리셋
   useEffect(() => {
@@ -311,6 +312,12 @@ export default function TaskDetailPanel({
   // - 담당자가 비어있거나 이전 메인 담당자와 같으면 새 값으로 교체
   // - 수동으로 다른 사람 지정한 경우에는 유지
   useEffect(() => {
+    // task.id가 바뀐 경우: localSubTaskDataRef는 아직 이전 태스크 데이터를 참조 중
+    // 이 상태에서 저장하면 이전 태스크 데이터로 덮어씌워짐 → 저장 건너뜀
+    const taskIdChanged = prevTaskIdForAutoAssignRef.current !== task.id;
+    prevTaskIdForAutoAssignRef.current = task.id;
+    if (taskIdChanged) return;
+
     const prevReceiver = prevReceiverRef.current;
     const prevAssignee = prevAssigneeRef.current;
     prevReceiverRef.current = task.receiver;

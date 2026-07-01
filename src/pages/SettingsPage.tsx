@@ -3187,11 +3187,11 @@ function TeamSection({ teams, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTe
               {expandedTeam === team.id && (
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
-                  <div className="flex border-b border-black/5 px-5">
+                  <div className="flex border-b border-black/5 px-5 overflow-x-auto">
                     {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel', 'weekly'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
-                        className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
+                        className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
                           (teamTab[team.id] ?? 'parts') === tab
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'

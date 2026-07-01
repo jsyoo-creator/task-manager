@@ -555,31 +555,36 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           <div className="glass-card flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <span className="text-[12.5px] font-bold text-gray-700">분류별 완료율</span>
-              <span className="text-[11px] text-gray-400">🗓️ 전체 기간</span>
+              <span className="text-[11px] text-gray-400">전체 기간</span>
             </div>
-            <div className="flex-1 grid gap-px bg-gray-100" style={{ gridTemplateColumns: `repeat(${Math.min(cats.length, 5)}, minmax(0, 1fr))` }}>
+            <div className="flex flex-wrap">
               {catStats.map(({ cat, total, statusBreakdown, rate }) => (
-                <div key={cat} className="flex flex-col justify-center p-5 gap-3 bg-white">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold flex items-center gap-1.5">
+                <div key={cat} className="flex flex-col p-5 gap-3 border-r border-b border-gray-100 last:border-r-0"
+                  style={{ minWidth: 160, flex: '1 1 0' }}>
+                  {/* 카테고리명 + 퍼센트 */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 min-w-0">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: catColor(cat) }} />
-                      <span style={{ color: catColor(cat) }}>{cat}</span>
+                      <span className="text-xs font-bold truncate" style={{ color: catColor(cat) }}>{cat}</span>
                     </span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>
+                    <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: rate > 0 ? catColor(cat) : '#94a3b8' }}>
                       {rate}%
                     </span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${rate}%`, backgroundColor: catColor(cat) }} />
+                  {/* 진행률 바 — 트랙 뚜렷하게, 두께 증가 */}
+                  <div className="h-2 rounded-full bg-gray-150 overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: rate > 0 ? `${rate}%` : '0%', backgroundColor: catColor(cat), minWidth: rate > 0 ? 6 : 0 }} />
                   </div>
-                  <div className="grid text-center" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>
+                  {/* 수치 */}
+                  <div className="grid text-center gap-y-0.5" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>
                     <div>
-                      <div className="text-base font-bold tabular-nums leading-tight text-gray-700">{total}</div>
+                      <div className="text-sm font-bold tabular-nums leading-tight text-gray-700">{total}</div>
                       <div className="text-[9px] text-gray-400 mt-0.5">총</div>
                     </div>
                     {statusBreakdown.map(({ key, label, color, count }) => (
                       <div key={key}>
-                        <div className="text-base font-bold tabular-nums leading-tight" style={{ color: count > 0 ? color : '#9ca3af' }}>{count}</div>
+                        <div className="text-sm font-bold tabular-nums leading-tight" style={{ color: count > 0 ? color : '#c0c4d0' }}>{count}</div>
                         <div className="text-[9px] text-gray-400 mt-0.5 truncate">{label}</div>
                       </div>
                     ))}

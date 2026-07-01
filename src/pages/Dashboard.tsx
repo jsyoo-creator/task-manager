@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { FileText, Zap, CheckCircle2, Calendar, BarChart2, Users } from 'lucide-react';
 import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
 import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META } from '../types';
@@ -210,8 +210,6 @@ function Card({ title, action, children, className = '' }: {
 
 export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamMembers }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
-  const [barVisible, setBarVisible] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setBarVisible(true), 80); return () => clearTimeout(t); }, []);
 
   const statusConfigs = resolveStatusConfigs(formConfig);
 
@@ -503,9 +501,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                   <div key={i}
                     className="h-full rounded-full overflow-hidden"
                     style={{ width: `${(s.v / stats.total) * 100}%`, backgroundColor: '#e9eaf0' }}>
-                    <div className={`h-full rounded-full ${barVisible ? 'bar-animate' : 'scale-x-0'}`}
-                      style={{ backgroundColor: s.c, transformOrigin: 'left',
-                        animationDelay: `${i * 80}ms` }} />
+                    <div className="h-full rounded-full" style={{ backgroundColor: s.c }} />
                   </div>
                 ))}
               </div>
@@ -540,7 +536,6 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                     fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
                   )}
                   label={activeFieldLabel}
-                  visible={barVisible}
                 />
               </div>
             </div>
@@ -555,7 +550,6 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                   data={subDonut}
                   colorMap={subDonutColorMap}
                   label="세부 상태"
-                  visible={barVisible}
                 />
               </div>
             </div>
@@ -583,9 +577,8 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                     </span>
                   </div>
                   <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#e9eaf0' }}>
-                    <div className={`h-full rounded-full ${barVisible ? 'bar-animate' : 'scale-x-0'}`}
-                      style={{ width: rate > 0 ? `${rate}%` : '0%', backgroundColor: catColor(cat),
-                        minWidth: rate > 0 ? 6 : 0, transformOrigin: 'left' }} />
+                    <div className="h-full rounded-full"
+                      style={{ width: rate > 0 ? `${rate}%` : '0%', backgroundColor: catColor(cat), minWidth: rate > 0 ? 6 : 0 }} />
                   </div>
                   <div className="grid text-center gap-y-0.5" style={{ gridTemplateColumns: `repeat(${1 + statusBreakdown.length}, 1fr)` }}>
                     <div>
@@ -700,11 +693,10 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
 }
 
 /* ─── DonutChart ─── */
-function DonutChart({ data, colorMap, label = '전체', visible = true }: {
+function DonutChart({ data, colorMap, label = '전체' }: {
   data: { name: string; value: number }[];
   colorMap: Record<string, string>;
   label?: string;
-  visible?: boolean;
 }) {
   const colorOf = (name: string) => colorMap[name] ?? '#e5e7eb';
   const chartData = data.filter(d => d.value > 0);
@@ -732,10 +724,9 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
             <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
               stroke={colorOf(s.name)} strokeWidth={sw}
               strokeLinecap="round"
-              strokeDasharray={`${visible ? s.len : 0} ${circ}`}
+              strokeDasharray={`${s.len} ${circ}`}
               strokeDashoffset={-s.offset}
               transform={`rotate(-90 ${cx} ${cy})`}
-              style={{ transition: `stroke-dasharray 0.7s cubic-bezier(0.4,0,0.2,1) ${i * 90}ms` }}
             />
           ))}
           {/* 센터: 레이블 위, 숫자 아래 */}

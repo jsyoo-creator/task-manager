@@ -713,7 +713,7 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
 
   const cx = 70, cy = 70, r = 56, sw = 12;
   const circ = 2 * Math.PI * r;
-  const gap = sw + 6; // round 끝(sw/2 × 2) + 시각적 여백 6px
+  const gap = sw + 3; // round 끝(sw/2 × 2) + 시각적 여백 3px
   let offset = 0;
   const slices = chartData.map(d => {
     const len = (d.value / total) * circ;

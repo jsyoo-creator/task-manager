@@ -23,9 +23,10 @@ function convertPath(raw: string): string {
   if (!isWin && isWinPath) {
     // Windows → Mac
     if (raw.startsWith('\\\\')) {
-      const parts = raw.slice(2).split('\\').filter(Boolean);
-      return parts.length >= 2 ? '/Volumes/' + parts.slice(1).join('/') : '/' + parts.join('/');
+      // UNC(\\server\share\path) → smb://server/share/path (Finder 서버 연결 형식)
+      return 'smb:' + raw.replace(/\\/g, '/');
     }
+    // 로컬 드라이브: C:\Users\... → /Users/...
     return raw.replace(/^[A-Za-z]:/, '').replace(/\\/g, '/');
   }
   return raw;

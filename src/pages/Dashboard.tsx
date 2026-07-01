@@ -731,7 +731,7 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
           {isEmpty ? null : slices.map((s, i) => (
             <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
               stroke={colorOf(s.name)} strokeWidth={sw}
-              strokeLinecap="round"
+              strokeLinecap="butt"
               strokeDasharray={`${visible ? s.len : 0} ${circ}`}
               strokeDashoffset={-s.offset}
               transform={`rotate(-90 ${cx} ${cy})`}

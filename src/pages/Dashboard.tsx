@@ -713,7 +713,7 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
 
   const cx = 70, cy = 70, r = 56, sw = 12;
   const circ = 2 * Math.PI * r;
-  const gap = 4; // 슬라이스 간 간격 (px 기준 고정, 전체 진행 현황 bar gap-1과 동일)
+  const gap = sw + 6; // round 끝(sw/2 × 2) + 시각적 여백 6px
   let offset = 0;
   const slices = chartData.map(d => {
     const len = (d.value / total) * circ;
@@ -731,7 +731,7 @@ function DonutChart({ data, colorMap, label = '전체', visible = true }: {
           {isEmpty ? null : slices.map((s, i) => (
             <circle key={s.name} cx={cx} cy={cy} r={r} fill="none"
               stroke={colorOf(s.name)} strokeWidth={sw}
-              strokeLinecap="butt"
+              strokeLinecap="round"
               strokeDasharray={`${visible ? s.len : 0} ${circ}`}
               strokeDashoffset={-s.offset}
               transform={`rotate(-90 ${cx} ${cy})`}

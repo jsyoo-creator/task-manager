@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Building2, Plus, UserCog, Shield, LogOut, X, LayoutGrid } from 'lucide-react';
+import { Building2, Plus, UserCog, Shield, LogOut, X, LayoutGrid, Star } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useWorkplaces } from '../hooks/useWorkplaces';
@@ -29,7 +29,7 @@ const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
 
 export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const { workplaces, loading: wpLoading, createWorkplace, setMenuEnabled } = useWorkplaces();
-  const { users, updateUserRole, addUserWorkplace, removeUserWorkplace, setPlatformAdmin } = useAllUsers();
+  const { users, updateUserRole, addUserWorkplace, removeUserWorkplace, setUserDefaultWorkplace, setPlatformAdmin } = useAllUsers();
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -212,9 +212,20 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
                           {u.workplaceIds.map(wpId => {
                             const wp = workplaces.find(w => w.id === wpId);
                             if (!wp) return null;
+                            const isDefault = u.defaultWorkplaceId === wpId;
+                            const isMulti = u.workplaceIds!.length > 1;
                             return (
                               <span key={wpId} className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-medium">
                                 {wp.name}
+                                {isMulti && (
+                                  <button
+                                    onClick={() => setUserDefaultWorkplace(u.uid, isDefault ? null : wpId)}
+                                    title={isDefault ? '기본 근무지 해제' : '기본 근무지로 지정 (전체 보기에서 이 근무지에만 표시)'}
+                                    className={isDefault ? 'text-yellow-500' : 'text-blue-300 hover:text-yellow-400'}
+                                  >
+                                    <Star size={10} fill={isDefault ? 'currentColor' : 'none'} />
+                                  </button>
+                                )}
                                 <button onClick={() => removeUserWorkplace(u.uid, wpId)} className="hover:text-blue-800">
                                   <X size={10} />
                                 </button>

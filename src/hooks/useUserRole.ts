@@ -136,6 +136,11 @@ export function useAllUsers(workplaceId?: string) {
     await updateDoc(doc(db, 'users', uid), { workplaceIds: arrayRemove(workplaceId) });
   };
 
+  // 다중 배정된 사용자의 기본(로그인 시 자동 선택) 근무지를 어드민이 대신 지정 (플랫폼 관리자 전용)
+  const setUserDefaultWorkplace = async (uid: string, workplaceId: string | null) => {
+    await updateDoc(doc(db, 'users', uid), { defaultWorkplaceId: workplaceId ?? deleteField() });
+  };
+
   // 플랫폼 관리자 지정/해제
   const setPlatformAdmin = async (uid: string, value: boolean) => {
     await updateDoc(doc(db, 'users', uid), { isPlatformAdmin: value });
@@ -225,5 +230,5 @@ export function useAllUsers(workplaceId?: string) {
     await deleteDoc(doc(db, 'users', uid));
   };
 
-  return { users, updateUserRole, updateUserInfo, deleteUser, addUserWorkplace, removeUserWorkplace, setPlatformAdmin };
+  return { users, updateUserRole, updateUserInfo, deleteUser, addUserWorkplace, removeUserWorkplace, setUserDefaultWorkplace, setPlatformAdmin };
 }

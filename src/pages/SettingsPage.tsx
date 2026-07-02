@@ -4963,7 +4963,10 @@ export default function SettingsPage({
                   const teamUsers = team
                     ? users.filter(u => {
                         if (!u.selectedTeamIds?.includes(team.id)) return false;
-                        if (u.defaultTeamId) return u.defaultTeamId === team.id;
+                        // defaultTeamId는 그것이 이 근무지의 팀들 중 하나일 때만 배타적 기준으로 사용
+                        // (다른 근무지의 팀을 가리키는 낡은 값이면 무시하고 selectedTeamIds만 확인)
+                        const defaultInThisWorkplace = u.defaultTeamId && teams.some(t => t.id === u.defaultTeamId);
+                        if (defaultInThisWorkplace) return u.defaultTeamId === team.id;
                         return true;
                       })
                     : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));

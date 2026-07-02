@@ -310,18 +310,22 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
-  // 담당자 목록: defaultTeamId가 현재 팀인 사람 우선, 미설정 시 selectedTeamIds 폴백
+  // 담당자 목록: defaultTeamId가 "현재 근무지의" 팀을 가리킬 때만 그 기준으로 판단하고,
+  // 다른 근무지의 팀을 가리키는 낡은 값이면 무시하고 selectedTeamIds로 폴백한다
+  // (다중 근무지 배정 사용자가 defaultTeamId 때문에 목록에서 통째로 빠지는 것을 방지)
+  const isDefaultTeamInWorkplace = (u: { defaultTeamId?: string }) =>
+    !!u.defaultTeamId && teams.some(t => t.id === u.defaultTeamId);
   const teamMembers = selectedTeam
     ? allUsers.filter(u =>
-        u.defaultTeamId
+        isDefaultTeamInWorkplace(u)
           ? u.defaultTeamId === selectedTeam.id
           : u.selectedTeamIds?.includes(selectedTeam.id)
       ).map(u => ({ name: u.displayName, department: u.department }))
     : [];
 
-  // 휴가 표시용: defaultTeamId 기준, 미설정 시 selectedTeamIds 폴백
+  // 휴가 표시용: 위와 동일한 기준
   const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
-    u.defaultTeamId
+    isDefaultTeamInWorkplace(u)
       ? u.defaultTeamId === selectedTeam.id
       : u.selectedTeamIds?.includes(selectedTeam.id)
   ) : [];

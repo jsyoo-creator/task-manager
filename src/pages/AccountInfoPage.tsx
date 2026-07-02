@@ -9,10 +9,12 @@ interface Props {
   profileFields: ProfileFieldDef[];
 }
 
-function getUserTeamId(user: AppUser): string | null {
-  if (user.defaultTeamId) return user.defaultTeamId;
-  if (user.selectedTeamIds?.length) return user.selectedTeamIds[0];
-  return null;
+// defaultTeamId/selectedTeamIds는 근무지 구분 없는 전역 값이라, 다른 근무지의 팀을
+// 가리킬 수 있음 — 반드시 현재 근무지의 teams 목록 안에 있는 값만 신뢰한다
+function getUserTeamId(user: AppUser, teams: Team[]): string | null {
+  if (user.defaultTeamId && teams.some(t => t.id === user.defaultTeamId)) return user.defaultTeamId;
+  const validSelected = user.selectedTeamIds?.find(id => teams.some(t => t.id === id));
+  return validSelected ?? null;
 }
 
 function formatDate(v: string): string {
@@ -71,7 +73,7 @@ function downloadXlsx(teams: Team[], allUsers: AppUser[], profileFields: Profile
   const wb = XLSX.utils.book_new();
 
   selectedTeams.forEach(t => {
-    const users = allUsers.filter(u => getUserTeamId(u) === t.id);
+    const users = allUsers.filter(u => getUserTeamId(u, teams) === t.id);
     const ws = buildSheet(users, profileFields, t.id);
     // xlsx 시트명은 31자 이내, 특수문자 불가
     const sheetName = t.name.replace(/[\\/*?[\]:]/g, '').slice(0, 31) || `팀${t.id.slice(-4)}`;
@@ -151,7 +153,7 @@ function DownloadModal({ teams, allUsers, profileFields, onClose }: {
       {/* 팀 목록 */}
       <div className="px-4 py-2 space-y-1 max-h-48 overflow-y-auto">
         {teams.map(t => {
-          const count = allUsers.filter(u => getUserTeamId(u) === t.id).length;
+          const count = allUsers.filter(u => getUserTeamId(u, teams) === t.id).length;
           const isChecked = selected.has(t.id);
           return (
             <button
@@ -191,7 +193,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
   const [showDownload, setShowDownload] = useState(false);
 
   const activeTeam = teams.find(t => t.id === activeTeamId);
-  const sorted = sortUsers(allUsers.filter(u => getUserTeamId(u) === activeTeamId));
+  const sorted = sortUsers(allUsers.filter(u => getUserTeamId(u, teams) === activeTeamId));
   // 계정 정보 페이지에 노출 설정된 필드만
   const visibleFields = profileFields.filter(f => f.showInAccountInfo !== false);
 
@@ -229,7 +231,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
       {teams.length > 0 && (
         <div className="flex gap-1.5 flex-wrap">
           {teams.map(t => {
-            const count = allUsers.filter(u => getUserTeamId(u) === t.id).length;
+            const count = allUsers.filter(u => getUserTeamId(u, teams) === t.id).length;
             return (
               <button
                 key={t.id}

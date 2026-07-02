@@ -5029,14 +5029,10 @@ export default function SettingsPage({
               {(() => {
                 const DEFAULT_COLORS = ['#3b82f6','#8b5cf6','#10b981','#f97316','#ec4899','#14b8a6'];
                 return [...teams, null].map((team, teamIdx) => {
+                  // 선택한 모든 팀에 소속으로 표시 (기본 팀은 접속 시 자동 진입 용도일 뿐,
+                  // 여기서는 배타적 기준으로 쓰지 않음 — 안 그러면 다중 팀 소속자가 한 팀에서만 보임)
                   const teamUsers = team
-                    ? users.filter(u => {
-                        if (!u.selectedTeamIds?.includes(team.id)) return false;
-                        // 이 근무지에서의 기본 팀이 설정돼 있으면 그 팀 그룹에서만 배타적으로 표시
-                        const usersDefault = workplaceId ? u.defaultTeamIdByWorkplace?.[workplaceId] : undefined;
-                        if (usersDefault) return usersDefault === team.id;
-                        return true;
-                      })
+                    ? users.filter(u => u.selectedTeamIds?.includes(team.id))
                     : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));
                   if (teamUsers.length === 0) return null;
 

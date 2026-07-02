@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import type { Team, AppUser, UserRole, Workplace } from '../types';
 
 const ROLE_OPTIONS: UserRole[] = ['user', 'manager', 'superadmin'];
-const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '매니저', superadmin: '최고 관리자' };
+const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '중간 관리자', superadmin: '최고 관리자' };
 
 interface Props {
   onSignOut: () => void;

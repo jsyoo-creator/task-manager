@@ -382,15 +382,20 @@ function App() {
     return map;
   }, [calendarSubtasks, filteredTasks, activeParts, selectedTeam]);
 
-  // 캘린더 '세부업무별' 그룹핑용 정렬 순서 맵 (subtask.id → subTaskTypeOrder 인덱스)
+  // 캘린더 '세부업무별' 그룹핑용 정렬 순서 맵 (subtask.id → 해당 파트 자신의 subTaskTypes 배열상 순서)
+  // 파트별로 별도 순서(드래그 정렬)를 설정했으면 그 파트 고유 순서를 따르고, 없으면 팀 기본 순서를 따름
   const subTaskOrderMap = useMemo(() => {
     const map = new Map<string, number>();
     calendarSubtasks.forEach(s => {
       const subKey = s.id.split('__')[1];
-      map.set(s.id, subTaskTypeOrder.get(subKey) ?? 999);
+      const taskObj = filteredTasks.find(t => t.id === s.taskId);
+      const partObj = taskObj ? activeParts.find(p => p.name === taskObj.category) : undefined;
+      const types = partObj?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
+      const idx = types.findIndex(t => t.id === subKey);
+      map.set(s.id, idx === -1 ? 999 : idx);
     });
     return map;
-  }, [calendarSubtasks, subTaskTypeOrder]);
+  }, [calendarSubtasks, filteredTasks, activeParts, selectedTeam]);
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });

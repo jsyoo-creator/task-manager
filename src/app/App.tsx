@@ -264,21 +264,26 @@ function App() {
   const teamNotices = useTeamNotices(appUser?.selectedTeamIds ?? []);
   const unreadNoticeCount = teamNotices.filter(n => !readNoticeIds.has(n.id)).length;
 
-  // activeTeamId 유효성 검사 — 선택 팀 목록이 바뀔 때 보정
+  // activeTeamId 유효성 검사 — 선택 팀 목록이나 현재 근무지의 팀 목록이 바뀔 때 보정.
+  // teams는 activeWorkplaceId 기준으로 로드되므로, 근무지를 전환해 teams가 새로 로드될 때도
+  // 이 effect가 다시 실행되어 그 근무지의 기본(★) 팀으로 이동한다.
   useEffect(() => {
-    const ids = appUser?.selectedTeamIds ?? [];
+    const ids = (appUser?.selectedTeamIds ?? []).filter(id => teams.some(t => t.id === id));
     if (ids.length === 0) {
-      setActiveTeamId(null);
-      localStorage.removeItem('activeTeamId');
-    } else if (!activeTeamId || !ids.includes(activeTeamId)) {
-      const preferred = (appUser?.defaultTeamId && ids.includes(appUser.defaultTeamId))
-        ? appUser.defaultTeamId
-        : ids[0];
-      setActiveTeamId(preferred);
-      localStorage.setItem('activeTeamId', preferred);
+      if (activeTeamId !== null) {
+        setActiveTeamId(null);
+        localStorage.removeItem('activeTeamId');
+      }
+      return;
     }
+    if (activeTeamId && ids.includes(activeTeamId)) return; // 이미 유효한 선택 유지
+    const preferred = (appUser?.defaultTeamId && ids.includes(appUser.defaultTeamId))
+      ? appUser.defaultTeamId
+      : ids[0];
+    setActiveTeamId(preferred);
+    localStorage.setItem('activeTeamId', preferred);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appUser?.selectedTeamIds?.join(',')]);
+  }, [appUser?.selectedTeamIds?.join(','), appUser?.defaultTeamId, teams]);
 
   const handleActiveTeamChange = (id: string) => {
     setActiveTeamId(id);

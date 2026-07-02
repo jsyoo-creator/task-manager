@@ -143,9 +143,14 @@ export const DEFAULT_REVISION_STEPS: RevisionStep[] = [
   { id: 'F6', code: 'F6', label: '단순 텍스트·CMS 수정' },
 ];
 
+/** code 필드 도입 이전에 저장된 데이터 호환용 — code가 없으면 id로 채움 */
+export function normalizeRevisionSteps(steps: RevisionStep[]): RevisionStep[] {
+  return steps.map(s => (s.code ? s : { ...s, code: s.id }));
+}
+
 /** 파트 → 팀 → 기본값 순으로 수정단계 목록을 해석 */
 export function resolveRevisionSteps(part?: { revisionSteps?: RevisionStep[] }, team?: { revisionSteps?: RevisionStep[] }): RevisionStep[] {
-  return part?.revisionSteps ?? team?.revisionSteps ?? DEFAULT_REVISION_STEPS;
+  return normalizeRevisionSteps(part?.revisionSteps ?? team?.revisionSteps ?? DEFAULT_REVISION_STEPS);
 }
 
 export interface TeamPart {

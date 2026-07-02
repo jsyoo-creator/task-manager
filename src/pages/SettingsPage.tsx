@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -2135,7 +2135,7 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
   const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const isInherited = !isTeam && !currentPart?.revisionSteps;
   const teamSteps: RevisionStep[] = team.revisionSteps ?? DEFAULT_REVISION_STEPS;
-  const steps: RevisionStep[] = isTeam ? teamSteps : (currentPart?.revisionSteps ?? teamSteps);
+  const steps: RevisionStep[] = normalizeRevisionSteps(isTeam ? teamSteps : (currentPart?.revisionSteps ?? teamSteps));
 
   const save = (next: RevisionStep[]) => {
     if (isTeam) onSave(team.id, next);

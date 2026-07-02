@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Building2, Plus, UserCog, Shield } from 'lucide-react';
+import { Link } from 'react-router';
+import { Building2, Plus, UserCog, Shield, LogOut } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useWorkplaces } from '../hooks/useWorkplaces';
@@ -9,8 +10,14 @@ import type { Team, AppUser, UserRole } from '../types';
 const ROLE_OPTIONS: UserRole[] = ['user', 'manager', 'superadmin'];
 const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '매니저', superadmin: '최고 관리자' };
 
-// 플랫폼 관리자(PIVOT 본사 관리자) 전용 — 근무지(클라이언트 TF) 생성 및 사용자 배정
-export default function AdminPage() {
+interface Props {
+  onSignOut: () => void;
+  hasWorkspaceAccess: boolean; // 배정된 근무지가 있어 일반 업무관리 화면도 겸용 가능한 경우 "돌아가기" 링크 표시
+}
+
+// 플랫폼 관리자(PIVOT 본사 관리자) 전용 — 일반 업무관리 화면과 완전히 분리된 독립 페이지.
+// 근무지(클라이언트 TF) 생성 및 사용자 배정을 담당.
+export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const { workplaces, loading: wpLoading, createWorkplace } = useWorkplaces();
   const { users, assignUserToWorkplace, setPlatformAdmin } = useAllUsers();
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -43,13 +50,29 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-title">근무지 관리</h1>
-        <p className="page-subtitle">클라이언트 TF(근무지) 단위로 팀·업무·사용자가 서로 완전히 분리됩니다</p>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <header className="flex items-center justify-between px-6 py-3.5 bg-white border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <Building2 size={16} className="text-blue-500" />
+          <span className="text-sm font-bold text-gray-800">PIVOT 어드민</span>
+        </div>
+        <div className="flex items-center gap-4">
+          {hasWorkspaceAccess && (
+            <Link to="/" className="text-xs text-blue-500 hover:text-blue-700 font-medium">← 업무관리로 돌아가기</Link>
+          )}
+          <button onClick={onSignOut} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+            <LogOut size={12} />로그아웃
+          </button>
+        </div>
+      </header>
 
-      {/* 근무지 목록 + 새 근무지 추가 */}
+      <div className="max-w-5xl mx-auto p-6 space-y-6">
+        <div>
+          <h1 className="page-title">근무지 관리</h1>
+          <p className="page-subtitle">클라이언트 TF(근무지) 단위로 팀·업무·사용자가 서로 완전히 분리됩니다</p>
+        </div>
+
+        {/* 근무지 목록 + 새 근무지 추가 */}
       <section className="glass-card">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -170,6 +193,7 @@ export default function AdminPage() {
           <PlatformAdminAdder users={users} onAdd={uid => setPlatformAdmin(uid, true)} />
         </div>
       </section>
+      </div>
     </div>
   );
 }

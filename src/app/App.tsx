@@ -523,6 +523,15 @@ function App() {
 
       <BrowserRouter>
         <RouteWatcher onRouteChange={path => { if (path !== '/tasks') setDetailTaskId(null); }} />
+        <Routes>
+          {/* 근무지 관리(플랫폼 관리자 전용)는 일반 업무관리 화면과 완전히 분리된 독립 페이지 */}
+          <Route path="/admin/*" element={
+            appUser?.isPlatformAdmin
+              ? <AdminPage onSignOut={signOut} hasWorkspaceAccess={!!appUser?.workplaceId} />
+              : <Navigate to="/" replace />
+          } />
+          <Route path="/*" element={
+            <>
         <Layout
           project={currentProject}
           projects={projects}
@@ -647,9 +656,6 @@ function App() {
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />
-            <Route path="/admin" element={
-              appUser?.isPlatformAdmin ? <AdminPage /> : <Navigate to="/" replace />
-            } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
@@ -701,6 +707,9 @@ function App() {
             />
           );
         })()}
+            </>
+          } />
+        </Routes>
       </BrowserRouter>
     </>
     </HolidaysContext.Provider>

@@ -1154,7 +1154,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   ))}
                 </div>
               </div>
-              {requestTargetTeam && (
+              {requestTargetTeam && requestTargetTeam.parts.length > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">등록할 파트</p>
                   <select
@@ -1169,6 +1169,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   </select>
                 </div>
               )}
+              {requestTargetTeam && requestTargetTeam.parts.length === 0 && (
+                <p className="text-xs text-gray-400">이 지원팀은 파트가 없어 파트 구분 없이 바로 등록됩니다</p>
+              )}
             </div>
             <div className="flex gap-2 px-6 py-4 border-t border-gray-100">
               <button
@@ -1177,7 +1180,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 취소
               </button>
               <button
-                disabled={!requestTargetTeamId || !requestTargetPart || requestSending}
+                disabled={!requestTargetTeamId || (requestTargetTeam ? requestTargetTeam.parts.length > 0 && !requestTargetPart : true) || requestSending}
                 onClick={async () => {
                   if (!onRequestToSupportTeam) return;
                   setRequestSending(true);

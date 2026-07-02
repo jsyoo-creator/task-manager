@@ -7,6 +7,7 @@ interface Props {
   canEdit: boolean;
   teams: Team[];
   allUsers: AppUser[];
+  workplaceId?: string;
 }
 
 const COLOR_PRESETS = [
@@ -311,8 +312,8 @@ function GroupCard({ group, allUsers, teams, editMode, onUpdateGroup, onDeleteGr
   );
 }
 
-export default function SeatMapPage({ canEdit, teams, allUsers }: Props) {
-  const { groups, addGroup, updateGroup, deleteGroup } = useSeatGroups();
+export default function SeatMapPage({ canEdit, teams, allUsers, workplaceId }: Props) {
+  const { groups, addGroup, updateGroup, deleteGroup } = useSeatGroups(workplaceId);
   const [editMode, setEditMode] = useState(false);
 
   const handleAddGroup = async () => {

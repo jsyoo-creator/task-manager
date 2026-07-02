@@ -225,6 +225,20 @@ function App() {
           await userBatch.commit();
           console.log('[migration] defaultTeamIdByWorkplace 백필 완료:', userCount, '건');
         }
+
+        const seatGroupsSnap = await getDocs(collection(db, 'seatGroups'));
+        const seatBatch = writeBatch(db);
+        let seatCount = 0;
+        seatGroupsSnap.docs.forEach(d => {
+          if (!d.data().workplaceId) {
+            seatBatch.update(d.ref, { workplaceId: legacyWorkplaceId });
+            seatCount++;
+          }
+        });
+        if (seatCount > 0) {
+          await seatBatch.commit();
+          console.log('[migration] seatGroups workplaceId 백필 완료:', seatCount, '건');
+        }
       } catch (e) {
         console.error('[migration] 근무지별 설정값 분리 실패:', e);
       }
@@ -800,7 +814,7 @@ function App() {
                 onDeleteVacation={deleteVacation}
               />
             } />
-            <Route path="/seats" element={<SeatMapPage canEdit={permissions.canEditSeatMap} teams={teams} allUsers={allUsers} />} />
+            <Route path="/seats" element={<SeatMapPage canEdit={permissions.canEditSeatMap} teams={teams} allUsers={allUsers} workplaceId={activeWorkplaceId ?? undefined} />} />
             <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} /> : null} />
             <Route path="/accounts" element={
               permissions.canViewAccounts

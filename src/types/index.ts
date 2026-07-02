@@ -514,6 +514,7 @@ export interface SeatGroup {
   seats: Record<string, string>; // "r-c" → displayName
   order: number;
   createdAt: string;
+  workplaceId?: string;
 }
 
 export interface ExcelFieldConfig {

@@ -1806,14 +1806,11 @@ const SUBTASK_CALENDAR_COLORS = [
   '#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6',
 ];
 
-function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder }: {
+function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onSavePart: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPart: (teamId: string, partId: string) => Promise<void>;
-  onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
-  onSavePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
-  onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
@@ -1823,12 +1820,9 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTea
   const [newName, setNewName] = useState('');
   const [newDept, setNewDept] = useState<Department | ''>('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const [colorPickingId, setColorPickingId] = useState<string | null>(null);
   const dragIdxRef = useRef<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
-  const [calDragOverIdx, setCalDragOverIdx] = useState<number | null>(null);
-  const calDragIdxRef = useRef<number | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -1837,33 +1831,6 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTea
   const isInherited = !isTeam && !currentPart?.subTaskTypes;
   const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
   const types: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
-
-  // 캘린더 전용 표시 순서 (업무상세 순서=types와 별개, SubTaskType.id 배열로 저장)
-  const isCalOrderInherited = !isTeam && !currentPart?.calendarOrder;
-  const savedCalOrder: string[] | undefined = isTeam ? team.calendarOrder : (currentPart?.calendarOrder ?? team.calendarOrder);
-  const calTypes: SubTaskType[] = (() => {
-    const base = savedCalOrder ?? types.map(t => t.id);
-    const known = new Set(types.map(t => t.id));
-    const ordered = base.filter(id => known.has(id));
-    const missing = types.map(t => t.id).filter(id => !ordered.includes(id));
-    return [...ordered, ...missing].map(id => types.find(t => t.id === id)!).filter(Boolean);
-  })();
-
-  const saveCalOrder = (next: SubTaskType[]) => {
-    const order = next.map(t => t.id);
-    if (isTeam) onUpdateTeam(team.id, { calendarOrder: order });
-    else if (currentPart) onSavePartCalendarOrder(team.id, currentPart.id, order);
-  };
-
-  const onCalDrop = (toIdx: number) => {
-    const from = calDragIdxRef.current;
-    if (from === null || from === toIdx) return;
-    const arr = [...calTypes];
-    const [item] = arr.splice(from, 1);
-    arr.splice(toIdx, 0, item);
-    saveCalOrder(arr);
-    calDragIdxRef.current = null; setCalDragOverIdx(null);
-  };
 
   const save = (next: SubTaskType[]) => {
     if (isTeam) onSave(team.id, next);
@@ -2085,56 +2052,11 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTea
                   }`}>
                   <CalendarDays size={11} />
                 </button>
-                {/* 캘린더 색상 버튼 */}
-                <button
-                  type="button"
-                  title="캘린더 표시 색상 선택"
-                  onClick={() => setColorPickingId(colorPickingId === t.id ? null : t.id)}
-                  style={{
-                    width: 16, height: 16, borderRadius: '50%', padding: 0, cursor: 'pointer', flexShrink: 0,
-                    backgroundColor: t.calendarColor ?? '#e5e7eb',
-                    border: t.calendarColor ? `2px solid ${t.calendarColor}` : '1.5px dashed #9ca3af',
-                    outline: colorPickingId === t.id ? '2px solid #6366f1' : 'none',
-                    outlineOffset: 1,
-                  }}
-                />
                 <button type="button" onClick={() => deleteType(t.id)}
                   className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                   <X size={11} />
                 </button>
               </div>
-              {/* 인라인 색상 팔레트 */}
-              {colorPickingId === t.id && (
-                <div className="px-3 py-2 bg-gray-50 border-t border-black/5">
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 18px)', gap: 4, alignItems: 'center' }}>
-                    {/* 기본값 버튼 */}
-                    <button
-                      type="button"
-                      title="기본값으로 초기화"
-                      onClick={() => { save(types.map(x => x.id === t.id ? { ...x, calendarColor: undefined } : x)); setColorPickingId(null); }}
-                      style={{
-                        width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
-                        backgroundColor: '#e5e7eb', border: '1.5px dashed #9ca3af',
-                        outline: !t.calendarColor ? '2px solid #6b7280' : 'none', outlineOffset: 1,
-                      }}
-                    />
-                    {SUBTASK_CALENDAR_COLORS.map(hex => (
-                      <button
-                        key={hex}
-                        type="button"
-                        onClick={() => { save(types.map(x => x.id === t.id ? { ...x, calendarColor: hex } : x)); setColorPickingId(null); }}
-                        style={{
-                          width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
-                          backgroundColor: hex, border: 'none',
-                          outline: t.calendarColor === hex ? '2px solid #374151' : 'none', outlineOffset: 1,
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-1.5">점선 원 = 기본색으로 초기화</p>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -2166,15 +2088,126 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTea
         </button>
       </div>
       </div>
+    </div>
+  );
+}
 
-      {/* 캘린더 표시 순서 (업무상세 순서와 별개) */}
+function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder }: {
+  team: Team;
+  onSaveTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
+  onSavePartTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
+  onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
+  onSavePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
+  onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
+}) {
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [colorPickingId, setColorPickingId] = useState<string | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  useEffect(() => { setSelectedTarget('team'); setColorPickingId(null); }, [team.id]);
+
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
+  const allTypes: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
+  const visibleTypes = allTypes.filter(t => t.showInCalendar !== false);
+
+  const isOrderInherited = !isTeam && !currentPart?.calendarOrder;
+  const savedOrder: string[] | undefined = isTeam ? team.calendarOrder : (currentPart?.calendarOrder ?? team.calendarOrder);
+  const orderedTypes: SubTaskType[] = (() => {
+    const base = savedOrder ?? visibleTypes.map(t => t.id);
+    const known = new Set(visibleTypes.map(t => t.id));
+    const ordered = base.filter(id => known.has(id));
+    const missing = visibleTypes.map(t => t.id).filter(id => !ordered.includes(id));
+    return [...ordered, ...missing].map(id => visibleTypes.find(t => t.id === id)!).filter(Boolean);
+  })();
+
+  const saveOrder = (next: SubTaskType[]) => {
+    const order = next.map(t => t.id);
+    if (isTeam) onUpdateTeam(team.id, { calendarOrder: order });
+    else if (currentPart) onSavePartCalendarOrder(team.id, currentPart.id, order);
+  };
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...orderedTypes];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    saveOrder(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  const saveColor = (id: string, color: string | undefined) => {
+    const next = allTypes.map(t => t.id === id ? { ...t, calendarColor: color } : t);
+    if (isTeam) onSaveTypes(team.id, next);
+    else if (currentPart) onSavePartTypes(team.id, currentPart.id, next);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.calendarOrder;
+              return (
+                <button key={target}
+                  onClick={() => { setSelectedTarget(target); setColorPickingId(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 캘린더 표시 방식 (팀 전체 설정) */}
+      <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+        <div>
+          <p className="text-xs font-semibold text-gray-700">캘린더 표시 방식</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">캘린더 하루 칸 안에서 업무를 어떤 기준으로 묶어 정렬할지 팀 전체에 적용됩니다</p>
+        </div>
+        <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-0.5 flex-shrink-0">
+          <button
+            onClick={() => onUpdateTeam(team.id, { calendarGroupBy: 'task' })}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+              (team.calendarGroupBy ?? 'task') === 'task' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >메인 업무순</button>
+          <button
+            onClick={() => onUpdateTeam(team.id, { calendarGroupBy: 'subtaskType' })}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+              team.calendarGroupBy === 'subtaskType' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >세부 업무별</button>
+        </div>
+      </div>
+
+      {/* 색상 · 순서 (캘린더 표시로 설정된 세부업무만) */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-            캘린더 표시 순서
-            <span className="text-gray-300 font-normal normal-case ml-1">업무상세 순서와 별개 · 드래그로 순서 변경</span>
+            캘린더 노출 항목
+            <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 색상 클릭으로 지정</span>
           </p>
-          {!isTeam && !isCalOrderInherited && (
+          {!isTeam && !isOrderInherited && (
             <button
               onClick={() => currentPart && onClearPartCalendarOrder(team.id, currentPart.id)}
               className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium flex-shrink-0">
@@ -2182,28 +2215,73 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTea
             </button>
           )}
         </div>
-        {isCalOrderInherited && (
+        {isOrderInherited && (
           <p className="text-[10px] text-amber-600 mb-1.5">팀 기본 캘린더 순서를 상속 중 — 순서를 바꾸면 이 파트만 별도로 저장됩니다</p>
         )}
-        {calTypes.length > 0 ? (
+        {orderedTypes.length > 0 ? (
           <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
-            {calTypes.map((t, i) => (
-              <div key={t.id}
-                draggable
-                onDragStart={() => { calDragIdxRef.current = i; }}
-                onDragOver={(e) => { e.preventDefault(); setCalDragOverIdx(i); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setCalDragOverIdx(null); }}
-                onDrop={() => onCalDrop(i)}
-                onDragEnd={() => { calDragIdxRef.current = null; setCalDragOverIdx(null); }}
-                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${calDragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                <span className="flex-1 text-xs text-gray-700 truncate min-w-0">{t.name}</span>
-                <span className="text-[10px] text-gray-300 flex-shrink-0">{i + 1}</span>
+            {orderedTypes.map((t, i) => (
+              <div key={t.id}>
+                <div draggable
+                  onDragStart={() => { dragIdxRef.current = i; }}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+                  onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                  onDrop={() => onDrop(i)}
+                  onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                  className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                  <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                  <span className="flex-1 text-xs text-gray-700 truncate min-w-0">{t.name}</span>
+                  <button
+                    type="button"
+                    title="캘린더 표시 색상 선택"
+                    onClick={() => setColorPickingId(colorPickingId === t.id ? null : t.id)}
+                    style={{
+                      width: 16, height: 16, borderRadius: '50%', padding: 0, cursor: 'pointer', flexShrink: 0,
+                      backgroundColor: t.calendarColor ?? '#e5e7eb',
+                      border: t.calendarColor ? `2px solid ${t.calendarColor}` : '1.5px dashed #9ca3af',
+                      outline: colorPickingId === t.id ? '2px solid #6366f1' : 'none',
+                      outlineOffset: 1,
+                    }}
+                  />
+                </div>
+                {colorPickingId === t.id && (
+                  <div className="px-3 py-2 bg-gray-50 border-t border-black/5">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 18px)', gap: 4, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        title="기본값으로 초기화"
+                        onClick={() => { saveColor(t.id, undefined); setColorPickingId(null); }}
+                        style={{
+                          width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                          backgroundColor: '#e5e7eb', border: '1.5px dashed #9ca3af',
+                          outline: !t.calendarColor ? '2px solid #6b7280' : 'none', outlineOffset: 1,
+                        }}
+                      />
+                      {SUBTASK_CALENDAR_COLORS.map(hex => (
+                        <button
+                          key={hex}
+                          type="button"
+                          onClick={() => { saveColor(t.id, hex); setColorPickingId(null); }}
+                          style={{
+                            width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                            backgroundColor: hex, border: 'none',
+                            outline: t.calendarColor === hex ? '2px solid #374151' : 'none', outlineOffset: 1,
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5">점선 원 = 기본색으로 초기화</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-gray-400 text-center py-3">등록된 세부 업무가 없습니다</p>
+          <p className="text-xs text-gray-400 text-center py-6">
+            캘린더에 표시로 설정된 세부 업무가 없습니다<br />
+            <span className="text-gray-300">'세부 업무' 탭에서 캘린더 표시를 켜주세요</span>
+          </p>
         )}
       </div>
     </div>
@@ -3097,7 +3175,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'pl' | 'excel' | 'weekly' | 'permission'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'permission'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -3308,7 +3386,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto">
-                    {(['parts', 'form', 'meta', 'subtask', 'pl', 'excel', 'weekly', 'permission'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'pl', 'excel', 'weekly', 'permission'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -3316,7 +3394,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : '권한'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : '권한'}
                       </button>
                     ))}
                   </div>
@@ -3425,32 +3503,23 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
 
                   {/* 세부 업무 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'subtask' && (
-                    <div className="px-5 py-4 space-y-4">
-                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
-                        <div>
-                          <p className="text-xs font-semibold text-gray-700">캘린더 표시 방식</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">캘린더 하루 칸 안에서 업무를 어떤 기준으로 묶어 정렬할지 팀별로 설정합니다</p>
-                        </div>
-                        <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-0.5 flex-shrink-0">
-                          <button
-                            onClick={() => onUpdateTeam(team.id, { calendarGroupBy: 'task' })}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                              (team.calendarGroupBy ?? 'task') === 'task' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                          >메인 업무순</button>
-                          <button
-                            onClick={() => onUpdateTeam(team.id, { calendarGroupBy: 'subtaskType' })}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                              team.calendarGroupBy === 'subtaskType' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                          >세부 업무별</button>
-                        </div>
-                      </div>
+                    <div className="px-5 py-4">
                       <SubTaskTypesEditor
                         team={team}
                         onSave={onUpdateSubTaskTypes}
                         onSavePart={onUpdatePartSubTaskTypes}
                         onClearPart={onClearPartSubTaskTypes}
+                      />
+                    </div>
+                  )}
+
+                  {/* 캘린더 관리 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'calendar' && (
+                    <div className="px-5 py-4">
+                      <CalendarDisplayEditor
+                        team={team}
+                        onSaveTypes={onUpdateSubTaskTypes}
+                        onSavePartTypes={onUpdatePartSubTaskTypes}
                         onUpdateTeam={onUpdateTeam}
                         onSavePartCalendarOrder={onUpdatePartCalendarOrder}
                         onClearPartCalendarOrder={onClearPartCalendarOrder}

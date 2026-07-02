@@ -9,6 +9,7 @@ import type { Team, AppUser, UserRole, Workplace } from '../types';
 
 const ROLE_OPTIONS: UserRole[] = ['user', 'manager', 'superadmin'];
 const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '중간 관리자', superadmin: '최고 관리자' };
+const UNASSIGNED_FILTER = '__unassigned__';
 
 interface Props {
   onSignOut: () => void;
@@ -31,6 +32,7 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState<AdminTab>('workplaces');
+  const [userFilter, setUserFilter] = useState<string>('all');
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'teams'), snap => {
@@ -42,6 +44,15 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const teamCountByWorkplace = (wpId: string) => allTeams.filter(t => t.workplaceId === wpId).length;
   const userCountByWorkplace = (wpId: string) => users.filter(u => u.workplaceIds?.includes(wpId)).length;
   const platformAdmins = users.filter(u => u.isPlatformAdmin);
+
+  const userGroups: { key: string; label: string; users: AppUser[] }[] = userFilter === 'all'
+    ? [
+        ...workplaces.map(wp => ({ key: wp.id, label: wp.name, users: users.filter(u => u.workplaceIds?.includes(wp.id)) })),
+        { key: UNASSIGNED_FILTER, label: '미배정', users: users.filter(u => !u.workplaceIds?.length) },
+      ].filter(g => g.users.length > 0)
+    : userFilter === UNASSIGNED_FILTER
+      ? [{ key: UNASSIGNED_FILTER, label: '미배정', users: users.filter(u => !u.workplaceIds?.length) }]
+      : [{ key: userFilter, label: workplaces.find(w => w.id === userFilter)?.name ?? '', users: users.filter(u => u.workplaceIds?.includes(userFilter)) }];
 
   const handleCreate = async () => {
     const name = newName.trim();
@@ -147,58 +158,76 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
         {/* 사용자 근무지 배정 (다중 배정 가능) */}
         {tab === 'users' && (
       <section className="glass-card">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-          <UserCog size={15} className="text-orange-500" />
-          <span className="text-sm font-semibold text-gray-800">사용자 근무지 배정</span>
-          <span className="text-xs text-gray-400">{users.length}명 · 한 사람을 여러 근무지에 동시에 배정할 수 있습니다</span>
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 flex-wrap">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <UserCog size={15} className="text-orange-500" />
+            <span className="text-sm font-semibold text-gray-800">사용자 근무지 배정</span>
+            <span className="text-xs text-gray-400">{users.length}명 · 한 사람을 여러 근무지에 동시에 배정할 수 있습니다</span>
+          </div>
+          <select
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
+            value={userFilter}
+            onChange={e => setUserFilter(e.target.value)}
+          >
+            <option value="all">전체 근무지 (그룹별 보기)</option>
+            {workplaces.map(wp => <option key={wp.id} value={wp.id}>{wp.name}</option>)}
+            <option value={UNASSIGNED_FILTER}>미배정만 보기</option>
+          </select>
         </div>
         {users.length === 0 ? (
           <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 사용자가 없습니다</p>
+        ) : userGroups.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-gray-400 text-center">해당하는 사용자가 없습니다</p>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {users.map(u => (
-              <div key={u.uid} className="flex items-center justify-between px-5 py-3 gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-800 truncate">{u.displayName}</p>
-                    {!u.workplaceIds?.length && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-500 font-medium flex-shrink-0">미배정</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
-                  {!!u.workplaceIds?.length && (
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      {u.workplaceIds.map(wpId => {
-                        const wp = workplaces.find(w => w.id === wpId);
-                        if (!wp) return null;
-                        return (
-                          <span key={wpId} className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-medium">
-                            {wp.name}
-                            <button onClick={() => removeUserWorkplace(u.uid, wpId)} className="hover:text-blue-800">
-                              <X size={10} />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <select
-                    className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
-                    value={u.role}
-                    onChange={e => updateUserRole(u.uid, e.target.value as UserRole)}
-                  >
-                    {ROLE_OPTIONS.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-                  </select>
-                  <AddWorkplaceControl
-                    workplaces={workplaces.filter(wp => !u.workplaceIds?.includes(wp.id))}
-                    onAdd={wpId => addUserWorkplace(u.uid, wpId)}
-                  />
-                </div>
+          userGroups.map(group => (
+            <div key={group.key}>
+              <div className="px-5 py-2 bg-gray-50/70 border-b border-gray-100 flex items-center gap-2">
+                <span className={`text-[11px] font-bold uppercase tracking-wide ${group.key === UNASSIGNED_FILTER ? 'text-orange-500' : 'text-blue-600'}`}>
+                  {group.label}
+                </span>
+                <span className="text-[11px] text-gray-400">{group.users.length}명</span>
               </div>
-            ))}
-          </div>
+              <div className="divide-y divide-gray-50">
+                {group.users.map(u => (
+                  <div key={u.uid} className="flex items-center justify-between px-5 py-3 gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 truncate">{u.displayName}</p>
+                      <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                      {!!u.workplaceIds?.length && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          {u.workplaceIds.map(wpId => {
+                            const wp = workplaces.find(w => w.id === wpId);
+                            if (!wp) return null;
+                            return (
+                              <span key={wpId} className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[11px] font-medium">
+                                {wp.name}
+                                <button onClick={() => removeUserWorkplace(u.uid, wpId)} className="hover:text-blue-800">
+                                  <X size={10} />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <select
+                        className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
+                        value={u.role}
+                        onChange={e => updateUserRole(u.uid, e.target.value as UserRole)}
+                      >
+                        {ROLE_OPTIONS.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                      </select>
+                      <AddWorkplaceControl
+                        workplaces={workplaces.filter(wp => !u.workplaceIds?.includes(wp.id))}
+                        onAdd={wpId => addUserWorkplace(u.uid, wpId)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </section>
         )}

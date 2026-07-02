@@ -10,7 +10,7 @@ export function useTeams(uid?: string, workplaceId?: string) {
   useEffect(() => {
     if (!uid || !workplaceId) {
       setTeams([]);
-      setLoading(!!uid); // uid는 있지만 workplaceId 배정 대기 중이면 로딩 아님(빈 상태 확정)
+      setLoading(false); // uid는 있지만 workplaceId 미확정(대기/미선택)이면 로딩 아님(빈 상태 확정)
       return;
     }
     const unsub = onSnapshot(

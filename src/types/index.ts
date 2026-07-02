@@ -128,6 +128,25 @@ export type TaskType = '신규' | '기타' | '파생' | '기획';
 
 export const DEFAULT_CATEGORIES = ['라이브', '복지', '사업자', '기타'];
 
+export interface RevisionStep {
+  id: string;    // Task.revisionCounts의 키와 매칭되는 고정 식별자 (예: 'F1'). 생성 이후 변경되지 않음
+  label: string; // 화면에 표시되는 설명 텍스트 (수정 가능)
+}
+
+export const DEFAULT_REVISION_STEPS: RevisionStep[] = [
+  { id: 'F1', label: 'KV 크리에이티브 변경' },
+  { id: 'F2', label: '상세페이지 레이아웃 변동, 신규 상에 추가' },
+  { id: 'F3', label: '특정 영역 내용·이미지 수정' },
+  { id: 'F4', label: 'API 제품 교재 20개 이상' },
+  { id: 'F5', label: 'API 제품 교재 20개 미만' },
+  { id: 'F6', label: '단순 텍스트·CMS 수정' },
+];
+
+/** 파트 → 팀 → 기본값 순으로 수정단계 목록을 해석 */
+export function resolveRevisionSteps(part?: { revisionSteps?: RevisionStep[] }, team?: { revisionSteps?: RevisionStep[] }): RevisionStep[] {
+  return part?.revisionSteps ?? team?.revisionSteps ?? DEFAULT_REVISION_STEPS;
+}
+
 export interface TeamPart {
   id: string;
   name: string;
@@ -143,6 +162,7 @@ export interface TeamPart {
   mainTaskEndDateShow?: boolean; // 메인업무 종료일을 캘린더에 표시할지 (없으면 팀 기본 상속)
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 (예: '방송일', 없으면 팀 기본 상속)
   mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 (hex, 없으면 팀 기본 상속, 빈 값이면 파트색 자동 사용)
+  revisionSteps?: RevisionStep[]; // 파트별 수정단계 목록 (없으면 팀 기본 상속)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────
@@ -510,6 +530,7 @@ export interface Team {
   mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 팀 기본값 (hex, 빈 값이면 파트색 자동 사용)
   isSupportTeam?: boolean; // 지원팀 여부 — 직접 업무를 등록하기보다 다른 팀에서 업무 요청을 받는 팀
   supportSourceTeamIds?: string[]; // 지원팀일 때, 이 팀들만 업무 요청을 보낼 수 있음 (화이트리스트)
+  revisionSteps?: RevisionStep[]; // 수정단계 목록 팀 기본값 (없으면 DEFAULT_REVISION_STEPS)
 }
 
 export interface SubTask {

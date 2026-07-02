@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { FileText, Zap, CheckCircle2, Calendar, BarChart2, Users } from 'lucide-react';
-import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey } from '../types';
-import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META } from '../types';
+import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey, RevisionStep } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META, DEFAULT_REVISION_STEPS } from '../types';
 
 interface Props {
   tasks: Task[];
@@ -11,6 +11,7 @@ interface Props {
   assignees?: string[];
   formConfig?: TeamFormConfig;
   teamMembers?: { name: string; department?: Department }[];
+  revisionSteps?: RevisionStep[];
 }
 
 // tailwind bg class → hex 변환 (파트 색상용)
@@ -27,15 +28,6 @@ const PALETTE = [
 ];
 
 const CARD_ICONS = [FileText, Zap, CheckCircle2, BarChart2, Users, Calendar];
-
-const REVISION_LABELS = [
-  'KV 크리에이티브 변경',
-  '상세페이지 레이아웃 변동, 신규 상에 추가',
-  '특정 영역 내용·이미지 수정',
-  'API 제품 교재 20개 이상',
-  'API 제품 교재 20개 미만',
-  '단순 텍스트·CMS 수정',
-];
 
 const now = new Date();
 
@@ -208,7 +200,7 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamMembers }: Props) {
+export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
 
   const statusConfigs = resolveStatusConfigs(formConfig);
@@ -370,13 +362,12 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   const revisionStats = useMemo(() => {
     const grandTotal = tasks.reduce((sum, t) =>
       sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
-    return REVISION_LABELS.map((label, i) => {
-      const key = `F${i + 1}`;
-      const count = tasks.reduce((sum, t) => sum + (t.revisionCounts?.[key] ?? 0), 0);
+    return revisionSteps.map(step => {
+      const count = tasks.reduce((sum, t) => sum + (t.revisionCounts?.[step.id] ?? 0), 0);
       const pct = grandTotal > 0 ? Math.round((count / grandTotal) * 100) : 0;
-      return { label, level: i + 1, count, pct };
+      return { id: step.id, label: step.label, count, pct };
     });
-  }, [tasks]);
+  }, [tasks, revisionSteps]);
   const totalRevisions = tasks.reduce((sum, t) =>
     sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
 
@@ -612,9 +603,9 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             action={<span className="text-xs text-gray-400">총 {totalRevisions}회</span>}>
             <div className="p-4 space-y-3">
               {revisionStats.map(r => (
-                <div key={r.level} className="flex items-center gap-3">
+                <div key={r.id} className="flex items-center gap-3">
                   <span className="w-6 h-5 bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[9px] font-bold rounded flex items-center justify-center flex-shrink-0">
-                    F{r.level}
+                    {r.id}
                   </span>
                   <span className="text-xs text-gray-600 flex-1 truncate">{r.label}</span>
                   <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">

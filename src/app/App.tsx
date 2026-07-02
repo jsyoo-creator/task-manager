@@ -31,7 +31,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 
@@ -51,7 +51,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const { rolePermissions, updateRolePermissions } = useRolePermissions();
@@ -192,6 +192,12 @@ function App() {
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePart?.formConfig, activeParts, selectedTeam?.formConfig, selectedTeam?.allFormConfig]);
+
+  // 수정단계 목록 — 파트 하나만 선택된 경우 그 파트 기준, 아니면 팀 기본값
+  const effectiveRevisionSteps = useMemo(
+    () => resolveRevisionSteps(activePart, selectedTeam ?? undefined),
+    [activePart, selectedTeam]
+  );
 
   // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
   const filteredTasks = useMemo(() => {
@@ -479,7 +485,7 @@ function App() {
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamMembers={teamMembers} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamMembers={teamMembers} revisionSteps={effectiveRevisionSteps} />
             } />
             <Route path="/tasks" element={
               <TaskManagement
@@ -564,6 +570,9 @@ function App() {
                     onClearPartMainTaskEndDateShow={clearPartMainTaskEndDateShow}
                     onUpdatePartMainTaskEndDateColor={updatePartMainTaskEndDateColor}
                     onClearPartMainTaskEndDateColor={clearPartMainTaskEndDateColor}
+                    onUpdateRevisionSteps={updateRevisionSteps}
+                    onUpdatePartRevisionSteps={updatePartRevisionSteps}
+                    onClearPartRevisionSteps={clearPartRevisionSteps}
                     onUpdatePlMainTaskTypes={updatePlMainTaskTypes}
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}
@@ -601,6 +610,7 @@ function App() {
             }
             return taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
           })();
+          const resolvedRevisionSteps = resolveRevisionSteps(taskPart, selectedTeam ?? undefined);
           return (
             <TaskDetailPanel
               task={detailTask}
@@ -613,6 +623,7 @@ function App() {
               canDelete={permissions.canDeleteTasks}
               metaFields={resolvedMetaFields}
               subTaskTypes={resolvedSubTaskTypes}
+              revisionSteps={resolvedRevisionSteps}
               teamMembers={teamMembers}
               formConfig={resolvedFormConfig}
               teamFormConfig={selectedTeam?.formConfig}

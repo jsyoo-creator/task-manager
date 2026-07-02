@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation } from '../types';
-import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep } from '../types';
+import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -201,7 +201,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
-  metaFields: metaFieldsProp, subTaskTypes = [], teamMembers, formConfig, teamFormConfig, userPhotoMap,
+  metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', vacations = [], reviewTasks,
 }: {
   task: Task;
@@ -214,6 +214,7 @@ export default function TaskDetailPanel({
   canDelete?: boolean;
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
+  revisionSteps?: RevisionStep[];
   teamMembers?: { name: string; department?: Department }[];
   formConfig?: TeamFormConfig;
   teamFormConfig?: TeamFormConfig;
@@ -867,8 +868,9 @@ export default function TaskDetailPanel({
                 {builtinFields.find(f => f.key === 'revisionLevel')?.customLabel ?? '수정단계'}
               </p>
               <div className="space-y-1.5">
-                {(['KV 크리에이티브 변경', '상세페이지 레이아웃 변동, 신규 상에 추가', '특정 영역 내용·이미지 수정', 'API 제품 교재 20개 이상', 'API 제품 교재 20개 미만', '단순 텍스트·CMS 수정'] as const).map((label, i) => {
-                  const key = `F${i + 1}`;
+                {revisionSteps.map(step => {
+                  const key = step.id;
+                  const label = step.label;
                   const count = task.revisionCounts?.[key] ?? 0;
                   return (
                     <div key={key} className="flex items-center gap-2">

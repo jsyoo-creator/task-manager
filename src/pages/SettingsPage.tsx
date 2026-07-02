@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig } from '../types';
-import { resolvePLMainDepts } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -42,6 +42,9 @@ interface Props {
   onClearPartMainTaskEndDateShow: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateColor: (teamId: string, partId: string, color: string) => Promise<void>;
   onClearPartMainTaskEndDateColor: (teamId: string, partId: string) => Promise<void>;
+  onUpdateRevisionSteps: (teamId: string, steps: RevisionStep[]) => Promise<void>;
+  onUpdatePartRevisionSteps: (teamId: string, partId: string, steps: RevisionStep[]) => Promise<void>;
+  onClearPartRevisionSteps: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -2112,6 +2115,169 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
+function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
+  team: Team;
+  onSave: (teamId: string, steps: RevisionStep[]) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, steps: RevisionStep[]) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
+}) {
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+
+  useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
+
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const isInherited = !isTeam && !currentPart?.revisionSteps;
+  const teamSteps: RevisionStep[] = team.revisionSteps ?? DEFAULT_REVISION_STEPS;
+  const steps: RevisionStep[] = isTeam ? teamSteps : (currentPart?.revisionSteps ?? teamSteps);
+
+  const save = (next: RevisionStep[]) => {
+    if (isTeam) onSave(team.id, next);
+    else if (currentPart) onSavePart(team.id, currentPart.id, next);
+  };
+
+  const onDrop = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...steps];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    save(arr);
+    dragIdxRef.current = null; setDragOverIdx(null);
+  };
+
+  const saveLabel = (id: string) => {
+    const label = nameInput.trim();
+    if (label) save(steps.map(s => s.id === id ? { ...s, label } : s));
+    setEditingId(null);
+  };
+
+  const deleteStep = (id: string) => save(steps.filter(s => s.id !== id));
+
+  const addStep = () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const nums = steps.map(s => { const m = /^F(\d+)$/.exec(s.id); return m ? parseInt(m[1], 10) : 0; });
+    const nextNum = Math.max(0, ...nums) + 1;
+    save([...steps, { id: `F${nextNum}`, label }]);
+    setNewLabel('');
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 적용 대상 */}
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeamBtn = target === 'team';
+              const part = !isTeamBtn ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeamBtn && !!part?.revisionSteps;
+              return (
+                <button key={target}
+                  onClick={() => { setSelectedTarget(target); setEditingId(null); }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {!isTeamBtn && part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeamBtn ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 상속 안내 */}
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
+          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화
+          </button>
+        </div>
+      )}
+      {!isTeam && !isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          <button onClick={() => { currentPart && onClearPart(team.id, currentPart.id); }}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />팀 기본으로
+          </button>
+        </div>
+      )}
+
+      <div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          수정단계 목록
+          <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+        </p>
+        {steps.length > 0 ? (
+          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+            {steps.map((s, i) => (
+              <div key={s.id}
+                draggable
+                onDragStart={() => { dragIdxRef.current = i; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                onDrop={() => onDrop(i)}
+                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                <span className="text-[10px] font-bold text-white bg-blue-500 rounded px-1.5 py-0.5 flex-shrink-0 w-7 text-center">{s.id}</span>
+                {editingId === s.id ? (
+                  <input autoFocus
+                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                    value={nameInput} onChange={e => setNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveLabel(s.id); if (e.key === 'Escape') setEditingId(null); }}
+                    onBlur={() => saveLabel(s.id)} />
+                ) : (
+                  <button type="button"
+                    onClick={() => { setEditingId(s.id); setNameInput(s.label); }}
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                    {s.label}
+                  </button>
+                )}
+                <button type="button" onClick={() => deleteStep(s.id)}
+                  className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-3">등록된 수정단계가 없습니다</p>
+        )}
+        {/* 추가 폼 */}
+        <div className="flex items-center gap-2 mt-2">
+          <input className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            placeholder="수정단계 설명 입력"
+            value={newLabel} onChange={e => setNewLabel(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addStep()} />
+          <button onClick={addStep} disabled={!newLabel.trim()}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+            <Plus size={11} />추가
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor }: {
   team: Team;
   onSaveTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
@@ -3328,7 +3494,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3357,6 +3523,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartMainTaskEndDateShow: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateColor: (teamId: string, partId: string, color: string) => Promise<void>;
   onClearPartMainTaskEndDateColor: (teamId: string, partId: string) => Promise<void>;
+  onUpdateRevisionSteps: (teamId: string, steps: RevisionStep[]) => Promise<void>;
+  onUpdatePartRevisionSteps: (teamId: string, partId: string, steps: RevisionStep[]) => Promise<void>;
+  onClearPartRevisionSteps: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -3369,7 +3538,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'permission' | 'support'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'permission' | 'support' | 'revision'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -3580,7 +3749,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto">
-                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'pl', 'excel', 'weekly', 'permission', 'support'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'permission', 'support'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -3588,7 +3757,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'permission' ? '권한' : '지원팀'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'permission' ? '권한' : '지원팀'}
                       </button>
                     ))}
                   </div>
@@ -3725,6 +3894,18 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onClearPartMainTaskEndDateShow={onClearPartMainTaskEndDateShow}
                         onUpdatePartMainTaskEndDateColor={onUpdatePartMainTaskEndDateColor}
                         onClearPartMainTaskEndDateColor={onClearPartMainTaskEndDateColor}
+                      />
+                    </div>
+                  )}
+
+                  {/* 수정단계 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'revision' && (
+                    <div className="px-5 py-4">
+                      <RevisionStepsEditor
+                        team={team}
+                        onSave={onUpdateRevisionSteps}
+                        onSavePart={onUpdatePartRevisionSteps}
+                        onClearPart={onClearPartRevisionSteps}
                       />
                     </div>
                   )}
@@ -4329,7 +4510,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -4727,6 +4908,9 @@ export default function SettingsPage({
           onClearPartMainTaskEndDateShow={onClearPartMainTaskEndDateShow}
           onUpdatePartMainTaskEndDateColor={onUpdatePartMainTaskEndDateColor}
           onClearPartMainTaskEndDateColor={onClearPartMainTaskEndDateColor}
+          onUpdateRevisionSteps={onUpdateRevisionSteps}
+          onUpdatePartRevisionSteps={onUpdatePartRevisionSteps}
+          onClearPartRevisionSteps={onClearPartRevisionSteps}
           onUpdatePlMainTaskTypes={onUpdatePlMainTaskTypes}
           onUpdateExcelConfig={onUpdateExcelConfig}
           onUpdatePartExcelConfig={onUpdatePartExcelConfig}

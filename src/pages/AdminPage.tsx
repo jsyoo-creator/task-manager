@@ -48,9 +48,20 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const platformAdmins = users.filter(u => u.isPlatformAdmin);
   const sortedUsers = [...users].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
 
+  // "전체 근무지" 그룹별 보기에서는 근무지를 여러 개 가진 사람이 매 그룹마다 중복 표시돼 섞여
+  // 보이므로, 기본(★) 근무지를 지정해둔 경우 그 근무지 그룹에서만 표시한다. 기본 근무지가
+  // 없으면 예전처럼 배정된 모든 근무지 그룹에 표시(아무 데도 안 보이는 것 방지).
+  // 특정 근무지를 콕 찍어 필터링하는 경우는 배타 처리하지 않고 실제 배정된 사람 전부 보여준다.
+  const belongsInGroupedView = (u: AppUser, wpId: string) => {
+    if (!u.workplaceIds?.includes(wpId)) return false;
+    if (u.workplaceIds.length <= 1) return true;
+    if (u.defaultWorkplaceId) return u.defaultWorkplaceId === wpId;
+    return true;
+  };
+
   const userGroups: { key: string; label: string; users: AppUser[] }[] = userFilter === 'all'
     ? [
-        ...workplaces.map(wp => ({ key: wp.id, label: wp.name, users: sortedUsers.filter(u => u.workplaceIds?.includes(wp.id)) })),
+        ...workplaces.map(wp => ({ key: wp.id, label: wp.name, users: sortedUsers.filter(u => belongsInGroupedView(u, wp.id)) })),
         { key: UNASSIGNED_FILTER, label: '미배정', users: sortedUsers.filter(u => !u.workplaceIds?.length) },
       ].filter(g => g.users.length > 0)
     : userFilter === UNASSIGNED_FILTER

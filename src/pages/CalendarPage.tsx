@@ -25,6 +25,10 @@ interface Props {
   groupBySubtaskType?: boolean; // true면 하루 셀 안에서 메인업무순 대신 세부업무 유형별로 묶어서 정렬
 }
 
+function truncateText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace('#', '');
   const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
@@ -377,10 +381,10 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                             {/* 요약 */}
                             <div className="flex items-center justify-between gap-1">
                               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                <div className="text-[10px] text-gray-400 font-medium leading-tight truncate">{item.mainTitle}</div>
+                                <div className="text-[10px] text-gray-400 font-medium leading-tight truncate" title={item.mainTitle}>{truncateText(item.mainTitle, 14)}</div>
                                 <div className={`text-[11px] font-bold leading-snug flex items-center gap-1 ${s.title}`}>
                                   <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} title={item.category} />
-                                  <span className="truncate min-w-0 flex-1" title={item.subTitle}>{item.subTitle}</span>
+                                  <span className="truncate" title={item.subTitle}>{truncateText(item.subTitle, 12)}</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0 self-center">

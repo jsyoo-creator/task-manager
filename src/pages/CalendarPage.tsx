@@ -23,7 +23,8 @@ interface Props {
   teamColor?: string; // 팀 기본 색상 (hex)
   subTaskOrderMap?: Map<string, number>; // subtask.id -> 세부업무 유형 정렬 순서 (그룹핑용)
   groupBySubtaskType?: boolean; // true면 하루 셀 안에서 메인업무순 대신 세부업무 유형별로 묶어서 정렬
-  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 빈 값이면 표시 안 함)
+  mainTaskEndDateShow?: boolean; // 메인업무 종료일 표시 여부 팀 기본값 (undefined = false)
+  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 비어있으면 '종료일' 사용)
 }
 
 function truncateText(text: string, max: number): string {
@@ -91,7 +92,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateLabel }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -112,10 +113,13 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
 
   const partMap = useMemo(() => new Map((parts ?? []).map(p => [p.name, p])), [parts]);
 
-  const resolveEndDateLabel = (category: string): string => {
+  // 메인업무 종료일 표시 여부/명칭을 파트별 재정의 → 팀 기본값 순으로 해석. 꺼져 있으면 null.
+  const resolveEndDateLabel = (category: string): string | null => {
     const part = partMap.get(category);
-    if (part?.mainTaskEndDateLabel !== undefined) return part.mainTaskEndDateLabel;
-    return mainTaskEndDateLabel ?? '';
+    const show = part?.mainTaskEndDateShow !== undefined ? part.mainTaskEndDateShow : (mainTaskEndDateShow ?? false);
+    if (!show) return null;
+    const label = part?.mainTaskEndDateLabel !== undefined ? part.mainTaskEndDateLabel : (mainTaskEndDateLabel ?? '');
+    return label || '종료일';
   };
 
   const firstDay = new Date(year, month, 1).getDay();

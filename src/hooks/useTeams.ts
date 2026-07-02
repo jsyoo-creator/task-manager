@@ -181,6 +181,24 @@ export function useTeams(uid?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
+  const updatePartMainTaskEndDateShow = async (teamId: string, partId: string, value: boolean) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => p.id === partId ? { ...p, mainTaskEndDateShow: value } : p);
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  const clearPartMainTaskEndDateShow = async (teamId: string, partId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => {
+      if (p.id !== partId) return p;
+      const { mainTaskEndDateShow: _, ...rest } = p;
+      return rest;
+    });
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
   const clearPartMetaFields = async (teamId: string, partId: string) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
@@ -248,5 +266,5 @@ export function useTeams(uid?: string) {
     await batch.commit();
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams };
 }

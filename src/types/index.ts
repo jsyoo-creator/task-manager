@@ -140,7 +140,8 @@ export interface TeamPart {
   weeklyExportConfig?: WeeklyExportConfig; // 파트별 위클리 컬럼 설정 (없으면 팀 기본 상속)
   calendarOrder?: string[]; // 캘린더 전용 세부업무 정렬 순서 (SubTaskType.id 목록, 업무상세 순서와 별개, 없으면 팀 기본 상속)
   plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 (없으면 팀 기본 상속)
-  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 (예: '방송일', 빈 문자열=표시 안 함, undefined=팀 기본 상속)
+  mainTaskEndDateShow?: boolean; // 메인업무 종료일을 캘린더에 표시할지 (없으면 팀 기본 상속)
+  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 (예: '방송일', 없으면 팀 기본 상속)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────
@@ -503,7 +504,8 @@ export interface Team {
   calendarGroupBy?: 'task' | 'subtaskType'; // 캘린더 하루 셀 내 정렬 기준 (undefined = 'task', 메인업무순)
   calendarOrder?: string[]; // 캘린더 전용 세부업무 정렬 순서 (SubTaskType.id 목록, 팀 기본값, 업무상세 순서와 별개)
   plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 팀 기본값 (undefined = true)
-  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 빈 문자열/undefined = 표시 안 함)
+  mainTaskEndDateShow?: boolean; // 메인업무 종료일을 캘린더에 표시할지 팀 기본값 (undefined = false)
+  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 비어있으면 '종료일' 사용)
 }
 
 export interface SubTask {

@@ -284,6 +284,7 @@ export default function TaskDetailPanel({
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
   const [pendingDeleteSubTask, setPendingDeleteSubTask] = useState<{ id: string; name: string } | null>(null);
   const [deletedSubTaskIds, setDeletedSubTaskIds] = useState<Set<string>>(new Set());
+  const [manualSubstituteIds, setManualSubstituteIds] = useState<Set<string>>(new Set());
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1240,6 +1241,16 @@ export default function TaskDetailPanel({
                       {subTotal > 0 && (
                         <span className="text-xs font-semibold text-orange-400 flex-shrink-0">대무 {subTotal}h</span>
                       )}
+                      {canManage && !isVacation && !entry.substitute && !manualSubstituteIds.has(type.id) && (
+                        <button
+                          type="button"
+                          title="대무자 지정"
+                          className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded text-orange-400 border border-orange-200 hover:bg-orange-50 transition-colors"
+                          onClick={() => setManualSubstituteIds(prev => new Set(prev).add(type.id))}
+                        >
+                          + 대무
+                        </button>
+                      )}
                       {canDelete && (
                         <button
                           type="button"
@@ -1252,8 +1263,8 @@ export default function TaskDetailPanel({
                       )}
                     </div>
 
-                    {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우) */}
-                    {(isVacation || entry.substitute) && (
+                    {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우, 또는 수동으로 지정을 연 경우) */}
+                    {(isVacation || entry.substitute || manualSubstituteIds.has(type.id)) && (
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-[11px] font-medium text-orange-500 flex-shrink-0">대무자</span>
                         <div className="relative max-w-[120px]">
@@ -1276,6 +1287,20 @@ export default function TaskDetailPanel({
                             {displayAssignees.filter(a => a !== entry.assignee).map(a => <option key={a}>{a}</option>)}
                           </select>
                         </div>
+                        {canManage && !isVacation && !entry.substitute && (
+                          <button
+                            type="button"
+                            title="대무자 지정 취소"
+                            className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                            onClick={() => setManualSubstituteIds(prev => {
+                              const next = new Set(prev);
+                              next.delete(type.id);
+                              return next;
+                            })}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
                       </div>
                     )}
 

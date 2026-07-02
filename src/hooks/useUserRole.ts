@@ -27,19 +27,14 @@ export function useUserRole(firebaseUser: User | null) {
     const init = async () => {
       const snap = await getDoc(ref);
       if (!snap.exists()) {
-        let role: UserRole = 'superadmin';
-        try {
-          const allSnap = await getDocs(collection(db, 'users'));
-          role = allSnap.empty ? 'superadmin' : 'user';
-        } catch {
-          role = 'superadmin'; // 첫 접근 실패 시 최고관리자로
-        }
+        // 근무지 도입 이후: 신규 사용자는 미배정 상태(workplaceId 없음)로 생성되고
+        // 플랫폼 관리자가 어드민 페이지에서 근무지·역할을 배정할 때까지 대기한다.
         const data: AppUser = {
           uid: firebaseUser.uid,
           email: firebaseUser.email ?? '',
           displayName: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? '',
           photoURL: firebaseUser.photoURL ?? '',
-          role,
+          role: 'user',
           createdAt: new Date().toISOString(),
         };
         await setDoc(ref, data);
@@ -99,18 +94,32 @@ export function useUserRole(firebaseUser: User | null) {
   return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam };
 }
 
-export function useAllUsers() {
+// workplaceId를 넘기면 그 근무지 사용자만, 생략하면(플랫폼 관리자 전용) 전체 사용자를 가져온다.
+export function useAllUsers(workplaceId?: string) {
   const [users, setUsers] = useState<AppUser[]>([]);
 
   useEffect(() => {
-    const unsub = onSnapshot(query(collection(db, 'users')), snap => {
+    const q = workplaceId
+      ? query(collection(db, 'users'), where('workplaceId', '==', workplaceId))
+      : query(collection(db, 'users'));
+    const unsub = onSnapshot(q, snap => {
       setUsers(snap.docs.map(d => d.data() as AppUser));
     });
     return unsub;
-  }, []);
+  }, [workplaceId]);
 
   const updateUserRole = async (uid: string, role: UserRole) => {
     await updateDoc(doc(db, 'users', uid), { role });
+  };
+
+  // 미배정 사용자를 근무지에 배정 (플랫폼 관리자 전용)
+  const assignUserToWorkplace = async (uid: string, workplaceId: string, role: UserRole) => {
+    await updateDoc(doc(db, 'users', uid), { workplaceId, role });
+  };
+
+  // 플랫폼 관리자 지정/해제
+  const setPlatformAdmin = async (uid: string, value: boolean) => {
+    await updateDoc(doc(db, 'users', uid), { isPlatformAdmin: value });
   };
 
   const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; profileData?: Record<string, string> }) => {
@@ -197,5 +206,5 @@ export function useAllUsers() {
     await deleteDoc(doc(db, 'users', uid));
   };
 
-  return { users, updateUserRole, updateUserInfo, deleteUser };
+  return { users, updateUserRole, updateUserInfo, deleteUser, assignUserToWorkplace, setPlatformAdmin };
 }

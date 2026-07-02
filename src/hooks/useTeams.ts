@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, PLMainTaskType, CustomHoliday, ExcelFieldConfig, WeeklyExportConfig, RevisionStep } from '../types';
 
-export function useTeams(uid?: string) {
+export function useTeams(uid?: string, workplaceId?: string) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!uid) {
+    if (!uid || !workplaceId) {
       setTeams([]);
-      setLoading(true);
+      setLoading(!!uid); // uid는 있지만 workplaceId 배정 대기 중이면 로딩 아님(빈 상태 확정)
       return;
     }
     const unsub = onSnapshot(
-      collection(db, 'teams'),
+      query(collection(db, 'teams'), where('workplaceId', '==', workplaceId)),
       snap => {
         const data = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Team))
@@ -33,10 +33,12 @@ export function useTeams(uid?: string) {
       }
     );
     return unsub;
-  }, [uid]);
+  }, [uid, workplaceId]);
 
   const createTeam = async (name: string, emoji: string): Promise<string> => {
+    if (!workplaceId) throw new Error('워크플레이스가 지정되지 않았습니다');
     const ref = await addDoc(collection(db, 'teams'), {
+      workplaceId,
       name,
       emoji,
       parts: [],

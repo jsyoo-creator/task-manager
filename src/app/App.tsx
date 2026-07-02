@@ -17,6 +17,7 @@ import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
 import BoardPage from '../pages/BoardPage';
 import AccountInfoPage from '../pages/AccountInfoPage';
+import AdminPage from '../pages/AdminPage';
 import { useTeamNotices } from '../hooks/useTeamNotices';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
@@ -34,13 +35,56 @@ import { HolidaysContext } from '../contexts/HolidaysContext';
 import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import { db } from '../lib/firebase';
+import { collection, getDocs, addDoc, writeBatch } from 'firebase/firestore';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam } = useUserRole(user);
-  const { users: allUsers } = useAllUsers();
+  const { users: allUsers } = useAllUsers(appUser?.workplaceId);
 
-  const { projects, loading: projLoading, addProject } = useProjects();
+  // 일회성 마이그레이션: 근무지 개념 도입 이전 데이터를 'LG전자 공덕TF' 근무지로 태깅.
+  // workplaces 컬렉션이 비어있고 workplaceId 없는 팀이 있을 때만 1회 실행 (idempotent).
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const wpSnap = await getDocs(collection(db, 'workplaces'));
+        if (!wpSnap.empty) return;
+
+        const teamsSnap = await getDocs(collection(db, 'teams'));
+        const hasUnmigratedTeams = teamsSnap.docs.some(d => !d.data().workplaceId);
+        if (!hasUnmigratedTeams) return;
+
+        const wpRef = await addDoc(collection(db, 'workplaces'), {
+          name: 'LG전자 공덕TF',
+          createdAt: new Date().toISOString(),
+        });
+        const workplaceId = wpRef.id;
+
+        const [projectsSnap, usersSnap] = await Promise.all([
+          getDocs(collection(db, 'projects')),
+          getDocs(collection(db, 'users')),
+        ]);
+        const batch = writeBatch(db);
+        teamsSnap.docs.forEach(d => { if (!d.data().workplaceId) batch.update(d.ref, { workplaceId }); });
+        projectsSnap.docs.forEach(d => { if (!d.data().workplaceId) batch.update(d.ref, { workplaceId }); });
+        usersSnap.docs.forEach(d => {
+          const u = d.data();
+          const fields: Record<string, unknown> = {};
+          if (!u.workplaceId) fields.workplaceId = workplaceId;
+          if (u.role === 'superadmin') fields.isPlatformAdmin = true;
+          if (Object.keys(fields).length > 0) batch.update(d.ref, fields);
+        });
+        await batch.commit();
+        console.log('[migration] 근무지 마이그레이션 완료:', workplaceId);
+      } catch (e) {
+        console.error('[migration] 근무지 마이그레이션 실패:', e);
+      }
+    })();
+  }, [user]);
+
+  const { projects, loading: projLoading, addProject } = useProjects(appUser?.workplaceId);
   const [projectId, setProjectId] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
   const [loadingDone, setLoadingDone] = useState(false);
@@ -51,7 +95,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, appUser?.workplaceId);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const { rolePermissions, updateRolePermissions } = useRolePermissions();
@@ -117,14 +161,14 @@ function App() {
   }, [projects, projLoading, projectId]);
 
   useEffect(() => {
-    if (!projLoading && projects.length === 0) {
+    if (!projLoading && projects.length === 0 && appUser?.workplaceId) {
       addProject({
-        name: '라이브 커머스 & 복지/사업자를 업무관리',
-        description: '개인정보 보안 규정 위반 시 징계 대상이 될 수 있으니 보안 철저',
-        categories: ['라이브', '복지', '사업자'],
+        workplaceId: appUser.workplaceId,
+        name: '업무관리',
+        categories: [],
       });
     }
-  }, [projLoading, projects.length]);
+  }, [projLoading, projects.length, appUser?.workplaceId]);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
@@ -445,6 +489,18 @@ function App() {
     return <LoginPage onSignIn={signIn} onSignInWithEmail={signInWithEmail} onSignUpWithEmail={signUpWithEmail} error={authError} />;
   }
 
+  if (appUser && !appUser.workplaceId && !appUser.isPlatformAdmin) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center space-y-2 px-6">
+          <p className="text-lg font-semibold text-gray-700">근무지 배정 대기 중</p>
+          <p className="text-sm text-gray-400">관리자가 근무지를 배정하면 이용할 수 있습니다.</p>
+          <button onClick={signOut} className="mt-4 text-xs text-gray-400 hover:text-gray-600 underline">로그아웃</button>
+        </div>
+      </div>
+    );
+  }
+
   const effectiveRolePerms = selectedTeam?.rolePermissions
     ? {
         manager: { ...rolePermissions.manager, ...selectedTeam.rolePermissions.manager },
@@ -590,6 +646,9 @@ function App() {
                     onUpdateRolePermissions={updateRolePermissions}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
+            } />
+            <Route path="/admin" element={
+              appUser?.isPlatformAdmin ? <AdminPage /> : <Navigate to="/" replace />
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

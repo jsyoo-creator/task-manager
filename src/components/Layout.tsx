@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact
+  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef } from '../types';
@@ -218,6 +218,10 @@ export default function Layout({
   const NAV = (hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY).filter(item =>
     item.minRole === null || canSeeManagerMenu
   );
+  // 플랫폼 관리자는 배정된 팀이 없어도(근무지 오버사이트 전용 계정일 수 있음) 항상 어드민 메뉴가 보여야 함
+  if (appUser?.isPlatformAdmin) {
+    NAV.push({ to: '/admin', label: '근무지 관리', icon: Building2, minRole: null });
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#1E2264' }}>

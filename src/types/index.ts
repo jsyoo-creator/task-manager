@@ -26,6 +26,14 @@ export interface AppUser {
   annualLeave?: number;
   profileData?: Record<string, string>;
   createdAt: string;
+  workplaceId?: string;    // 배정된 근무지 (없으면 미배정 — 어드민이 배정할 때까지 대기)
+  isPlatformAdmin?: boolean; // PIVOT 본사 관리자 — 모든 근무지를 관리하는 최상위 권한, role과 별개
+}
+
+export interface Workplace {
+  id: string;
+  name: string;    // 예: 'LG전자 공덕TF'
+  createdAt: string;
 }
 
 export interface UserPermissions {
@@ -513,6 +521,7 @@ export interface WeeklyExportConfig {
 
 export interface Team {
   id: string;
+  workplaceId: string; // 소속 근무지 (클라이언트 TF 단위)
   name: string;
   emoji: string;
   color?: string; // hex e.g. '#3b82f6'
@@ -607,6 +616,7 @@ export interface Task {
 
 export interface Project {
   id: string;
+  workplaceId: string; // 소속 근무지
   name: string;
   description?: string;
   categories: TaskCategory[];

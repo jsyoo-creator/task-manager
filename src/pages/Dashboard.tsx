@@ -90,10 +90,12 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[], team
         if (usedLabels.has(label)) return;
         usedLabels.add(label);
         const isAllParts = partNames.length === parts.length;
+        // 파트마다 라벨이 갈려서 나뉜 옵션이면, 어느 파트 기준인지 라벨 뒤에 표시
+        const displayLabel = isAllParts ? label : `${label} (${partNames.join('/')})`;
         result.push({
           value: isAllParts ? key : `${key}::${partNames.join(',')}`,
           key,
-          label,
+          label: displayLabel,
           partNames: isAllParts ? undefined : partNames,
         });
       });

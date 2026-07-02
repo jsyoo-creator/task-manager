@@ -5,7 +5,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useWorkplaces } from '../hooks/useWorkplaces';
 import { useAllUsers } from '../hooks/useUserRole';
-import type { Team, AppUser, UserRole } from '../types';
+import type { Team, AppUser, UserRole, Workplace } from '../types';
 
 const ROLE_OPTIONS: UserRole[] = ['user', 'manager', 'superadmin'];
 const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '매니저', superadmin: '최고 관리자' };
@@ -23,7 +23,6 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [assignTarget, setAssignTarget] = useState<Record<string, { workplaceId: string; role: UserRole }>>({});
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'teams'), snap => {
@@ -34,7 +33,9 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
 
   const teamCountByWorkplace = (wpId: string) => allTeams.filter(t => t.workplaceId === wpId).length;
   const userCountByWorkplace = (wpId: string) => users.filter(u => u.workplaceId === wpId).length;
+  const workplaceName = (id?: string) => workplaces.find(w => w.id === id)?.name ?? '미배정';
   const pendingUsers = users.filter(u => !u.workplaceId && !u.isPlatformAdmin);
+  const assignedUsers = users.filter(u => u.workplaceId);
   const platformAdmins = users.filter(u => u.isPlatformAdmin);
 
   const handleCreate = async () => {
@@ -129,40 +130,53 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           <p className="px-5 py-6 text-sm text-gray-400 text-center">배정 대기 중인 사용자가 없습니다</p>
         ) : (
           <div className="divide-y divide-gray-50">
-            {pendingUsers.map(u => {
-              const target = assignTarget[u.uid] ?? { workplaceId: '', role: 'user' as UserRole };
-              return (
-                <div key={u.uid} className="flex items-center justify-between px-5 py-3 gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{u.displayName}</p>
-                    <p className="text-xs text-gray-400 truncate">{u.email}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <select
-                      className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
-                      value={target.workplaceId}
-                      onChange={e => setAssignTarget(prev => ({ ...prev, [u.uid]: { ...target, workplaceId: e.target.value } }))}
-                    >
-                      <option value="">근무지 선택</option>
-                      {workplaces.map(wp => <option key={wp.id} value={wp.id}>{wp.name}</option>)}
-                    </select>
-                    <select
-                      className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
-                      value={target.role}
-                      onChange={e => setAssignTarget(prev => ({ ...prev, [u.uid]: { ...target, role: e.target.value as UserRole } }))}
-                    >
-                      {ROLE_OPTIONS.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-                    </select>
-                    <button
-                      disabled={!target.workplaceId}
-                      onClick={() => assignUserToWorkplace(u.uid, target.workplaceId, target.role)}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-colors">
-                      배정
-                    </button>
-                  </div>
+            {pendingUsers.map(u => (
+              <div key={u.uid} className="flex items-center justify-between px-5 py-3 gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{u.displayName}</p>
+                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
                 </div>
-              );
-            })}
+                <AssignRow
+                  workplaces={workplaces}
+                  defaultWorkplaceId=""
+                  defaultRole="user"
+                  buttonLabel="배정"
+                  buttonClass="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-colors"
+                  onSubmit={(wpId, role) => assignUserToWorkplace(u.uid, wpId, role)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 이미 배정된 사용자 → 다른 근무지로 이동 */}
+      <section className="glass-card">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+          <UserCog size={15} className="text-blue-500" />
+          <span className="text-sm font-semibold text-gray-800">사용자 근무지 이동</span>
+          <span className="text-xs text-gray-400">{assignedUsers.length}명 · 근무지를 바꾸면 다음 로그인부터 새 근무지의 팀·업무만 보입니다</span>
+        </div>
+        {assignedUsers.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-gray-400 text-center">배정된 사용자가 없습니다</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {assignedUsers.map(u => (
+              <div key={u.uid} className="flex items-center justify-between px-5 py-3 gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{u.displayName}</p>
+                  <p className="text-xs text-gray-400 truncate">{u.email} · 현재 {workplaceName(u.workplaceId)} · {ROLE_LABEL[u.role]}</p>
+                </div>
+                <AssignRow
+                  workplaces={workplaces}
+                  defaultWorkplaceId={u.workplaceId ?? ''}
+                  defaultRole={u.role}
+                  buttonLabel="이동"
+                  buttonClass="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors"
+                  onSubmit={(wpId, role) => assignUserToWorkplace(u.uid, wpId, role)}
+                />
+              </div>
+            ))}
           </div>
         )}
       </section>
@@ -194,6 +208,43 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
         </div>
       </section>
       </div>
+    </div>
+  );
+}
+
+function AssignRow({ workplaces, defaultWorkplaceId, defaultRole, buttonLabel, buttonClass, onSubmit }: {
+  workplaces: Workplace[];
+  defaultWorkplaceId: string;
+  defaultRole: UserRole;
+  buttonLabel: string;
+  buttonClass: string;
+  onSubmit: (workplaceId: string, role: UserRole) => void;
+}) {
+  const [workplaceId, setWorkplaceId] = useState(defaultWorkplaceId);
+  const [role, setRole] = useState<UserRole>(defaultRole);
+  return (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <select
+        className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
+        value={workplaceId}
+        onChange={e => setWorkplaceId(e.target.value)}
+      >
+        <option value="">근무지 선택</option>
+        {workplaces.map(wp => <option key={wp.id} value={wp.id}>{wp.name}</option>)}
+      </select>
+      <select
+        className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
+        value={role}
+        onChange={e => setRole(e.target.value as UserRole)}
+      >
+        {ROLE_OPTIONS.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+      </select>
+      <button
+        disabled={!workplaceId}
+        onClick={() => onSubmit(workplaceId, role)}
+        className={buttonClass}>
+        {buttonLabel}
+      </button>
     </div>
   );
 }

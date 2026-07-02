@@ -35,7 +35,7 @@ interface Props {
   plMainTaskTypes?: PLMainTaskType[];
   teams?: Team[];
   currentTeamId?: string;
-  onRequestToSupportTeam?: (taskIds: string[], targetTeamId: string, targetCategory: string) => Promise<void>;
+  onRequestToSupportTeam?: (taskIds: string[], targetTeamId: string, targetCategory: string, targetMonth: string) => Promise<void>;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -116,6 +116,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestTargetTeamId, setRequestTargetTeamId] = useState('');
   const [requestTargetPart, setRequestTargetPart] = useState('');
+  const [requestTargetMonth, setRequestTargetMonth] = useState('');
   const [requestSending, setRequestSending] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
@@ -1104,7 +1105,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           {canCreate && eligibleSupportTeams.length > 0 && <>
             <div className="w-px h-4 bg-white/20" />
             <button
-              onClick={() => { setRequestTargetTeamId(''); setRequestTargetPart(''); setShowRequestModal(true); }}
+              onClick={() => {
+                setRequestTargetTeamId(''); setRequestTargetPart('');
+                setRequestTargetMonth(monthFilter > 0 ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+                setShowRequestModal(true);
+              }}
               className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-semibold transition-colors">
               <Send size={13} /> 지원 요청
             </button>
@@ -1172,6 +1177,31 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               {requestTargetTeam && requestTargetTeam.parts.length === 0 && (
                 <p className="text-xs text-gray-400">이 지원팀은 파트가 없어 파트 구분 없이 바로 등록됩니다</p>
               )}
+              {requestTargetTeam && (
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">등록될 월</p>
+                  <div className="flex gap-1.5">
+                    <select
+                      className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      value={requestTargetMonth.slice(0, 4)}
+                      onChange={e => setRequestTargetMonth(`${e.target.value}-${requestTargetMonth.slice(5) || '01'}`)}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 + i).map(y => (
+                        <option key={y} value={y}>{y}년</option>
+                      ))}
+                    </select>
+                    <select
+                      className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      value={requestTargetMonth.slice(5)}
+                      onChange={e => setRequestTargetMonth(`${requestTargetMonth.slice(0, 4)}-${e.target.value}`)}
+                    >
+                      {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(m => (
+                        <option key={m} value={m}>{parseInt(m)}월</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2 px-6 py-4 border-t border-gray-100">
               <button
@@ -1185,7 +1215,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   if (!onRequestToSupportTeam) return;
                   setRequestSending(true);
                   try {
-                    await onRequestToSupportTeam([...selectedIds], requestTargetTeamId, requestTargetPart);
+                    await onRequestToSupportTeam([...selectedIds], requestTargetTeamId, requestTargetPart, requestTargetMonth);
                     setShowRequestModal(false);
                     setSelectedIds(new Set());
                   } finally {

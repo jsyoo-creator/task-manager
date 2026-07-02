@@ -408,12 +408,13 @@ function App() {
     addTask({ ...data, teamId: activeTeamId ?? '' });
 
   // 선택한 업무들을 지원팀에 새 업무로 등록 (메인 업무 정보만 복사, 세부업무/시간 데이터는 제외)
-  const requestTasksToSupportTeam = async (taskIds: string[], targetTeamId: string, targetCategory: string) => {
+  const requestTasksToSupportTeam = async (taskIds: string[], targetTeamId: string, targetCategory: string, targetMonth: string) => {
     const selected = tasks.filter(t => taskIds.includes(t.id));
     await Promise.all(selected.map(t => addTask({
       projectId: t.projectId,
       teamId: targetTeamId,
       category: targetCategory,
+      taskMonth: targetMonth,
       title: t.title,
       type: t.type,
       status: '진행 전',

@@ -702,9 +702,8 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
   const resolveTeam = (list: typeof userTeams) => {
-    if (appUser.defaultTeamId && list.some(t => t.id === appUser.defaultTeamId)) {
-      return appUser.defaultTeamId;
-    }
+    const defaultVal = Object.values(appUser.defaultTeamIdByWorkplace ?? {}).find(id => list.some(t => t.id === id));
+    if (defaultVal) return defaultVal;
     return list[0]?.id ?? null;
   };
 

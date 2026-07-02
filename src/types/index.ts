@@ -22,7 +22,9 @@ export interface AppUser {
   role: UserRole;
   department?: Department;
   selectedTeamIds?: string[];
+  /** @deprecated defaultTeamIdByWorkplace 사용 — 근무지 구분 없는 단일 값이라 다중 근무지에서 근무지별로 다른 기본 팀을 표현할 수 없음 */
   defaultTeamId?: string;
+  defaultTeamIdByWorkplace?: Record<string, string>; // 근무지 id → 그 근무지에서의 기본(접속 시 자동 선택) 팀 id
   annualLeave?: number;
   profileData?: Record<string, string>;
   createdAt: string;

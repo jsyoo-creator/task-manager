@@ -258,6 +258,8 @@ function RoleLabelEditor({ roleLabels, onSave }: { roleLabels: RoleLabels; onSav
     manager: roleLabels.manager ?? '',
     user: roleLabels.user ?? '',
   });
+  const [savedRole, setSavedRole] = useState<UserRole | null>(null);
+  const [errorRole, setErrorRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
     setDrafts({
@@ -267,17 +269,29 @@ function RoleLabelEditor({ roleLabels, onSave }: { roleLabels: RoleLabels; onSav
     });
   }, [roleLabels.superadmin, roleLabels.manager, roleLabels.user]);
 
-  const handleBlur = (role: UserRole) => {
+  const handleBlur = async (role: UserRole) => {
     const trimmed = drafts[role].trim();
     if (trimmed === (roleLabels[role] ?? '')) return;
-    onSave({ ...roleLabels, [role]: trimmed || undefined });
+    try {
+      await onSave({ ...roleLabels, [role]: trimmed || undefined });
+      setSavedRole(role);
+      setTimeout(() => setSavedRole(r => (r === role ? null : r)), 1500);
+    } catch (e) {
+      console.error('역할 명칭 저장 실패:', e);
+      setErrorRole(role);
+      setTimeout(() => setErrorRole(r => (r === role ? null : r)), 3000);
+    }
   };
 
   return (
     <div className="grid grid-cols-3 gap-3">
       {ROLE_ORDER.map(role => (
         <div key={role}>
-          <label className="text-[10px] text-gray-400 block mb-1">{DEFAULT_ROLE_LABELS[role]} 표시 명칭</label>
+          <label className="text-[10px] text-gray-400 block mb-1 flex items-center gap-1.5">
+            {DEFAULT_ROLE_LABELS[role]} 표시 명칭
+            {savedRole === role && <span className="text-green-500 font-medium">저장됨</span>}
+            {errorRole === role && <span className="text-red-500 font-medium">저장 실패 — 다시 시도해주세요</span>}
+          </label>
           <input
             value={drafts[role]}
             onChange={e => setDrafts(prev => ({ ...prev, [role]: e.target.value }))}
@@ -297,19 +311,20 @@ function RoleLabelEditor({ roleLabels, onSave }: { roleLabels: RoleLabels; onSav
 // ──────────────────────────────────────────
 const DEFAULT_ANNUAL = 0;
 
-function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, onDeleteUser, teams, profileFields }: {
+function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateInfo, onDeleteUser, teams, profileFields, workplaceId }: {
   u: AppUser; viewerRole: UserRole; viewerTeamIds: string[]; isSelf: boolean;
   onChangeRole: (uid: string, role: UserRole) => void;
-  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; profileData?: Record<string, string> }) => void;
+  onUpdateInfo: (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; workplaceId?: string; profileData?: Record<string, string> }) => void;
   onDeleteUser: (uid: string) => Promise<void>;
   teams: Team[];
   profileFields: ProfileFieldDef[];
+  workplaceId?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(u.displayName);
   const [deptInput, setDeptInput] = useState<Department | undefined>(u.department);
   const [teamInput, setTeamInput] = useState<string[]>(u.selectedTeamIds ?? []);
-  const [defaultTeamInput, setDefaultTeamInput] = useState<string | null>(u.defaultTeamId ?? null);
+  const [defaultTeamInput, setDefaultTeamInput] = useState<string | null>((workplaceId && u.defaultTeamIdByWorkplace?.[workplaceId]) || null);
   const [annualLeaveStr, setAnnualLeaveStr] = useState<string>(String(u.annualLeave ?? DEFAULT_ANNUAL));
   const [profileDataInput, setProfileDataInput] = useState<Record<string, string>>(u.profileData ?? {});
 
@@ -343,6 +358,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
       selectedTeamIds: teamInput,
       annualLeave,
       defaultTeamId: resolvedDefault,
+      workplaceId,
       profileData: profileDataInput,
     });
     setEditing(false);
@@ -353,7 +369,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
     setNameInput(u.displayName);
     setDeptInput(u.department);
     setTeamInput(u.selectedTeamIds ?? []);
-    setDefaultTeamInput(u.defaultTeamId ?? null);
+    setDefaultTeamInput((workplaceId && u.defaultTeamIdByWorkplace?.[workplaceId]) || null);
     setAnnualLeaveStr(String(u.annualLeave ?? DEFAULT_ANNUAL));
     setProfileDataInput(u.profileData ?? {});
   };
@@ -4898,7 +4914,7 @@ export default function SettingsPage({
                 <div className="flex flex-wrap gap-2">
                   {teams.map(t => {
                     const isSelected = appUser.selectedTeamIds?.includes(t.id) ?? false;
-                    const isDefault = appUser.defaultTeamId === t.id;
+                    const isDefault = (workplaceId && appUser.defaultTeamIdByWorkplace?.[workplaceId]) === t.id;
                     const selectedCount = appUser.selectedTeamIds?.length ?? 0;
                     const handleToggle = () => {
                       const current = appUser.selectedTeamIds ?? [];
@@ -5016,10 +5032,9 @@ export default function SettingsPage({
                   const teamUsers = team
                     ? users.filter(u => {
                         if (!u.selectedTeamIds?.includes(team.id)) return false;
-                        // defaultTeamId는 그것이 이 근무지의 팀들 중 하나일 때만 배타적 기준으로 사용
-                        // (다른 근무지의 팀을 가리키는 낡은 값이면 무시하고 selectedTeamIds만 확인)
-                        const defaultInThisWorkplace = u.defaultTeamId && teams.some(t => t.id === u.defaultTeamId);
-                        if (defaultInThisWorkplace) return u.defaultTeamId === team.id;
+                        // 이 근무지에서의 기본 팀이 설정돼 있으면 그 팀 그룹에서만 배타적으로 표시
+                        const usersDefault = workplaceId ? u.defaultTeamIdByWorkplace?.[workplaceId] : undefined;
+                        if (usersDefault) return usersDefault === team.id;
                         return true;
                       })
                     : users.filter(u => !teams.some(t => u.selectedTeamIds?.includes(t.id)));
@@ -5056,7 +5071,7 @@ export default function SettingsPage({
                                 <UserRow key={`${team?.id ?? 'none'}-${u.uid}`} u={u}
                                   viewerRole={appUser.role} viewerTeamIds={appUser.selectedTeamIds ?? []}
                                   isSelf={u.uid === appUser.uid}
-                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} onDeleteUser={deleteUser} teams={teams} profileFields={profileFields} />
+                                  onChangeRole={updateUserRole} onUpdateInfo={updateUserInfo} onDeleteUser={deleteUser} teams={teams} profileFields={profileFields} workplaceId={workplaceId} />
                               ))}
                           </div>
                         </div>

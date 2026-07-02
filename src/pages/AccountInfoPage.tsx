@@ -9,10 +9,13 @@ interface Props {
   profileFields: ProfileFieldDef[];
 }
 
-// defaultTeamId/selectedTeamIds는 근무지 구분 없는 전역 값이라, 다른 근무지의 팀을
-// 가리킬 수 있음 — 반드시 현재 근무지의 teams 목록 안에 있는 값만 신뢰한다
+// selectedTeamIds는 근무지 구분 없는 전역 값이라, 다른 근무지의 팀을 가리킬 수 있음 —
+// 반드시 현재 근무지의 teams 목록 안에 있는 값만 신뢰한다. defaultTeamIdByWorkplace는
+// workplaceId로 저장돼 있지만 여기선 workplaceId를 모르니, teams(이미 현재 근무지로
+// 필터된 목록)에 실제로 속한 값을 찾아 사용한다
 function getUserTeamId(user: AppUser, teams: Team[]): string | null {
-  if (user.defaultTeamId && teams.some(t => t.id === user.defaultTeamId)) return user.defaultTeamId;
+  const defaultVal = Object.values(user.defaultTeamIdByWorkplace ?? {}).find(id => teams.some(t => t.id === id));
+  if (defaultVal) return defaultVal;
   const validSelected = user.selectedTeamIds?.find(id => teams.some(t => t.id === id));
   return validSelected ?? null;
 }
@@ -275,7 +278,7 @@ export default function AccountInfoPage({ allUsers, teams, profileFields }: Prop
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {sorted.map(u => {
-                    const isDefault = u.defaultTeamId === activeTeamId;
+                    const isDefault = Object.values(u.defaultTeamIdByWorkplace ?? {}).includes(activeTeamId);
                     return (
                       <tr key={u.uid} className="hover:bg-[#F5F3FF] transition-colors">
                         <td className="px-5 py-3.5 whitespace-nowrap">

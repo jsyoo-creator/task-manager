@@ -89,10 +89,11 @@ export function useUserRole(firebaseUser: User | null) {
     });
   };
 
-  const updateDefaultTeam = async (teamId: string | null) => {
-    if (!firebaseUser) return;
+  // 근무지별로 접속 시 자동 선택될 기본 팀이 다를 수 있어 workplaceId로 구분해서 저장
+  const updateDefaultTeam = async (workplaceId: string, teamId: string | null) => {
+    if (!firebaseUser || !workplaceId) return;
     await updateDoc(doc(db, 'users', firebaseUser.uid), {
-      defaultTeamId: teamId ?? deleteField(),
+      [`defaultTeamIdByWorkplace.${workplaceId}`]: teamId ?? deleteField(),
     });
   };
 
@@ -140,11 +141,11 @@ export function useAllUsers(workplaceId?: string) {
     await updateDoc(doc(db, 'users', uid), { isPlatformAdmin: value });
   };
 
-  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; profileData?: Record<string, string> }) => {
-    const { defaultTeamId, ...rest } = data;
+  const updateUserInfo = async (uid: string, data: { displayName?: string; department?: Department; selectedTeamIds?: string[]; annualLeave?: number; defaultTeamId?: string | null; workplaceId?: string; profileData?: Record<string, string> }) => {
+    const { defaultTeamId, workplaceId, ...rest } = data;
     const payload: Record<string, unknown> = { ...rest };
-    if ('defaultTeamId' in data) {
-      payload.defaultTeamId = defaultTeamId ?? deleteField();
+    if ('defaultTeamId' in data && workplaceId) {
+      payload[`defaultTeamIdByWorkplace.${workplaceId}`] = defaultTeamId ?? deleteField();
     }
 
     // 이름 변경 전에 oldName을 미리 읽어둠

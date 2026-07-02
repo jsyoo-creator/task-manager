@@ -209,6 +209,22 @@ function App() {
           await batch.commit();
           console.log('[migration] vacations workplaceId 백필 완료:', count, '건');
         }
+
+        // defaultTeamId(단일, 근무지 구분 없음) → defaultTeamIdByWorkplace[legacyWorkplaceId]로 백필
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const userBatch = writeBatch(db);
+        let userCount = 0;
+        usersSnap.docs.forEach(d => {
+          const u = d.data() as { defaultTeamId?: string; defaultTeamIdByWorkplace?: Record<string, string> };
+          if (u.defaultTeamId && !u.defaultTeamIdByWorkplace?.[legacyWorkplaceId]) {
+            userBatch.update(d.ref, { [`defaultTeamIdByWorkplace.${legacyWorkplaceId}`]: u.defaultTeamId });
+            userCount++;
+          }
+        });
+        if (userCount > 0) {
+          await userBatch.commit();
+          console.log('[migration] defaultTeamIdByWorkplace 백필 완료:', userCount, '건');
+        }
       } catch (e) {
         console.error('[migration] 근무지별 설정값 분리 실패:', e);
       }
@@ -279,13 +295,14 @@ function App() {
       return;
     }
     if (activeTeamId && ids.includes(activeTeamId)) return; // 이미 유효한 선택 유지
-    const preferred = (appUser?.defaultTeamId && ids.includes(appUser.defaultTeamId))
-      ? appUser.defaultTeamId
+    const defaultForThisWorkplace = activeWorkplaceId ? appUser?.defaultTeamIdByWorkplace?.[activeWorkplaceId] : undefined;
+    const preferred = (defaultForThisWorkplace && ids.includes(defaultForThisWorkplace))
+      ? defaultForThisWorkplace
       : ids[0];
     setActiveTeamId(preferred);
     localStorage.setItem('activeTeamId', preferred);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appUser?.selectedTeamIds?.join(','), appUser?.defaultTeamId, teams]);
+  }, [appUser?.selectedTeamIds?.join(','), appUser?.defaultTeamIdByWorkplace, activeWorkplaceId, teams]);
 
   const handleActiveTeamChange = (id: string) => {
     setActiveTeamId(id);
@@ -312,25 +329,22 @@ function App() {
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
-  // 담당자 목록: defaultTeamId가 "현재 근무지의" 팀을 가리킬 때만 그 기준으로 판단하고,
-  // 다른 근무지의 팀을 가리키는 낡은 값이면 무시하고 selectedTeamIds로 폴백한다
-  // (다중 근무지 배정 사용자가 defaultTeamId 때문에 목록에서 통째로 빠지는 것을 방지)
-  const isDefaultTeamInWorkplace = (u: { defaultTeamId?: string }) =>
-    !!u.defaultTeamId && teams.some(t => t.id === u.defaultTeamId);
+  // 담당자 목록: 이 근무지에서의 기본 팀(defaultTeamIdByWorkplace)이 설정돼 있으면 그 기준으로,
+  // 없으면 selectedTeamIds로 판단
+  const getDefaultTeamId = (u: { defaultTeamIdByWorkplace?: Record<string, string> }) =>
+    activeWorkplaceId ? u.defaultTeamIdByWorkplace?.[activeWorkplaceId] : undefined;
   const teamMembers = selectedTeam
-    ? allUsers.filter(u =>
-        isDefaultTeamInWorkplace(u)
-          ? u.defaultTeamId === selectedTeam.id
-          : u.selectedTeamIds?.includes(selectedTeam.id)
-      ).map(u => ({ name: u.displayName, department: u.department }))
+    ? allUsers.filter(u => {
+        const d = getDefaultTeamId(u);
+        return d ? d === selectedTeam.id : u.selectedTeamIds?.includes(selectedTeam.id);
+      }).map(u => ({ name: u.displayName, department: u.department }))
     : [];
 
   // 휴가 표시용: 위와 동일한 기준
-  const vacTeamMembers = selectedTeam ? allUsers.filter(u =>
-    isDefaultTeamInWorkplace(u)
-      ? u.defaultTeamId === selectedTeam.id
-      : u.selectedTeamIds?.includes(selectedTeam.id)
-  ) : [];
+  const vacTeamMembers = selectedTeam ? allUsers.filter(u => {
+    const d = getDefaultTeamId(u);
+    return d ? d === selectedTeam.id : u.selectedTeamIds?.includes(selectedTeam.id);
+  }) : [];
   const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
   const teamVacations = vacations.filter(v => vacMemberNames.has(v.memberName));
 
@@ -800,7 +814,7 @@ function App() {
                     onUpdateName={updateDisplayName}
                     onUpdateDepartment={updateDepartment}
                     onUpdateSelectedTeams={updateSelectedTeams}
-                    onUpdateDefaultTeam={updateDefaultTeam}
+                    onUpdateDefaultTeam={(teamId: string | null) => activeWorkplaceId ? updateDefaultTeam(activeWorkplaceId, teamId) : Promise.resolve()}
                     teams={teams}
                     teamsLoading={teamsLoading}
                     onCreateTeam={createTeam}

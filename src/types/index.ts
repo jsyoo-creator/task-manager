@@ -139,6 +139,7 @@ export interface TeamPart {
   excelConfig?: ExcelFieldConfig[]; // 파트별 엑셀 필드 설정 (없으면 팀 기본 상속)
   weeklyExportConfig?: WeeklyExportConfig; // 파트별 위클리 컬럼 설정 (없으면 팀 기본 상속)
   calendarOrder?: string[]; // 캘린더 전용 세부업무 정렬 순서 (SubTaskType.id 목록, 업무상세 순서와 별개, 없으면 팀 기본 상속)
+  plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 (없으면 팀 기본 상속)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────
@@ -499,6 +500,7 @@ export interface Team {
   rolePermissions?: RolePermissions | null; // 팀별 권한 오버라이드 (null = 전체 기본 설정 사용)
   calendarGroupBy?: 'task' | 'subtaskType'; // 캘린더 하루 셀 내 정렬 기준 (undefined = 'task', 메인업무순)
   calendarOrder?: string[]; // 캘린더 전용 세부업무 정렬 순서 (SubTaskType.id 목록, 팀 기본값, 업무상세 순서와 별개)
+  plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 팀 기본값 (undefined = true)
 }
 
 export interface SubTask {

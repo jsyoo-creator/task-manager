@@ -51,7 +51,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const { rolePermissions, updateRolePermissions } = useRolePermissions();
@@ -244,8 +244,9 @@ function App() {
     return map;
   }, [selectedTeam?.subTaskTypes, activeParts]);
 
-  // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID + 모든 PLSubTaskField ID)
+  // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID)
   // 파트에 별도 subTaskTypes가 있으면 파트 설정 우선, 없으면 팀 기본 (SettingsPage 로직과 동일)
+  // PL업무 표시 여부는 Team/TeamPart.plShowInCalendar로 별도 처리 (calendarSubtasks 참고)
   const calendarVisibleTypeIds = useMemo(() => {
     const set = new Set<string>();
     const teamTypes = selectedTeam?.subTaskTypes ?? [];
@@ -257,9 +258,8 @@ function App() {
         types.forEach(t => { if (t.showInCalendar !== false) set.add(t.id); });
       });
     }
-    selectedTeam?.plMainTaskTypes?.forEach(m => m.subFields?.forEach(f => set.add(f.id)));
     return set;
-  }, [selectedTeam?.subTaskTypes, selectedTeam?.plMainTaskTypes, activeParts]);
+  }, [selectedTeam?.subTaskTypes, activeParts]);
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   // 파트별 별도 타입 우선, 없으면 팀 기본 타입 사용 (설정 페이지 로직과 동일)
@@ -358,11 +358,15 @@ function App() {
       const subKey = s.id.split('__')[1];
       const taskObj = filteredTasks.find(t => t.id === s.taskId);
       const partObj = taskObj ? activeParts.find(p => p.name === taskObj.category) : undefined;
+      // PL업무: 파트 별도 설정 우선, 없으면 팀 기본 (없으면 표시)
+      if (taskObj?.plTask) {
+        return partObj?.plShowInCalendar ?? selectedTeam?.plShowInCalendar ?? true;
+      }
       // 파트 별도 설정 우선, 없으면 팀 기본 사용 (SettingsPage 로직과 동일)
       const types = partObj?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
       const typeConfig = types.find(t => t.id === subKey);
       if (typeConfig) return typeConfig.showInCalendar !== false;
-      // subTaskTypes에 없는 타입 (PL 등): calendarVisibleTypeIds fallback
+      // subTaskTypes에 없는 타입: calendarVisibleTypeIds fallback
       return calendarVisibleTypeIds.has(subKey);
     }),
     [subtasks, calendarVisibleTypeIds, filteredTasks, activeParts, selectedTeam]
@@ -525,6 +529,8 @@ function App() {
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
                     onUpdatePartCalendarOrder={updatePartCalendarOrder}
                     onClearPartCalendarOrder={clearPartCalendarOrder}
+                    onUpdatePartPLShowInCalendar={updatePartPLShowInCalendar}
+                    onClearPartPLShowInCalendar={clearPartPLShowInCalendar}
                     onUpdatePlMainTaskTypes={updatePlMainTaskTypes}
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}

@@ -34,6 +34,8 @@ interface Props {
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartPLShowInCalendar: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -2092,13 +2094,15 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
-function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder }: {
+function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar }: {
   team: Team;
   onSaveTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onSavePartTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
   onSavePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartPLShowInCalendar: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [colorPickingId, setColorPickingId] = useState<string | null>(null);
@@ -2144,6 +2148,11 @@ function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTea
     if (isTeam) onSaveTypes(team.id, next);
     else if (currentPart) onSavePartTypes(team.id, currentPart.id, next);
   };
+
+  const plInherited = !isTeam && currentPart?.plShowInCalendar === undefined;
+  const plShowEffective = isTeam
+    ? (team.plShowInCalendar ?? true)
+    : (currentPart?.plShowInCalendar ?? team.plShowInCalendar ?? true);
 
   return (
     <div className="space-y-4">
@@ -2199,6 +2208,38 @@ function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTea
           >세부 업무별</button>
         </div>
       </div>
+
+      {/* PL업무 캘린더 표시 여부 */}
+      {!!team.plMainTaskTypes?.length && (
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+          <div>
+            <p className="text-xs font-semibold text-gray-700">PL업무 캘린더 표시</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              {isTeam
+                ? 'PL업무로 등록한 세부업무를 캘린더에 표시할지 팀 기본값을 정합니다'
+                : plInherited
+                  ? '팀 기본값을 상속 중 — 바꾸면 이 파트만 별도로 저장됩니다'
+                  : '이 파트에 별도로 지정된 값이 적용 중입니다'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {!isTeam && !plInherited && (
+              <button
+                onClick={() => currentPart && onClearPartPLShowInCalendar(team.id, currentPart.id)}
+                className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium">
+                <RotateCcw size={10} />팀 기본으로
+              </button>
+            )}
+            <PermToggle
+              checked={plShowEffective}
+              onChange={() => {
+                if (isTeam) onUpdateTeam(team.id, { plShowInCalendar: !plShowEffective });
+                else if (currentPart) onUpdatePartPLShowInCalendar(team.id, currentPart.id, !plShowEffective);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 색상 · 순서 (캘린더 표시로 설정된 세부업무만) */}
       <div>
@@ -3142,7 +3183,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3163,6 +3204,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartPLShowInCalendar: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -3523,6 +3566,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onUpdateTeam={onUpdateTeam}
                         onSavePartCalendarOrder={onUpdatePartCalendarOrder}
                         onClearPartCalendarOrder={onClearPartCalendarOrder}
+                        onUpdatePartPLShowInCalendar={onUpdatePartPLShowInCalendar}
+                        onClearPartPLShowInCalendar={onClearPartPLShowInCalendar}
                       />
                     </div>
                   )}
@@ -4075,7 +4120,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -4465,6 +4510,8 @@ export default function SettingsPage({
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
           onUpdatePartCalendarOrder={onUpdatePartCalendarOrder}
           onClearPartCalendarOrder={onClearPartCalendarOrder}
+          onUpdatePartPLShowInCalendar={onUpdatePartPLShowInCalendar}
+          onClearPartPLShowInCalendar={onClearPartPLShowInCalendar}
           onUpdatePlMainTaskTypes={onUpdatePlMainTaskTypes}
           onUpdateExcelConfig={onUpdateExcelConfig}
           onUpdatePartExcelConfig={onUpdatePartExcelConfig}

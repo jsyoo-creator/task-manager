@@ -373,8 +373,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                 const lines = [task.plTask ? `[${task.title}]` : `[${task.type}] ${task.title}`];
                 subs.forEach(s => {
                   const sd = dateRange(s.startDate || task.startDate, s.endDate || s.startDate);
-                  const vacType = s.assignee ? (vacTypeMap.get(s.assignee) ?? '휴가') : '휴가';
-                  const subSuffix = isSubstitute && s.assignee ? ` (${s.assignee} ${vacType} 대무)` : '';
+                  const vacType = s.assignee ? vacTypeMap.get(s.assignee) : undefined;
+                  const subSuffix = isSubstitute && s.assignee ? ` (${s.assignee}${vacType ? ` ${vacType}` : ''} 대무)` : '';
                   lines.push(`- ${s.title}${sd ? ` ${sd}` : ''}${subSuffix}`);
                 });
                 const desc = lines.length > 1
@@ -478,7 +478,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
                             <span className="text-xs text-gray-600 flex-1 truncate">
                               {s.title}
                               {isSubstitute && s.assignee && (
-                                <span className="text-orange-400 ml-1">({s.assignee} {vacTypeMap.get(s.assignee) ?? '휴가'} 대무)</span>
+                                <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
                               )}
                             </span>
                             <div className="flex items-center gap-1.5 flex-shrink-0">

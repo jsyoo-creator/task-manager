@@ -48,8 +48,8 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="flex items-center justify-between px-6 py-3.5 bg-white border-b border-gray-200">
+    <div className="h-screen flex flex-col bg-gray-50">
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-3.5 bg-white border-b border-gray-200">
         <div className="flex items-center gap-2">
           <Building2 size={16} className="text-blue-500" />
           <span className="text-sm font-bold text-gray-800">PIVOT 어드민</span>
@@ -64,6 +64,7 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
         </div>
       </header>
 
+      <div className="flex-1 overflow-y-auto">
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <div>
           <h1 className="page-title">근무지 관리</h1>
@@ -199,6 +200,7 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           <PlatformAdminAdder users={users} onAdd={uid => setPlatformAdmin(uid, true)} />
         </div>
       </section>
+      </div>
       </div>
     </div>
   );

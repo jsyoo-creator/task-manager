@@ -3369,7 +3369,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'permission'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'permission' | 'support'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -3580,7 +3580,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto">
-                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'pl', 'excel', 'weekly', 'permission'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'pl', 'excel', 'weekly', 'permission', 'support'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -3588,7 +3588,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : '권한'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'permission' ? '권한' : '지원팀'}
                       </button>
                     ))}
                   </div>
@@ -3843,6 +3843,58 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                       )}
                       {team.rolePermissions && (
                         <p className="text-[10px] text-gray-400">최고 관리자(superadmin) 권한은 항상 전체 접근이 허용됩니다.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 지원팀 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'support' && (
+                    <div className="px-5 py-4 space-y-4">
+                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700">이 팀은 지원팀입니다</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            직접 업무를 등록하기보다, 다른 팀의 업무관리 화면에서 "지원 요청"으로 받은 업무 위주로 운영하는 팀
+                          </p>
+                        </div>
+                        <PermToggle
+                          checked={!!team.isSupportTeam}
+                          onChange={() => onUpdateTeam(team.id, { isSupportTeam: !team.isSupportTeam })}
+                        />
+                      </div>
+
+                      {team.isSupportTeam && (
+                        <div>
+                          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                            업무 요청을 보낼 수 있는 팀
+                            <span className="text-gray-300 font-normal normal-case ml-1">체크된 팀만 업무관리 화면에서 이 지원팀으로 요청을 보낼 수 있습니다</span>
+                          </p>
+                          {teams.filter(t => t.id !== team.id).length === 0 ? (
+                            <p className="text-xs text-gray-400 text-center py-3">다른 팀이 없습니다</p>
+                          ) : (
+                            <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+                              {teams.filter(t => t.id !== team.id).map(t => {
+                                const checked = (team.supportSourceTeamIds ?? []).includes(t.id);
+                                return (
+                                  <label key={t.id} className="flex items-center gap-2 py-2 px-3 hover:bg-black/2 transition-colors cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() => {
+                                        const cur = team.supportSourceTeamIds ?? [];
+                                        const next = checked ? cur.filter(id => id !== t.id) : [...cur, t.id];
+                                        onUpdateTeam(team.id, { supportSourceTeamIds: next });
+                                      }}
+                                      className="w-3.5 h-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                                    />
+                                    <span>{t.emoji}</span>
+                                    <span className="text-sm text-gray-700">{t.name}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

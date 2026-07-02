@@ -508,6 +508,8 @@ export interface Team {
   mainTaskEndDateShow?: boolean; // 메인업무 종료일을 캘린더에 표시할지 팀 기본값 (undefined = false)
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 비어있으면 '종료일' 사용)
   mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 팀 기본값 (hex, 빈 값이면 파트색 자동 사용)
+  isSupportTeam?: boolean; // 지원팀 여부 — 직접 업무를 등록하기보다 다른 팀에서 업무 요청을 받는 팀
+  supportSourceTeamIds?: string[]; // 지원팀일 때, 이 팀들만 업무 요청을 보낼 수 있음 (화이트리스트)
 }
 
 export interface SubTask {
@@ -570,6 +572,8 @@ export interface Task {
   plTask?: boolean;          // PL업무 여부
   plParts?: string[];        // PL업무 소속 파트 목록
   plSelectedTypes?: string[]; // PL업무에서 선택된 메인업무 타입 ID 목록
+  requestedFromTeamId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 팀 ID (참고용, 동기화 없음)
+  requestedFromTaskId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 ID (참고용, 동기화 없음)
   createdAt: string;
   updatedAt: string;
 }

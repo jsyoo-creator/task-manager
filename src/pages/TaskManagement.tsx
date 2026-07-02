@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, EyeOff } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField } from '../types';
+import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
@@ -33,6 +33,9 @@ interface Props {
   excelConfig?: ExcelFieldConfig[];
   allMetaFields?: MetaField[];
   plMainTaskTypes?: PLMainTaskType[];
+  teams?: Team[];
+  currentTeamId?: string;
+  onRequestToSupportTeam?: (taskIds: string[], targetTeamId: string, targetCategory: string) => Promise<void>;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -95,7 +98,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(() => {
     const saved = localStorage.getItem('tm_yearFilter');
@@ -110,6 +113,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestTargetTeamId, setRequestTargetTeamId] = useState('');
+  const [requestTargetPart, setRequestTargetPart] = useState('');
+  const [requestSending, setRequestSending] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
@@ -125,6 +132,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const importDropRef = useRef<HTMLDivElement>(null);
   const [importDropOpen, setImportDropOpen] = useState(false);
   const [importParts, setImportParts] = useState<Set<string>>(new Set());
+
+  const eligibleSupportTeams = useMemo(
+    () => teams.filter(t => t.isSupportTeam && (t.supportSourceTeamIds ?? []).includes(currentTeamId ?? '')),
+    [teams, currentTeamId]
+  );
+  const requestTargetTeam = eligibleSupportTeams.find(t => t.id === requestTargetTeamId);
 
   const monthsWithData = useMemo(() => {
     const set = new Set<number>();
@@ -1088,6 +1101,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
             <Copy size={13} /> 복사
           </button>
+          {canCreate && eligibleSupportTeams.length > 0 && <>
+            <div className="w-px h-4 bg-white/20" />
+            <button
+              onClick={() => { setRequestTargetTeamId(''); setRequestTargetPart(''); setShowRequestModal(true); }}
+              className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-semibold transition-colors">
+              <Send size={13} /> 지원 요청
+            </button>
+          </>}
           {canDelete && <>
             <div className="w-px h-4 bg-white/20" />
             <button
@@ -1107,6 +1128,74 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <NewTaskModal open={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleAddTask}
         projectId={projectId} parts={parts} assignees={assignees} teamMembers={teamMembers} formConfig={formConfig} currentUserName={currentUserName} plMainTaskTypes={canSeeAll ? plMainTaskTypes : undefined} />
+
+      {/* 지원팀 업무 요청 모달 */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-800">지원팀에 업무 요청</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                선택한 {selectedIds.size}개 업무의 메인 업무 정보만 복사되어 등록됩니다 (세부업무·시간 데이터는 제외)
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-3.5">
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">지원팀 선택</p>
+                <div className="flex flex-col gap-1.5">
+                  {eligibleSupportTeams.map(t => (
+                    <button key={t.id}
+                      onClick={() => { setRequestTargetTeamId(t.id); setRequestTargetPart(''); }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left border transition-colors ${
+                        requestTargetTeamId === t.id ? 'border-emerald-400 bg-emerald-50 text-emerald-700 font-semibold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}>
+                      <span>{t.emoji}</span>{t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {requestTargetTeam && (
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">등록할 파트</p>
+                  <select
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    value={requestTargetPart}
+                    onChange={e => setRequestTargetPart(e.target.value)}
+                  >
+                    <option value="">선택</option>
+                    {requestTargetTeam.parts.map(p => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 px-6 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setShowRequestModal(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
+                취소
+              </button>
+              <button
+                disabled={!requestTargetTeamId || !requestTargetPart || requestSending}
+                onClick={async () => {
+                  if (!onRequestToSupportTeam) return;
+                  setRequestSending(true);
+                  try {
+                    await onRequestToSupportTeam([...selectedIds], requestTargetTeamId, requestTargetPart);
+                    setShowRequestModal(false);
+                    setSelectedIds(new Set());
+                  } finally {
+                    setRequestSending(false);
+                  }
+                }}
+                className="flex-1 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 transition-colors">
+                {requestSending ? '보내는 중…' : '보내기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {

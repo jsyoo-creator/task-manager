@@ -407,6 +407,29 @@ function App() {
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });
 
+  // 선택한 업무들을 지원팀에 새 업무로 등록 (메인 업무 정보만 복사, 세부업무/시간 데이터는 제외)
+  const requestTasksToSupportTeam = async (taskIds: string[], targetTeamId: string, targetCategory: string) => {
+    const selected = tasks.filter(t => taskIds.includes(t.id));
+    await Promise.all(selected.map(t => addTask({
+      projectId: t.projectId,
+      teamId: targetTeamId,
+      category: targetCategory,
+      title: t.title,
+      type: t.type,
+      status: '진행 전',
+      receiver: '',
+      assignee: '',
+      startDate: t.startDate,
+      endDate: t.endDate,
+      weeklyHours: {},
+      totalHours: 0,
+      revisionLevel: 0,
+      memo: t.memo,
+      requestedFromTeamId: activeTeamId ?? undefined,
+      requestedFromTaskId: t.id,
+    })));
+  };
+
   if (authLoading || (user && roleLoading)) {
     return <LoadingScreen done={false} onFinished={() => {}} />;
   }
@@ -477,6 +500,9 @@ function App() {
                 canSeeAll={canSeeAll}
                 userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
                 plMainTaskTypes={selectedTeam?.plMainTaskTypes}
+                teams={teams}
+                currentTeamId={activeTeamId ?? undefined}
+                onRequestToSupportTeam={requestTasksToSupportTeam}
               />
             } />
             <Route path="/calendar" element={

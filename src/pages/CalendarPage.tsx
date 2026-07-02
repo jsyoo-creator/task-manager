@@ -25,6 +25,7 @@ interface Props {
   groupBySubtaskType?: boolean; // true면 하루 셀 안에서 메인업무순 대신 세부업무 유형별로 묶어서 정렬
   mainTaskEndDateShow?: boolean; // 메인업무 종료일 표시 여부 팀 기본값 (undefined = false)
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 비어있으면 '종료일' 사용)
+  plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 팀 기본값 (undefined = true)
 }
 
 function truncateText(text: string, max: number): string {
@@ -92,7 +93,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, plShowInCalendar }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -112,6 +113,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   }, [parts]);
 
   const partMap = useMemo(() => new Map((parts ?? []).map(p => [p.name, p])), [parts]);
+
+  const resolvePLShowInCalendar = (category: string): boolean => {
+    const part = partMap.get(category);
+    return part?.plShowInCalendar !== undefined ? part.plShowInCalendar : (plShowInCalendar ?? true);
+  };
 
   // 메인업무 종료일 표시 여부/명칭을 파트별 재정의 → 팀 기본값 순으로 해석. 꺼져 있으면 null.
   const resolveEndDateLabel = (category: string): string | null => {
@@ -360,6 +366,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                         .filter(t => t.endDate === dateStr)
                         .filter(t => activeCategory === 'all' || t.category === activeCategory)
                         .filter(t => canSeeAll || t.assignee === currentUserName || t.receiver === currentUserName)
+                        .filter(t => !t.plTask || resolvePLShowInCalendar(t.category))
                         .map(t => {
                           const label = resolveEndDateLabel(t.category);
                           if (!label) return null;
@@ -371,11 +378,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                       return (
                         <div className="flex flex-col gap-0.5 mb-1">
                           {badges.map(b => (
-                            <div key={b.id} title={`${b.label}: ${b.title}`}
+                            <div key={b.id} title={`${b.title}: ${b.label}`}
                               className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight truncate ${b.s.card} ${b.s.title}`}>
                               <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${b.s.dot}`} />
-                              <span className="truncate">{b.label}</span>
-                              <span className="truncate font-normal opacity-60">· {truncateText(b.title, 10)}</span>
+                              <span className="truncate">{truncateText(b.title, 14)}</span>
+                              <span className="truncate font-normal opacity-60">· {b.label}</span>
                             </div>
                           ))}
                         </div>

@@ -130,16 +130,17 @@ export const DEFAULT_CATEGORIES = ['라이브', '복지', '사업자', '기타']
 
 export interface RevisionStep {
   id: string;    // Task.revisionCounts의 키와 매칭되는 고정 식별자 (예: 'F1'). 생성 이후 변경되지 않음
+  code: string;  // 화면에 표시되는 짧은 뱃지 텍스트 (예: 'F1'), 자유롭게 수정 가능
   label: string; // 화면에 표시되는 설명 텍스트 (수정 가능)
 }
 
 export const DEFAULT_REVISION_STEPS: RevisionStep[] = [
-  { id: 'F1', label: 'KV 크리에이티브 변경' },
-  { id: 'F2', label: '상세페이지 레이아웃 변동, 신규 상에 추가' },
-  { id: 'F3', label: '특정 영역 내용·이미지 수정' },
-  { id: 'F4', label: 'API 제품 교재 20개 이상' },
-  { id: 'F5', label: 'API 제품 교재 20개 미만' },
-  { id: 'F6', label: '단순 텍스트·CMS 수정' },
+  { id: 'F1', code: 'F1', label: 'KV 크리에이티브 변경' },
+  { id: 'F2', code: 'F2', label: '상세페이지 레이아웃 변동, 신규 상에 추가' },
+  { id: 'F3', code: 'F3', label: '특정 영역 내용·이미지 수정' },
+  { id: 'F4', code: 'F4', label: 'API 제품 교재 20개 이상' },
+  { id: 'F5', code: 'F5', label: 'API 제품 교재 20개 미만' },
+  { id: 'F6', code: 'F6', label: '단순 텍스트·CMS 수정' },
 ];
 
 /** 파트 → 팀 → 기본값 순으로 수정단계 목록을 해석 */

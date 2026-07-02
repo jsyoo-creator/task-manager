@@ -2123,12 +2123,13 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [nameInput, setNameInput] = useState('');
+  const [editingField, setEditingField] = useState<'code' | 'label' | null>(null);
+  const [fieldInput, setFieldInput] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
 
-  useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
+  useEffect(() => { setSelectedTarget('team'); setEditingId(null); setEditingField(null); }, [team.id]);
 
   const isTeam = selectedTarget === 'team';
   const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
@@ -2151,11 +2152,18 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
     dragIdxRef.current = null; setDragOverIdx(null);
   };
 
-  const saveLabel = (id: string) => {
-    const label = nameInput.trim();
-    if (label) save(steps.map(s => s.id === id ? { ...s, label } : s));
-    setEditingId(null);
+  const startEdit = (id: string, field: 'code' | 'label', value: string) => {
+    setEditingId(id); setEditingField(field); setFieldInput(value);
   };
+
+  const saveField = () => {
+    if (!editingId || !editingField) return;
+    const value = fieldInput.trim();
+    if (value) save(steps.map(s => s.id === editingId ? { ...s, [editingField]: value } : s));
+    setEditingId(null); setEditingField(null);
+  };
+
+  const cancelEdit = () => { setEditingId(null); setEditingField(null); };
 
   const deleteStep = (id: string) => save(steps.filter(s => s.id !== id));
 
@@ -2164,7 +2172,7 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
     if (!label) return;
     const nums = steps.map(s => { const m = /^F(\d+)$/.exec(s.id); return m ? parseInt(m[1], 10) : 0; });
     const nextNum = Math.max(0, ...nums) + 1;
-    save([...steps, { id: `F${nextNum}`, label }]);
+    save([...steps, { id: `F${nextNum}`, code: `F${nextNum}`, label }]);
     setNewLabel('');
   };
 
@@ -2238,16 +2246,29 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
                 onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
                 className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
                 <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                <span className="text-[10px] font-bold text-white bg-blue-500 rounded px-1.5 py-0.5 flex-shrink-0 w-7 text-center">{s.id}</span>
-                {editingId === s.id ? (
+                {editingId === s.id && editingField === 'code' ? (
                   <input autoFocus
-                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                    value={nameInput} onChange={e => setNameInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveLabel(s.id); if (e.key === 'Escape') setEditingId(null); }}
-                    onBlur={() => saveLabel(s.id)} />
+                    className="w-12 min-w-0 flex-shrink-0 text-[10px] font-bold text-center px-1 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                    value={fieldInput} onChange={e => setFieldInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveField(); if (e.key === 'Escape') cancelEdit(); }}
+                    onBlur={saveField} />
                 ) : (
                   <button type="button"
-                    onClick={() => { setEditingId(s.id); setNameInput(s.label); }}
+                    onClick={() => startEdit(s.id, 'code', s.code)}
+                    title="뱃지 텍스트 수정"
+                    className="text-[10px] font-bold text-white bg-blue-500 hover:bg-blue-600 rounded px-1.5 py-0.5 flex-shrink-0 min-w-7 text-center transition-colors">
+                    {s.code}
+                  </button>
+                )}
+                {editingId === s.id && editingField === 'label' ? (
+                  <input autoFocus
+                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                    value={fieldInput} onChange={e => setFieldInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveField(); if (e.key === 'Escape') cancelEdit(); }}
+                    onBlur={saveField} />
+                ) : (
+                  <button type="button"
+                    onClick={() => startEdit(s.id, 'label', s.label)}
                     className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {s.label}
                   </button>

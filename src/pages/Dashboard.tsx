@@ -365,7 +365,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     return revisionSteps.map(step => {
       const count = tasks.reduce((sum, t) => sum + (t.revisionCounts?.[step.id] ?? 0), 0);
       const pct = grandTotal > 0 ? Math.round((count / grandTotal) * 100) : 0;
-      return { id: step.id, label: step.label, count, pct };
+      return { id: step.id, code: step.code, label: step.label, count, pct };
     });
   }, [tasks, revisionSteps]);
   const totalRevisions = tasks.reduce((sum, t) =>
@@ -604,8 +604,8 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
             <div className="p-4 space-y-3">
               {revisionStats.map(r => (
                 <div key={r.id} className="flex items-center gap-3">
-                  <span className="w-6 h-5 bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[9px] font-bold rounded flex items-center justify-center flex-shrink-0">
-                    {r.id}
+                  <span className="min-w-[24px] h-5 px-1 bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[9px] font-bold rounded flex items-center justify-center flex-shrink-0">
+                    {r.code}
                   </span>
                   <span className="text-xs text-gray-600 flex-1 truncate">{r.label}</span>
                   <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">

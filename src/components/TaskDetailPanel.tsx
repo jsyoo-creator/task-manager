@@ -874,7 +874,7 @@ export default function TaskDetailPanel({
                   const count = task.revisionCounts?.[key] ?? 0;
                   return (
                     <div key={key} className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-white bg-blue-500 rounded px-1.5 py-0.5 flex-shrink-0 w-7 text-center">{key}</span>
+                      <span className="text-[10px] font-bold text-white bg-blue-500 rounded px-1.5 py-0.5 flex-shrink-0 min-w-7 text-center">{step.code}</span>
                       <span className="text-xs text-gray-600 flex-1 truncate">{label}</span>
                       {canManage ? (
                         <div className="flex items-center gap-1 flex-shrink-0">

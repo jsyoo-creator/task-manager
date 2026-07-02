@@ -23,6 +23,7 @@ interface Props {
   teamColor?: string; // 팀 기본 색상 (hex)
   subTaskOrderMap?: Map<string, number>; // subtask.id -> 세부업무 유형 정렬 순서 (그룹핑용)
   groupBySubtaskType?: boolean; // true면 하루 셀 안에서 메인업무순 대신 세부업무 유형별로 묶어서 정렬
+  mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 빈 값이면 표시 안 함)
 }
 
 function truncateText(text: string, max: number): string {
@@ -90,7 +91,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateLabel }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -108,6 +109,14 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     parts?.forEach(p => { map.set(p.name, TW_TO_CAT[p.color] ?? CAT_DEFAULT); });
     return map;
   }, [parts]);
+
+  const partMap = useMemo(() => new Map((parts ?? []).map(p => [p.name, p])), [parts]);
+
+  const resolveEndDateLabel = (category: string): string => {
+    const part = partMap.get(category);
+    if (part?.mainTaskEndDateLabel !== undefined) return part.mainTaskEndDateLabel;
+    return mainTaskEndDateLabel ?? '';
+  };
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -336,6 +345,33 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                           {dayVacs.map(v => (
                             <div key={v.id} className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${vacTypeColor(v.type)}`}>
                               <span className="truncate">{v.memberName} {v.type}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                    {(() => {
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const badges = tasks
+                        .filter(t => t.endDate === dateStr)
+                        .filter(t => activeCategory === 'all' || t.category === activeCategory)
+                        .filter(t => canSeeAll || t.assignee === currentUserName || t.receiver === currentUserName)
+                        .map(t => {
+                          const label = resolveEndDateLabel(t.category);
+                          if (!label) return null;
+                          const s = partStyleMap.get(t.category) ?? CAT_DEFAULT;
+                          return { id: t.id, title: t.title, label, s };
+                        })
+                        .filter((b): b is { id: string; title: string; label: string; s: typeof CAT_DEFAULT } => !!b);
+                      if (badges.length === 0) return null;
+                      return (
+                        <div className="flex flex-col gap-0.5 mb-1">
+                          {badges.map(b => (
+                            <div key={b.id} title={`${b.label}: ${b.title}`}
+                              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight truncate ${b.s.card} ${b.s.title}`}>
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${b.s.dot}`} />
+                              <span className="truncate">{b.label}</span>
+                              <span className="truncate font-normal opacity-60">· {truncateText(b.title, 10)}</span>
                             </div>
                           ))}
                         </div>

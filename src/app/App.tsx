@@ -51,7 +51,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const { rolePermissions, updateRolePermissions } = useRolePermissions();
@@ -480,7 +480,7 @@ function App() {
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} />
+              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} />
             } />
             <Route path="/weekly" element={
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAll} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} />
@@ -531,6 +531,8 @@ function App() {
                     onClearPartCalendarOrder={clearPartCalendarOrder}
                     onUpdatePartPLShowInCalendar={updatePartPLShowInCalendar}
                     onClearPartPLShowInCalendar={clearPartPLShowInCalendar}
+                    onUpdatePartMainTaskEndDateLabel={updatePartMainTaskEndDateLabel}
+                    onClearPartMainTaskEndDateLabel={clearPartMainTaskEndDateLabel}
                     onUpdatePlMainTaskTypes={updatePlMainTaskTypes}
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}

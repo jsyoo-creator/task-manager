@@ -142,6 +142,7 @@ export interface TeamPart {
   plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 (없으면 팀 기본 상속)
   mainTaskEndDateShow?: boolean; // 메인업무 종료일을 캘린더에 표시할지 (없으면 팀 기본 상속)
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 (예: '방송일', 없으면 팀 기본 상속)
+  mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 (hex, 없으면 팀 기본 상속, 빈 값이면 파트색 자동 사용)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────
@@ -506,6 +507,7 @@ export interface Team {
   plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 팀 기본값 (undefined = true)
   mainTaskEndDateShow?: boolean; // 메인업무 종료일을 캘린더에 표시할지 팀 기본값 (undefined = false)
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 비어있으면 '종료일' 사용)
+  mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 팀 기본값 (hex, 빈 값이면 파트색 자동 사용)
 }
 
 export interface SubTask {

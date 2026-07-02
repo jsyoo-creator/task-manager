@@ -40,6 +40,8 @@ interface Props {
   onClearPartMainTaskEndDateLabel: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateShow: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartMainTaskEndDateShow: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartMainTaskEndDateColor: (teamId: string, partId: string, color: string) => Promise<void>;
+  onClearPartMainTaskEndDateColor: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -2110,7 +2112,7 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
-function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow }: {
+function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor }: {
   team: Team;
   onSaveTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onSavePartTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
@@ -2123,6 +2125,8 @@ function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTea
   onClearPartMainTaskEndDateLabel: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateShow: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartMainTaskEndDateShow: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartMainTaskEndDateColor: (teamId: string, partId: string, color: string) => Promise<void>;
+  onClearPartMainTaskEndDateColor: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [colorPickingId, setColorPickingId] = useState<string | null>(null);
@@ -2188,6 +2192,13 @@ function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTea
   };
 
   useEffect(() => { setLabelDraft(endLabelValue); }, [endLabelValue]);
+
+  const endColorInherited = !isTeam && currentPart?.mainTaskEndDateColor === undefined;
+  const endColorValue = isTeam ? (team.mainTaskEndDateColor || undefined) : (currentPart?.mainTaskEndDateColor || team.mainTaskEndDateColor || undefined);
+  const saveEndColor = (color: string | undefined) => {
+    if (isTeam) onUpdateTeam(team.id, { mainTaskEndDateColor: color ?? '' });
+    else if (currentPart) onUpdatePartMainTaskEndDateColor(team.id, currentPart.id, color ?? '');
+  };
 
   return (
     <div className="space-y-4">
@@ -2312,6 +2323,18 @@ function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTea
             onBlur={() => saveEndLabel(labelDraft)}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           />
+          <button
+            type="button"
+            title="배지 색상 선택"
+            onClick={() => setColorPickingId(colorPickingId === '__mainEndDate__' ? null : '__mainEndDate__')}
+            style={{
+              width: 20, height: 20, borderRadius: '50%', padding: 0, cursor: 'pointer', flexShrink: 0,
+              backgroundColor: endColorValue ?? '#e5e7eb',
+              border: endColorValue ? `2px solid ${endColorValue}` : '1.5px dashed #9ca3af',
+              outline: colorPickingId === '__mainEndDate__' ? '2px solid #6366f1' : 'none',
+              outlineOffset: 1,
+            }}
+          />
           {!isTeam && !endLabelInherited && (
             <button
               onClick={() => currentPart && onClearPartMainTaskEndDateLabel(team.id, currentPart.id)}
@@ -2320,6 +2343,47 @@ function CalendarDisplayEditor({ team, onSaveTypes, onSavePartTypes, onUpdateTea
             </button>
           )}
         </div>
+        {colorPickingId === '__mainEndDate__' && (
+          <div className="px-3 py-2 bg-white rounded-lg border border-gray-200">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 18px)', gap: 4, alignItems: 'center' }}>
+              <button
+                type="button"
+                title="파트 색상 자동 사용"
+                onClick={() => { saveEndColor(undefined); setColorPickingId(null); }}
+                style={{
+                  width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                  backgroundColor: '#e5e7eb', border: '1.5px dashed #9ca3af',
+                  outline: !endColorValue ? '2px solid #6b7280' : 'none', outlineOffset: 1,
+                }}
+              />
+              {SUBTASK_CALENDAR_COLORS.map(hex => (
+                <button
+                  key={hex}
+                  type="button"
+                  onClick={() => { saveEndColor(hex); setColorPickingId(null); }}
+                  style={{
+                    width: 18, height: 18, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                    backgroundColor: hex, border: 'none',
+                    outline: endColorValue === hex ? '2px solid #374151' : 'none', outlineOffset: 1,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex items-center justify-between mt-1.5">
+              <p className="text-[10px] text-gray-400">
+                점선 원 = 파트 색상 자동 사용{!isTeam && (endColorInherited ? ' · 팀 기본값 상속 중' : ' · 이 파트에 별도로 지정된 색상')}
+              </p>
+              {!isTeam && !endColorInherited && (
+                <button
+                  onClick={() => { currentPart && onClearPartMainTaskEndDateColor(team.id, currentPart.id); setColorPickingId(null); }}
+                  className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium flex-shrink-0">
+                  <RotateCcw size={10} />팀 기본으로
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 색상 · 순서 (캘린더 표시로 설정된 세부업무만) */}
@@ -3264,7 +3328,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3291,6 +3355,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartMainTaskEndDateLabel: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateShow: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartMainTaskEndDateShow: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartMainTaskEndDateColor: (teamId: string, partId: string, color: string) => Promise<void>;
+  onClearPartMainTaskEndDateColor: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -3657,6 +3723,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onClearPartMainTaskEndDateLabel={onClearPartMainTaskEndDateLabel}
                         onUpdatePartMainTaskEndDateShow={onUpdatePartMainTaskEndDateShow}
                         onClearPartMainTaskEndDateShow={onClearPartMainTaskEndDateShow}
+                        onUpdatePartMainTaskEndDateColor={onUpdatePartMainTaskEndDateColor}
+                        onClearPartMainTaskEndDateColor={onClearPartMainTaskEndDateColor}
                       />
                     </div>
                   )}
@@ -4209,7 +4277,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -4605,6 +4673,8 @@ export default function SettingsPage({
           onClearPartMainTaskEndDateLabel={onClearPartMainTaskEndDateLabel}
           onUpdatePartMainTaskEndDateShow={onUpdatePartMainTaskEndDateShow}
           onClearPartMainTaskEndDateShow={onClearPartMainTaskEndDateShow}
+          onUpdatePartMainTaskEndDateColor={onUpdatePartMainTaskEndDateColor}
+          onClearPartMainTaskEndDateColor={onClearPartMainTaskEndDateColor}
           onUpdatePlMainTaskTypes={onUpdatePlMainTaskTypes}
           onUpdateExcelConfig={onUpdateExcelConfig}
           onUpdatePartExcelConfig={onUpdatePartExcelConfig}

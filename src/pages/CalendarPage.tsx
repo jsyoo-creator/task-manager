@@ -26,6 +26,7 @@ interface Props {
   mainTaskEndDateShow?: boolean; // 메인업무 종료일 표시 여부 팀 기본값 (undefined = false)
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 팀 기본값 (예: '방송일', 비어있으면 '종료일' 사용)
   plShowInCalendar?: boolean; // PL업무를 캘린더에 표시할지 팀 기본값 (undefined = true)
+  mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 팀 기본값 (hex, 없으면 파트색 자동 사용)
 }
 
 function truncateText(text: string, max: number): string {
@@ -93,7 +94,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, plShowInCalendar }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, mainTaskEndDateColor, plShowInCalendar }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -126,6 +127,12 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     if (!show) return null;
     const label = part?.mainTaskEndDateLabel !== undefined ? part.mainTaskEndDateLabel : (mainTaskEndDateLabel ?? '');
     return label || '종료일';
+  };
+
+  const resolveEndDateColor = (category: string): string | undefined => {
+    const part = partMap.get(category);
+    const color = part?.mainTaskEndDateColor !== undefined ? part.mainTaskEndDateColor : (mainTaskEndDateColor ?? '');
+    return color || undefined;
   };
 
   const firstDay = new Date(year, month, 1).getDay();
@@ -371,20 +378,25 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                           const label = resolveEndDateLabel(t.category);
                           if (!label) return null;
                           const s = partStyleMap.get(t.category) ?? CAT_DEFAULT;
-                          return { id: t.id, title: t.title, label, s };
+                          const color = resolveEndDateColor(t.category);
+                          return { id: t.id, title: t.title, label, s, color };
                         })
-                        .filter((b): b is { id: string; title: string; label: string; s: typeof CAT_DEFAULT } => !!b);
+                        .filter((b): b is { id: string; title: string; label: string; s: typeof CAT_DEFAULT; color?: string } => !!b);
                       if (badges.length === 0) return null;
                       return (
                         <div className="flex flex-col gap-0.5 mb-1">
-                          {badges.map(b => (
-                            <div key={b.id} title={`${b.title}: ${b.label}`}
-                              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight truncate ${b.s.card} ${b.s.title}`}>
-                              <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${b.s.dot}`} />
-                              <span className="truncate">{truncateText(b.title, 14)}</span>
-                              <span className="truncate font-normal opacity-60">· {b.label}</span>
-                            </div>
-                          ))}
+                          {badges.map(b => {
+                            const badgeStyle = b.color ? { backgroundColor: hexToRgba(b.color, 0.14) } : undefined;
+                            const textStyle = b.color ? { color: b.color } : undefined;
+                            return (
+                              <div key={b.id} title={`${b.title}: ${b.label}`} style={badgeStyle}
+                                className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight truncate ${b.color ? '' : `${b.s.card} ${b.s.title}`}`}>
+                                <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${b.color ? '' : b.s.dot}`} style={b.color ? { backgroundColor: b.color } : undefined} />
+                                <span className="truncate" style={textStyle}>{truncateText(b.title, 14)}</span>
+                                <span className="truncate font-normal opacity-60" style={textStyle}>· {b.label}</span>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })()}

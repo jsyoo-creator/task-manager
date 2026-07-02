@@ -72,26 +72,41 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[], team
     result.push({ value: cf.id, key: cf.id, label: cf.label });
   }
 
-  // 3단계: receiver/assignee — 파트별 커스텀 라벨이 다르면 라벨별로 옵션 분리
+  // 3단계: receiver/assignee — 파트별 커스텀 라벨이 다르면 파트 단위로 묶어서 옵션 분리
+  // (같은 검수자/담당자 조합을 쓰는 파트끼리 묶고, 파트가 등장하는 순서대로 정렬)
   const personKeys: BuiltinFieldKey[] = ['receiver', 'assignee'];
-  for (const key of personKeys) {
-    const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
-    if (parts && parts.length > 0) {
-      const labelGroups = new Map<string, string[]>();
-      parts.forEach(p => {
-        const merged = mergeFormConfig(p.formConfig, teamFormConfig ?? formConfig);
-        const pfc = resolveBuiltinFields(merged).find(f => f.key === key);
-        if (pfc && pfc.enabled === false) return; // 이 파트에서 비활성화된 필드는 제외
+  if (parts && parts.length > 0) {
+    type PersonEntry = { key: BuiltinFieldKey; label: string };
+    const groups: { partNames: string[]; entries: PersonEntry[] }[] = [];
+    const groupIndexByKey = new Map<string, number>();
+
+    parts.forEach(p => {
+      const merged = mergeFormConfig(p.formConfig, teamFormConfig ?? formConfig);
+      const pBuiltins = resolveBuiltinFields(merged);
+      const entries: PersonEntry[] = [];
+      for (const key of personKeys) {
+        const pfc = pBuiltins.find(f => f.key === key);
+        if (pfc && pfc.enabled === false) continue; // 이 파트에서 비활성화된 필드는 제외
+        const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
         const label = pfc?.customLabel ?? meta?.label ?? key;
-        if (!labelGroups.has(label)) labelGroups.set(label, []);
-        labelGroups.get(label)!.push(p.name);
-      });
-      labelGroups.forEach((partNames, label) => {
+        entries.push({ key, label });
+      }
+      if (entries.length === 0) return;
+      const groupKey = entries.map(e => `${e.key}:${e.label}`).join('|');
+      if (!groupIndexByKey.has(groupKey)) {
+        groupIndexByKey.set(groupKey, groups.length);
+        groups.push({ partNames: [], entries });
+      }
+      groups[groupIndexByKey.get(groupKey)!].partNames.push(p.name);
+    });
+
+    groups.forEach(({ partNames, entries }) => {
+      const isAllParts = partNames.length === parts.length;
+      entries.forEach(({ key, label }) => {
         if (usedLabels.has(label)) return;
         usedLabels.add(label);
-        const isAllParts = partNames.length === parts.length;
-        // 파트마다 라벨이 갈려서 나뉜 옵션이면, 어느 파트 기준인지 라벨 뒤에 표시
-        const displayLabel = isAllParts ? label : `${label} (${partNames.join('/')})`;
+        // 파트마다 라벨이 갈려서 나뉜 옵션이면, 어느 파트 기준인지 라벨 앞에 표시
+        const displayLabel = isAllParts ? label : `${partNames.join('/')} ${label}`;
         result.push({
           value: isAllParts ? key : `${key}::${partNames.join(',')}`,
           key,
@@ -99,7 +114,10 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[], team
           partNames: isAllParts ? undefined : partNames,
         });
       });
-    } else {
+    });
+  } else {
+    for (const key of personKeys) {
+      const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
       const fc = builtins.find(f => f.key === key);
       if (!fc || !fc.enabled) continue;
       const label = fc.customLabel ?? meta?.label ?? key;

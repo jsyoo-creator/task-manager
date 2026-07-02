@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Building2, Plus, UserCog, Shield, LogOut, X } from 'lucide-react';
+import { Building2, Plus, UserCog, Shield, LogOut, X, LayoutGrid } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useWorkplaces } from '../hooks/useWorkplaces';
 import { useAllUsers } from '../hooks/useUserRole';
 import type { Team, AppUser, UserRole, Workplace } from '../types';
+import { TOGGLEABLE_MENU_ITEMS, isMenuEnabled } from '../types';
 
 const ROLE_OPTIONS: UserRole[] = ['user', 'manager', 'superadmin'];
 const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '중간 관리자', superadmin: '최고 관리자' };
@@ -18,15 +19,16 @@ interface Props {
 
 // 플랫폼 관리자(PIVOT 본사 관리자) 전용 — 일반 업무관리 화면과 완전히 분리된 독립 페이지.
 // 근무지(클라이언트 TF) 생성 및 사용자 배정을 담당.
-type AdminTab = 'workplaces' | 'users' | 'platform';
+type AdminTab = 'workplaces' | 'users' | 'menus' | 'platform';
 const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
   { id: 'workplaces', label: '근무지 목록', icon: <Building2 size={14} /> },
   { id: 'users',      label: '사용자 근무지 배정', icon: <UserCog size={14} /> },
+  { id: 'menus',      label: '메뉴 관리', icon: <LayoutGrid size={14} /> },
   { id: 'platform',   label: '플랫폼 관리자', icon: <Shield size={14} /> },
 ];
 
 export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
-  const { workplaces, loading: wpLoading, createWorkplace } = useWorkplaces();
+  const { workplaces, loading: wpLoading, createWorkplace, setMenuEnabled } = useWorkplaces();
   const { users, updateUserRole, addUserWorkplace, removeUserWorkplace, setPlatformAdmin } = useAllUsers();
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [newName, setNewName] = useState('');
@@ -229,6 +231,49 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
               </div>
             </div>
           ))
+        )}
+      </section>
+        )}
+
+        {/* 근무지별 메뉴 on/off */}
+        {tab === 'menus' && (
+      <section className="glass-card">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+          <LayoutGrid size={15} className="text-teal-500" />
+          <span className="text-sm font-semibold text-gray-800">메뉴 관리</span>
+          <span className="text-xs text-gray-400">근무지마다 사이드바에 노출할 메뉴를 다르게 지정할 수 있습니다 (설정 메뉴는 항상 노출)</span>
+        </div>
+        {workplaces.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 근무지가 없습니다</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {workplaces.map(wp => (
+              <div key={wp.id} className="px-5 py-4">
+                <p className="text-sm font-medium text-gray-800 mb-3">{wp.name}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {TOGGLEABLE_MENU_ITEMS.map(item => {
+                    const enabled = isMenuEnabled(item.path, wp.menuConfig);
+                    return (
+                      <button
+                        key={item.path}
+                        onClick={() => setMenuEnabled(wp.id, item.path, !enabled)}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                          enabled
+                            ? 'bg-teal-50 border-teal-200 text-teal-700'
+                            : 'bg-gray-50 border-gray-200 text-gray-400'
+                        }`}
+                      >
+                        {item.label}
+                        <span className={`relative inline-flex h-4 w-7 flex-shrink-0 items-center rounded-full transition-colors ${enabled ? 'bg-teal-500' : 'bg-gray-300'}`}>
+                          <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </section>
         )}

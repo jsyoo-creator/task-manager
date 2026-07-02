@@ -34,7 +34,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import { db } from '../lib/firebase';
@@ -340,6 +340,10 @@ function App() {
       });
     }
   }, [projLoading, projects.length, activeWorkplaceId]);
+
+  // 근무지별 메뉴 on/off 설정 — 어드민 페이지의 "메뉴 관리"에서 근무지마다 다르게 지정 가능
+  const activeWorkplaceMenuConfig = workplaces.find(w => w.id === activeWorkplaceId)?.menuConfig;
+  const menuEnabled = (path: string) => isMenuEnabled(path, activeWorkplaceMenuConfig);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
@@ -770,12 +774,13 @@ function App() {
           unreadNoticeCount={unreadNoticeCount}
           profileFields={profileFields}
           roleLabels={roleLabels}
+          menuConfig={activeWorkplaceMenuConfig}
         >
           <Routes>
             <Route path="/" element={
               <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamFormConfig={selectedTeam?.formConfig} teamMembers={teamMembers} revisionSteps={effectiveRevisionSteps} />
             } />
-            <Route path="/tasks" element={
+            <Route path="/tasks" element={!menuEnabled('/tasks') ? <Navigate to="/" replace /> : (
               <TaskManagement
                 tasks={filteredTasks} onAddTask={addTaskForTeam} onUpdateTask={updateTask}
                 onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} activeTaskId={detailTaskId} projectId={projectId}
@@ -799,14 +804,14 @@ function App() {
                 currentTeamId={activeTeamId ?? undefined}
                 onRequestToSupportTeam={requestTasksToSupportTeam}
               />
-            } />
-            <Route path="/calendar" element={
+            )} />
+            <Route path="/calendar" element={!menuEnabled('/calendar') ? <Navigate to="/" replace /> : (
               <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} mainTaskEndDateShow={selectedTeam?.mainTaskEndDateShow} mainTaskEndDateColor={selectedTeam?.mainTaskEndDateColor} plShowInCalendar={selectedTeam?.plShowInCalendar} />
-            } />
-            <Route path="/weekly" element={
+            )} />
+            <Route path="/weekly" element={!menuEnabled('/weekly') ? <Navigate to="/" replace /> : (
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAll} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} />
-            } />
-            <Route path="/vacation" element={
+            )} />
+            <Route path="/vacation" element={!menuEnabled('/vacation') ? <Navigate to="/" replace /> : (
               <VacationPage
                 vacations={teamVacations}
                 teamMembers={vacTeamMembers}
@@ -815,11 +820,11 @@ function App() {
                 onAddVacation={addVacation}
                 onDeleteVacation={deleteVacation}
               />
-            } />
-            <Route path="/seats" element={<SeatMapPage canEdit={permissions.canEditSeatMap} teams={teams} allUsers={allUsers} workplaceId={activeWorkplaceId ?? undefined} />} />
-            <Route path="/board" element={appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} /> : null} />
+            )} />
+            <Route path="/seats" element={!menuEnabled('/seats') ? <Navigate to="/" replace /> : <SeatMapPage canEdit={permissions.canEditSeatMap} teams={teams} allUsers={allUsers} workplaceId={activeWorkplaceId ?? undefined} />} />
+            <Route path="/board" element={!menuEnabled('/board') ? <Navigate to="/" replace /> : (appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} /> : null)} />
             <Route path="/accounts" element={
-              permissions.canViewAccounts
+              permissions.canViewAccounts && menuEnabled('/accounts')
                 ? <AccountInfoPage allUsers={allUsers} teams={teams} profileFields={profileFields} />
                 : <Navigate to="/" replace />
             } />

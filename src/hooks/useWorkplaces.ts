@@ -32,5 +32,10 @@ export function useWorkplaces() {
     await updateDoc(doc(db, 'workplaces', id), { name });
   };
 
-  return { workplaces, loading, createWorkplace, renameWorkplace };
+  // 메뉴 경로 하나만 켜고 끄기 (전체 menuConfig를 덮어쓰지 않도록 dot-notation으로 갱신)
+  const setMenuEnabled = async (id: string, path: string, enabled: boolean) => {
+    await updateDoc(doc(db, 'workplaces', id), { [`menuConfig.${path}`]: enabled });
+  };
+
+  return { workplaces, loading, createWorkplace, renameWorkplace, setMenuEnabled };
 }

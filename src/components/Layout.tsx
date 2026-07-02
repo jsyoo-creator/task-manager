@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef, Workplace, RoleLabels } from '../types';
-import { resolveRoleLabel } from '../types';
+import { resolveRoleLabel, isMenuEnabled } from '../types';
 
 interface Props {
   children: React.ReactNode;
@@ -25,6 +25,7 @@ interface Props {
   unreadNoticeCount?: number;
   profileFields?: ProfileFieldDef[];
   roleLabels?: RoleLabels;
+  menuConfig?: Record<string, boolean>;
   workplaces?: Workplace[];
   activeWorkplaceId?: string | null;
   onActiveWorkplaceChange?: (id: string) => void;
@@ -290,7 +291,7 @@ export default function Layout({
   children, user, appUser, onSignOut, teams, teamsLoading,
   activeTeamId, onActiveTeamChange, unreadNoticeCount = 0, profileFields = [],
   workplaces = [], activeWorkplaceId = null, onActiveWorkplaceChange, onSetDefaultWorkplace,
-  roleLabels,
+  roleLabels, menuConfig,
 }: Props) {
   const myWorkplaces = workplaces.filter(w => appUser?.workplaceIds?.includes(w.id));
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
@@ -298,7 +299,8 @@ export default function Layout({
   const role = appUser?.role ?? 'user';
   const canSeeManagerMenu = role === 'superadmin' || role === 'manager';
   const NAV = (hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY).filter(item =>
-    item.minRole === null || canSeeManagerMenu
+    (item.minRole === null || canSeeManagerMenu) &&
+    (item.to === '/settings' || isMenuEnabled(item.to, menuConfig))
   );
   // 플랫폼 관리자는 배정된 팀이 없어도(근무지 오버사이트 전용 계정일 수 있음) 항상 어드민 메뉴가 보여야 함
   if (appUser?.isPlatformAdmin) {

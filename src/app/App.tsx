@@ -49,17 +49,32 @@ function App() {
     localStorage.getItem('activeWorkplaceId') ?? null
   );
   useEffect(() => {
+    if (authLoading) return; // 인증 확인 중(새로고침 직후 등)에는 손대지 않음
+    // 실제 로그아웃 상태일 때만 선택을 초기화 — 다음 로그인 시 다시 물어봄
+    if (!user) {
+      setActiveWorkplaceIdState(null);
+      localStorage.removeItem('activeWorkplaceId');
+      return;
+    }
     const ids = appUser?.workplaceIds ?? [];
     if (ids.length === 0) {
       setActiveWorkplaceIdState(null);
       localStorage.removeItem('activeWorkplaceId');
-    } else if (!activeWorkplaceId || !ids.includes(activeWorkplaceId)) {
-      const preferred = ids[0];
-      setActiveWorkplaceIdState(preferred);
-      localStorage.setItem('activeWorkplaceId', preferred);
+    } else if (ids.length === 1) {
+      // 근무지가 하나뿐이면 물어볼 필요 없이 바로 사용
+      if (activeWorkplaceId !== ids[0]) {
+        setActiveWorkplaceIdState(ids[0]);
+        localStorage.setItem('activeWorkplaceId', ids[0]);
+      }
+    } else if (activeWorkplaceId && !ids.includes(activeWorkplaceId)) {
+      // 이전에 선택했던 근무지가 더 이상 배정 목록에 없으면 다시 선택하도록 초기화
+      setActiveWorkplaceIdState(null);
+      localStorage.removeItem('activeWorkplaceId');
     }
+    // ids.length > 1이고 activeWorkplaceId가 비어있으면(신규 로그인) 자동 선택하지 않고
+    // 아래 "근무지 선택" 화면에서 사용자가 직접 고르게 둔다.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appUser?.workplaceIds?.join(',')]);
+  }, [user, authLoading, appUser?.workplaceIds?.join(',')]);
 
   const handleActiveWorkplaceChange = (id: string) => {
     setActiveWorkplaceIdState(id);
@@ -548,6 +563,33 @@ function App() {
           <p className="text-lg font-semibold text-gray-700">근무지 배정 대기 중</p>
           <p className="text-sm text-gray-400">관리자가 근무지를 배정하면 이용할 수 있습니다.</p>
           <button onClick={signOut} className="mt-4 text-xs text-gray-400 hover:text-gray-600 underline">로그아웃</button>
+        </div>
+      </div>
+    );
+  }
+
+  // 근무지가 2개 이상 배정된 사람은 로그인 시 어느 근무지에서 작업할지 먼저 선택해야 함
+  if (appUser && !appUser.isPlatformAdmin && (appUser.workplaceIds?.length ?? 0) > 1 && !activeWorkplaceId) {
+    const myWorkplaces = workplaces.filter(wp => appUser.workplaceIds!.includes(wp.id));
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center space-y-4 px-6 w-full max-w-xs">
+          <div>
+            <p className="text-lg font-semibold text-gray-700">근무지 선택</p>
+            <p className="text-sm text-gray-400 mt-1">어느 근무지에서 작업하시겠어요?</p>
+          </div>
+          <div className="space-y-2">
+            {myWorkplaces.map(wp => (
+              <button
+                key={wp.id}
+                onClick={() => handleActiveWorkplaceChange(wp.id)}
+                className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-sm font-medium text-gray-700 transition-colors"
+              >
+                {wp.name}
+              </button>
+            ))}
+          </div>
+          <button onClick={signOut} className="text-xs text-gray-400 hover:text-gray-600 underline">로그아웃</button>
         </div>
       </div>
     );

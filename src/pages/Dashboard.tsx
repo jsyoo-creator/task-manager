@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { FileText, Zap, CheckCircle2, Calendar, BarChart2, Users } from 'lucide-react';
 import type { Task, SubTask, Project, TeamPart, TeamFormConfig, Department, BuiltinFieldKey, RevisionStep } from '../types';
-import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META, DEFAULT_REVISION_STEPS } from '../types';
+import { resolveBuiltinFields, resolveStatusConfigs, BUILTIN_FIELDS_META, DEFAULT_REVISION_STEPS, mergeFormConfig } from '../types';
 
 interface Props {
   tasks: Task[];
@@ -10,6 +10,7 @@ interface Props {
   parts?: TeamPart[];
   assignees?: string[];
   formConfig?: TeamFormConfig;
+  teamFormConfig?: TeamFormConfig;
   teamMembers?: { name: string; department?: Department }[];
   revisionSteps?: RevisionStep[];
 }
@@ -42,9 +43,12 @@ function getMonthKeys() {
 
 // 선택 가능한 집계 필드 목록 생성
 // 우선순위: 상태/유형/구분(builtin) → 커스텀 name/select → receiver/assignee(builtin, 동일 레이블 커스텀 없을 때만)
-function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
+// receiver/assignee는 파트마다 customLabel이 다를 수 있어(예: A파트 '검수자', B/C파트 '기획'),
+// 팀 기본값(teamFormConfig)에 파트별 formConfig를 병합해 라벨이 갈리면 라벨별로 옵션을 분리하고
+// 각 옵션에 해당 라벨을 쓰는 파트 이름 목록(partNames)을 실어 집계 시 그 파트로만 필터링한다.
+function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[], teamFormConfig?: TeamFormConfig) {
   const builtins = resolveBuiltinFields(formConfig);
-  const result: { key: string; label: string }[] = [];
+  const result: { value: string; key: string; label: string; partNames?: string[] }[] = [];
   const usedLabels = new Set<string>();
 
   // 1단계: 상태/유형/구분 — 항상 빌트인 우선
@@ -57,7 +61,7 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
     const label = fc.customLabel ?? meta?.label ?? key;
     if (usedLabels.has(label)) continue;
     usedLabels.add(label);
-    result.push({ key, label });
+    result.push({ value: key, key, label });
   }
 
   // 2단계: 커스텀 name/select 필드 (receiver/assignee 빌트인보다 우선)
@@ -65,19 +69,42 @@ function buildFieldOptions(formConfig?: TeamFormConfig, parts?: TeamPart[]) {
   for (const cf of cfs) {
     if (usedLabels.has(cf.label)) continue;
     usedLabels.add(cf.label);
-    result.push({ key: cf.id, label: cf.label });
+    result.push({ value: cf.id, key: cf.id, label: cf.label });
   }
 
-  // 3단계: receiver/assignee — 동일 레이블의 커스텀 필드가 없을 때만 추가
+  // 3단계: receiver/assignee — 파트별 커스텀 라벨이 다르면 라벨별로 옵션 분리
   const personKeys: BuiltinFieldKey[] = ['receiver', 'assignee'];
   for (const key of personKeys) {
-    const fc = builtins.find(f => f.key === key);
-    if (!fc || !fc.enabled) continue;
     const meta = BUILTIN_FIELDS_META.find(m => m.key === key);
-    const label = fc.customLabel ?? meta?.label ?? key;
-    if (usedLabels.has(label)) continue;
-    usedLabels.add(label);
-    result.push({ key, label });
+    if (parts && parts.length > 0) {
+      const labelGroups = new Map<string, string[]>();
+      parts.forEach(p => {
+        const merged = mergeFormConfig(p.formConfig, teamFormConfig ?? formConfig);
+        const pfc = resolveBuiltinFields(merged).find(f => f.key === key);
+        if (pfc && pfc.enabled === false) return; // 이 파트에서 비활성화된 필드는 제외
+        const label = pfc?.customLabel ?? meta?.label ?? key;
+        if (!labelGroups.has(label)) labelGroups.set(label, []);
+        labelGroups.get(label)!.push(p.name);
+      });
+      labelGroups.forEach((partNames, label) => {
+        if (usedLabels.has(label)) return;
+        usedLabels.add(label);
+        const isAllParts = partNames.length === parts.length;
+        result.push({
+          value: isAllParts ? key : `${key}::${partNames.join(',')}`,
+          key,
+          label,
+          partNames: isAllParts ? undefined : partNames,
+        });
+      });
+    } else {
+      const fc = builtins.find(f => f.key === key);
+      if (!fc || !fc.enabled) continue;
+      const label = fc.customLabel ?? meta?.label ?? key;
+      if (usedLabels.has(label)) continue;
+      usedLabels.add(label);
+      result.push({ value: key, key, label });
+    }
   }
 
   return result;
@@ -200,7 +227,7 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS }: Props) {
+export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamFormConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
 
   const statusConfigs = resolveStatusConfigs(formConfig);
@@ -213,17 +240,25 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   const monthKeys = getMonthKeys();
 
   // ── 집계 필드 선택 ──────────────────────────────
-  const fieldOptions = useMemo(() => buildFieldOptions(formConfig, parts), [formConfig, parts]);
+  const fieldOptions = useMemo(() => buildFieldOptions(formConfig, parts, teamFormConfig), [formConfig, parts, teamFormConfig]);
   const assigneeLabel = useMemo(() => {
     const bf = resolveBuiltinFields(formConfig).find(f => f.key === 'assignee');
     return bf?.customLabel ?? '담당자';
   }, [formConfig]);
   const [statField, setStatField] = useState('status');
+  const activeOption = fieldOptions.find(f => f.value === statField);
+  const activeKey = activeOption?.key ?? statField;
+  const activePartNames = activeOption?.partNames;
+  // 선택된 옵션이 특정 파트에만 해당하는 라벨(예: A파트만의 '검수자')이면 그 파트 업무로만 집계
+  const scopedTasks = useMemo(
+    () => activePartNames ? tasks.filter(t => activePartNames.includes(t.category)) : tasks,
+    [tasks, activePartNames]
+  );
 
   // 선택 필드 값 목록
   const definedValues = useMemo(
-    () => getDefinedValues(statField, formConfig, parts, tasks),
-    [statField, formConfig, parts, tasks]
+    () => getDefinedValues(activeKey, formConfig, parts, scopedTasks),
+    [activeKey, formConfig, parts, scopedTasks]
   );
 
   // 빈 status를 첫 번째 상태 옵션으로 정규화
@@ -240,11 +275,11 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     a === b || a.replace(/\s/g, '') === b.replace(/\s/g, '');
 
   const fieldStats = useMemo(() => {
-    const total = tasks.length;
+    const total = scopedTasks.length;
     const countByVal = Object.fromEntries(definedValues.map(v => [v, 0]));
-    tasks.forEach(t => {
-      let v = getTaskValue(t, statField);
-      if (statField === 'status') {
+    scopedTasks.forEach(t => {
+      let v = getTaskValue(t, activeKey);
+      if (activeKey === 'status') {
         if (!v) v = firstStatusOption;
         // '진행 전' → '진행전' 공백 정규화
         if (v && !(v in countByVal)) {
@@ -257,9 +292,9 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     });
     const vals = definedValues.length > 0
       ? definedValues
-      : [...new Set(tasks.map(t => getTaskValue(t, statField)).filter(Boolean))];
+      : [...new Set(scopedTasks.map(t => getTaskValue(t, activeKey)).filter(Boolean))];
     return { total, countByVal, vals: vals.slice(0, 5) };
-  }, [tasks, statField, definedValues, firstStatusOption]);
+  }, [scopedTasks, activeKey, definedValues, firstStatusOption]);
 
   // 진행 현황 bar: 실제 task.status 값 기준 (custom 옵션 대응)
   const statusBarData = useMemo(() => {
@@ -398,7 +433,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
   const legendItems = statusBarData.map(s => ({ l: s.label, v: s.count, c: s.color }));
 
   // 현재 선택 필드 label
-  const activeFieldLabel = fieldOptions.find(f => f.key === statField)?.label ?? '상태';
+  const activeFieldLabel = activeOption?.label ?? '상태';
 
   return (
     <div className="space-y-6">
@@ -429,7 +464,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                 onChange={e => setStatField(e.target.value)}
               >
                 {fieldOptions.map(f => (
-                  <option key={f.key} value={f.key}>{f.label}</option>
+                  <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
               </select>
             </div>
@@ -447,7 +482,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
           {fieldStats.vals.map((val, idx) => {
             const count = fieldStats.countByVal[val] ?? 0;
             const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
-            const color = getChartColor(statField, val, idx, formConfig, parts);
+            const color = getChartColor(activeKey, val, idx, formConfig, parts);
             const Icon = CARD_ICONS[idx % CARD_ICONS.length];
             return (
               <StatCard
@@ -524,7 +559,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
                 <DonutChart
                   data={mainDonut}
                   colorMap={Object.fromEntries(
-                    fieldStats.vals.map((v, i) => [v, getChartColor(statField, v, i, formConfig, parts)])
+                    fieldStats.vals.map((v, i) => [v, getChartColor(activeKey, v, i, formConfig, parts)])
                   )}
                   label={activeFieldLabel}
                 />

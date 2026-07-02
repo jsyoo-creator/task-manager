@@ -33,12 +33,46 @@ function truncateText(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
-function hexToRgba(hex: string, alpha: number): string {
+function hexToHsl(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
   const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
   const n = parseInt(full, 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let hue = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) hue = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) hue = (b - r) / d + 2;
+    else hue = (r - g) / d + 4;
+    hue /= 6;
+  }
+  return [hue * 360, s * 100, l * 100];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sN = s / 100, lN = l / 100;
+  const c = (1 - Math.abs(2 * lN - 1)) * sN;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = lN - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+// 팀/파트 지정 색(Tailwind -50/-600 페어)과 동일한 방식으로, 임의의 hex 색상에서
+// 옅은 배경(bg)과 진한 텍스트(text) 색을 함께 만들어낸다.
+function pastelFromHex(hex: string): { bg: string; text: string } {
+  const [h, s] = hexToHsl(hex);
+  return {
+    bg: hslToHex(h, Math.min(s, 85), 95),
+    text: hslToHex(h, Math.min(Math.max(s, 40), 90), 38),
+  };
 }
 
 function vacTypeColor(type: VacationType): string {
@@ -386,8 +420,9 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                       return (
                         <div className="flex flex-col gap-0.5 mb-1">
                           {badges.map(b => {
-                            const badgeStyle = b.color ? { backgroundColor: hexToRgba(b.color, 0.14) } : undefined;
-                            const textStyle = b.color ? { color: b.color } : undefined;
+                            const pastel = b.color ? pastelFromHex(b.color) : undefined;
+                            const badgeStyle = pastel ? { backgroundColor: pastel.bg } : undefined;
+                            const textStyle = pastel ? { color: pastel.text } : undefined;
                             return (
                               <div key={b.id} title={`${b.title}: ${b.label}`} style={badgeStyle}
                                 className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold leading-tight truncate ${b.color ? '' : `${b.s.card} ${b.s.title}`}`}>
@@ -405,8 +440,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                         const hasPartStyle = partStyleMap.has(item.category);
                         const s = partStyleMap.get(item.category) ?? CAT_DEFAULT;
                         const calColor = subTaskColorMap?.get(item.id);
-                        const customBg = calColor ?? (!hasPartStyle ? teamColor : undefined);
-                        const cardStyle = customBg ? { backgroundColor: hexToRgba(customBg, 0.14) } : undefined;
+                        const customColorSource = calColor ?? (!hasPartStyle ? teamColor : undefined);
+                        const customPastel = customColorSource ? pastelFromHex(customColorSource) : undefined;
+                        const customBg = !!customPastel;
+                        const cardStyle = customPastel ? { backgroundColor: customPastel.bg } : undefined;
+                        const titleStyle = customPastel ? { color: customPastel.text } : undefined;
                         const isActive = expandedId === item.id;
                         const isDone = item.status === '완료';
                         const activeMemos = isActive
@@ -441,7 +479,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                             <div className="flex items-center justify-between gap-1">
                               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                                 <div className="text-[10px] text-gray-400 font-medium leading-tight truncate" title={item.mainTitle}>{truncateText(item.mainTitle, 19)}</div>
-                                <div className={`text-[11px] font-bold leading-snug flex items-center gap-1 ${s.title}`}>
+                                <div className={`text-[11px] font-bold leading-snug flex items-center gap-1 ${customBg ? '' : s.title}`} style={titleStyle}>
                                   <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} title={item.category} />
                                   <span className="truncate" title={item.subTitle}>{truncateText(item.subTitle, 17)}</span>
                                 </div>

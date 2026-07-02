@@ -307,7 +307,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
 
   return (
     <div className="px-4 py-3 hover:bg-black/[0.02] transition-colors">
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         {u.photoURL ? (
           <img src={u.photoURL} alt={u.displayName} className="w-8 h-8 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
         ) : (
@@ -331,37 +331,37 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium shrink-0">
-            {u.annualLeave ?? DEFAULT_ANNUAL}일
-          </span>
-          {u.department ? <DeptBadge dept={u.department} /> : (
-            <span className="text-xs text-orange-400 bg-orange-50 px-2 py-0.5 rounded-full">미설정</span>
-          )}
-          {canChangeRole ? <RoleDropdown u={u} onChangeRole={onChangeRole} /> : <RoleBadge role={u.role} />}
-          {canEdit && !editing && (
-            <button onClick={() => setEditing(true)}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-all">
-              <Pencil size={12} />
-            </button>
-          )}
-          {editing && (
-            <button onClick={handleCancel}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
-              <X size={12} />
-            </button>
-          )}
-          {canDelete && !editing && (
-            <button
-              onClick={() => {
-                if (window.confirm(`${u.displayName} 사용자를 탈퇴 처리하시겠습니까?\n탈퇴 후 재로그인 시 일반 사용자로 재등록됩니다.`))
-                  onDeleteUser(u.uid);
-              }}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
-              <Trash2 size={12} />
-            </button>
-          )}
-        </div>
+      </div>
+      <div className="flex items-center justify-end gap-2 mt-2 pl-11">
+        <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-medium shrink-0">
+          {u.annualLeave ?? DEFAULT_ANNUAL}일
+        </span>
+        {u.department ? <DeptBadge dept={u.department} /> : (
+          <span className="text-xs text-orange-400 bg-orange-50 px-2 py-0.5 rounded-full">미설정</span>
+        )}
+        {canChangeRole ? <RoleDropdown u={u} onChangeRole={onChangeRole} /> : <RoleBadge role={u.role} />}
+        {canEdit && !editing && (
+          <button onClick={() => setEditing(true)}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-all">
+            <Pencil size={12} />
+          </button>
+        )}
+        {editing && (
+          <button onClick={handleCancel}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+            <X size={12} />
+          </button>
+        )}
+        {canDelete && !editing && (
+          <button
+            onClick={() => {
+              if (window.confirm(`${u.displayName} 사용자를 탈퇴 처리하시겠습니까?\n탈퇴 후 재로그인 시 일반 사용자로 재등록됩니다.`))
+                onDeleteUser(u.uid);
+            }}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+            <Trash2 size={12} />
+          </button>
+        )}
       </div>
       {editing && (
         <div className="mt-3 ml-11 space-y-2.5">

@@ -404,10 +404,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                       {dayItems.map(item => {
                         const hasPartStyle = partStyleMap.has(item.category);
                         const s = partStyleMap.get(item.category) ?? CAT_DEFAULT;
-                        const calColor = subTaskColorMap?.get(item.id);
-                        const customBg = calColor ?? (!hasPartStyle ? teamColor : undefined);
-                        const cardStyle = customBg ? { backgroundColor: hexToRgba(customBg, 0.14) } : undefined;
                         const isActive = expandedId === item.id;
+                        const calColor = subTaskColorMap?.get(item.id);
+                        // 펼친(편집) 상태에서는 캘린더 관리 지정색 대신 항상 기본 파트색 배경으로 표시
+                        const customBg = !isActive ? (calColor ?? (!hasPartStyle ? teamColor : undefined)) : undefined;
+                        const cardStyle = customBg ? { backgroundColor: hexToRgba(customBg, 0.14) } : undefined;
                         const isDone = item.status === '완료';
                         const activeMemos = isActive
                           ? (() => { const [tid, sk] = item.id.split('__'); return taskMap.get(tid)?.subTaskData?.[sk]?.memos ?? []; })()

@@ -17,12 +17,20 @@ interface Props {
 
 // 플랫폼 관리자(PIVOT 본사 관리자) 전용 — 일반 업무관리 화면과 완전히 분리된 독립 페이지.
 // 근무지(클라이언트 TF) 생성 및 사용자 배정을 담당.
+type AdminTab = 'workplaces' | 'users' | 'platform';
+const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'workplaces', label: '근무지 목록', icon: <Building2 size={14} /> },
+  { id: 'users',      label: '사용자 근무지 배정', icon: <UserCog size={14} /> },
+  { id: 'platform',   label: '플랫폼 관리자', icon: <Shield size={14} /> },
+];
+
 export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const { workplaces, loading: wpLoading, createWorkplace } = useWorkplaces();
   const { users, updateUserRole, addUserWorkplace, removeUserWorkplace, setPlatformAdmin } = useAllUsers();
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<AdminTab>('workplaces');
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'teams'), snap => {
@@ -71,7 +79,25 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           <p className="page-subtitle">클라이언트 TF(근무지) 단위로 팀·업무·사용자가 서로 완전히 분리됩니다</p>
         </div>
 
+        <div className="flex gap-1 bg-white/60 border border-gray-200 rounded-2xl p-1.5 flex-wrap">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                tab === t.id
+                  ? 'bg-blue-500 text-white shadow shadow-blue-500/25'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* 근무지 목록 + 새 근무지 추가 */}
+        {tab === 'workplaces' && (
       <section className="glass-card">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -116,8 +142,10 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           </div>
         )}
       </section>
+        )}
 
-      {/* 사용자 근무지 배정 (다중 배정 가능) */}
+        {/* 사용자 근무지 배정 (다중 배정 가능) */}
+        {tab === 'users' && (
       <section className="glass-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <UserCog size={15} className="text-orange-500" />
@@ -173,8 +201,10 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           </div>
         )}
       </section>
+        )}
 
-      {/* 플랫폼 관리자 지정 */}
+        {/* 플랫폼 관리자 지정 */}
+        {tab === 'platform' && (
       <section className="glass-card">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
           <Shield size={15} className="text-purple-500" />
@@ -200,6 +230,7 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           <PlatformAdminAdder users={users} onAdd={uid => setPlatformAdmin(uid, true)} />
         </div>
       </section>
+        )}
       </div>
       </div>
     </div>

@@ -157,19 +157,17 @@ function WorkplaceSwitcher({ workplaces, activeWorkplaceId, defaultWorkplaceId, 
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  if (workplaces.length <= 1) {
-    return <span className="text-[9px] text-white/40 font-semibold tracking-[0.12em] uppercase">PIVOT</span>;
-  }
+  if (workplaces.length <= 1) return null;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative mb-2">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/14 transition-colors"
       >
-        <Building2 size={9} className="text-white/60 flex-shrink-0" />
-        <span className="text-[10px] text-white/80 font-semibold tracking-[0.02em] truncate max-w-[90px]">{active?.name ?? 'PIVOT'}</span>
-        <ChevronDown size={10} className={`text-white/60 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <Building2 size={11} className="text-white/50 flex-shrink-0" />
+        <span className="text-[11px] text-white/70 font-medium truncate flex-1 text-left">{active?.name ?? '근무지 선택'}</span>
+        <ChevronDown size={11} className={`text-white/50 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-1.5 w-56 z-50 bg-white border border-[#EDE9FA] rounded-xl shadow-xl shadow-[#6C63FF]/12 overflow-hidden py-1">
@@ -212,11 +210,10 @@ function WorkplaceSwitcher({ workplaces, activeWorkplaceId, defaultWorkplaceId, 
   );
 }
 
-function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange, workplaceLabel }: {
+function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
   userTeams: Team[];
   activeTeamId: string | null;
   onActiveTeamChange: (id: string) => void;
-  workplaceLabel: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -246,7 +243,7 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange, workplaceLa
             : <span className="text-white font-bold text-xs opacity-60">무</span>}
         </div>
         <div className="min-w-0 flex-1">
-          <div onClick={e => e.stopPropagation()}>{workplaceLabel}</div>
+          <p className="text-[9px] text-white/40 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
           <p className="text-xs font-semibold text-white truncate leading-tight">
             {activeTeam?.name ?? <span className="italic text-white/40 font-normal">무소속</span>}
           </p>
@@ -323,20 +320,20 @@ export default function Layout({
               </div>
             </div>
           ) : (
-            <TeamSwitcher
-              userTeams={userSelectedTeams}
-              activeTeamId={activeTeamId}
-              onActiveTeamChange={onActiveTeamChange}
-              workplaceLabel={
-                <WorkplaceSwitcher
-                  workplaces={myWorkplaces}
-                  activeWorkplaceId={activeWorkplaceId}
-                  defaultWorkplaceId={appUser?.defaultWorkplaceId}
-                  onChange={onActiveWorkplaceChange ?? (() => {})}
-                  onSetDefault={onSetDefaultWorkplace}
-                />
-              }
-            />
+            <>
+              <WorkplaceSwitcher
+                workplaces={myWorkplaces}
+                activeWorkplaceId={activeWorkplaceId}
+                defaultWorkplaceId={appUser?.defaultWorkplaceId}
+                onChange={onActiveWorkplaceChange ?? (() => {})}
+                onSetDefault={onSetDefaultWorkplace}
+              />
+              <TeamSwitcher
+                userTeams={userSelectedTeams}
+                activeTeamId={activeTeamId}
+                onActiveTeamChange={onActiveTeamChange}
+              />
+            </>
           )}
         </div>
 

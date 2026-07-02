@@ -343,7 +343,8 @@ function App() {
 
   // 근무지별 메뉴 on/off 설정 — 어드민 페이지의 "메뉴 관리"에서 근무지마다 다르게 지정 가능
   const activeWorkplaceMenuConfig = workplaces.find(w => w.id === activeWorkplaceId)?.menuConfig;
-  const menuEnabled = (path: string) => isMenuEnabled(path, activeWorkplaceMenuConfig);
+  // 메뉴 id는 Firestore 맵 키 제약 때문에 경로가 아닌 별도 id로 저장됨(예: '/tasks' → 'tasks')
+  const menuEnabled = (path: string) => isMenuEnabled(path.replace(/^\//, ''), activeWorkplaceMenuConfig);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);

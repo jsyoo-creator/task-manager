@@ -33,18 +33,18 @@ interface Props {
 }
 
 const NAV_ALL = [
-  { to: '/', label: '대시보드', icon: LayoutDashboard, minRole: null },
-  { to: '/tasks', label: '업무 관리', icon: ClipboardList, minRole: null },
-  { to: '/calendar', label: '캘린더', icon: CalendarDays, minRole: null },
-  { to: '/weekly', label: '위클리', icon: BarChart3, minRole: null },
-  { to: '/vacation', label: '휴가', icon: Umbrella, minRole: null },
-  { to: '/board', label: '커뮤니티', icon: MessageSquare, minRole: null },
-  { to: '/accounts', label: '계정 정보', icon: Contact, minRole: 'manager' as const },
-  { to: '/seats', label: '자리 배치도', icon: Grid3X3, minRole: null },
-  { to: '/settings', label: '설정', icon: Settings, minRole: null },
+  { to: '/', id: 'dashboard', label: '대시보드', icon: LayoutDashboard, minRole: null },
+  { to: '/tasks', id: 'tasks', label: '업무 관리', icon: ClipboardList, minRole: null },
+  { to: '/calendar', id: 'calendar', label: '캘린더', icon: CalendarDays, minRole: null },
+  { to: '/weekly', id: 'weekly', label: '위클리', icon: BarChart3, minRole: null },
+  { to: '/vacation', id: 'vacation', label: '휴가', icon: Umbrella, minRole: null },
+  { to: '/board', id: 'board', label: '커뮤니티', icon: MessageSquare, minRole: null },
+  { to: '/accounts', id: 'accounts', label: '계정 정보', icon: Contact, minRole: 'manager' as const },
+  { to: '/seats', id: 'seats', label: '자리 배치도', icon: Grid3X3, minRole: null },
+  { to: '/settings', id: 'settings', label: '설정', icon: Settings, minRole: null },
 ];
 const NAV_SETTINGS_ONLY = [
-  { to: '/settings', label: '설정', icon: Settings, minRole: null },
+  { to: '/settings', id: 'settings', label: '설정', icon: Settings, minRole: null },
 ];
 
 function DepartmentAlert({ appUser }: { appUser: AppUser | null }) {
@@ -300,7 +300,7 @@ export default function Layout({
   const canSeeManagerMenu = role === 'superadmin' || role === 'manager';
   const NAV = (hasTeamSelected ? NAV_ALL : NAV_SETTINGS_ONLY).filter(item =>
     (item.minRole === null || canSeeManagerMenu) &&
-    (item.to === '/settings' || isMenuEnabled(item.to, menuConfig))
+    (item.id === 'settings' || item.id === 'dashboard' || isMenuEnabled(item.id, menuConfig))
   );
   // 플랫폼 관리자는 배정된 팀이 없어도(근무지 오버사이트 전용 계정일 수 있음) 항상 어드민 메뉴가 보여야 함
   if (appUser?.isPlatformAdmin) {

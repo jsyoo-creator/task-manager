@@ -32,9 +32,10 @@ export function useWorkplaces() {
     await updateDoc(doc(db, 'workplaces', id), { name });
   };
 
-  // 메뉴 경로 하나만 켜고 끄기 (전체 menuConfig를 덮어쓰지 않도록 dot-notation으로 갱신)
-  const setMenuEnabled = async (id: string, path: string, enabled: boolean) => {
-    await updateDoc(doc(db, 'workplaces', id), { [`menuConfig.${path}`]: enabled });
+  // 메뉴 하나만 켜고 끄기 (전체 menuConfig를 덮어쓰지 않도록 dot-notation으로 갱신).
+  // menuId는 '/' 없는 안전한 키여야 함 — Firestore 필드 이름에는 '/'를 쓸 수 없음
+  const setMenuEnabled = async (id: string, menuId: string, enabled: boolean) => {
+    await updateDoc(doc(db, 'workplaces', id), { [`menuConfig.${menuId}`]: enabled });
   };
 
   return { workplaces, loading, createWorkplace, renameWorkplace, setMenuEnabled };

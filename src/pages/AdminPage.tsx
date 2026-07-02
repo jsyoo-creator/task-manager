@@ -252,11 +252,11 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
                 <p className="text-sm font-medium text-gray-800 mb-3">{wp.name}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {TOGGLEABLE_MENU_ITEMS.map(item => {
-                    const enabled = isMenuEnabled(item.path, wp.menuConfig);
+                    const enabled = isMenuEnabled(item.id, wp.menuConfig);
                     return (
                       <button
-                        key={item.path}
-                        onClick={() => setMenuEnabled(wp.id, item.path, !enabled)}
+                        key={item.id}
+                        onClick={() => setMenuEnabled(wp.id, item.id, !enabled)}
                         className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
                           enabled
                             ? 'bg-teal-50 border-teal-200 text-teal-700'

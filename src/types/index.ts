@@ -39,24 +39,25 @@ export interface Workplace {
   id: string;
   name: string;    // 예: 'LG전자 공덕TF'
   createdAt: string;
-  menuConfig?: Record<string, boolean>; // 사이드바 메뉴 경로 → 노출 여부 (없으면 기본 true)
+  menuConfig?: Record<string, boolean>; // 메뉴 id → 노출 여부 (없으면 기본 true)
 }
 
-// 근무지별로 켜고 끌 수 있는 메뉴 목록 (설정은 항상 노출되므로 제외)
-export interface MenuItemMeta { path: string; label: string; }
+// 근무지별로 켜고 끌 수 있는 메뉴 목록 (대시보드·설정은 항상 노출되므로 제외).
+// id는 Firestore 맵 키로 쓰이므로 '/' 등 특수문자가 들어간 실제 경로(path)를 그대로 쓰지 않는다
+// (Firestore 필드 이름에는 '/'를 쓸 수 없어 dot-notation 업데이트가 조용히 실패함).
+export interface MenuItemMeta { id: string; path: string; label: string; }
 export const TOGGLEABLE_MENU_ITEMS: MenuItemMeta[] = [
-  { path: '/', label: '대시보드' },
-  { path: '/tasks', label: '업무 관리' },
-  { path: '/calendar', label: '캘린더' },
-  { path: '/weekly', label: '위클리' },
-  { path: '/vacation', label: '휴가' },
-  { path: '/board', label: '커뮤니티' },
-  { path: '/accounts', label: '계정 정보' },
-  { path: '/seats', label: '자리 배치도' },
+  { id: 'tasks',    path: '/tasks',    label: '업무 관리' },
+  { id: 'calendar', path: '/calendar', label: '캘린더' },
+  { id: 'weekly',   path: '/weekly',   label: '위클리' },
+  { id: 'vacation', path: '/vacation', label: '휴가' },
+  { id: 'board',    path: '/board',    label: '커뮤니티' },
+  { id: 'accounts', path: '/accounts', label: '계정 정보' },
+  { id: 'seats',    path: '/seats',    label: '자리 배치도' },
 ];
 
-export function isMenuEnabled(path: string, menuConfig?: Record<string, boolean>): boolean {
-  return menuConfig?.[path] !== false;
+export function isMenuEnabled(menuId: string, menuConfig?: Record<string, boolean>): boolean {
+  return menuConfig?.[menuId] !== false;
 }
 
 export interface UserPermissions {

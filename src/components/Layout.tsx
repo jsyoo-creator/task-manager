@@ -5,7 +5,8 @@ import {
   Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2, Star
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef, Workplace } from '../types';
+import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef, Workplace, RoleLabels } from '../types';
+import { resolveRoleLabel } from '../types';
 
 interface Props {
   children: React.ReactNode;
@@ -23,6 +24,7 @@ interface Props {
   onActiveTeamChange: (id: string) => void;
   unreadNoticeCount?: number;
   profileFields?: ProfileFieldDef[];
+  roleLabels?: RoleLabels;
   workplaces?: Workplace[];
   activeWorkplaceId?: string | null;
   onActiveWorkplaceChange?: (id: string) => void;
@@ -288,6 +290,7 @@ export default function Layout({
   children, user, appUser, onSignOut, teams, teamsLoading,
   activeTeamId, onActiveTeamChange, unreadNoticeCount = 0, profileFields = [],
   workplaces = [], activeWorkplaceId = null, onActiveWorkplaceChange, onSetDefaultWorkplace,
+  roleLabels,
 }: Props) {
   const myWorkplaces = workplaces.filter(w => appUser?.workplaceIds?.includes(w.id));
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
@@ -391,7 +394,7 @@ export default function Layout({
                 {appUser?.displayName ?? user.displayName ?? user.email}
               </p>
               <p className="text-[9px] text-white/35 truncate">
-                {appUser?.role === 'superadmin' ? '최고 관리자' : appUser?.role === 'manager' ? '중간 관리자' : '일반 사용자'}
+                {resolveRoleLabel(appUser?.role ?? 'user', roleLabels)}
                 {appUser?.department && ` · ${appUser.department}`}
               </p>
             </div>

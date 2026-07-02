@@ -27,6 +27,7 @@ import { useVacations } from '../hooks/useVacations';
 import { useProfileFields } from '../hooks/useProfileFields';
 import { useWorkplaces } from '../hooks/useWorkplaces';
 import { useRolePermissions } from '../hooks/useRolePermissions';
+import { useRoleLabels } from '../hooks/useRoleLabels';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
 import { useTeams } from '../hooks/useTeams';
@@ -230,6 +231,7 @@ function App() {
   const { profileFields, updateProfileFields } = useProfileFields(activeWorkplaceId ?? undefined);
   const { workplaces } = useWorkplaces();
   const { rolePermissions, updateRolePermissions } = useRolePermissions(activeWorkplaceId ?? undefined);
+  const { roleLabels, updateRoleLabels } = useRoleLabels(activeWorkplaceId ?? undefined);
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
   const { holidays: nextYearHolidays } = usePublicHolidays(currentYear + 1);
@@ -737,6 +739,7 @@ function App() {
           onSetDefaultWorkplace={updateDefaultWorkplace}
           unreadNoticeCount={unreadNoticeCount}
           profileFields={profileFields}
+          roleLabels={roleLabels}
         >
           <Routes>
             <Route path="/" element={
@@ -843,6 +846,8 @@ function App() {
                     onUpdateProfileFields={updateProfileFields}
                     rolePermissions={rolePermissions}
                     onUpdateRolePermissions={updateRolePermissions}
+                    roleLabels={roleLabels}
+                    onUpdateRoleLabels={updateRoleLabels}
                     workplaceId={activeWorkplaceId ?? undefined}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>

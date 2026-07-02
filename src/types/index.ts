@@ -110,6 +110,19 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
   },
 };
 
+// 근무지마다 역할 명칭을 다르게 부를 수 있음(예: manager를 "PM" 또는 "팀장"으로) — 근무지별 커스텀 라벨
+export type RoleLabels = Partial<Record<UserRole, string>>;
+
+export const DEFAULT_ROLE_LABELS: Record<UserRole, string> = {
+  superadmin: '최고 관리자',
+  manager: '중간 관리자',
+  user: '일반 사용자',
+};
+
+export function resolveRoleLabel(role: UserRole, roleLabels?: RoleLabels): string {
+  return roleLabels?.[role]?.trim() || DEFAULT_ROLE_LABELS[role];
+}
+
 export function getPermissions(role: UserRole, rolePerms: RolePermissions = DEFAULT_ROLE_PERMISSIONS): UserPermissions {
   if (role === 'superadmin') {
     return {

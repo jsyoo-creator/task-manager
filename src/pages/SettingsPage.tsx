@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -60,17 +60,14 @@ interface Props {
   onUpdateProfileFields: (fields: ProfileFieldDef[]) => Promise<void>;
   rolePermissions: RolePermissions;
   onUpdateRolePermissions: (perms: RolePermissions) => Promise<void>;
+  roleLabels?: RoleLabels;
+  onUpdateRoleLabels?: (labels: RoleLabels) => Promise<void>;
   workplaceId?: string;
 }
 
 // ──────────────────────────────────────────
 // 상수
 // ──────────────────────────────────────────
-const ROLE_LABEL: Record<UserRole, string> = {
-  superadmin: '최고 관리자',
-  manager: '중간 관리자',
-  user: '일반 사용자',
-};
 const ROLE_COLOR: Record<UserRole, string> = {
   superadmin: 'text-purple-600 bg-purple-50',
   manager: 'text-blue-600 bg-blue-50',
@@ -144,11 +141,20 @@ function PermToggle({ checked, onChange, disabled }: { checked: boolean; onChang
   );
 }
 
+// 근무지마다 역할 표시 명칭을 다르게 설정할 수 있어(예: manager → "PM"), 이 페이지 트리 전체에서
+// 공유하는 컨텍스트로 내려준다 — RoleBadge/RoleDropdown 등 곳곳에 prop으로 일일이 전달하지 않기 위함
+const RoleLabelContext = createContext<RoleLabels>({});
+function useRoleLabel(role: UserRole): string {
+  const roleLabels = useContext(RoleLabelContext);
+  return resolveRoleLabel(role, roleLabels);
+}
+
 // ──────────────────────────────────────────
 // 공통 뱃지
 // ──────────────────────────────────────────
 function RoleBadge({ role }: { role: UserRole }) {
-  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLOR[role]}`}>{ROLE_LABEL[role]}</span>;
+  const label = useRoleLabel(role);
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLOR[role]}`}>{label}</span>;
 }
 function DeptBadge({ dept }: { dept: Department }) {
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${DEPT_COLOR[dept]}`}>{dept}</span>;
@@ -203,6 +209,7 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
   const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
+  const roleLabels = useContext(RoleLabelContext);
 
   useEffect(() => {
     if (!open) return;
@@ -222,7 +229,7 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
     <div data-role-dd>
       <button ref={btnRef} onClick={handleOpen}
         className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-        <span className={ROLE_COLOR[u.role].split(' ')[0]}>{ROLE_LABEL[u.role]}</span>
+        <span className={ROLE_COLOR[u.role].split(' ')[0]}>{resolveRoleLabel(u.role, roleLabels)}</span>
         <ChevronDown size={12} className="text-gray-400" />
       </button>
       {open && (
@@ -231,12 +238,56 @@ function RoleDropdown({ u, onChangeRole }: { u: AppUser; onChangeRole: (uid: str
           {(['manager', 'user'] as UserRole[]).map(r => (
             <button key={r} onClick={() => { onChangeRole(u.uid, r); setOpen(false); }}
               className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-gray-100 transition-colors">
-              <span className="text-gray-800">{ROLE_LABEL[r]}</span>
+              <span className="text-gray-800">{resolveRoleLabel(r, roleLabels)}</span>
               {u.role === r && <Check size={12} className="text-blue-500" />}
             </button>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
+// 역할 명칭 커스터마이징 (근무지별)
+// ──────────────────────────────────────────
+const ROLE_ORDER: UserRole[] = ['superadmin', 'manager', 'user'];
+function RoleLabelEditor({ roleLabels, onSave }: { roleLabels: RoleLabels; onSave: (labels: RoleLabels) => Promise<void> }) {
+  const [drafts, setDrafts] = useState<Record<UserRole, string>>({
+    superadmin: roleLabels.superadmin ?? '',
+    manager: roleLabels.manager ?? '',
+    user: roleLabels.user ?? '',
+  });
+
+  useEffect(() => {
+    setDrafts({
+      superadmin: roleLabels.superadmin ?? '',
+      manager: roleLabels.manager ?? '',
+      user: roleLabels.user ?? '',
+    });
+  }, [roleLabels.superadmin, roleLabels.manager, roleLabels.user]);
+
+  const handleBlur = (role: UserRole) => {
+    const trimmed = drafts[role].trim();
+    if (trimmed === (roleLabels[role] ?? '')) return;
+    onSave({ ...roleLabels, [role]: trimmed || undefined });
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      {ROLE_ORDER.map(role => (
+        <div key={role}>
+          <label className="text-[10px] text-gray-400 block mb-1">{DEFAULT_ROLE_LABELS[role]} 표시 명칭</label>
+          <input
+            value={drafts[role]}
+            onChange={e => setDrafts(prev => ({ ...prev, [role]: e.target.value }))}
+            onBlur={() => handleBlur(role)}
+            onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder={DEFAULT_ROLE_LABELS[role]}
+            className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          />
+        </div>
+      ))}
     </div>
   );
 }
@@ -4540,6 +4591,7 @@ export default function SettingsPage({
   orphanTaskCount, onCleanupOrphanTasks,
   profileFields, onUpdateProfileFields,
   rolePermissions, onUpdateRolePermissions,
+  roleLabels, onUpdateRoleLabels,
   workplaceId,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
@@ -4706,6 +4758,7 @@ export default function SettingsPage({
   const activeTab = visibleTabs.find(t => t.id === settingsTab) ? settingsTab : (visibleTabs[0]?.id ?? 'profile');
 
   return (
+    <RoleLabelContext.Provider value={roleLabels ?? {}}>
     <div className="space-y-5">
       {/* 헤더 + 탭 */}
       <div>
@@ -5103,6 +5156,20 @@ export default function SettingsPage({
         </section>
       )}
 
+      {/* ── 시스템 탭: 역할 명칭 커스터마이징 ── */}
+      {activeTab === 'system' && isRoleSuperadmin && onUpdateRoleLabels && (
+        <section className="glass-card">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+            <Shield size={15} className="text-indigo-400" />
+            <span className="text-sm font-semibold text-gray-800">역할 표시 명칭</span>
+            <span className="text-xs text-gray-400">이 근무지에서 역할을 부르는 이름을 다르게 지정할 수 있습니다 (예: 중간 관리자 → PM)</span>
+          </div>
+          <div className="p-5">
+            <RoleLabelEditor roleLabels={roleLabels ?? {}} onSave={onUpdateRoleLabels} />
+          </div>
+        </section>
+      )}
+
       {/* ── 휴일 관리 탭 ── */}
       {activeTab === 'holidays' && canManageHolidays && (
         <section className="glass-card">
@@ -5200,5 +5267,6 @@ export default function SettingsPage({
         </section>
       )}
     </div>
+    </RoleLabelContext.Provider>
   );
 }

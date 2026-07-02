@@ -19,6 +19,16 @@ interface Props {
   canSeeAll?: boolean;
   customHolidays?: CustomHoliday[];
   vacations?: Vacation[];
+  subTaskColorMap?: Map<string, string>; // subtask.id -> 세부업무 유형 지정 캘린더 색상 (hex)
+  teamColor?: string; // 팀 기본 색상 (hex)
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function vacTypeColor(type: VacationType): string {
@@ -74,7 +84,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [] }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -324,7 +334,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                     })()}
                     <div className="space-y-1.5">
                       {dayItems.map(item => {
+                        const hasPartStyle = partStyleMap.has(item.category);
                         const s = partStyleMap.get(item.category) ?? CAT_DEFAULT;
+                        const calColor = subTaskColorMap?.get(item.id);
+                        const customBg = calColor ?? (!hasPartStyle ? teamColor : undefined);
+                        const cardStyle = customBg ? { backgroundColor: hexToRgba(customBg, 0.14) } : undefined;
                         const isActive = expandedId === item.id;
                         const isDone = item.status === '완료';
                         const activeMemos = isActive
@@ -346,19 +360,23 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                           )}
                           <div
                             onClick={e => handleCardClick(e, item.id)}
+                            style={cardStyle}
                             className={`p-2.5 flex flex-col gap-1 cursor-pointer select-none relative
-                              ${s.card}
+                              ${customBg ? '' : s.card}
                               ${isDone && !isActive ? 'opacity-40' : ''}
                               ${isActive
                                 ? 'rounded-xl shadow-lg z-10'
-                                : `rounded-xl ${s.hover} hover:shadow-md hover:scale-[1.01]`}
+                                : `rounded-xl ${customBg ? '' : s.hover} hover:shadow-md hover:scale-[1.01]`}
                             `}
                           >
                             {/* 요약 */}
                             <div className="flex items-center justify-between gap-1">
                               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                                 <div className="text-[10px] text-gray-400 font-medium leading-tight truncate">{item.mainTitle}</div>
-                                <div className={`text-[11px] font-bold leading-snug ${s.title}`}>{item.subTitle}</div>
+                                <div className={`text-[11px] font-bold leading-snug flex items-center gap-1 ${s.title}`}>
+                                  <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} title={item.category} />
+                                  <span className="truncate">{item.subTitle}</span>
+                                </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0 self-center">
                                 {item.memoCount > 0 && !isActive && (

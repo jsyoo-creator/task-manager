@@ -368,6 +368,20 @@ function App() {
     [subtasks, calendarVisibleTypeIds, filteredTasks, activeParts, selectedTeam]
   );
 
+  // 캘린더 카드 배경용 세부업무 유형 지정 색상 맵 (subtask.id → calendarColor hex)
+  const subTaskColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    calendarSubtasks.forEach(s => {
+      const subKey = s.id.split('__')[1];
+      const taskObj = filteredTasks.find(t => t.id === s.taskId);
+      const partObj = taskObj ? activeParts.find(p => p.name === taskObj.category) : undefined;
+      const types = partObj?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
+      const color = types.find(t => t.id === subKey)?.calendarColor;
+      if (color) map.set(s.id, color);
+    });
+    return map;
+  }, [calendarSubtasks, filteredTasks, activeParts, selectedTeam]);
+
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
     addTask({ ...data, teamId: activeTeamId ?? '' });
 
@@ -444,7 +458,7 @@ function App() {
               />
             } />
             <Route path="/calendar" element={
-              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={teamVacations} />
+              <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAll} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} />
             } />
             <Route path="/weekly" element={
               <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAll} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} />

@@ -21,6 +21,8 @@ interface Props {
   vacations?: Vacation[];
   subTaskColorMap?: Map<string, string>; // subtask.id -> 세부업무 유형 지정 캘린더 색상 (hex)
   teamColor?: string; // 팀 기본 색상 (hex)
+  subTaskOrderMap?: Map<string, number>; // subtask.id -> 세부업무 유형 정렬 순서 (그룹핑용)
+  groupBySubtaskType?: boolean; // true면 하루 셀 안에서 메인업무순 대신 세부업무 유형별로 묶어서 정렬
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -84,7 +86,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -123,7 +125,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
 
   const itemsForDay = (day: number) => {
     const d = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return filteredSubtasks
+    const items = filteredSubtasks
       .filter(s => s.endDate === d)
       .map(s => {
         const parent = taskMap.get(s.taskId);
@@ -133,6 +135,9 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
         const substitute = parent?.subTaskData?.[subKey]?.substitute || undefined;
         return { id: s.id, mainTitle: parent?.title ?? '', subTitle: s.title, people, substitute, category: s.category, status: s.status, memoCount };
       });
+    if (!groupBySubtaskType || !subTaskOrderMap) return items;
+    // 세부업무 유형 순서대로 묶어서 정렬 (동일 유형 내에서는 원래(메인업무) 순서 유지 - stable sort)
+    return [...items].sort((a, b) => (subTaskOrderMap.get(a.id) ?? 999) - (subTaskOrderMap.get(b.id) ?? 999));
   };
 
   const isToday = (d: number) =>
@@ -375,7 +380,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                 <div className="text-[10px] text-gray-400 font-medium leading-tight truncate">{item.mainTitle}</div>
                                 <div className={`text-[11px] font-bold leading-snug flex items-center gap-1 ${s.title}`}>
                                   <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} title={item.category} />
-                                  <span className="truncate">{item.subTitle}</span>
+                                  <span className="truncate min-w-0 flex-1" title={item.subTitle}>{item.subTitle}</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0 self-center">

@@ -3349,7 +3349,27 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
 
                   {/* 세부 업무 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'subtask' && (
-                    <div className="px-5 py-4">
+                    <div className="px-5 py-4 space-y-4">
+                      <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700">캘린더 표시 방식</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">캘린더 하루 칸 안에서 업무를 어떤 기준으로 묶어 정렬할지 팀별로 설정합니다</p>
+                        </div>
+                        <div className="flex gap-1 bg-white border border-gray-200 rounded-lg p-0.5 flex-shrink-0">
+                          <button
+                            onClick={() => onUpdateTeam(team.id, { calendarGroupBy: 'task' })}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                              (team.calendarGroupBy ?? 'task') === 'task' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >메인 업무순</button>
+                          <button
+                            onClick={() => onUpdateTeam(team.id, { calendarGroupBy: 'subtaskType' })}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                              team.calendarGroupBy === 'subtaskType' ? 'bg-[#6C63FF] text-white' : 'text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >세부 업무별</button>
+                        </div>
+                      </div>
                       <SubTaskTypesEditor
                         team={team}
                         onSave={onUpdateSubTaskTypes}

@@ -496,6 +496,7 @@ export interface Team {
   excelConfig?: ExcelFieldConfig[];
   weeklyExportConfig?: WeeklyExportConfig;
   rolePermissions?: RolePermissions | null; // 팀별 권한 오버라이드 (null = 전체 기본 설정 사용)
+  calendarGroupBy?: 'task' | 'subtaskType'; // 캘린더 하루 셀 내 정렬 기준 (undefined = 'task', 메인업무순)
 }
 
 export interface SubTask {

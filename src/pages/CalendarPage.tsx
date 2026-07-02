@@ -304,16 +304,17 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
         <div className="grid" style={{ gridTemplateColumns: '0.5fr 1fr 1fr 1fr 1fr 1fr 0.5fr' }}>
           {cells.map((day, idx) => {
             const dayItems = day ? itemsForDay(day) : [];
+            const hasExpandedItem = dayItems.some(item => item.id === expandedId);
             const isWknd = idx % 7 === 0 || idx % 7 === 6;
             const flipMemo = idx % 7 >= 5; // 금/토요일은 메모 패널을 왼쪽으로
             const holidayName = day ? getHolidayName(day) : null;
             return (
-              <div key={idx} className={`min-h-[96px] border-r border-b border-black/3 p-1.5 ${
+              <div key={idx} className={`${hasExpandedItem ? 'min-h-[150px]' : 'h-[150px]'} flex flex-col border-r border-b border-black/3 p-1.5 ${
                 !day ? 'bg-black/1' : ''
               } ${isWknd && day ? 'bg-black/1.5' : ''} ${holidayName && !isWknd ? 'bg-red-50/40' : ''}`}>
                 {day && (
                   <>
-                    <div className="mb-1">
+                    <div className="mb-1 flex-shrink-0">
                       <div className={`w-5 h-5 flex items-center justify-center rounded-full text-[11px] font-medium ${
                         isToday(day)
                           ? 'bg-blue-500 text-white shadow-[0_1px_6px_rgba(38,112,233,0.4)]'
@@ -328,7 +329,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                       const dayVacs = vacDay[dateStr] ?? [];
                       if (dayVacs.length === 0) return null;
                       return (
-                        <div className="flex flex-col gap-0.5 mb-1">
+                        <div className="flex flex-col gap-0.5 mb-1 flex-shrink-0">
                           {dayVacs.map(v => (
                             <div key={v.id} className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight truncate ${vacTypeColor(v.type)}`}>
                               <span className="truncate">{v.memberName} {v.type}</span>
@@ -337,7 +338,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                         </div>
                       );
                     })()}
-                    <div className="space-y-1.5">
+                    <div className={`space-y-1.5 ${hasExpandedItem ? '' : 'flex-1 min-h-0 overflow-y-auto'}`}>
                       {dayItems.map(item => {
                         const hasPartStyle = partStyleMap.has(item.category);
                         const s = partStyleMap.get(item.category) ?? CAT_DEFAULT;

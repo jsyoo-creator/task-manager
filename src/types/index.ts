@@ -401,6 +401,7 @@ export interface SubTaskType {
   department?: Department;
   showInCalendar?: boolean; // undefined = true (기본 표시)
   calendarColor?: string;   // undefined = 기본색
+  showInDetail?: boolean;   // undefined = true, 업무 상세 화면에 노출할지 여부
   plFieldType?: PLSubTaskFieldType; // PL세부업무 필드 타입 (text|review)
 }
 

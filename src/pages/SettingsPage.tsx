@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig } from '../types';
 import { resolvePLMainDepts } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
@@ -2053,6 +2053,18 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
                       : 'bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600'
                   }`}>
                   <CalendarDays size={11} />
+                </button>
+                {/* 업무 상세 노출 토글 */}
+                <button
+                  type="button"
+                  title={t.showInDetail === false ? '업무 상세 미노출 (클릭하여 노출)' : '업무 상세 노출 (클릭하여 숨김)'}
+                  onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInDetail: x.showInDetail === false ? true : false } : x))}
+                  className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                    t.showInDetail === false
+                      ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                      : 'bg-emerald-100 text-emerald-500 hover:bg-emerald-200 hover:text-emerald-600'
+                  }`}>
+                  <FileText size={11} />
                 </button>
                 <button type="button" onClick={() => deleteType(t.id)}
                   className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">

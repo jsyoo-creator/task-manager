@@ -912,6 +912,7 @@ export default function TaskDetailPanel({
             <div className="space-y-3">
               {subTaskTypes.filter(type => {
                 if (deletedSubTaskIds.has(type.id)) return false;
+                if (type.showInDetail === false) return false;
                 if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
                 if (canSeeAll) return true;
                 const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };

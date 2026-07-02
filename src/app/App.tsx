@@ -51,7 +51,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
   const { rolePermissions, updateRolePermissions } = useRolePermissions();
@@ -382,8 +382,9 @@ function App() {
     return map;
   }, [calendarSubtasks, filteredTasks, activeParts, selectedTeam]);
 
-  // 캘린더 '세부업무별' 그룹핑용 정렬 순서 맵 (subtask.id → 해당 파트 자신의 subTaskTypes 배열상 순서)
-  // 파트별로 별도 순서(드래그 정렬)를 설정했으면 그 파트 고유 순서를 따르고, 없으면 팀 기본 순서를 따름
+  // 캘린더 '세부업무별' 그룹핑용 정렬 순서 맵 (subtask.id → 캘린더 전용 순서)
+  // TeamPart.calendarOrder / Team.calendarOrder — 업무상세에 쓰이는 subTaskTypes 배열 순서와는 별개의 값.
+  // 파트에 별도 캘린더 순서가 없으면 팀 기본 캘린더 순서, 그마저 없으면 세부업무 목록 순서를 따름.
   const subTaskOrderMap = useMemo(() => {
     const map = new Map<string, number>();
     calendarSubtasks.forEach(s => {
@@ -391,7 +392,9 @@ function App() {
       const taskObj = filteredTasks.find(t => t.id === s.taskId);
       const partObj = taskObj ? activeParts.find(p => p.name === taskObj.category) : undefined;
       const types = partObj?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
-      const idx = types.findIndex(t => t.id === subKey);
+      const savedOrder = partObj?.calendarOrder ?? selectedTeam?.calendarOrder;
+      const orderIds = savedOrder ?? types.map(t => t.id);
+      const idx = orderIds.indexOf(subKey);
       map.set(s.id, idx === -1 ? 999 : idx);
     });
     return map;
@@ -520,6 +523,8 @@ function App() {
                     onUpdateSubTaskTypes={updateSubTaskTypes}
                     onUpdatePartSubTaskTypes={updatePartSubTaskTypes}
                     onClearPartSubTaskTypes={clearPartSubTaskTypes}
+                    onUpdatePartCalendarOrder={updatePartCalendarOrder}
+                    onClearPartCalendarOrder={clearPartCalendarOrder}
                     onUpdatePlMainTaskTypes={updatePlMainTaskTypes}
                     onUpdateExcelConfig={updateExcelConfig}
                     onUpdatePartExcelConfig={updatePartExcelConfig}

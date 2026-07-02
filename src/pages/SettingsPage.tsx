@@ -32,6 +32,8 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
+  onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -1804,11 +1806,14 @@ const SUBTASK_CALENDAR_COLORS = [
   '#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6',
 ];
 
-function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
+function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart, onUpdateTeam, onSavePartCalendarOrder, onClearPartCalendarOrder }: {
   team: Team;
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onSavePart: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPart: (teamId: string, partId: string) => Promise<void>;
+  onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
+  onSavePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
+  onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
@@ -1822,6 +1827,8 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   const dragIdxRef = useRef<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
+  const [calDragOverIdx, setCalDragOverIdx] = useState<number | null>(null);
+  const calDragIdxRef = useRef<number | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -1830,6 +1837,33 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   const isInherited = !isTeam && !currentPart?.subTaskTypes;
   const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
   const types: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
+
+  // 캘린더 전용 표시 순서 (업무상세 순서=types와 별개, SubTaskType.id 배열로 저장)
+  const isCalOrderInherited = !isTeam && !currentPart?.calendarOrder;
+  const savedCalOrder: string[] | undefined = isTeam ? team.calendarOrder : (currentPart?.calendarOrder ?? team.calendarOrder);
+  const calTypes: SubTaskType[] = (() => {
+    const base = savedCalOrder ?? types.map(t => t.id);
+    const known = new Set(types.map(t => t.id));
+    const ordered = base.filter(id => known.has(id));
+    const missing = types.map(t => t.id).filter(id => !ordered.includes(id));
+    return [...ordered, ...missing].map(id => types.find(t => t.id === id)!).filter(Boolean);
+  })();
+
+  const saveCalOrder = (next: SubTaskType[]) => {
+    const order = next.map(t => t.id);
+    if (isTeam) onUpdateTeam(team.id, { calendarOrder: order });
+    else if (currentPart) onSavePartCalendarOrder(team.id, currentPart.id, order);
+  };
+
+  const onCalDrop = (toIdx: number) => {
+    const from = calDragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...calTypes];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    saveCalOrder(arr);
+    calDragIdxRef.current = null; setCalDragOverIdx(null);
+  };
 
   const save = (next: SubTaskType[]) => {
     if (isTeam) onSave(team.id, next);
@@ -2131,6 +2165,46 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
           <Plus size={11} />추가
         </button>
       </div>
+      </div>
+
+      {/* 캘린더 표시 순서 (업무상세 순서와 별개) */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+            캘린더 표시 순서
+            <span className="text-gray-300 font-normal normal-case ml-1">업무상세 순서와 별개 · 드래그로 순서 변경</span>
+          </p>
+          {!isTeam && !isCalOrderInherited && (
+            <button
+              onClick={() => currentPart && onClearPartCalendarOrder(team.id, currentPart.id)}
+              className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium flex-shrink-0">
+              <RotateCcw size={10} />팀 기본 순서로
+            </button>
+          )}
+        </div>
+        {isCalOrderInherited && (
+          <p className="text-[10px] text-amber-600 mb-1.5">팀 기본 캘린더 순서를 상속 중 — 순서를 바꾸면 이 파트만 별도로 저장됩니다</p>
+        )}
+        {calTypes.length > 0 ? (
+          <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+            {calTypes.map((t, i) => (
+              <div key={t.id}
+                draggable
+                onDragStart={() => { calDragIdxRef.current = i; }}
+                onDragOver={(e) => { e.preventDefault(); setCalDragOverIdx(i); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setCalDragOverIdx(null); }}
+                onDrop={() => onCalDrop(i)}
+                onDragEnd={() => { calDragIdxRef.current = null; setCalDragOverIdx(null); }}
+                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${calDragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                <span className="flex-1 text-xs text-gray-700 truncate min-w-0">{t.name}</span>
+                <span className="text-[10px] text-gray-300 flex-shrink-0">{i + 1}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 text-center py-3">등록된 세부 업무가 없습니다</p>
+        )}
       </div>
     </div>
   );
@@ -2990,7 +3064,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3009,6 +3083,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
+  onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePlMainTaskTypes: (teamId: string, types: PLMainTaskType[]) => Promise<void>;
   onUpdateExcelConfig: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
   onUpdatePartExcelConfig: (teamId: string, partId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -3375,6 +3451,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onSave={onUpdateSubTaskTypes}
                         onSavePart={onUpdatePartSubTaskTypes}
                         onClearPart={onClearPartSubTaskTypes}
+                        onUpdateTeam={onUpdateTeam}
+                        onSavePartCalendarOrder={onUpdatePartCalendarOrder}
+                        onClearPartCalendarOrder={onClearPartCalendarOrder}
                       />
                     </div>
                   )}
@@ -3927,7 +4006,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -4315,6 +4394,8 @@ export default function SettingsPage({
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
+          onUpdatePartCalendarOrder={onUpdatePartCalendarOrder}
+          onClearPartCalendarOrder={onClearPartCalendarOrder}
           onUpdatePlMainTaskTypes={onUpdatePlMainTaskTypes}
           onUpdateExcelConfig={onUpdateExcelConfig}
           onUpdatePartExcelConfig={onUpdatePartExcelConfig}

@@ -381,10 +381,10 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                             {/* 요약 */}
                             <div className="flex items-center justify-between gap-1">
                               <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                <div className="text-[10px] text-gray-400 font-medium leading-tight truncate" title={item.mainTitle}>{truncateText(item.mainTitle, 14)}</div>
+                                <div className="text-[10px] text-gray-400 font-medium leading-tight truncate" title={item.mainTitle}>{truncateText(item.mainTitle, 19)}</div>
                                 <div className={`text-[11px] font-bold leading-snug flex items-center gap-1 ${s.title}`}>
                                   <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} title={item.category} />
-                                  <span className="truncate" title={item.subTitle}>{truncateText(item.subTitle, 12)}</span>
+                                  <span className="truncate" title={item.subTitle}>{truncateText(item.subTitle, 17)}</span>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0 self-center">

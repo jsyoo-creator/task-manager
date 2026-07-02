@@ -44,15 +44,16 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
   const teamCountByWorkplace = (wpId: string) => allTeams.filter(t => t.workplaceId === wpId).length;
   const userCountByWorkplace = (wpId: string) => users.filter(u => u.workplaceIds?.includes(wpId)).length;
   const platformAdmins = users.filter(u => u.isPlatformAdmin);
+  const sortedUsers = [...users].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
 
   const userGroups: { key: string; label: string; users: AppUser[] }[] = userFilter === 'all'
     ? [
-        ...workplaces.map(wp => ({ key: wp.id, label: wp.name, users: users.filter(u => u.workplaceIds?.includes(wp.id)) })),
-        { key: UNASSIGNED_FILTER, label: '미배정', users: users.filter(u => !u.workplaceIds?.length) },
+        ...workplaces.map(wp => ({ key: wp.id, label: wp.name, users: sortedUsers.filter(u => u.workplaceIds?.includes(wp.id)) })),
+        { key: UNASSIGNED_FILTER, label: '미배정', users: sortedUsers.filter(u => !u.workplaceIds?.length) },
       ].filter(g => g.users.length > 0)
     : userFilter === UNASSIGNED_FILTER
-      ? [{ key: UNASSIGNED_FILTER, label: '미배정', users: users.filter(u => !u.workplaceIds?.length) }]
-      : [{ key: userFilter, label: workplaces.find(w => w.id === userFilter)?.name ?? '', users: users.filter(u => u.workplaceIds?.includes(userFilter)) }];
+      ? [{ key: UNASSIGNED_FILTER, label: '미배정', users: sortedUsers.filter(u => !u.workplaceIds?.length) }]
+      : [{ key: userFilter, label: workplaces.find(w => w.id === userFilter)?.name ?? '', users: sortedUsers.filter(u => u.workplaceIds?.includes(userFilter)) }];
 
   const handleCreate = async () => {
     const name = newName.trim();

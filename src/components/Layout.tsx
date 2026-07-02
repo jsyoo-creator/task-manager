@@ -5,7 +5,7 @@ import {
   Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
-import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef } from '../types';
+import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef, Workplace } from '../types';
 
 interface Props {
   children: React.ReactNode;
@@ -23,6 +23,9 @@ interface Props {
   onActiveTeamChange: (id: string) => void;
   unreadNoticeCount?: number;
   profileFields?: ProfileFieldDef[];
+  workplaces?: Workplace[];
+  activeWorkplaceId?: string | null;
+  onActiveWorkplaceChange?: (id: string) => void;
 }
 
 const NAV_ALL = [
@@ -133,10 +136,63 @@ function ProfileDateAlert({ appUser, profileFields }: { appUser: AppUser | null;
   );
 }
 
-function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
+function WorkplaceSwitcher({ workplaces, activeWorkplaceId, onChange }: {
+  workplaces: Workplace[];
+  activeWorkplaceId: string | null;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = workplaces.find(w => w.id === activeWorkplaceId) ?? workplaces[0] ?? null;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (workplaces.length <= 1) {
+    return <span className="text-[9px] text-white/40 font-semibold tracking-[0.12em] uppercase">PIVOT</span>;
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 text-[9px] text-white/50 font-semibold tracking-[0.1em] uppercase hover:text-white/80 transition-colors"
+      >
+        {active?.name ?? 'PIVOT'}
+        <ChevronDown size={9} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 w-48 z-50 bg-white border border-[#EDE9FA] rounded-xl shadow-xl shadow-[#6C63FF]/12 overflow-hidden py-1">
+          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.15em] px-3.5 pt-2 pb-1.5">근무지 전환</p>
+          {workplaces.map(w => (
+            <button
+              key={w.id}
+              onClick={() => { onChange(w.id); setOpen(false); }}
+              className={`w-full flex items-center gap-2 px-3.5 py-2 text-left text-[13px] transition-colors ${
+                w.id === activeWorkplaceId ? 'bg-[#F0EEFF] text-[#6C63FF] font-medium' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span className="truncate flex-1">{w.name}</span>
+              {w.id === activeWorkplaceId && <div className="w-1.5 h-1.5 rounded-full bg-[#6C63FF] flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange, workplaceLabel }: {
   userTeams: Team[];
   activeTeamId: string | null;
   onActiveTeamChange: (id: string) => void;
+  workplaceLabel: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -166,7 +222,7 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
             : <span className="text-white font-bold text-xs opacity-60">무</span>}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] text-white/40 font-semibold tracking-[0.12em] uppercase">PIVOT</p>
+          <div onClick={e => e.stopPropagation()}>{workplaceLabel}</div>
           <p className="text-xs font-semibold text-white truncate leading-tight">
             {activeTeam?.name ?? <span className="italic text-white/40 font-normal">무소속</span>}
           </p>
@@ -210,7 +266,9 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange }: {
 export default function Layout({
   children, user, appUser, onSignOut, teams, teamsLoading,
   activeTeamId, onActiveTeamChange, unreadNoticeCount = 0, profileFields = [],
+  workplaces = [], activeWorkplaceId = null, onActiveWorkplaceChange,
 }: Props) {
+  const myWorkplaces = workplaces.filter(w => appUser?.workplaceIds?.includes(w.id));
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
   const hasTeamSelected = userSelectedTeams.length > 0;
   const role = appUser?.role ?? 'user';
@@ -245,6 +303,13 @@ export default function Layout({
               userTeams={userSelectedTeams}
               activeTeamId={activeTeamId}
               onActiveTeamChange={onActiveTeamChange}
+              workplaceLabel={
+                <WorkplaceSwitcher
+                  workplaces={myWorkplaces}
+                  activeWorkplaceId={activeWorkplaceId}
+                  onChange={onActiveWorkplaceChange ?? (() => {})}
+                />
+              }
             />
           )}
         </div>

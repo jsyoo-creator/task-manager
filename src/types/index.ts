@@ -26,7 +26,9 @@ export interface AppUser {
   annualLeave?: number;
   profileData?: Record<string, string>;
   createdAt: string;
-  workplaceId?: string;    // 배정된 근무지 (없으면 미배정 — 어드민이 배정할 때까지 대기)
+  /** @deprecated workplaceIds 사용 — 과거 단일 배정 데이터 마이그레이션 용도로만 참조 */
+  workplaceId?: string;
+  workplaceIds?: string[]; // 배정된 근무지 목록(다중 배정 가능, 비어있으면 미배정 — 어드민이 배정할 때까지 대기)
   isPlatformAdmin?: boolean; // PIVOT 본사 관리자 — 모든 근무지를 관리하는 최상위 권한, role과 별개
 }
 

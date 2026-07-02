@@ -60,6 +60,7 @@ interface Props {
   onUpdateProfileFields: (fields: ProfileFieldDef[]) => Promise<void>;
   rolePermissions: RolePermissions;
   onUpdateRolePermissions: (perms: RolePermissions) => Promise<void>;
+  workplaceId?: string;
 }
 
 // ──────────────────────────────────────────
@@ -4539,12 +4540,13 @@ export default function SettingsPage({
   orphanTaskCount, onCleanupOrphanTasks,
   profileFields, onUpdateProfileFields,
   rolePermissions, onUpdateRolePermissions,
+  workplaceId,
 }: Props) {
   const [nameInput, setNameInput] = useState(appUser.displayName);
   const [nameSaved, setNameSaved] = useState(false);
   const [myProfileData, setMyProfileData] = useState<Record<string, string>>(appUser.profileData ?? {});
   const [myProfileSaved, setMyProfileSaved] = useState(false);
-  const { users, updateUserRole, updateUserInfo, deleteUser } = useAllUsers();
+  const { users, updateUserRole, updateUserInfo, deleteUser } = useAllUsers(workplaceId);
 
   const isRoleSuperadmin = appUser.role === 'superadmin';
   const isRoleManager = appUser.role === 'manager';

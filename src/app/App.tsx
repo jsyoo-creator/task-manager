@@ -25,6 +25,7 @@ import { useTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
 import { useProfileFields } from '../hooks/useProfileFields';
+import { useWorkplaces } from '../hooks/useWorkplaces';
 import { useRolePermissions } from '../hooks/useRolePermissions';
 import { useAuth } from '../hooks/useAuth';
 import { useUserRole, useAllUsers } from '../hooks/useUserRole';
@@ -41,7 +42,31 @@ import { collection, getDocs, addDoc, writeBatch } from 'firebase/firestore';
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam } = useUserRole(user);
-  const { users: allUsers } = useAllUsers(appUser?.workplaceId);
+
+  // 근무지는 다중 배정이 가능 — activeWorkplaceId는 팀 전환(activeTeamId)과 동일한 방식으로
+  // localStorage에 보관되는 "현재 작업 중인 근무지" 선택값
+  const [activeWorkplaceId, setActiveWorkplaceIdState] = useState<string | null>(() =>
+    localStorage.getItem('activeWorkplaceId') ?? null
+  );
+  useEffect(() => {
+    const ids = appUser?.workplaceIds ?? [];
+    if (ids.length === 0) {
+      setActiveWorkplaceIdState(null);
+      localStorage.removeItem('activeWorkplaceId');
+    } else if (!activeWorkplaceId || !ids.includes(activeWorkplaceId)) {
+      const preferred = ids[0];
+      setActiveWorkplaceIdState(preferred);
+      localStorage.setItem('activeWorkplaceId', preferred);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appUser?.workplaceIds?.join(',')]);
+
+  const handleActiveWorkplaceChange = (id: string) => {
+    setActiveWorkplaceIdState(id);
+    localStorage.setItem('activeWorkplaceId', id);
+  };
+
+  const { users: allUsers } = useAllUsers(activeWorkplaceId ?? undefined);
 
   // 일회성 마이그레이션: 근무지 개념 도입 이전 데이터를 'LG전자 공덕TF' 근무지로 태깅.
   // workplaces 컬렉션이 비어있고 workplaceId 없는 팀이 있을 때만 1회 실행 (idempotent).
@@ -72,7 +97,7 @@ function App() {
         usersSnap.docs.forEach(d => {
           const u = d.data();
           const fields: Record<string, unknown> = {};
-          if (!u.workplaceId) fields.workplaceId = workplaceId;
+          if (!u.workplaceIds) fields.workplaceIds = [workplaceId];
           if (u.role === 'superadmin') fields.isPlatformAdmin = true;
           if (Object.keys(fields).length > 0) batch.update(d.ref, fields);
         });
@@ -84,7 +109,33 @@ function App() {
     })();
   }, [user]);
 
-  const { projects, loading: projLoading, addProject } = useProjects(appUser?.workplaceId);
+  // 일회성 백필: 다중 배정(workplaceIds) 도입 이전에 단일 workplaceId로 배정된 사용자 문서를
+  // workplaceIds 배열로 보정 (이미 배열이 있으면 건드리지 않는 idempotent 연산).
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const batch = writeBatch(db);
+        let count = 0;
+        usersSnap.docs.forEach(d => {
+          const u = d.data() as { workplaceId?: string; workplaceIds?: string[] };
+          if (!u.workplaceIds && u.workplaceId) {
+            batch.update(d.ref, { workplaceIds: [u.workplaceId] });
+            count++;
+          }
+        });
+        if (count > 0) {
+          await batch.commit();
+          console.log('[migration] workplaceIds 백필 완료:', count, '건');
+        }
+      } catch (e) {
+        console.error('[migration] workplaceIds 백필 실패:', e);
+      }
+    })();
+  }, [user]);
+
+  const { projects, loading: projLoading, addProject } = useProjects(activeWorkplaceId ?? undefined);
   const [projectId, setProjectId] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
   const [loadingDone, setLoadingDone] = useState(false);
@@ -95,9 +146,10 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations();
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, appUser?.workplaceId);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
   const { customHolidays, updateHolidays } = useHolidays();
   const { profileFields, updateProfileFields } = useProfileFields();
+  const { workplaces } = useWorkplaces();
   const { rolePermissions, updateRolePermissions } = useRolePermissions();
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
@@ -161,14 +213,14 @@ function App() {
   }, [projects, projLoading, projectId]);
 
   useEffect(() => {
-    if (!projLoading && projects.length === 0 && appUser?.workplaceId) {
+    if (!projLoading && projects.length === 0 && activeWorkplaceId) {
       addProject({
-        workplaceId: appUser.workplaceId,
+        workplaceId: activeWorkplaceId,
         name: '업무관리',
         categories: [],
       });
     }
-  }, [projLoading, projects.length, appUser?.workplaceId]);
+  }, [projLoading, projects.length, activeWorkplaceId]);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
@@ -489,7 +541,7 @@ function App() {
     return <LoginPage onSignIn={signIn} onSignInWithEmail={signInWithEmail} onSignUpWithEmail={signUpWithEmail} error={authError} />;
   }
 
-  if (appUser && !appUser.workplaceId && !appUser.isPlatformAdmin) {
+  if (appUser && !appUser.workplaceIds?.length && !appUser.isPlatformAdmin) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center space-y-2 px-6">
@@ -527,7 +579,7 @@ function App() {
           {/* 근무지 관리(플랫폼 관리자 전용)는 일반 업무관리 화면과 완전히 분리된 독립 페이지 */}
           <Route path="/admin/*" element={
             appUser?.isPlatformAdmin
-              ? <AdminPage onSignOut={signOut} hasWorkspaceAccess={!!appUser?.workplaceId} />
+              ? <AdminPage onSignOut={signOut} hasWorkspaceAccess={!!activeWorkplaceId} />
               : <Navigate to="/" replace />
           } />
           <Route path="/*" element={
@@ -545,6 +597,9 @@ function App() {
           teamsLoading={teamsLoading}
           activeTeamId={activeTeamId}
           onActiveTeamChange={handleActiveTeamChange}
+          workplaces={workplaces}
+          activeWorkplaceId={activeWorkplaceId}
+          onActiveWorkplaceChange={handleActiveWorkplaceChange}
           unreadNoticeCount={unreadNoticeCount}
           profileFields={profileFields}
         >
@@ -653,6 +708,7 @@ function App() {
                     onUpdateProfileFields={updateProfileFields}
                     rolePermissions={rolePermissions}
                     onUpdateRolePermissions={updateRolePermissions}
+                    workplaceId={activeWorkplaceId ?? undefined}
                   />
                 : <div className="flex items-center justify-center h-40 text-sm text-gray-400">로딩 중...</div>
             } />

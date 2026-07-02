@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   doc, getDoc, setDoc, collection, getDocs, updateDoc, onSnapshot, query, where, writeBatch, deleteField, deleteDoc,
+  arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { User } from 'firebase/auth';
@@ -10,6 +11,10 @@ function migrateAppUser(raw: Record<string, unknown>): AppUser {
   const data = { ...raw } as AppUser & { selectedTeamId?: string };
   if (!data.selectedTeamIds && data.selectedTeamId) {
     data.selectedTeamIds = [data.selectedTeamId];
+  }
+  // 과거 단일 workplaceId 데이터를 다중 배정 배열로 런타임 보정 (Firestore 백필은 App.tsx 마이그레이션이 담당)
+  if (!data.workplaceIds && data.workplaceId) {
+    data.workplaceIds = [data.workplaceId];
   }
   return data as AppUser;
 }
@@ -94,16 +99,16 @@ export function useUserRole(firebaseUser: User | null) {
   return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam };
 }
 
-// workplaceId를 넘기면 그 근무지 사용자만, 생략하면(플랫폼 관리자 전용) 전체 사용자를 가져온다.
+// workplaceId를 넘기면 그 근무지에 배정된(다중 배정 포함) 사용자만, 생략하면(플랫폼 관리자 전용) 전체 사용자를 가져온다.
 export function useAllUsers(workplaceId?: string) {
   const [users, setUsers] = useState<AppUser[]>([]);
 
   useEffect(() => {
     const q = workplaceId
-      ? query(collection(db, 'users'), where('workplaceId', '==', workplaceId))
+      ? query(collection(db, 'users'), where('workplaceIds', 'array-contains', workplaceId))
       : query(collection(db, 'users'));
     const unsub = onSnapshot(q, snap => {
-      setUsers(snap.docs.map(d => d.data() as AppUser));
+      setUsers(snap.docs.map(d => migrateAppUser(d.data() as Record<string, unknown>)));
     });
     return unsub;
   }, [workplaceId]);
@@ -112,9 +117,14 @@ export function useAllUsers(workplaceId?: string) {
     await updateDoc(doc(db, 'users', uid), { role });
   };
 
-  // 미배정 사용자를 근무지에 배정 (플랫폼 관리자 전용)
-  const assignUserToWorkplace = async (uid: string, workplaceId: string, role: UserRole) => {
-    await updateDoc(doc(db, 'users', uid), { workplaceId, role });
+  // 사용자를 근무지에 추가 배정 (다중 배정 가능, 플랫폼 관리자 전용)
+  const addUserWorkplace = async (uid: string, workplaceId: string) => {
+    await updateDoc(doc(db, 'users', uid), { workplaceIds: arrayUnion(workplaceId) });
+  };
+
+  // 사용자를 특정 근무지 배정에서 제외 (플랫폼 관리자 전용)
+  const removeUserWorkplace = async (uid: string, workplaceId: string) => {
+    await updateDoc(doc(db, 'users', uid), { workplaceIds: arrayRemove(workplaceId) });
   };
 
   // 플랫폼 관리자 지정/해제
@@ -206,5 +216,5 @@ export function useAllUsers(workplaceId?: string) {
     await deleteDoc(doc(db, 'users', uid));
   };
 
-  return { users, updateUserRole, updateUserInfo, deleteUser, assignUserToWorkplace, setPlatformAdmin };
+  return { users, updateUserRole, updateUserInfo, deleteUser, addUserWorkplace, removeUserWorkplace, setPlatformAdmin };
 }

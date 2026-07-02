@@ -9,7 +9,8 @@ import {
   GoogleAuthProvider,
   type User,
 } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
 const ALLOWED_DOMAIN = 'pivot-inc.com';
 const provider = new GoogleAuthProvider();
@@ -104,6 +105,18 @@ export function useAuth(): AuthState {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       if (displayName.trim()) {
         await updateProfile(result.user, { displayName: displayName.trim() });
+        // useUserRole의 최초 사용자 문서 생성이 onAuthStateChanged 이벤트(프로필 업데이트 전
+        // 스냅샷)와 경쟁해 이메일 앞자리를 이름으로 저장해버리는 경우가 있어, 확정된 이름으로
+        // 한 번 더 덮어써 보정한다. (merge: 문서가 아직 없으면 완전한 기본값으로 생성,
+        // useUserRole이 먼저 만들었으면 이름 등 필드만 정정)
+        await setDoc(doc(db, 'users', result.user.uid), {
+          uid: result.user.uid,
+          email: result.user.email ?? '',
+          displayName: displayName.trim(),
+          photoURL: result.user.photoURL ?? '',
+          role: 'user',
+          createdAt: new Date().toISOString(),
+        }, { merge: true });
       }
     } catch (e: unknown) {
       const code = (e as { code?: string }).code;

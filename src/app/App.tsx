@@ -37,7 +37,7 @@ import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsCon
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, setDoc, doc, query, orderBy, writeBatch } from 'firebase/firestore';
 import { Star } from 'lucide-react';
 
 function App() {
@@ -166,6 +166,54 @@ function App() {
     })();
   }, [user]);
 
+  // 일회성 백필: 근무지 개념 이전에는 역할 권한/공휴일/프로필 필드/휴가가 전역 문서(모든
+  // 근무지가 공유)였음. 가장 먼저 생성된(=기존 데이터가 쌓인) 근무지로 귀속시켜, 새로
+  // 만드는 근무지가 기존 근무지의 설정값을 그대로 물려받지 않도록 분리한다. (idempotent)
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const wpSnap = await getDocs(query(collection(db, 'workplaces'), orderBy('createdAt', 'asc')));
+        if (wpSnap.empty) return;
+        const legacyWorkplaceId = wpSnap.docs[0].id;
+
+        const [legacyRolePerms, scopedRolePerms, legacyHolidays, scopedHolidays, legacyProfileFields, scopedProfileFields] = await Promise.all([
+          getDoc(doc(db, 'settings', 'rolePermissions')),
+          getDoc(doc(db, 'settings', `rolePermissions_${legacyWorkplaceId}`)),
+          getDoc(doc(db, 'config', 'holidays')),
+          getDoc(doc(db, 'config', `holidays_${legacyWorkplaceId}`)),
+          getDoc(doc(db, 'settings', 'profileFields')),
+          getDoc(doc(db, 'settings', `profileFields_${legacyWorkplaceId}`)),
+        ]);
+        if (legacyRolePerms.exists() && !scopedRolePerms.exists()) {
+          await setDoc(doc(db, 'settings', `rolePermissions_${legacyWorkplaceId}`), legacyRolePerms.data()!);
+        }
+        if (legacyHolidays.exists() && !scopedHolidays.exists()) {
+          await setDoc(doc(db, 'config', `holidays_${legacyWorkplaceId}`), legacyHolidays.data()!);
+        }
+        if (legacyProfileFields.exists() && !scopedProfileFields.exists()) {
+          await setDoc(doc(db, 'settings', `profileFields_${legacyWorkplaceId}`), legacyProfileFields.data()!);
+        }
+
+        const vacationsSnap = await getDocs(collection(db, 'vacations'));
+        const batch = writeBatch(db);
+        let count = 0;
+        vacationsSnap.docs.forEach(d => {
+          if (!d.data().workplaceId) {
+            batch.update(d.ref, { workplaceId: legacyWorkplaceId });
+            count++;
+          }
+        });
+        if (count > 0) {
+          await batch.commit();
+          console.log('[migration] vacations workplaceId 백필 완료:', count, '건');
+        }
+      } catch (e) {
+        console.error('[migration] 근무지별 설정값 분리 실패:', e);
+      }
+    })();
+  }, [user]);
+
   const { projects, loading: projLoading, addProject } = useProjects(activeWorkplaceId ?? undefined);
   const [projectId, setProjectId] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<TaskCategory | 'all'>('all');
@@ -176,12 +224,12 @@ function App() {
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   const { members } = useMembers();
-  const { vacations, addVacation, deleteVacation } = useVacations();
+  const { vacations, addVacation, deleteVacation } = useVacations(activeWorkplaceId ?? undefined);
   const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
-  const { customHolidays, updateHolidays } = useHolidays();
-  const { profileFields, updateProfileFields } = useProfileFields();
+  const { customHolidays, updateHolidays } = useHolidays(activeWorkplaceId ?? undefined);
+  const { profileFields, updateProfileFields } = useProfileFields(activeWorkplaceId ?? undefined);
   const { workplaces } = useWorkplaces();
-  const { rolePermissions, updateRolePermissions } = useRolePermissions();
+  const { rolePermissions, updateRolePermissions } = useRolePermissions(activeWorkplaceId ?? undefined);
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays } = usePublicHolidays(currentYear);
   const { holidays: nextYearHolidays } = usePublicHolidays(currentYear + 1);

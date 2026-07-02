@@ -647,6 +647,7 @@ export interface Vacation {
   type: VacationType;
   days: number;
   createdAt: string;
+  workplaceId?: string;
 }
 
 const PART_BADGE_MAP: Record<string, string> = {

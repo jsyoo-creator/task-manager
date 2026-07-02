@@ -932,7 +932,9 @@ export default function TaskDetailPanel({
                 const subTotal = entry.startDate ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, entry.startDate, entry.endDate) : Object.values(entry.substituteWeeklyHours ?? {}).reduce((a, b) => a + b, 0);
                 const isVacation = isAssigneeOnVacation(entry.assignee);
                 const isSubstituteUser = !!entry.substitute && entry.substitute === currentUserName;
-                const canEditSubstituteHours = isSubstituteUser || canSeeAll;
+                // 대무자 본인·전체조회 권한자뿐 아니라, 이 업무를 관리할 수 있는 사람(대무 지정자 본인)도
+                // 방금 지정한 대무자의 시간을 바로 입력할 수 있어야 함
+                const canEditSubstituteHours = isSubstituteUser || canSeeAll || canManage;
 
                 // 직군에 맞는 담당자 필터링 (복수 직군 지원)
                 const typeDepts = resolveFieldDepts(type);
@@ -1287,16 +1289,24 @@ export default function TaskDetailPanel({
                             {displayAssignees.filter(a => a !== entry.assignee).map(a => <option key={a}>{a}</option>)}
                           </select>
                         </div>
-                        {canManage && !isVacation && !entry.substitute && (
+                        {canManage && !isVacation && (
                           <button
                             type="button"
                             title="대무자 지정 취소"
                             className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors"
-                            onClick={() => setManualSubstituteIds(prev => {
-                              const next = new Set(prev);
-                              next.delete(type.id);
-                              return next;
-                            })}
+                            onClick={() => {
+                              if (entry.substitute) {
+                                const { substitute, substituteWeeklyHours, substituteTotalHours, ...rest } = entry;
+                                const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: rest };
+                                setLocalSubTaskData(next);
+                                saveSubTaskData(next);
+                              }
+                              setManualSubstituteIds(prev => {
+                                const next = new Set(prev);
+                                next.delete(type.id);
+                                return next;
+                              });
+                            }}
                           >
                             <X size={12} />
                           </button>

@@ -96,7 +96,15 @@ export function useUserRole(firebaseUser: User | null) {
     });
   };
 
-  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam };
+  // 근무지가 여러 개 배정된 사용자가 로그인 시 자동으로 들어갈 기본 근무지 설정
+  const updateDefaultWorkplace = async (workplaceId: string | null) => {
+    if (!firebaseUser) return;
+    await updateDoc(doc(db, 'users', firebaseUser.uid), {
+      defaultWorkplaceId: workplaceId ?? deleteField(),
+    });
+  };
+
+  return { appUser, loading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam, updateDefaultWorkplace };
 }
 
 // workplaceId를 넘기면 그 근무지에 배정된(다중 배정 포함) 사용자만, 생략하면(플랫폼 관리자 전용) 전체 사용자를 가져온다.

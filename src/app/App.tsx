@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router';
 
 function RouteWatcher({ onRouteChange }: { onRouteChange: (path: string) => void }) {
@@ -38,10 +38,11 @@ import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, writeBatch } from 'firebase/firestore';
+import { Star } from 'lucide-react';
 
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signInWithEmail, signUpWithEmail, signOut } = useAuth();
-  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam } = useUserRole(user);
+  const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam, updateDefaultWorkplace } = useUserRole(user);
 
   // 근무지는 다중 배정이 가능 — activeWorkplaceId는 팀 전환(activeTeamId)과 동일한 방식으로
   // localStorage에 보관되는 "현재 작업 중인 근무지" 선택값
@@ -60,26 +61,41 @@ function App() {
     if (ids.length === 0) {
       setActiveWorkplaceIdState(null);
       localStorage.removeItem('activeWorkplaceId');
-    } else if (ids.length === 1) {
-      // 근무지가 하나뿐이면 물어볼 필요 없이 바로 사용
-      if (activeWorkplaceId !== ids[0]) {
-        setActiveWorkplaceIdState(ids[0]);
-        localStorage.setItem('activeWorkplaceId', ids[0]);
-      }
-    } else if (activeWorkplaceId && !ids.includes(activeWorkplaceId)) {
-      // 이전에 선택했던 근무지가 더 이상 배정 목록에 없으면 다시 선택하도록 초기화
+      return;
+    }
+    if (activeWorkplaceId && ids.includes(activeWorkplaceId)) return; // 이미 유효한 선택 유지
+
+    // 새로 정해야 하는 상황: 근무지가 하나뿐이거나, 기본 근무지가 지정돼 있으면 자동 선택.
+    // 그 외(근무지 2개 이상 + 기본 근무지 미지정)엔 null로 두어 "근무지 선택" 화면이 뜨게 한다.
+    const preferred = ids.length === 1
+      ? ids[0]
+      : (appUser?.defaultWorkplaceId && ids.includes(appUser.defaultWorkplaceId) ? appUser.defaultWorkplaceId : null);
+    if (preferred) {
+      setActiveWorkplaceIdState(preferred);
+      localStorage.setItem('activeWorkplaceId', preferred);
+    } else {
       setActiveWorkplaceIdState(null);
       localStorage.removeItem('activeWorkplaceId');
     }
-    // ids.length > 1이고 activeWorkplaceId가 비어있으면(신규 로그인) 자동 선택하지 않고
-    // 아래 "근무지 선택" 화면에서 사용자가 직접 고르게 둔다.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading, appUser?.workplaceIds?.join(',')]);
+  }, [user, authLoading, appUser?.workplaceIds?.join(','), appUser?.defaultWorkplaceId]);
 
   const handleActiveWorkplaceChange = (id: string) => {
     setActiveWorkplaceIdState(id);
     localStorage.setItem('activeWorkplaceId', id);
   };
+
+  // 근무지가 바뀌면(어느 경로로 바뀌었든) 이전 근무지의 팀/프로젝트 선택이 새 근무지에
+  // 그대로 남아 다른 근무지 데이터가 섞여 보이는 일이 없도록 초기화한다.
+  const prevWorkplaceIdRef = useRef<string | null>(activeWorkplaceId);
+  useEffect(() => {
+    if (prevWorkplaceIdRef.current !== null && prevWorkplaceIdRef.current !== activeWorkplaceId) {
+      setProjectId('');
+      setActiveTeamId(null);
+      localStorage.removeItem('activeTeamId');
+    }
+    prevWorkplaceIdRef.current = activeWorkplaceId;
+  }, [activeWorkplaceId]);
 
   const { users: allUsers } = useAllUsers(activeWorkplaceId ?? undefined);
 
@@ -573,22 +589,41 @@ function App() {
     const myWorkplaces = workplaces.filter(wp => appUser.workplaceIds!.includes(wp.id));
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center space-y-4 px-6 w-full max-w-xs">
+        <div className="text-center space-y-4 px-6 w-full max-w-sm">
           <div>
             <p className="text-lg font-semibold text-gray-700">근무지 선택</p>
             <p className="text-sm text-gray-400 mt-1">어느 근무지에서 작업하시겠어요?</p>
           </div>
           <div className="space-y-2">
-            {myWorkplaces.map(wp => (
-              <button
-                key={wp.id}
-                onClick={() => handleActiveWorkplaceChange(wp.id)}
-                className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-sm font-medium text-gray-700 transition-colors"
-              >
-                {wp.name}
-              </button>
-            ))}
+            {myWorkplaces.map(wp => {
+              const isDefault = appUser.defaultWorkplaceId === wp.id;
+              return (
+                <div key={wp.id} className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleActiveWorkplaceChange(wp.id)}
+                    className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-sm font-medium text-gray-700 transition-colors text-left"
+                  >
+                    <span className="truncate">{wp.name}</span>
+                    {isDefault && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-semibold flex-shrink-0">기본</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => updateDefaultWorkplace(isDefault ? null : wp.id)}
+                    title={isDefault ? '기본 근무지 해제' : '기본 근무지로 설정 (다음부터 자동 입장)'}
+                    className={`flex-shrink-0 w-11 h-11 rounded-xl border flex items-center justify-center transition-colors ${
+                      isDefault
+                        ? 'bg-yellow-50 border-yellow-300 text-yellow-500'
+                        : 'bg-white border-gray-200 text-gray-300 hover:text-yellow-400 hover:border-yellow-300'
+                    }`}
+                  >
+                    <Star size={16} fill={isDefault ? 'currentColor' : 'none'} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
+          <p className="text-[11px] text-gray-400">★ 를 누르면 다음 로그인부터 그 근무지로 자동 입장합니다</p>
           <button onClick={signOut} className="text-xs text-gray-400 hover:text-gray-600 underline">로그아웃</button>
         </div>
       </div>
@@ -642,6 +677,7 @@ function App() {
           workplaces={workplaces}
           activeWorkplaceId={activeWorkplaceId}
           onActiveWorkplaceChange={handleActiveWorkplaceChange}
+          onSetDefaultWorkplace={updateDefaultWorkplace}
           unreadNoticeCount={unreadNoticeCount}
           profileFields={profileFields}
         >

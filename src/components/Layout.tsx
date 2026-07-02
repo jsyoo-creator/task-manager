@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2
+  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2, Star
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef, Workplace } from '../types';
@@ -26,6 +26,7 @@ interface Props {
   workplaces?: Workplace[];
   activeWorkplaceId?: string | null;
   onActiveWorkplaceChange?: (id: string) => void;
+  onSetDefaultWorkplace?: (id: string | null) => void;
 }
 
 const NAV_ALL = [
@@ -136,10 +137,12 @@ function ProfileDateAlert({ appUser, profileFields }: { appUser: AppUser | null;
   );
 }
 
-function WorkplaceSwitcher({ workplaces, activeWorkplaceId, onChange }: {
+function WorkplaceSwitcher({ workplaces, activeWorkplaceId, defaultWorkplaceId, onChange, onSetDefault }: {
   workplaces: Workplace[];
   activeWorkplaceId: string | null;
+  defaultWorkplaceId?: string;
   onChange: (id: string) => void;
+  onSetDefault?: (id: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -162,26 +165,47 @@ function WorkplaceSwitcher({ workplaces, activeWorkplaceId, onChange }: {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 text-[9px] text-white/50 font-semibold tracking-[0.1em] uppercase hover:text-white/80 transition-colors"
+        className="flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
       >
-        {active?.name ?? 'PIVOT'}
-        <ChevronDown size={9} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <Building2 size={9} className="text-white/60 flex-shrink-0" />
+        <span className="text-[10px] text-white/80 font-semibold tracking-[0.02em] truncate max-w-[90px]">{active?.name ?? 'PIVOT'}</span>
+        <ChevronDown size={10} className={`text-white/60 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 w-48 z-50 bg-white border border-[#EDE9FA] rounded-xl shadow-xl shadow-[#6C63FF]/12 overflow-hidden py-1">
+        <div className="absolute top-full left-0 mt-1.5 w-56 z-50 bg-white border border-[#EDE9FA] rounded-xl shadow-xl shadow-[#6C63FF]/12 overflow-hidden py-1">
           <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.15em] px-3.5 pt-2 pb-1.5">근무지 전환</p>
-          {workplaces.map(w => (
-            <button
-              key={w.id}
-              onClick={() => { onChange(w.id); setOpen(false); }}
-              className={`w-full flex items-center gap-2 px-3.5 py-2 text-left text-[13px] transition-colors ${
-                w.id === activeWorkplaceId ? 'bg-[#F0EEFF] text-[#6C63FF] font-medium' : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span className="truncate flex-1">{w.name}</span>
-              {w.id === activeWorkplaceId && <div className="w-1.5 h-1.5 rounded-full bg-[#6C63FF] flex-shrink-0" />}
-            </button>
-          ))}
+          {workplaces.map(w => {
+            const isDefault = defaultWorkplaceId === w.id;
+            return (
+              <div
+                key={w.id}
+                className={`flex items-center gap-1 px-2 transition-colors ${
+                  w.id === activeWorkplaceId ? 'bg-[#F0EEFF]' : 'hover:bg-gray-50'
+                }`}
+              >
+                <button
+                  onClick={() => { onChange(w.id); setOpen(false); }}
+                  className={`flex-1 flex items-center gap-2 py-2 text-left text-[13px] min-w-0 ${
+                    w.id === activeWorkplaceId ? 'text-[#6C63FF] font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  <span className="truncate flex-1">{w.name}</span>
+                  {w.id === activeWorkplaceId && <div className="w-1.5 h-1.5 rounded-full bg-[#6C63FF] flex-shrink-0" />}
+                </button>
+                {onSetDefault && (
+                  <button
+                    onClick={() => onSetDefault(isDefault ? null : w.id)}
+                    title={isDefault ? '기본 근무지 해제' : '기본 근무지로 설정 (다음 로그인부터 자동 입장)'}
+                    className={`flex-shrink-0 p-1 rounded transition-colors ${
+                      isDefault ? 'text-yellow-500' : 'text-gray-300 hover:text-yellow-400'
+                    }`}
+                  >
+                    <Star size={13} fill={isDefault ? 'currentColor' : 'none'} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -266,7 +290,7 @@ function TeamSwitcher({ userTeams, activeTeamId, onActiveTeamChange, workplaceLa
 export default function Layout({
   children, user, appUser, onSignOut, teams, teamsLoading,
   activeTeamId, onActiveTeamChange, unreadNoticeCount = 0, profileFields = [],
-  workplaces = [], activeWorkplaceId = null, onActiveWorkplaceChange,
+  workplaces = [], activeWorkplaceId = null, onActiveWorkplaceChange, onSetDefaultWorkplace,
 }: Props) {
   const myWorkplaces = workplaces.filter(w => appUser?.workplaceIds?.includes(w.id));
   const userSelectedTeams = teams.filter(t => appUser?.selectedTeamIds?.includes(t.id));
@@ -307,7 +331,9 @@ export default function Layout({
                 <WorkplaceSwitcher
                   workplaces={myWorkplaces}
                   activeWorkplaceId={activeWorkplaceId}
+                  defaultWorkplaceId={appUser?.defaultWorkplaceId}
                   onChange={onActiveWorkplaceChange ?? (() => {})}
+                  onSetDefault={onSetDefaultWorkplace}
                 />
               }
             />

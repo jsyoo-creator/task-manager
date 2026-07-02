@@ -322,8 +322,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
         </div>
       </div>
 
-      <div className="glass-card">
-        <div className="grid border-b border-black/4" style={{ gridTemplateColumns: '0.5fr 1fr 1fr 1fr 1fr 1fr 0.5fr' }}>
+      <div className="glass-card-noclip">
+        <div className="grid border-b border-black/4 rounded-t-2xl overflow-hidden" style={{ gridTemplateColumns: '0.5fr 1fr 1fr 1fr 1fr 1fr 0.5fr' }}>
           {DAYS.map((d, i) => (
             <div key={d} className={`text-center py-2 text-xs font-medium ${
               i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'

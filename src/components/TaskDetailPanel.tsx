@@ -281,6 +281,9 @@ export default function TaskDetailPanel({
   const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
   const localSubTaskDataRef = useRef(localSubTaskData);
   localSubTaskDataRef.current = localSubTaskData;
+  // 이번 패널이 열린 세션에서 직접 편집한 세부업무 타입(subTaskData 키) 추적용.
+  // 이 안에 없는 키는 서버 최신값으로 자유롭게 갱신해도 안전함(내가 안 만졌으니까).
+  const dirtyTypeIdsRef = useRef<Set<string>>(new Set());
   const [localRaw, setLocalRaw] = useState<Record<string, string>>({});
   const [pendingDeleteSubTask, setPendingDeleteSubTask] = useState<{ id: string; name: string } | null>(null);
   const [deletedSubTaskIds, setDeletedSubTaskIds] = useState<Set<string>>(new Set());
@@ -304,16 +307,25 @@ export default function TaskDetailPanel({
     setLocalSubTaskData(task.subTaskData ?? {});
     setDeletedSubTaskIds(new Set());
     setManualSubstituteIds(new Set());
+    dirtyTypeIdsRef.current = new Set();
   }, [task.id]);
 
-  // task.subTaskData가 외부에서 변경될 때(초기 Firestore 로드 포함) 동기화
-  // 로컬이 비어있을 때만 업데이트 — 편집 중인 값을 절대 덮어쓰지 않음
+  // task.subTaskData가 외부에서 변경될 때(초기 Firestore 로드 포함) 동기화.
+  // 세부업무 타입(키) 단위로 병합: 내가 이 패널에서 직접 편집한 타입(dirtyTypeIdsRef)은
+  // 그대로 두고, 건드리지 않은 타입만 서버 최신값으로 갱신한다. 예전에는 "로컬이 완전히
+  // 비어있을 때만" 동기화해서, 한 번이라도 아무 필드를 편집하면 그 이후로는 다른 사람이
+  // 다른 세부업무 타입에 입력한 값이 영원히 반영되지 않고, 내가 저장할 때 그 값을
+  // 되돌려 지워버리는 문제가 있었음.
   useEffect(() => {
+    const server = task.subTaskData ?? {};
     setLocalSubTaskData(prev => {
-      if (Object.keys(prev).length === 0 && Object.keys(task.subTaskData ?? {}).length > 0) {
-        return task.subTaskData!;
+      let changed = false;
+      const next = { ...prev };
+      for (const key of Object.keys(server)) {
+        if (dirtyTypeIdsRef.current.has(key)) continue;
+        if (next[key] !== server[key]) { next[key] = server[key]; changed = true; }
       }
-      return prev;
+      return changed ? next : prev;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.subTaskData]);
@@ -418,8 +430,7 @@ export default function TaskDetailPanel({
     });
 
     if (changed) {
-      setLocalSubTaskData(next);
-      saveSubTaskData(next);
+      commitSubTaskData(next);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.receiver, task.assignee, task.id, subTaskTypes]);
@@ -470,6 +481,19 @@ export default function TaskDetailPanel({
     });
     const totalHours = Object.values(finalNext).reduce((sum, e) => sum + e.totalHours, 0);
     onUpdate(task.id, { subTaskData: finalNext, totalHours });
+  };
+
+  // localSubTaskData를 갱신 + 저장하면서, 이번 호출로 실제로 바뀐 세부업무 타입(키)을
+  // dirty로 표시한다. dirty 표시된 키는 이후 서버 동기화 이펙트가 건드리지 않으므로,
+  // "동시에 다른 세부업무 타입을 편집 중인 다른 사람의 값을 내가 저장할 때 되돌려
+  // 지우는" 문제를 막는다.
+  const commitSubTaskData = (next: Record<string, SubTaskEntry>, allowEmpty = false) => {
+    const prev = localSubTaskDataRef.current;
+    Object.keys(next).forEach(key => {
+      if (next[key] !== prev[key]) dirtyTypeIdsRef.current.add(key);
+    });
+    setLocalSubTaskData(next);
+    saveSubTaskData(next, allowEmpty);
   };
 
   const [pendingDeleteTask, setPendingDeleteTask] = useState(false);
@@ -985,8 +1009,7 @@ export default function TaskDetailPanel({
                     const newTotal = calcReviewTotal(nextWh, nextDates, next);
                     const nextEntry = { ...entry, checkedItems: next, reviewWeeklyHours: nextWh, reviewDates: nextDates, reviewStatus: nextRs, totalHours: newTotal };
                     const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
-                    setLocalSubTaskData(nextData);
-                    saveSubTaskData(nextData);
+                    commitSubTaskData(nextData);
                   };
 
                   const setDate = (id: string, field: 'startDate' | 'endDate', val: string) => {
@@ -994,16 +1017,14 @@ export default function TaskDetailPanel({
                     const newTotal = calcReviewTotal(reviewWeeklyHours, nextDates, checked);
                     const nextEntry = { ...entry, reviewDates: nextDates, totalHours: newTotal };
                     const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
-                    setLocalSubTaskData(nextData);
-                    saveSubTaskData(nextData);
+                    commitSubTaskData(nextData);
                   };
 
                   const setItemStatus = (id: string, status: string) => {
                     const nextRs = { ...reviewStatus, [id]: status };
                     const nextEntry = { ...entry, reviewStatus: nextRs };
                     const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
-                    setLocalSubTaskData(nextData);
-                    saveSubTaskData(nextData);
+                    commitSubTaskData(nextData);
                   };
 
                   const items = reviewTasks ?? [];
@@ -1145,6 +1166,7 @@ export default function TaskDetailPanel({
                                                             const curDates = cur.reviewDates ?? {};
                                                             const newTotal = calcReviewTotal(curWh, curDates, cur.checkedItems ?? []);
                                                             const next = { ...base, [type.id]: { ...cur, reviewWeeklyHours: curWh, totalHours: newTotal } };
+                                                            dirtyTypeIdsRef.current.add(type.id);
                                                             localSubTaskDataRef.current = next;
                                                             return next;
                                                           });
@@ -1206,8 +1228,7 @@ export default function TaskDetailPanel({
                               value={subKey}
                               onChange={e => {
                                 const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
-                                setLocalSubTaskData(next);
-                                saveSubTaskData(next);
+                                commitSubTaskData(next);
                               }}>
                               {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
                             </select>
@@ -1232,8 +1253,7 @@ export default function TaskDetailPanel({
                               value={entry.assignee ?? ''}
                               onChange={e => {
                                 const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
-                                setLocalSubTaskData(next);
-                                saveSubTaskData(next);
+                                commitSubTaskData(next);
                               }}>
                               <option value="">{typeDeptLabel}</option>
                               {displayAssignees.map(a => <option key={a}>{a}</option>)}
@@ -1286,8 +1306,7 @@ export default function TaskDetailPanel({
                             onChange={e => {
                               const val = e.target.value;
                               const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, substitute: val || undefined } };
-                              setLocalSubTaskData(next);
-                              saveSubTaskData(next);
+                              commitSubTaskData(next);
                             }}>
                             <option value="">미지정</option>
                             {displayAssignees.filter(a => a !== entry.assignee).map(a => <option key={a}>{a}</option>)}
@@ -1302,8 +1321,7 @@ export default function TaskDetailPanel({
                               if (entry.substitute) {
                                 const { substitute, substituteWeeklyHours, substituteTotalHours, ...rest } = entry;
                                 const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: rest };
-                                setLocalSubTaskData(next);
-                                saveSubTaskData(next);
+                                commitSubTaskData(next);
                               }
                               setManualSubstituteIds(prev => {
                                 const next = new Set(prev);
@@ -1329,8 +1347,7 @@ export default function TaskDetailPanel({
                           const newTotal = newStart ? calcHoursInRange(entry.weeklyHours ?? {}, newStart, newEnd) : 0;
                           const newSubTotal = newStart ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, newStart, newEnd) : 0;
                           const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, startDate: newStart, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
-                          setLocalSubTaskData(next);
-                          saveSubTaskData(next);
+                          commitSubTaskData(next);
                         }}
                         disabled={!canManage}
                       />
@@ -1343,8 +1360,7 @@ export default function TaskDetailPanel({
                           const newTotal = newStart ? calcHoursInRange(entry.weeklyHours ?? {}, newStart, newEnd) : 0;
                           const newSubTotal = newStart ? calcHoursInRange(entry.substituteWeeklyHours ?? {}, newStart, newEnd) : 0;
                           const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, endDate: newEnd, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
-                          setLocalSubTaskData(next);
-                          saveSubTaskData(next);
+                          commitSubTaskData(next);
                         }}
                         disabled={!canManage}
                       />
@@ -1405,6 +1421,7 @@ export default function TaskDetailPanel({
                                           ...base,
                                           [type.id]: { ...cur, weeklyHours: newHours, totalHours: cur.startDate ? calcHoursInRange(newHours, cur.startDate, cur.endDate) : Object.values(newHours).reduce((a, b) => a + b, 0) },
                                         };
+                                        dirtyTypeIdsRef.current.add(type.id);
                                         localSubTaskDataRef.current = next;
                                         return next;
                                       });
@@ -1484,6 +1501,7 @@ export default function TaskDetailPanel({
                                               ...base,
                                               [type.id]: { ...cur, substituteWeeklyHours: newHours, substituteTotalHours: cur.startDate ? calcHoursInRange(newHours, cur.startDate, cur.endDate) : Object.values(newHours).reduce((a, b) => a + b, 0) },
                                             };
+                                            dirtyTypeIdsRef.current.add(type.id);
                                             localSubTaskDataRef.current = next;
                                             return next;
                                           });

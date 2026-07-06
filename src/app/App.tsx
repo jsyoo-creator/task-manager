@@ -363,11 +363,16 @@ function App() {
     localStorage.setItem('activeTeamId', id);
   };
 
+  // projectId 유효성 검사 — activeTeamId와 동일한 패턴: 근무지 전환 등으로 projects
+  // 목록이 바뀌었는데 projectId가 그 목록에 더 이상 없으면(이전 근무지의 stale 값 포함)
+  // 다시 선택한다. 단순히 "비어있을 때만 선택"하면, 근무지 전환 경합 중 이전 근무지의
+  // projects가 잠깐 남아있는 렌더에서 잘못된 값으로 고정된 뒤 영영 교정되지 않는 문제가 있었음.
   useEffect(() => {
-    if (!projLoading && projects.length > 0 && !projectId) {
-      setProjectId(projects[0].id);
-    }
-  }, [projects, projLoading, projectId]);
+    if (projLoading || projects.length === 0) return;
+    if (projectId && projects.some(p => p.id === projectId)) return; // 이미 유효한 선택 유지
+    setProjectId(projects[0].id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, projLoading]);
 
   useEffect(() => {
     // teams가 이미 존재하는 근무지는 "완전히 새로운 근무지"가 아니므로 절대 자동 생성하지 않음.
@@ -474,7 +479,12 @@ function App() {
 
   const validCategories = activeParts.map(p => p.name);
   const orphanTaskCount = activeParts.length > 0
-    ? tasks.filter(t => !validCategories.includes(t.category ?? '')).length
+    ? tasks.filter(t => {
+        if (t.plTask && t.plParts?.length) {
+          return !t.plParts.some(p => validCategories.includes(p));
+        }
+        return !validCategories.includes(t.category ?? '');
+      }).length
     : 0;
 
   // 세부업무 타입 ID별 담당자 목록 (SubTaskType.department 기준 필터)

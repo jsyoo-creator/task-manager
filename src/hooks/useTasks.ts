@@ -48,7 +48,15 @@ export function useTasks(projectId: string, teamId: string | null) {
   };
 
   const cleanupOrphanTasks = async (validCategories: string[]): Promise<number> => {
-    const orphans = tasks.filter(t => !validCategories.includes(t.category ?? ''));
+    // PL업무는 category(대표 파트 1개)뿐 아니라 plParts(선택한 전체 파트) 중 하나라도
+    // 유효하면 살아있는 업무로 취급 — category만 보면 유효한 다른 파트가 남아있는
+    // PL업무를 오삭제하게 됨
+    const orphans = tasks.filter(t => {
+      if (t.plTask && t.plParts?.length) {
+        return !t.plParts.some(p => validCategories.includes(p));
+      }
+      return !validCategories.includes(t.category ?? '');
+    });
     if (orphans.length === 0) return 0;
     for (let i = 0; i < orphans.length; i += 499) {
       const batch = writeBatch(db);

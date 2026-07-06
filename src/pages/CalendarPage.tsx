@@ -13,6 +13,7 @@ interface Props {
   parts?: TeamPart[];
   userPhotoMap?: Map<string, string>;
   onUpdateTask?: (id: string, data: Partial<Task>) => void;
+  canManage?: boolean;
   assignees?: string[];
   assigneesPerSubTaskType?: Map<string, string[]>;
   currentUserName?: string;
@@ -128,7 +129,7 @@ interface EditState {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, mainTaskEndDateColor, plShowInCalendar }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, mainTaskEndDateColor, plShowInCalendar, canManage = false }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -272,7 +273,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
 
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!expandedId || !editState || !onUpdateTask) return;
+    if (!expandedId || !editState || !onUpdateTask || !canManage) return;
     const [taskId, subKey] = expandedId.split('__');
     const task = taskMap.get(taskId);
     if (!task) return;
@@ -517,6 +518,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     <DatePicker
                                       value={editState.startDate}
                                       onChange={v => setEditState(st => st && ({ ...st, startDate: v }))}
+                                      disabled={!canManage}
                                       btnClassName={inp}
                                     />
                                   </div>
@@ -525,6 +527,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     <DatePicker
                                       value={editState.endDate}
                                       onChange={v => setEditState(st => st && ({ ...st, endDate: v }))}
+                                      disabled={!canManage}
                                       btnClassName={inp}
                                     />
                                   </div>
@@ -536,6 +539,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   <select
                                     className={inp}
                                     value={editState.assignee}
+                                    disabled={!canManage}
                                     onChange={e => setEditState(st => st && ({ ...st, assignee: e.target.value }))}
                                   >
                                     <option value="">선택</option>
@@ -549,6 +553,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   <select
                                     className={inp}
                                     value={editState.status}
+                                    disabled={!canManage}
                                     onChange={e => setEditState(st => st && ({ ...st, status: e.target.value }))}
                                   >
                                     {STATUSES.map(st => <option key={st}>{st}</option>)}
@@ -565,7 +570,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                         <input
                                           type="text"
                                           inputMode="decimal"
-                                          className="w-full rounded-md border border-black/10 bg-white/80 px-1 py-1 text-[11px] text-center text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40"
+                                          disabled={!canManage}
+                                          className="w-full rounded-md border border-black/10 bg-white/80 px-1 py-1 text-[11px] text-center text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40 disabled:opacity-60"
                                           value={raw}
                                           placeholder="0"
                                           onChange={e => {
@@ -590,11 +596,13 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   <button
                                     onClick={e => { e.stopPropagation(); setExpandedId(null); setExpandedSubKey(''); setEditState(null); }}
                                     className="flex-1 py-1.5 rounded-lg border border-black/10 text-[11px] text-gray-500 hover:bg-black/5 transition-colors"
-                                  >취소</button>
-                                  <button
-                                    onClick={handleSave}
-                                    className="flex-1 py-1.5 rounded-lg bg-[#6C63FF] text-white text-[11px] font-semibold hover:bg-[#5b53e6] transition-colors"
-                                  >저장</button>
+                                  >{canManage ? '취소' : '닫기'}</button>
+                                  {canManage && (
+                                    <button
+                                      onClick={handleSave}
+                                      className="flex-1 py-1.5 rounded-lg bg-[#6C63FF] text-white text-[11px] font-semibold hover:bg-[#5b53e6] transition-colors"
+                                    >저장</button>
+                                  )}
                                 </div>
                               </div>
                             )}

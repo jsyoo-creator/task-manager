@@ -1589,11 +1589,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer"
                 style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
                 <span className="text-xs font-medium whitespace-nowrap">{task.type}</span>
-                <ChevronDown size={10} />
-                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
-                  {typeOpts.map(t => <option key={t}>{t}</option>)}
-                </select>
+                {canManage && <ChevronDown size={10} />}
+                {canManage && (
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    {typeOpts.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                )}
               </div>
             ];
             return [
@@ -1627,14 +1629,16 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 className="relative flex items-center justify-between w-full rounded-full pl-2 pr-2 py-0.5 cursor-pointer"
                 style={{ backgroundColor: bg, color: text }}>
                 <span className="text-xs font-medium whitespace-nowrap">{effectiveStatus}</span>
-                <ChevronDown size={10} />
-                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  value={effectiveStatus} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
-                  {isCustom
-                    ? fc.options!.map(o => <option key={o}>{o}</option>)
-                    : statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)
-                  }
-                </select>
+                {canManage && <ChevronDown size={10} />}
+                {canManage && (
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={effectiveStatus} onChange={e => onUpdate(task.id, { status: e.target.value as TaskStatus })}>
+                    {isCustom
+                      ? fc.options!.map(o => <option key={o}>{o}</option>)
+                      : statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)
+                    }
+                  </select>
+                )}
               </div>
             ];
           }
@@ -1643,12 +1647,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               return [
                 <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.receiver || '-'}</span>
-                  <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
-                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
-                    onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
-                    <option value="">-</option>
-                    {fc.options.map(a => <option key={a}>{a}</option>)}
-                  </select>
+                  {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
+                  {canManage && (
+                    <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
+                      onChange={e => onUpdate(task.id, { receiver: e.target.value })}>
+                      <option value="">-</option>
+                      {fc.options.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  )}
                 </div>
               ];
             }
@@ -1665,11 +1671,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
                 <span className="text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
-                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={rcvrVal}
-                  onChange={e => onUpdate(task.id, { [rcvrKey]: e.target.value })}>
-                  <option value="">-</option>
-                  {ropts.map(a => <option key={a}>{a}</option>)}
-                </select>
+                {canManage && (
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={rcvrVal}
+                    onChange={e => onUpdate(task.id, { [rcvrKey]: e.target.value })}>
+                    <option value="">-</option>
+                    {ropts.map(a => <option key={a}>{a}</option>)}
+                  </select>
+                )}
               </div>
             ];
           }
@@ -1678,12 +1686,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               return [
                 <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                   <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.assignee || '-'}</span>
-                  <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
-                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
-                    onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
-                    <option value="">-</option>
-                    {fc.options.map(a => <option key={a}>{a}</option>)}
-                  </select>
+                  {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
+                  {canManage && (
+                    <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
+                      onChange={e => onUpdate(task.id, { assignee: e.target.value })}>
+                      <option value="">-</option>
+                      {fc.options.map(a => <option key={a}>{a}</option>)}
+                    </select>
+                  )}
                 </div>
               ];
             }
@@ -1699,11 +1709,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
                 <span className="text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
-                <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={asgnVal}
-                  onChange={e => onUpdate(task.id, { [asgnKey]: e.target.value })}>
-                  <option value="">-</option>
-                  {aopts.map(a => <option key={a}>{a}</option>)}
-                </select>
+                {canManage && (
+                  <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={asgnVal}
+                    onChange={e => onUpdate(task.id, { [asgnKey]: e.target.value })}>
+                    <option value="">-</option>
+                    {aopts.map(a => <option key={a}>{a}</option>)}
+                  </select>
+                )}
               </div>
             ];
           }

@@ -335,7 +335,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
     viewerRole === 'superadmin' ||
     (viewerRole === 'manager' && (isSelf || (isSameTeam && u.role === 'user')));
   const canChangeRole = (viewerRole === 'superadmin' || (viewerRole === 'manager' && isSameTeam)) && !isSelf && u.role !== 'superadmin';
-  const canDelete = (viewerRole === 'superadmin' || viewerRole === 'manager') && !isSelf && u.role !== 'superadmin';
+  const canDelete = (viewerRole === 'superadmin' || (viewerRole === 'manager' && isSameTeam)) && !isSelf && u.role !== 'superadmin';
 
   const handleSave = async () => {
     const missingRequired = profileFields.filter(f => {

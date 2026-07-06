@@ -303,6 +303,7 @@ export default function TaskDetailPanel({
     setLocalMeta(task.customFields ?? {});
     setLocalSubTaskData(task.subTaskData ?? {});
     setDeletedSubTaskIds(new Set());
+    setManualSubstituteIds(new Set());
   }, [task.id]);
 
   // task.subTaskData가 외부에서 변경될 때(초기 Firestore 로드 포함) 동기화
@@ -444,9 +445,12 @@ export default function TaskDetailPanel({
     }
   };
 
-  const saveSubTaskData = (next: Record<string, SubTaskEntry>) => {
-    // 빈 object 저장 방지 — Firestore에 기존 데이터가 있을 때 {}로 덮어쓰지 않음
-    if (Object.keys(next).length === 0) return;
+  const saveSubTaskData = (next: Record<string, SubTaskEntry>, allowEmpty = false) => {
+    // 빈 object 저장 방지 — 로딩 중 localSubTaskData가 아직 안 채워진 상태에서 실수로
+    // {}를 Firestore에 덮어쓰는 사고를 막기 위한 가드. 세부업무를 의도적으로 전부
+    // 삭제하는 경우(allowEmpty=true)는 예외적으로 통과시켜야 함 — 안 그러면 삭제가
+    // 화면에서만 사라지고 totalHours/subTaskData는 Firestore에 유령 데이터로 남음.
+    if (Object.keys(next).length === 0 && !allowEmpty) return;
     const finalNext: Record<string, SubTaskEntry> = {};
     Object.keys(next).forEach(key => {
       const e = next[key];
@@ -1703,7 +1707,7 @@ export default function TaskDetailPanel({
         const base = { ...(task.subTaskData ?? {}), ...localSubTaskData };
         delete base[pendingDeleteSubTask.id];
         setLocalSubTaskData(base);
-        saveSubTaskData(base);
+        saveSubTaskData(base, true);
         const hiddenIds = [...(task.hiddenSubTaskTypeIds ?? []), pendingDeleteSubTask.id];
         onUpdate(task.id, { hiddenSubTaskTypeIds: hiddenIds });
         setDeletedSubTaskIds(prev => new Set([...prev, pendingDeleteSubTask.id]));

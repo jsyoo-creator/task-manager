@@ -427,22 +427,42 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
     sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
 
   const assigneeStats = useMemo(() => {
-    const buildEntry = (name: string, subs: SubTask[]) => {
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    // 대무자(substitute)가 입력한 시간은 원 담당자의 weeklyHours가 아니라 별도
+    // substituteWeeklyHours에 저장되므로, subTaskData에서 대무자 이름을 역참조해야 함
+    const substituteNameOf = (s: SubTask) => {
+      const subKey = s.id.split('__')[1];
+      return taskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
+    };
+    const buildEntry = (name: string, items: { sub: SubTask; hours: number }[]) => {
       const monthCounts: Record<string, number> = {};
       monthKeys.forEach((mk, i) => {
         const d = new Date(now.getFullYear(), now.getMonth() - (monthKeys.length - 1 - i), 1);
         const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        monthCounts[mk] = subs.filter(s => s.startDate?.startsWith(prefix)).length;
+        monthCounts[mk] = items.filter(({ sub }) => sub.startDate?.startsWith(prefix)).length;
       });
-      return { name, monthCounts, total: subs.length, totalH: subs.reduce((a, s) => a + (s.totalHours ?? 0), 0) };
+      return {
+        name,
+        monthCounts,
+        total: items.length,
+        totalH: items.reduce((a, { hours }) => a + hours, 0),
+      };
     };
     const result = (teamMembers ?? [])
-      .map(({ name }) => buildEntry(name, subtasks.filter(s => s.assignee === name)))
+      .map(({ name }) => {
+        const mine = subtasks.filter(s => s.assignee === name).map(sub => ({ sub, hours: sub.totalHours ?? 0 }));
+        const substituted = subtasks
+          .filter(s => substituteNameOf(s) === name)
+          .map(sub => ({ sub, hours: sub.substituteTotalHours ?? 0 }));
+        return buildEntry(name, [...mine, ...substituted]);
+      })
       .filter(a => a.total > 0);
     const unassigned = subtasks.filter(s => !s.assignee);
-    if (unassigned.length > 0) result.push(buildEntry('미배정', unassigned));
+    if (unassigned.length > 0) {
+      result.push(buildEntry('미배정', unassigned.map(sub => ({ sub, hours: sub.totalHours ?? 0 }))));
+    }
     return result;
-  }, [subtasks, monthKeys, teamMembers]);
+  }, [subtasks, tasks, monthKeys, teamMembers]);
 
   // 실제 데이터가 있는 월만 표시
   const activeMonthKeys = useMemo(

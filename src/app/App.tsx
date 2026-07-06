@@ -970,27 +970,12 @@ function App() {
               currentUserName={currentUserName}
               vacations={teamVacations}
               reviewTasks={detailTask.plTask
-                ? (() => {
-                    const nonPl = tasks.filter(t => !t.plTask && t.id !== detailTask.id);
-                    const sameProject = nonPl.filter(t => t.projectId === detailTask.projectId);
-                    const matched = sameProject.filter(t =>
-                      !detailTask.plParts?.length || detailTask.plParts.includes(t.category)
-                    );
-                    if (matched.length === 0) {
-                      console.debug('[PL검수 진단] 검수 후보가 비었습니다', {
-                        plTaskId: detailTask.id,
-                        plTaskTitle: detailTask.title,
-                        plParts: detailTask.plParts,
-                        plTaskProjectId: detailTask.projectId,
-                        teamTaskCount: tasks.length,
-                        nonPlTaskCount: nonPl.length,
-                        sameProjectCount: sameProject.length,
-                        projectIdsInTeam: Array.from(new Set(nonPl.map(t => t.projectId))),
-                        categoriesInSameProject: Array.from(new Set(sameProject.map(t => t.category))),
-                      });
-                    }
-                    return matched;
-                  })()
+                ? tasks.filter(t =>
+                    !t.plTask &&
+                    t.projectId === detailTask.projectId &&
+                    t.id !== detailTask.id &&
+                    (!detailTask.plParts?.length || detailTask.plParts.includes(t.category))
+                  )
                 : undefined}
             />
           );

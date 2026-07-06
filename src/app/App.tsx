@@ -332,14 +332,17 @@ function App() {
   }, [projects, projLoading, projectId]);
 
   useEffect(() => {
-    if (!projLoading && projects.length === 0 && activeWorkplaceId) {
+    // teams가 이미 존재하는 근무지는 "완전히 새로운 근무지"가 아니므로 절대 자동 생성하지 않음.
+    // (projects 쿼리가 workplaceId 백필 완료 전 순간에 0건으로 잘못 관측되는 경합으로 중복 프로젝트가
+    // 생성되는 사고를 막기 위한 가드 — teams와 projects는 항상 함께 존재해야 하는 근무지 데이터임)
+    if (!projLoading && !teamsLoading && projects.length === 0 && teams.length === 0 && activeWorkplaceId) {
       addProject({
         workplaceId: activeWorkplaceId,
         name: '업무관리',
         categories: [],
       });
     }
-  }, [projLoading, projects.length, activeWorkplaceId]);
+  }, [projLoading, teamsLoading, projects.length, teams.length, activeWorkplaceId]);
 
   // 근무지별 메뉴 on/off 설정 — 어드민 페이지의 "메뉴 관리"에서 근무지마다 다르게 지정 가능
   const activeWorkplaceMenuConfig = workplaces.find(w => w.id === activeWorkplaceId)?.menuConfig;

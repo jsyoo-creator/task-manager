@@ -38,7 +38,7 @@ import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsCon
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import { db } from '../lib/firebase';
-import { collection, getDocs, getDoc, addDoc, setDoc, doc, query, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
 import { Star } from 'lucide-react';
 
 function App() {
@@ -244,6 +244,44 @@ function App() {
       }
     })();
   }, [user]);
+
+  // 일회성 정리: 프로젝트 자동 생성 경합(workplaceId 백필 완료 전 순간에 projects가
+  // 0건으로 잘못 관측되는 케이스)으로 한 근무지에 projects 문서가 2개 이상 생긴 경우,
+  // 가장 먼저 생성된 문서를 정본으로 남기고 나머지가 참조하던 tasks/subtasks의
+  // projectId를 정본으로 옮긴 뒤 중복 프로젝트 문서를 삭제한다. (중복이 없으면 no-op)
+  useEffect(() => {
+    if (!user || !activeWorkplaceId) return;
+    (async () => {
+      try {
+        const projSnap = await getDocs(query(collection(db, 'projects'), where('workplaceId', '==', activeWorkplaceId)));
+        if (projSnap.size < 2) return;
+        const sorted = projSnap.docs.slice().sort((a, b) =>
+          String(a.data().createdAt ?? '').localeCompare(String(b.data().createdAt ?? ''))
+        );
+        const canonical = sorted[0];
+        const duplicates = sorted.slice(1);
+        for (const dup of duplicates) {
+          const [tasksSnap, subtasksSnap] = await Promise.all([
+            getDocs(query(collection(db, 'tasks'), where('projectId', '==', dup.id))),
+            getDocs(query(collection(db, 'subtasks'), where('projectId', '==', dup.id))),
+          ]);
+          if (tasksSnap.size > 0 || subtasksSnap.size > 0) {
+            const batch = writeBatch(db);
+            tasksSnap.docs.forEach(d => batch.update(d.ref, { projectId: canonical.id }));
+            subtasksSnap.docs.forEach(d => batch.update(d.ref, { projectId: canonical.id }));
+            await batch.commit();
+          }
+          await deleteDoc(dup.ref);
+          console.log(
+            '[migration] 중복 프로젝트 정리 완료:', dup.id, '→', canonical.id,
+            `(tasks ${tasksSnap.size}건, subtasks ${subtasksSnap.size}건 이전)`
+          );
+        }
+      } catch (e) {
+        console.error('[migration] 중복 프로젝트 정리 실패:', e);
+      }
+    })();
+  }, [user, activeWorkplaceId]);
 
   const { projects, loading: projLoading, addProject } = useProjects(activeWorkplaceId ?? undefined);
   const [projectId, setProjectId] = useState<string>('');

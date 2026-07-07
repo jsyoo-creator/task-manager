@@ -660,7 +660,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       assignees.forEach(a => deptPool.add(a));
     } else {
       relevantParts.forEach(part => {
-        const pFields = resolveBuiltinFields(part.formConfig ?? formConfig);
+        // part.formConfig ?? formConfig 식으로 고르면, 파트가 다른 목적(라벨 등)으로
+        // formConfig를 하나라도 갖는 순간 그 파트의 직군 설정이 팀 기본값으로 상속되지
+        // 않고 통째로 날아가 버림 — mergeFormConfig로 필드 단위 상속을 반영해야 함
+        const pFields = resolveBuiltinFields(part.formConfig ? mergeFormConfig(part.formConfig, formConfig) : formConfig);
         const fc = pFields.find(f => f.key === fieldKey);
         if (fc?.customType === 'select' && fc.options?.length) {
           fc.options.forEach(o => deptPool.add(o));

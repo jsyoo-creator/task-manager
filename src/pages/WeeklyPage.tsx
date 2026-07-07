@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
-import CategoryTabs from '../components/CategoryTabs';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 
 const DEFAULT_WEEKLY_COLS: WeeklyColumnDef[] = [
@@ -155,7 +154,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [] }: Props) {
+export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [] }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [onlyMe, setOnlyMe] = useState(false);
@@ -323,22 +322,25 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
             })}
           </div>
           {canSeeAll && (
-            <div className="flex items-center rounded-xl border border-gray-200 bg-white p-0.5 gap-0.5">
+            <div className="flex items-center gap-1 p-1 rounded-[12px] bg-gray-100 border border-black/6 backdrop-blur-sm">
               <button
                 onClick={() => setOnlyMe(false)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
-                  !onlyMe ? 'bg-[#5B5BD6] text-white' : 'text-gray-400 hover:text-gray-600'
+                className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold whitespace-nowrap transition-all ${
+                  !onlyMe
+                    ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
                 }`}
               >전체보기</button>
               <button
                 onClick={() => setOnlyMe(true)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
-                  onlyMe ? 'bg-[#5B5BD6] text-white' : 'text-gray-400 hover:text-gray-600'
+                className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold whitespace-nowrap transition-all ${
+                  onlyMe
+                    ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
                 }`}
               >내 것만</button>
             </div>
           )}
-          <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
         </div>
       </div>
 

@@ -234,6 +234,7 @@ export default function TaskDetailPanel({
   const [pendingDeleteSubTask, setPendingDeleteSubTask] = useState<{ id: string; name: string } | null>(null);
   const [deletedSubTaskIds, setDeletedSubTaskIds] = useState<Set<string>>(new Set());
   const [manualSubstituteIds, setManualSubstituteIds] = useState<Set<string>>(new Set());
+  const [activeDeptTab, setActiveDeptTab] = useState<Department | null>(null);
   const [visible, setVisible] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -253,6 +254,7 @@ export default function TaskDetailPanel({
     setLocalSubTaskData(task.subTaskData ?? {});
     setDeletedSubTaskIds(new Set());
     setManualSubstituteIds(new Set());
+    setActiveDeptTab(null);
     dirtyTypeIdsRef.current = new Set();
   }, [task.id]);
 
@@ -447,6 +449,31 @@ export default function TaskDetailPanel({
   const handleDelete = () => setPendingDeleteTask(true);
 
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
+
+  // 세부업무 & 주차별 시간: 권한/삭제/숨김 기준으로 실제 노출 대상만 추림
+  const visibleSubTaskTypes = subTaskTypes.filter(type => {
+    if (deletedSubTaskIds.has(type.id)) return false;
+    if (type.showInDetail === false) return false;
+    if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
+    if (canSeeAll) return true;
+    const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
+    return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;
+  });
+  // 직군 지정된 세부업무가 2개 이상의 직군에 걸쳐 있을 때만 탭으로 분리.
+  // 직군 미지정 세부업무(공통)는 모든 탭에 항상 표시.
+  const myDept = teamMembers?.find(m => m.name === currentUserName)?.department;
+  const DEPT_TAB_ORDER: Department[] = ['기획', '디자인', '퍼블'];
+  const presentDepts = DEPT_TAB_ORDER.filter(d => visibleSubTaskTypes.some(t => t.department === d));
+  const orderedDepts = myDept && presentDepts.includes(myDept)
+    ? [myDept, ...presentDepts.filter(d => d !== myDept)]
+    : presentDepts;
+  const showDeptTabs = orderedDepts.length >= 2;
+  const activeDept = showDeptTabs
+    ? (activeDeptTab && orderedDepts.includes(activeDeptTab) ? activeDeptTab : orderedDepts[0])
+    : null;
+  const displayedSubTaskTypes = showDeptTabs
+    ? visibleSubTaskTypes.filter(t => !t.department || t.department === activeDept)
+    : visibleSubTaskTypes;
 
   return (
     // width 0→PANEL_W 확장: 왼쪽 라운드 고정, 오른쪽으로 열림 → 패딩 이동과 완벽 동기화
@@ -887,14 +914,23 @@ export default function TaskDetailPanel({
             <p className="text-xs text-gray-400 text-center py-3">팀 설정 → 세부 업무 탭에서 유형을 등록해주세요</p>
           ) : (
             <div className="space-y-3">
-              {subTaskTypes.filter(type => {
-                if (deletedSubTaskIds.has(type.id)) return false;
-                if (type.showInDetail === false) return false;
-                if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
-                if (canSeeAll) return true;
-                const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
-                return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;
-              }).map(type => {
+              {showDeptTabs && (
+                <div className="flex items-center gap-1.5 -mt-0.5">
+                  {orderedDepts.map(d => {
+                    const isActive = activeDept === d;
+                    return (
+                      <button key={d} type="button"
+                        onClick={() => setActiveDeptTab(d)}
+                        className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                          isActive ? (DEPT_BADGE[d] ?? 'bg-gray-200 text-gray-700') : 'text-gray-400 hover:bg-gray-100'
+                        }`}>
+                        {d}{d === myDept && <span className="ml-0.5 opacity-60">·나</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {displayedSubTaskTypes.map(type => {
                 // task.subTaskData(Firestore)를 base로, localSubTaskData를 위에 올려 병합
                 // localSubTaskData가 {}이어도 Firestore의 startDate/weeklyHours 등이 보존됨
                 const entry: SubTaskEntry = {

@@ -158,6 +158,8 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
 export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategoryChange, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [] }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [onlyMe, setOnlyMe] = useState(false);
+  const effectiveSeeAll = canSeeAll && !onlyMe;
   const { start, end, weekNum, now, weekdays } = useMemo(() => getWeekBounds(weekOffset), [weekOffset]);
   const { holidays: publicHolidays } = usePublicHolidays(start.getFullYear());
   const weekLabel = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${weekNum}주차`;
@@ -242,7 +244,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
     });
 
     const allPeople = [...new Set([...assigneeSet, ...substituteSet])].sort();
-    const people = canSeeAll ? allPeople : allPeople.filter(p => p === currentUserName);
+    const people = effectiveSeeAll ? allPeople : allPeople.filter(p => p === currentUserName);
 
     return people.map(person => {
       const mySubs = weekSubtasks.filter(s => s.assignee === person);
@@ -275,7 +277,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
       const vacInfo = getPersonVacationInfo(person, vacations, start);
       return { person, groups, totalH, vacH: vacInfo.h, vacEntries: vacInfo.entries };
     }).filter(p => p.groups.length > 0 || p.vacH > 0);
-  }, [weekSubtasks, allTaskMap, start, canSeeAll, currentUserName, vacations]);
+  }, [weekSubtasks, allTaskMap, start, effectiveSeeAll, currentUserName, vacations]);
 
   return (
     <div>
@@ -320,6 +322,22 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, onCategory
               );
             })}
           </div>
+          {canSeeAll && (
+            <div className="flex items-center rounded-xl border border-gray-200 bg-white p-0.5 gap-0.5">
+              <button
+                onClick={() => setOnlyMe(false)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  !onlyMe ? 'bg-[#5B5BD6] text-white' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >전체보기</button>
+              <button
+                onClick={() => setOnlyMe(true)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  onlyMe ? 'bg-[#5B5BD6] text-white' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >내 것만</button>
+            </div>
+          )}
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
         </div>
       </div>

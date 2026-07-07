@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
+import SubtaskQuickEditModal from '../components/SubtaskQuickEditModal';
 
 const DEFAULT_WEEKLY_COLS: WeeklyColumnDef[] = [
   { id: 'new', type: 'new', enabled: true },
@@ -27,6 +28,10 @@ interface Props {
   canSeeAll?: boolean;
   weeklyExportConfig?: WeeklyExportConfig;
   metaFields?: MetaField[];
+  onUpdateTask?: (id: string, data: Partial<Task>) => void;
+  canManage?: boolean;
+  assignees?: string[];
+  assigneesPerSubTaskType?: Map<string, string[]>;
 }
 
 const TW_TO_HEX: Record<string, string> = {
@@ -154,10 +159,11 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [] }: Props) {
+export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [onlyMe, setOnlyMe] = useState(false);
+  const [editingSub, setEditingSub] = useState<{ taskId: string; subKey: string; subTitle: string } | null>(null);
   const effectiveSeeAll = canSeeAll && !onlyMe;
   const { start, end, weekNum, now, weekdays } = useMemo(() => getWeekBounds(weekOffset), [weekOffset]);
   const { holidays: publicHolidays } = usePublicHolidays(start.getFullYear());
@@ -493,14 +499,28 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
                     <div className="space-y-2 pl-4 border-l-2 border-gray-100">
                       {subs.map(s => {
                         const h = getSubWeekHours(s, start, isSubstitute);
+                        const [subTaskId, subKey] = s.id.split('__');
+                        const editable = onUpdateTask && s.id.split('__').length <= 2;
                         return (
                           <div key={s.id} className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600 flex-1 truncate">
-                              {s.title}
-                              {isSubstitute && s.assignee && (
-                                <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
-                              )}
-                            </span>
+                            {editable ? (
+                              <button
+                                onClick={() => setEditingSub({ taskId: subTaskId, subKey, subTitle: s.title })}
+                                className="text-xs text-gray-600 flex-1 truncate text-left hover:text-[#5B5BD6] hover:underline transition-colors"
+                              >
+                                {s.title}
+                                {isSubstitute && s.assignee && (
+                                  <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
+                                )}
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-600 flex-1 truncate">
+                                {s.title}
+                                {isSubstitute && s.assignee && (
+                                  <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
+                                )}
+                              </span>
+                            )}
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               {h > 0 && (
                                 <span className="text-[11px] font-semibold text-gray-400">{h}h</span>
@@ -521,6 +541,22 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
           })}
         </div>
       )}
+
+      {editingSub && (() => {
+        const task = allTaskMap.get(editingSub.taskId);
+        if (!task || !onUpdateTask) return null;
+        return (
+          <SubtaskQuickEditModal
+            task={task}
+            subKey={editingSub.subKey}
+            subTitle={editingSub.subTitle}
+            assignees={assigneesPerSubTaskType?.get(editingSub.subKey) ?? assignees}
+            canManage={canManage}
+            onUpdateTask={onUpdateTask}
+            onClose={() => setEditingSub(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

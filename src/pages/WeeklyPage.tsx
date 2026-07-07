@@ -499,8 +499,8 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
                     <div className="space-y-2 pl-4 border-l-2 border-gray-100">
                       {subs.map(s => {
                         const h = getSubWeekHours(s, start, isSubstitute);
-                        const [subTaskId, subKey] = s.id.split('__');
-                        const editable = onUpdateTask && s.id.split('__').length <= 2;
+                        const [subTaskId, subKey, reviewItemId] = s.id.split('__');
+                        const editable = !!onUpdateTask;
                         const isEditing = editingSubId === s.id;
                         const editTask = isEditing ? allTaskMap.get(subTaskId) : undefined;
                         return (
@@ -535,6 +535,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
                               <SubtaskQuickEditModal
                                 task={editTask}
                                 subKey={subKey}
+                                reviewItemId={reviewItemId}
                                 assignees={assigneesPerSubTaskType?.get(subKey) ?? assignees}
                                 canManage={canManage}
                                 onUpdateTask={onUpdateTask}

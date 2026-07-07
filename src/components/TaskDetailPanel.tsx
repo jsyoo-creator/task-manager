@@ -4,7 +4,7 @@ import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, Team
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
-import { getWeekDays, calcHoursInRange } from '../lib/weeklyHours';
+import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
 const PANEL_W = 540;
 
@@ -932,17 +932,6 @@ export default function TaskDetailPanel({
                   const reviewWeeklyHours: Record<string, Record<string, number>> = entry.reviewWeeklyHours ?? {};
                   const reviewDates: Record<string, { startDate?: string; endDate?: string }> = entry.reviewDates ?? {};
                   const reviewStatus: Record<string, string> = entry.reviewStatus ?? {};
-
-                  const calcReviewTotal = (
-                    wh: Record<string, Record<string, number>>,
-                    dates: Record<string, { startDate?: string; endDate?: string }>,
-                    ids: string[]
-                  ) => ids.reduce((sum, id) => {
-                    const d = dates[id];
-                    const h = wh[id] ?? {};
-                    if (!d?.startDate) return sum + Object.values(h).reduce((a, b) => a + b, 0);
-                    return sum + calcHoursInRange(h, d.startDate, d.endDate);
-                  }, 0);
 
                   const reviewTotal = calcReviewTotal(reviewWeeklyHours, reviewDates, checked);
 

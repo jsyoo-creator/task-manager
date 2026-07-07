@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { Task, TaskStatus } from '../types';
 import DatePicker from './DatePicker';
-import { getWeekDays, getStartEndDayIdx, calcHoursInRange } from '../lib/weeklyHours';
+import { getWeekDays, getStartEndDayIdx, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
+const REVIEW_STATUSES = ['검수 전', '검수 중', '검수 완료'];
 
 interface EditState {
   startDate: string;
@@ -18,6 +19,8 @@ interface EditState {
 interface Props {
   task: Task;
   subKey: string;
+  /** PL 검수(review) 타입 세부업무에서, 체크된 개별 항목(검수 대상 업무)의 ID. 있으면 해당 항목의 날짜/상태/시간만 편집 */
+  reviewItemId?: string;
   assignees: string[];
   canManage: boolean;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
@@ -28,9 +31,21 @@ const lbl = 'block text-[10px] font-semibold text-gray-400 mb-0.5 uppercase trac
 const inp = 'w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40';
 
 // 클릭한 세부업무 바로 아래에 펼쳐지는 인라인 편집 패널 (캘린더 인라인 카드와 동일한 데이터/계산식 공유)
-export default function SubtaskQuickEditModal({ task, subKey, assignees, canManage, onUpdateTask, onClose }: Props) {
+export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assignees, canManage, onUpdateTask, onClose }: Props) {
   const entry = task.subTaskData?.[subKey] ?? { weeklyHours: {}, totalHours: 0 };
-  const [editState, setEditState] = useState<EditState>({
+  const reviewDates = reviewItemId ? (entry.reviewDates ?? {})[reviewItemId] ?? {} : undefined;
+  const reviewHours = reviewItemId ? (entry.reviewWeeklyHours ?? {})[reviewItemId] ?? {} : undefined;
+  const reviewStatus = reviewItemId ? (entry.reviewStatus ?? {})[reviewItemId] ?? '검수 전' : undefined;
+
+  const [editState, setEditState] = useState<EditState>(reviewItemId ? {
+    startDate: reviewDates?.startDate ?? '',
+    endDate: reviewDates?.endDate ?? '',
+    assignee: '',
+    status: reviewStatus ?? '검수 전',
+    weeklyHours: { ...(reviewHours ?? {}) },
+    substitute: '',
+    substituteWeeklyHours: {},
+  } : {
     startDate: entry.startDate ?? '',
     endDate: entry.endDate ?? '',
     assignee: entry.assignee ?? '',
@@ -43,6 +58,29 @@ export default function SubtaskQuickEditModal({ task, subKey, assignees, canMana
 
   const handleSave = () => {
     if (!canManage) return;
+
+    if (reviewItemId) {
+      const nextReviewDates = { ...(entry.reviewDates ?? {}), [reviewItemId]: { startDate: editState.startDate || undefined, endDate: editState.endDate || undefined } };
+      const nextReviewWeeklyHours = { ...(entry.reviewWeeklyHours ?? {}), [reviewItemId]: editState.weeklyHours };
+      const nextReviewStatus = { ...(entry.reviewStatus ?? {}), [reviewItemId]: editState.status };
+      const checkedItems = entry.checkedItems ?? [];
+      const totalHours = calcReviewTotal(nextReviewWeeklyHours, nextReviewDates, checkedItems);
+      onUpdateTask(task.id, {
+        subTaskData: {
+          ...task.subTaskData,
+          [subKey]: {
+            ...entry,
+            reviewDates: nextReviewDates,
+            reviewWeeklyHours: nextReviewWeeklyHours,
+            reviewStatus: nextReviewStatus,
+            totalHours,
+          },
+        },
+      });
+      onClose();
+      return;
+    }
+
     const totalHours = editState.startDate
       ? calcHoursInRange(editState.weeklyHours, editState.startDate, editState.endDate)
       : Object.values(editState.weeklyHours).reduce((a, b) => a + b, 0);
@@ -143,7 +181,7 @@ export default function SubtaskQuickEditModal({ task, subKey, assignees, canMana
   return (
     <div
       onClick={e => e.stopPropagation()}
-      className="mt-1.5 mb-1 p-2.5 rounded-xl border border-[#6C63FF]/15 bg-[#6C63FF]/[0.03] flex flex-col gap-2"
+      className="mt-1.5 mb-1 p-2.5 w-full max-w-[300px] rounded-xl border border-[#6C63FF]/15 bg-[#6C63FF]/[0.03] flex flex-col gap-2"
     >
       <div className="grid grid-cols-2 gap-1.5">
         <div>
@@ -166,28 +204,30 @@ export default function SubtaskQuickEditModal({ task, subKey, assignees, canMana
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className={reviewItemId ? '' : 'grid grid-cols-2 gap-1.5'}>
+        {!reviewItemId && (
+          <div>
+            <label className={lbl}>담당자</label>
+            <select
+              className={inp}
+              value={editState.assignee}
+              disabled={!canManage}
+              onChange={e => setEditState(st => ({ ...st, assignee: e.target.value }))}
+            >
+              <option value="">선택</option>
+              {assignees.map(a => <option key={a}>{a}</option>)}
+            </select>
+          </div>
+        )}
         <div>
-          <label className={lbl}>담당자</label>
-          <select
-            className={inp}
-            value={editState.assignee}
-            disabled={!canManage}
-            onChange={e => setEditState(st => ({ ...st, assignee: e.target.value }))}
-          >
-            <option value="">선택</option>
-            {assignees.map(a => <option key={a}>{a}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={lbl}>상태</label>
+          <label className={lbl}>{reviewItemId ? '검수 상태' : '상태'}</label>
           <select
             className={inp}
             value={editState.status}
             disabled={!canManage}
             onChange={e => setEditState(st => ({ ...st, status: e.target.value }))}
           >
-            {STATUSES.map(s => <option key={s}>{s}</option>)}
+            {(reviewItemId ? REVIEW_STATUSES : STATUSES).map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>
@@ -213,7 +253,7 @@ export default function SubtaskQuickEditModal({ task, subKey, assignees, canMana
         )}
       </div>
 
-      {editState.substitute && editState.startDate && (
+      {!reviewItemId && editState.substitute && editState.startDate && (
         <div>
           <label className="block text-[10px] font-semibold text-orange-400 mb-0.5 uppercase tracking-wide">
             대무자 시간 ({editState.substitute})

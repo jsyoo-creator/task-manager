@@ -61,3 +61,17 @@ export function calcHoursInRange(hours: Record<string, number>, startDate: strin
   });
   return Object.entries(hours).filter(([k]) => validKeys.has(k)).reduce((s, [, v]) => s + v, 0);
 }
+
+// PL 검수(review) 항목들의 시간 합계 — 항목별로 날짜 범위가 다를 수 있어 항목마다 calcHoursInRange를 적용
+export function calcReviewTotal(
+  weeklyHoursByItem: Record<string, Record<string, number>>,
+  datesByItem: Record<string, { startDate?: string; endDate?: string }>,
+  itemIds: string[]
+): number {
+  return itemIds.reduce((sum, id) => {
+    const d = datesByItem[id];
+    const h = weeklyHoursByItem[id] ?? {};
+    if (!d?.startDate) return sum + Object.values(h).reduce((a, b) => a + b, 0);
+    return sum + calcHoursInRange(h, d.startDate, d.endDate);
+  }, 0);
+}

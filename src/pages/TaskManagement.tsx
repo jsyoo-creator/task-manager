@@ -669,7 +669,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           fc.options.forEach(o => deptPool.add(o));
           return;
         }
-        const depts = fc ? resolveFieldDepts(fc) : null;
+        // 필드 자체엔 직군이 안 붙어 있어도 파트에 직군이 연결돼 있으면(TeamPart.departments)
+        // 그걸 기본값으로 써야 함 — 안 그러면 파트별로 직군을 나눈 팀(B팀 등)에서 필드에
+        // 직군을 따로 안 넣은 경우 전체 팀원이 그대로 후보로 나와버림
+        const depts = (fc ? resolveFieldDepts(fc) : null) ?? (part.departments?.length ? part.departments : null);
         const names = depts && teamMembers?.length
           ? teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name)
           : assignees;

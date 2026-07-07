@@ -631,11 +631,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   useEffect(() => { localStorage.setItem('tm_hideCompleted', String(hideCompleted)); }, [hideCompleted]);
   useEffect(() => { localStorage.setItem('tm_assigneeFilter', assigneeFilter); }, [assigneeFilter]);
   useEffect(() => { localStorage.setItem('tm_groupByPerson', String(groupByPerson)); }, [groupByPerson]);
-  // 담당자 목록에서 사라진 값이 필터에 남아있으면 정리 (파트 변경 등으로 목록이 바뀔 때)
-  useEffect(() => {
-    if (assigneeFilter && !assignees.includes(assigneeFilter)) setAssigneeFilter('');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignees.join(',')]);
 
   const isMyTask = (t: Task): boolean => {
     if (!currentUserName) return false;
@@ -645,6 +640,23 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       e => e.assignee === currentUserName || e.substitute === currentUserName
     );
   };
+
+  // '담당자' 필드는 팀/파트 formConfig에서 명칭이 바뀌거나(customLabel), 실제 인물이 아닌
+  // 커스텀 선택형 값으로 쓰이는 경우도 있어 team assignees 목록만으로는 값이 다 안 잡힘.
+  // 그래서 라벨은 formConfig customLabel을 따르고, 옵션은 팀원 목록 + 실제 데이터에 등장한
+  // 값을 합쳐서 만든다.
+  const assigneeFieldLabel = builtinLabels.assignee;
+  const assigneeOptions = (() => {
+    const known = new Set(assignees);
+    const extra = new Set<string>();
+    tasks.forEach(t => { if (t.assignee && !known.has(t.assignee)) extra.add(t.assignee); });
+    return [...assignees, ...[...extra].sort((a, b) => a.localeCompare(b))];
+  })();
+
+  useEffect(() => {
+    if (assigneeFilter && !assigneeOptions.includes(assigneeFilter)) setAssigneeFilter('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assigneeOptions.join(',')]);
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
@@ -664,7 +676,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   // 담당자별로 묶기 (담당자 필터와 별개로, 목록 전체를 사람 단위 섹션으로 재구성)
   const personGroupedView = (): GroupBlock[] | null => {
     if (!groupByPerson) return null;
-    const orderIdx = new Map(assignees.map((a, i) => [a, i]));
+    const orderIdx = new Map(assigneeOptions.map((a, i) => [a, i]));
     const groups = new Map<string, Task[]>();
     filtered.forEach(t => {
       const key = t.assignee || '';
@@ -993,10 +1005,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
-        {assignees.length > 0 && (
-          <FilterSelect label="담당자" value={assigneeFilter} onChange={setAssigneeFilter}>
+        {assigneeOptions.length > 0 && (
+          <FilterSelect label={assigneeFieldLabel} value={assigneeFilter} onChange={setAssigneeFilter}>
             <option value="">전체</option>
-            {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+            {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
           </FilterSelect>
         )}
         <button
@@ -1010,6 +1022,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <User size={11} />
           내 업무만
         </button>
+        {assigneeOptions.length > 0 && (
+          <button
+            onClick={() => setGroupByPerson(o => !o)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              groupByPerson
+                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
+                : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
+            }`}
+          >
+            <Users size={11} />
+            {assigneeFieldLabel}별로 보기
+          </button>
+        )}
         <button
           onClick={() => setHideCompleted(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -1021,19 +1046,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <EyeOff size={11} />
           완료 숨기기
         </button>
-        {assignees.length > 0 && (
-          <button
-            onClick={() => setGroupByPerson(o => !o)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              groupByPerson
-                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
-                : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
-            }`}
-          >
-            <Users size={11} />
-            담당자별로 보기
-          </button>
-        )}
         <div className="flex-1" />
         <span className="text-xs text-gray-400">총 {filtered.length}건</span>
       </div>

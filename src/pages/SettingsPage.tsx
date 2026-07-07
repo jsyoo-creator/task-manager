@@ -1141,6 +1141,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       }}
                       className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                       {label}
+                      {fc.key === 'weeklyHours' && <span className="ml-1 text-[10px] text-gray-400 font-normal">(업무 목록엔 '합계'로 표시)</span>}
                       {fc.customLabel && <span className="ml-1 text-[10px] text-blue-400 font-medium">수정됨</span>}
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                       {fc.required && <span className="ml-1 text-[10px] text-red-400 font-medium">필수</span>}

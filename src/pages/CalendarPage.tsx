@@ -121,9 +121,32 @@ interface EditState {
   assignee: string;
   status: string;
   weeklyHours: Record<string, number>; // keys: w{주}d{1~5(월~금)} — 업무상세와 동일한 필드/키 포맷
+  substitute: string;
+  substituteWeeklyHours: Record<string, number>;
 }
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+interface HoursGridAccent {
+  header: string;
+  weekNum: string;
+  weekLabel: string;
+  inputClass: string;
+}
+
+const PRIMARY_ACCENT: HoursGridAccent = {
+  header: 'text-gray-400',
+  weekNum: 'text-gray-500',
+  weekLabel: 'text-gray-400',
+  inputClass: 'border-black/10 bg-white/80 text-gray-700 focus:ring-[#6C63FF]/40',
+};
+
+const SUBSTITUTE_ACCENT: HoursGridAccent = {
+  header: 'text-orange-300',
+  weekNum: 'text-orange-400',
+  weekLabel: 'text-orange-300',
+  inputClass: 'border-orange-200 bg-orange-50/70 text-orange-700 focus:ring-orange-400/40',
+};
 
 export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, mainTaskEndDateColor, plShowInCalendar, canManage = false }: Props) {
   const today = new Date();
@@ -262,6 +285,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       assignee: entry.assignee ?? '',
       status: entry.status ?? '진행 전',
       weeklyHours: { ...(entry.weeklyHours ?? {}) },
+      substitute: entry.substitute ?? '',
+      substituteWeeklyHours: { ...(entry.substituteWeeklyHours ?? {}) },
     });
     setHoursRaw({});
     setExpandedSubKey(subKey);
@@ -277,6 +302,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     const totalHours = editState.startDate
       ? calcHoursInRange(editState.weeklyHours, editState.startDate, editState.endDate)
       : Object.values(editState.weeklyHours).reduce((a, b) => a + b, 0);
+    const substituteTotalHours = editState.substitute
+      ? (editState.startDate
+          ? calcHoursInRange(editState.substituteWeeklyHours, editState.startDate, editState.endDate)
+          : Object.values(editState.substituteWeeklyHours).reduce((a, b) => a + b, 0))
+      : undefined;
     onUpdateTask(taskId, {
       subTaskData: {
         ...task.subTaskData,
@@ -288,6 +318,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
           status: editState.status,
           weeklyHours: editState.weeklyHours,
           totalHours,
+          substituteWeeklyHours: editState.substitute ? editState.substituteWeeklyHours : undefined,
+          substituteTotalHours,
         },
       },
     });
@@ -295,6 +327,71 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     setExpandedSubKey('');
     setEditState(null);
     setHoursRaw({});
+  };
+
+  const renderHoursGrid = (opts: {
+    weeks: { weekLabel: string; days: { date: string }[] }[];
+    startDayIdx: number;
+    endDayIdx: number;
+    endDate: string;
+    hours: Record<string, number>;
+    keyPrefix: string;
+    editable: boolean;
+    accent: HoursGridAccent;
+    onCellChange: (key: string, n: number) => void;
+  }) => {
+    const { weeks, startDayIdx, endDayIdx, endDate, hours, keyPrefix, editable, accent, onCellChange } = opts;
+    return (
+      <>
+        <div className="grid grid-cols-[26px_repeat(5,1fr)] gap-x-0.5 mb-0.5">
+          <span />
+          {['월', '화', '수', '목', '금'].map(d => (
+            <span key={d} className={`text-center text-[8px] font-medium ${accent.header}`}>{d}</span>
+          ))}
+        </div>
+        {weeks.map(({ weekLabel, days }, wi) => {
+          const weekNum = wi + 1;
+          const isLastWeek = wi === weeks.length - 1;
+          return (
+            <div key={wi} className="grid grid-cols-[26px_repeat(5,1fr)] gap-x-0.5 mb-0.5">
+              <div className="flex flex-col items-center justify-center">
+                <span className={`text-[8px] font-semibold leading-none ${accent.weekNum}`}>{weekNum}주</span>
+                <span className={`text-[7px] leading-tight ${accent.weekLabel}`}>{weekLabel}</span>
+              </div>
+              {days.map(({ date }, di) => {
+                const key = `w${weekNum}d${di + 1}`;
+                const rawKey = `${keyPrefix}_${key}`;
+                const val = hours[key] ?? 0;
+                const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && endDate ? di > endDayIdx : false);
+                return (
+                  <div key={di} className="flex flex-col items-center gap-0.5">
+                    <span className={`text-[7px] leading-none ${disabled ? 'text-gray-300' : 'text-gray-400'}`}>{date}</span>
+                    {editable && !disabled ? (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={rawKey in hoursRaw ? hoursRaw[rawKey] : (val === 0 ? '' : String(val))}
+                        placeholder="-"
+                        onChange={e => {
+                          const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                          setHoursRaw(prev => ({ ...prev, [rawKey]: raw }));
+                          onCellChange(key, Math.min(24, parseFloat(raw) || 0));
+                        }}
+                        className={`w-full rounded-md border px-0.5 py-1 text-[10px] text-center focus:outline-none focus:ring-1 ${accent.inputClass}`}
+                      />
+                    ) : (
+                      <span className={`w-full text-center text-[10px] rounded-md py-1 ${disabled ? 'bg-black/[0.02] text-gray-300' : 'bg-black/[0.05] text-gray-600'}`}>
+                        {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </>
+    );
   };
 
   const handleAddMemo = (e: React.MouseEvent) => {
@@ -568,64 +665,48 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     const total = calcHoursInRange(editState.weeklyHours, editState.startDate, editState.endDate);
                                     return (
                                       <>
-                                        <div className="grid grid-cols-[26px_repeat(5,1fr)] gap-x-0.5 mb-0.5">
-                                          <span />
-                                          {['월', '화', '수', '목', '금'].map(d => (
-                                            <span key={d} className="text-center text-[8px] font-medium text-gray-400">{d}</span>
-                                          ))}
-                                        </div>
-                                        {weeks.map(({ weekLabel, days }, wi) => {
-                                          const weekNum = wi + 1;
-                                          const isLastWeek = wi === weeks.length - 1;
-                                          return (
-                                            <div key={wi} className="grid grid-cols-[26px_repeat(5,1fr)] gap-x-0.5 mb-0.5">
-                                              <div className="flex flex-col items-center justify-center">
-                                                <span className="text-[8px] font-semibold text-gray-500 leading-none">{weekNum}주</span>
-                                                <span className="text-[7px] text-gray-400 leading-tight">{weekLabel}</span>
-                                              </div>
-                                              {days.map(({ date }, di) => {
-                                                const key = `w${weekNum}d${di + 1}`;
-                                                const rawKey = `${expandedSubKey}_${key}`;
-                                                const val = editState.weeklyHours[key] ?? 0;
-                                                const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && editState.endDate ? di > endDayIdx : false);
-                                                return (
-                                                  <div key={di} className="flex flex-col items-center gap-0.5">
-                                                    <span className={`text-[7px] leading-none ${disabled ? 'text-gray-300' : 'text-gray-400'}`}>{date}</span>
-                                                    {canManage && !disabled ? (
-                                                      <input
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        value={rawKey in hoursRaw ? hoursRaw[rawKey] : (val === 0 ? '' : String(val))}
-                                                        placeholder="-"
-                                                        onChange={e => {
-                                                          const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                                                          setHoursRaw(prev => ({ ...prev, [rawKey]: raw }));
-                                                          const n = Math.min(24, parseFloat(raw) || 0);
-                                                          setEditState(st => {
-                                                            if (!st) return st;
-                                                            const nextHours = { ...st.weeklyHours };
-                                                            if (n === 0) delete nextHours[key]; else nextHours[key] = n;
-                                                            return { ...st, weeklyHours: nextHours };
-                                                          });
-                                                        }}
-                                                        className="w-full rounded-md border border-black/10 bg-white/80 px-0.5 py-1 text-[10px] text-center text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40"
-                                                      />
-                                                    ) : (
-                                                      <span className={`w-full text-center text-[10px] rounded-md py-1 ${disabled ? 'bg-black/[0.02] text-gray-300' : 'bg-black/[0.05] text-gray-600'}`}>
-                                                        {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          );
+                                        {renderHoursGrid({
+                                          weeks, startDayIdx, endDayIdx, endDate: editState.endDate,
+                                          hours: editState.weeklyHours, keyPrefix: expandedSubKey, editable: canManage,
+                                          accent: PRIMARY_ACCENT,
+                                          onCellChange: (key, n) => setEditState(st => {
+                                            if (!st) return st;
+                                            const nextHours = { ...st.weeklyHours };
+                                            if (n === 0) delete nextHours[key]; else nextHours[key] = n;
+                                            return { ...st, weeklyHours: nextHours };
+                                          }),
                                         })}
                                         <p className="text-[9px] text-gray-400 mt-0.5 text-right">합계 {total}h</p>
                                       </>
                                     );
                                   })()}
                                 </div>
+
+                                {/* 대무자 시간 */}
+                                {editState.substitute && editState.startDate && (() => {
+                                  const weeks = getWeekDays(editState.startDate, editState.endDate);
+                                  const { startDayIdx, endDayIdx } = getStartEndDayIdx(editState.startDate, editState.endDate);
+                                  const subTotal = calcHoursInRange(editState.substituteWeeklyHours, editState.startDate, editState.endDate);
+                                  return (
+                                    <div>
+                                      <label className="block text-[9px] font-semibold text-orange-400 mb-0.5 uppercase tracking-wide">
+                                        대무자 시간 ({editState.substitute})
+                                      </label>
+                                      {renderHoursGrid({
+                                        weeks, startDayIdx, endDayIdx, endDate: editState.endDate,
+                                        hours: editState.substituteWeeklyHours, keyPrefix: `${expandedSubKey}_sub`, editable: canManage,
+                                        accent: SUBSTITUTE_ACCENT,
+                                        onCellChange: (key, n) => setEditState(st => {
+                                          if (!st) return st;
+                                          const nextHours = { ...st.substituteWeeklyHours };
+                                          if (n === 0) delete nextHours[key]; else nextHours[key] = n;
+                                          return { ...st, substituteWeeklyHours: nextHours };
+                                        }),
+                                      })}
+                                      <p className="text-[9px] text-orange-400 mt-0.5 text-right">합계 {subTotal}h</p>
+                                    </div>
+                                  );
+                                })()}
 
                                 {/* 저장 / 취소 */}
                                 <div className="flex gap-1.5 mt-1">

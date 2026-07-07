@@ -41,16 +41,19 @@ const FIELD_PAIRS: [BuiltinFieldKey, BuiltinFieldKey][] = [
 export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts, assignees = [], teamMembers, formConfig, currentUserName = '', plMainTaskTypes }: Props) {
   const partNames = parts && parts.length > 0 ? parts.map(p => p.name) : [];
 
-  const [activeTab, setActiveTab] = useState<'normal' | 'pl'>('normal');
   const hasPl = !!(plMainTaskTypes && plMainTaskTypes.length > 0);
   const totalPaths = partNames.length + (hasPl ? 1 : 0);
   const showSelection = totalPaths > 1;
+  // 파트가 하나도 없고 PL업무만 있는 팀은 선택 화면 없이 바로 PL 폼으로 진입해야 함
+  const onlyPathTab: 'normal' | 'pl' = partNames.length === 0 && hasPl ? 'pl' : 'normal';
+  const [activeTab, setActiveTab] = useState<'normal' | 'pl'>(onlyPathTab);
   const [step, setStep] = useState<'select' | 'form'>(showSelection ? 'select' : 'form');
   const [selectedPartName, setSelectedPartName] = useState<string>(partNames[0] ?? '');
 
   useEffect(() => {
     if (open) {
       setStep(showSelection ? 'select' : 'form');
+      setActiveTab(onlyPathTab);
       setSelectedPartName(partNames[0] ?? '');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

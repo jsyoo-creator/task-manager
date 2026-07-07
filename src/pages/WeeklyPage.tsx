@@ -163,7 +163,7 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [onlyMe, setOnlyMe] = useState(false);
-  const [editingSub, setEditingSub] = useState<{ taskId: string; subKey: string; subTitle: string } | null>(null);
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const effectiveSeeAll = canSeeAll && !onlyMe;
   const { start, end, weekNum, now, weekdays } = useMemo(() => getWeekBounds(weekOffset), [weekOffset]);
   const { holidays: publicHolidays } = usePublicHolidays(start.getFullYear());
@@ -501,32 +501,46 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
                         const h = getSubWeekHours(s, start, isSubstitute);
                         const [subTaskId, subKey] = s.id.split('__');
                         const editable = onUpdateTask && s.id.split('__').length <= 2;
+                        const isEditing = editingSubId === s.id;
+                        const editTask = isEditing ? allTaskMap.get(subTaskId) : undefined;
                         return (
-                          <div key={s.id} className="flex items-center gap-2">
-                            {editable ? (
-                              <button
-                                onClick={() => setEditingSub({ taskId: subTaskId, subKey, subTitle: s.title })}
-                                className="text-xs text-gray-600 flex-1 truncate text-left hover:text-[#5B5BD6] hover:underline transition-colors"
-                              >
-                                {s.title}
-                                {isSubstitute && s.assignee && (
-                                  <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
-                                )}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-600 flex-1 truncate">
-                                {s.title}
-                                {isSubstitute && s.assignee && (
-                                  <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
-                                )}
-                              </span>
-                            )}
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {h > 0 && (
-                                <span className="text-[11px] font-semibold text-gray-400">{h}h</span>
+                          <div key={s.id}>
+                            <div className="flex items-center gap-2">
+                              {editable ? (
+                                <button
+                                  onClick={() => setEditingSubId(isEditing ? null : s.id)}
+                                  className={`text-xs flex-1 truncate text-left transition-colors ${isEditing ? 'text-[#5B5BD6] font-semibold' : 'text-gray-600 hover:text-[#5B5BD6] hover:underline'}`}
+                                >
+                                  {s.title}
+                                  {isSubstitute && s.assignee && (
+                                    <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-600 flex-1 truncate">
+                                  {s.title}
+                                  {isSubstitute && s.assignee && (
+                                    <span className="text-orange-400 ml-1">({s.assignee}{vacTypeMap.get(s.assignee) ? ` ${vacTypeMap.get(s.assignee)}` : ''} 대무)</span>
+                                  )}
+                                </span>
                               )}
-                              <StatusPill status={s.status} />
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {h > 0 && (
+                                  <span className="text-[11px] font-semibold text-gray-400">{h}h</span>
+                                )}
+                                <StatusPill status={s.status} />
+                              </div>
                             </div>
+                            {isEditing && editTask && onUpdateTask && (
+                              <SubtaskQuickEditModal
+                                task={editTask}
+                                subKey={subKey}
+                                assignees={assigneesPerSubTaskType?.get(subKey) ?? assignees}
+                                canManage={canManage}
+                                onUpdateTask={onUpdateTask}
+                                onClose={() => setEditingSubId(null)}
+                              />
+                            )}
                           </div>
                         );
                       })}
@@ -541,22 +555,6 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
           })}
         </div>
       )}
-
-      {editingSub && (() => {
-        const task = allTaskMap.get(editingSub.taskId);
-        if (!task || !onUpdateTask) return null;
-        return (
-          <SubtaskQuickEditModal
-            task={task}
-            subKey={editingSub.subKey}
-            subTitle={editingSub.subTitle}
-            assignees={assigneesPerSubTaskType?.get(editingSub.subKey) ?? assignees}
-            canManage={canManage}
-            onUpdateTask={onUpdateTask}
-            onClose={() => setEditingSub(null)}
-          />
-        );
-      })()}
     </div>
   );
 }

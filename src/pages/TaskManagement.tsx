@@ -628,12 +628,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('tm_hideCompleted') === 'true');
   const [assigneeFilter, setAssigneeFilter] = useState(() => localStorage.getItem('tm_assigneeFilter') ?? '');
   const [receiverFilter, setReceiverFilter] = useState(() => localStorage.getItem('tm_receiverFilter') ?? '');
-  const [groupByPerson, setGroupByPerson] = useState(() => localStorage.getItem('tm_groupByPerson') === 'true');
+  const [groupByField, setGroupByField] = useState<'assignee' | 'receiver' | null>(() => {
+    const v = localStorage.getItem('tm_groupByField');
+    return v === 'assignee' || v === 'receiver' ? v : null;
+  });
   useEffect(() => { localStorage.setItem('tm_myTasksOnly', String(myTasksOnly)); }, [myTasksOnly]);
   useEffect(() => { localStorage.setItem('tm_hideCompleted', String(hideCompleted)); }, [hideCompleted]);
   useEffect(() => { localStorage.setItem('tm_assigneeFilter', assigneeFilter); }, [assigneeFilter]);
   useEffect(() => { localStorage.setItem('tm_receiverFilter', receiverFilter); }, [receiverFilter]);
-  useEffect(() => { localStorage.setItem('tm_groupByPerson', String(groupByPerson)); }, [groupByPerson]);
+  useEffect(() => { localStorage.setItem('tm_groupByField', groupByField ?? ''); }, [groupByField]);
 
   const isMyTask = (t: Task): boolean => {
     if (!currentUserName) return false;
@@ -708,13 +711,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   type GroupBlock = { key: string; label: string; tasks: Task[]; part?: TeamPart | null; isPerson?: boolean };
 
-  // 담당자별로 묶기 (담당자 필터와 별개로, 목록 전체를 사람 단위 섹션으로 재구성)
+  // 담당자/접수자별로 묶기 (필터와 별개로, 목록 전체를 사람 단위 섹션으로 재구성. 둘 중 하나만 활성화 가능)
   const personGroupedView = (): GroupBlock[] | null => {
-    if (!canFilterByPerson || !groupByPerson) return null;
-    const orderIdx = new Map(assigneeOptions.map((a, i) => [a, i]));
+    if (!canFilterByPerson || !groupByField) return null;
+    const getField = groupByField === 'assignee' ? (t: Task) => t.assignee : (t: Task) => t.receiver;
+    const options = groupByField === 'assignee' ? assigneeOptions : receiverOptions;
+    const orderIdx = new Map(options.map((a, i) => [a, i]));
     const groups = new Map<string, Task[]>();
     filtered.forEach(t => {
-      const key = t.assignee || '';
+      const key = getField(t) || '';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(t);
     });
@@ -1063,11 +1068,24 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
           </FilterSelect>
         )}
+        {canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
+          <button
+            onClick={() => setGroupByField(f => f === 'receiver' ? null : 'receiver')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              groupByField === 'receiver'
+                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
+                : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
+            }`}
+          >
+            <Users size={11} />
+            {receiverFieldLabel}별로 보기
+          </button>
+        )}
         {canFilterByPerson && assigneeOptions.length > 0 && (
           <button
-            onClick={() => setGroupByPerson(o => !o)}
+            onClick={() => setGroupByField(f => f === 'assignee' ? null : 'assignee')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              groupByPerson
+              groupByField === 'assignee'
                 ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
                 : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
             }`}

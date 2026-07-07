@@ -561,6 +561,7 @@ export interface WeeklyColumnDef {
 
 export interface WeeklyExportConfig {
   columns: WeeklyColumnDef[];
+  substituteColumns?: WeeklyColumnDef[]; // 대무 항목 전용 컬럼 구성 (없으면 columns 상속)
 }
 
 export interface Team {

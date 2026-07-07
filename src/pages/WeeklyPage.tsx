@@ -363,11 +363,13 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
               const partNames = [...new Set(groups.map(g => g.task.category))];
               const singlePart = partNames.length === 1 ? parts?.find(p => p.name === partNames[0]) : undefined;
               const effectiveConfig = singlePart?.weeklyExportConfig ?? weeklyExportConfig;
-              const activeCols = (effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
+              const normalCols = (effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
+              // 대무 항목 전용 설정이 없으면 일반 항목 설정을 그대로 상속
+              const substituteCols = (effectiveConfig?.substituteColumns ?? effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
               // 파트 metaFields 우선, 없으면 팀 metaFields
               const effectiveMetaFields = singlePart?.metaFields ?? metaFields;
-              const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string; task: typeof groups[0]['task'] }) =>
-                activeCols.map(col => {
+              const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string; task: typeof groups[0]['task'] }, cols: WeeklyColumnDef[]) =>
+                cols.map(col => {
                   if (col.type === 'new') return vals.isNew;
                   if (col.type === 'derived') return vals.isDerived;
                   if (col.type === 'other') return vals.isOther;
@@ -406,11 +408,11 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
                 const desc = lines.length > 1
                   ? `"${lines.join('\n').replace(/"/g, '""')}"`
                   : lines[0];
-                return buildRow({ isNew, isDerived, isOther, taskH, desc, task });
+                return buildRow({ isNew, isDerived, isOther, taskH, desc, task }, isSubstitute ? substituteCols : normalCols);
               });
               if (vacH > 0) {
                 const vacLines = vacEntries.map(e => `※ ${e.type} ${e.dateStr}`).join('\n');
-                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"`, task: groups[0]?.task ?? {} as typeof groups[0]['task'] }));
+                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"`, task: groups[0]?.task ?? {} as typeof groups[0]['task'] }, normalCols));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);

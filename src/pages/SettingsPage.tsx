@@ -115,6 +115,7 @@ const PERM_ROWS: { key: keyof RolePermissionConfig; label: string; group: string
   { key: 'canDeleteTasks',         label: '업무 삭제',               group: '업무' },
   { key: 'canAddVacation',         label: '휴가 등록',               group: '업무' },
   { key: 'canInputTime',           label: '세부업무 시간 입력',       group: '업무' },
+  { key: 'canViewAllCalendarWeekly', label: '캘린더 / 위클리 전체 조회', group: '업무' },
   { key: 'canManageTeams',         label: '팀 / 파트 관리',          group: '설정' },
   { key: 'canManageMembers',       label: '사용자 관리',              group: '설정' },
   { key: 'canManageHolidays',      label: '휴일 관리',               group: '설정' },

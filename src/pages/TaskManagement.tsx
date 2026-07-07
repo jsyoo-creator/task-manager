@@ -696,34 +696,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const receiverFieldLabel = builtinLabels.receiver;
   const receiverOptions = personFieldOptions('receiver', t => t.receiver);
 
-  // TEMP DEBUG — 담당자/접수자 후보 목록이 왜 이렇게 나오는지 원인 확인용. 확인 끝나면 제거할 것.
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.group(`[TM DEBUG] activeCategory=${activeCategory}`);
-    // eslint-disable-next-line no-console
-    console.log('relevantParts 상세:', relevantParts.map(p => {
-      const merged = p.formConfig ? mergeFormConfig(p.formConfig, formConfig) : formConfig;
-      const pf = resolveBuiltinFields(merged);
-      const af = pf.find(f => f.key === 'assignee');
-      const rf = pf.find(f => f.key === 'receiver');
-      return {
-        파트명: p.name,
-        '파트.departments(파트 편집 화면)': p.departments,
-        담당자필드: { 라벨: af?.customLabel, 타입: af?.customType, department: af?.department, departments: af?.departments },
-        접수자필드: { 라벨: rf?.customLabel, 타입: rf?.customType, department: rf?.department, departments: rf?.departments },
-      };
-    }));
-    // eslint-disable-next-line no-console
-    console.log('assignees prop(무제한 폴백 후보):', assignees);
-    // eslint-disable-next-line no-console
-    console.log('teamMembers prop(이름+직군):', teamMembers);
-    // eslint-disable-next-line no-console
-    console.log('최종 assigneeOptions:', assigneeOptions);
-    // eslint-disable-next-line no-console
-    console.log('최종 receiverOptions:', receiverOptions);
-    console.groupEnd();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory]);
   // 필터 바의 담당자/접수자 노출 순서를 테이블 컬럼 순서(builtinFields, 파트별 fieldOrder 반영)와
   // 맞춤 — 이전엔 항상 접수자 먼저 코드 순서로 고정돼 있어서, 파트에서 담당자 쪽 컬럼을 앞으로
   // 옮겨놔도(예: 복지몰이 '기획'을 뒤로, '디자인'을 앞으로) 필터 바만 반대 순서로 나왔음

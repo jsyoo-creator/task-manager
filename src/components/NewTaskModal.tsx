@@ -170,7 +170,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const handlePlSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!plForm.taskMonth) { alert('월을 선택해 주세요.'); return; }
-    if (plSelectedParts.length === 0) { alert('파트를 1개 이상 선택해 주세요.'); return; }
+    if (partNames.length > 0 && plSelectedParts.length === 0) { alert('파트를 1개 이상 선택해 주세요.'); return; }
     if (plSelectedTypes.length === 0) { alert('메인업무 항목을 1개 이상 선택해 주세요.'); return; }
     const selectedTypeObjs = (plMainTaskTypes ?? []).filter(t => plSelectedTypes.includes(t.id));
     for (let i = 0; i < selectedTypeObjs.length; i++) {
@@ -178,7 +178,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
       onSubmit({
         taskMonth: plForm.taskMonth,
         title: typeObj.name,
-        category: plSelectedParts[0],
+        category: plSelectedParts[0] ?? '',
         type: '신규',
         status: plForm.status || '진행 전',
         receiver: '',
@@ -190,7 +190,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
         revisionLevel: 0,
         projectId,
         plTask: true,
-        plParts: plSelectedParts,
+        plParts: plSelectedParts.length > 0 ? plSelectedParts : undefined,
         plSelectedTypes: [typeObj.id],
         sortOrder: i,
       });

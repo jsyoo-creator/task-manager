@@ -4,6 +4,7 @@ import type { Task, SubTask, TaskCategory, TeamPart, TaskStatus, SubTaskMemo, Cu
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
 import { useHolidayMap } from '../contexts/HolidaysContext';
+import { getWeekDays, getStartEndDayIdx, calcHoursInRange } from '../lib/weeklyHours';
 
 interface Props {
   tasks: Task[];
@@ -114,17 +115,12 @@ function Avatar({ name, photoURL, isSubstitute = false }: { name: string; photoU
   );
 }
 
-function getWeekTotal(weeklyHours: Record<string, number>, weekNum: number): number {
-  return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (weeklyHours[`w${weekNum}d${d}`] ?? 0), 0);
-}
-
 interface EditState {
   startDate: string;
   endDate: string;
   assignee: string;
   status: string;
-  weekHours: number[];
-  weekHoursRaw: string[];
+  weeklyHours: Record<string, number>; // keys: w{주}d{1~5(월~금)} — 업무상세와 동일한 필드/키 포맷
 }
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -137,6 +133,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSubKey, setExpandedSubKey] = useState('');
   const [editState, setEditState] = useState<EditState | null>(null);
+  const [hoursRaw, setHoursRaw] = useState<Record<string, string>>({});
   const [newMemoText, setNewMemoText] = useState('');
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
@@ -253,20 +250,20 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
       setExpandedId(null);
       setExpandedSubKey('');
       setEditState(null);
+      setHoursRaw({});
       return;
     }
     const [taskId, subKey] = itemId.split('__');
     const task = taskMap.get(taskId);
     const entry = task?.subTaskData?.[subKey] ?? {};
-    const wh = [1, 2, 3, 4, 5].map(w => getWeekTotal(entry.weeklyHours ?? {}, w));
     setEditState({
       startDate: entry.startDate ?? '',
       endDate: entry.endDate ?? '',
       assignee: entry.assignee ?? '',
       status: entry.status ?? '진행 전',
-      weekHours: wh,
-      weekHoursRaw: wh.map(v => v === 0 ? '' : String(v)),
+      weeklyHours: { ...(entry.weeklyHours ?? {}) },
     });
+    setHoursRaw({});
     setExpandedSubKey(subKey);
     setExpandedId(itemId);
   };
@@ -277,10 +274,9 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     const [taskId, subKey] = expandedId.split('__');
     const task = taskMap.get(taskId);
     if (!task) return;
-    const newWeeklyHours: Record<string, number> = {};
-    editState.weekHours.forEach((total, wi) => {
-      [1, 2, 3, 4, 5].forEach(d => { newWeeklyHours[`w${wi + 1}d${d}`] = d === 1 ? total : 0; });
-    });
+    const totalHours = editState.startDate
+      ? calcHoursInRange(editState.weeklyHours, editState.startDate, editState.endDate)
+      : Object.values(editState.weeklyHours).reduce((a, b) => a + b, 0);
     onUpdateTask(taskId, {
       subTaskData: {
         ...task.subTaskData,
@@ -290,14 +286,15 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
           endDate: editState.endDate,
           assignee: editState.assignee,
           status: editState.status,
-          weeklyHours: newWeeklyHours,
-          totalHours: editState.weekHours.reduce((a, b) => a + b, 0),
+          weeklyHours: editState.weeklyHours,
+          totalHours,
         },
       },
     });
     setExpandedId(null);
     setExpandedSubKey('');
     setEditState(null);
+    setHoursRaw({});
   };
 
   const handleAddMemo = (e: React.MouseEvent) => {
@@ -560,41 +557,80 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   </select>
                                 </div>
 
-                                {/* 주차별 업무시간 */}
+                                {/* 업무시간 (날짜별 — 업무상세와 동일한 주차/키 체계) */}
                                 <div>
-                                  <label className={lbl}>주차별 업무시간 (h)</label>
-                                  <div className="grid grid-cols-5 gap-1">
-                                    {editState.weekHoursRaw.map((raw, i) => (
-                                      <div key={i} className="flex flex-col items-center gap-0.5">
-                                        <span className="text-[9px] text-gray-400">{i + 1}주</span>
-                                        <input
-                                          type="text"
-                                          inputMode="decimal"
-                                          disabled={!canManage}
-                                          className="w-full rounded-md border border-black/10 bg-white/80 px-1 py-1 text-[11px] text-center text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40 disabled:opacity-60"
-                                          value={raw}
-                                          placeholder="0"
-                                          onChange={e => {
-                                            const v = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
-                                            const newRaw = [...editState.weekHoursRaw];
-                                            newRaw[i] = v;
-                                            const newNums = [...editState.weekHours];
-                                            newNums[i] = parseFloat(v) || 0;
-                                            setEditState(st => st && ({ ...st, weekHoursRaw: newRaw, weekHours: newNums }));
-                                          }}
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <p className="text-[9px] text-gray-400 mt-0.5 text-right">
-                                    합계 {editState.weekHours.reduce((a, b) => a + b, 0)}h
-                                  </p>
+                                  <label className={lbl}>업무 시간 (h)</label>
+                                  {!editState.startDate ? (
+                                    <p className="text-[10px] text-gray-400 text-center py-1.5">시작일을 설정하면 업무시간을 입력할 수 있습니다</p>
+                                  ) : (() => {
+                                    const weeks = getWeekDays(editState.startDate, editState.endDate);
+                                    const { startDayIdx, endDayIdx } = getStartEndDayIdx(editState.startDate, editState.endDate);
+                                    const total = calcHoursInRange(editState.weeklyHours, editState.startDate, editState.endDate);
+                                    return (
+                                      <>
+                                        <div className="grid grid-cols-[26px_repeat(5,1fr)] gap-x-0.5 mb-0.5">
+                                          <span />
+                                          {['월', '화', '수', '목', '금'].map(d => (
+                                            <span key={d} className="text-center text-[8px] font-medium text-gray-400">{d}</span>
+                                          ))}
+                                        </div>
+                                        {weeks.map(({ weekLabel, days }, wi) => {
+                                          const weekNum = wi + 1;
+                                          const isLastWeek = wi === weeks.length - 1;
+                                          return (
+                                            <div key={wi} className="grid grid-cols-[26px_repeat(5,1fr)] gap-x-0.5 mb-0.5">
+                                              <div className="flex flex-col items-center justify-center">
+                                                <span className="text-[8px] font-semibold text-gray-500 leading-none">{weekNum}주</span>
+                                                <span className="text-[7px] text-gray-400 leading-tight">{weekLabel}</span>
+                                              </div>
+                                              {days.map(({ date }, di) => {
+                                                const key = `w${weekNum}d${di + 1}`;
+                                                const rawKey = `${expandedSubKey}_${key}`;
+                                                const val = editState.weeklyHours[key] ?? 0;
+                                                const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && editState.endDate ? di > endDayIdx : false);
+                                                return (
+                                                  <div key={di} className="flex flex-col items-center gap-0.5">
+                                                    <span className={`text-[7px] leading-none ${disabled ? 'text-gray-300' : 'text-gray-400'}`}>{date}</span>
+                                                    {canManage && !disabled ? (
+                                                      <input
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={rawKey in hoursRaw ? hoursRaw[rawKey] : (val === 0 ? '' : String(val))}
+                                                        placeholder="-"
+                                                        onChange={e => {
+                                                          const raw = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                                          setHoursRaw(prev => ({ ...prev, [rawKey]: raw }));
+                                                          const n = Math.min(24, parseFloat(raw) || 0);
+                                                          setEditState(st => {
+                                                            if (!st) return st;
+                                                            const nextHours = { ...st.weeklyHours };
+                                                            if (n === 0) delete nextHours[key]; else nextHours[key] = n;
+                                                            return { ...st, weeklyHours: nextHours };
+                                                          });
+                                                        }}
+                                                        className="w-full rounded-md border border-black/10 bg-white/80 px-0.5 py-1 text-[10px] text-center text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40"
+                                                      />
+                                                    ) : (
+                                                      <span className={`w-full text-center text-[10px] rounded-md py-1 ${disabled ? 'bg-black/[0.02] text-gray-300' : 'bg-black/[0.05] text-gray-600'}`}>
+                                                        {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          );
+                                        })}
+                                        <p className="text-[9px] text-gray-400 mt-0.5 text-right">합계 {total}h</p>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
 
                                 {/* 저장 / 취소 */}
                                 <div className="flex gap-1.5 mt-1">
                                   <button
-                                    onClick={e => { e.stopPropagation(); setExpandedId(null); setExpandedSubKey(''); setEditState(null); }}
+                                    onClick={e => { e.stopPropagation(); setExpandedId(null); setExpandedSubKey(''); setEditState(null); setHoursRaw({}); }}
                                     className="flex-1 py-1.5 rounded-lg border border-black/10 text-[11px] text-gray-500 hover:bg-black/5 transition-colors"
                                   >{canManage ? '취소' : '닫기'}</button>
                                   {canManage && (

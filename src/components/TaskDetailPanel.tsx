@@ -4,6 +4,7 @@ import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, Team
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
+import { getWeekDays, calcHoursInRange } from '../lib/weeklyHours';
 
 const PANEL_W = 540;
 
@@ -77,61 +78,6 @@ type SubTaskEntry = {
   reviewDates?: Record<string, { startDate?: string; endDate?: string }>;
   reviewStatus?: Record<string, string>;
 };
-
-function getWeekDays(startDate: string, endDate?: string) {
-  const DAY_NAMES = ['월', '화', '수', '목', '금'];
-  if (!startDate) return [];
-
-  const base = new Date(startDate);
-  const dow = base.getDay();
-  const diff = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(base);
-  monday.setDate(base.getDate() + diff);
-
-  let weekCount = 1;
-  if (endDate) {
-    const end = new Date(endDate);
-    const endDow = end.getDay();
-    const endDiff = endDow === 0 ? -6 : 1 - endDow;
-    const endMonday = new Date(end);
-    endMonday.setDate(end.getDate() + endDiff);
-    const diffMs = endMonday.getTime() - monday.getTime();
-    weekCount = Math.max(1, Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1);
-  }
-
-  return Array.from({ length: weekCount }, (_, wi) => {
-    const weekMon = new Date(monday);
-    weekMon.setDate(monday.getDate() + wi * 7);
-    const weekLabel = `${weekMon.getMonth() + 1}/${weekMon.getDate()}`;
-    const days = Array.from({ length: 5 }, (__, di) => {
-      const d = new Date(weekMon);
-      d.setDate(weekMon.getDate() + di);
-      return { name: DAY_NAMES[di], date: `${d.getMonth() + 1}/${d.getDate()}` };
-    });
-    return { weekLabel, days };
-  });
-}
-
-function calcHoursInRange(hours: Record<string, number>, startDate: string, endDate?: string): number {
-  const weeks = getWeekDays(startDate, endDate);
-  if (weeks.length === 0) return 0;
-  const sd = new Date(startDate);
-  const sdDow = sd.getDay();
-  const startDayIdx = (sdDow === 0 || sdDow === 6) ? 0 : sdDow - 1;
-  const endDayIdx = (() => {
-    if (!endDate) return 4;
-    const ed = new Date(endDate);
-    const edDow = ed.getDay();
-    return (edDow === 0 || edDow === 6) ? 4 : edDow - 1;
-  })();
-  const validKeys = new Set<string>();
-  weeks.forEach((_, wi) => {
-    const fromDay = wi === 0 ? startDayIdx : 0;
-    const toDay = wi === weeks.length - 1 ? endDayIdx : 4;
-    for (let di = fromDay; di <= toDay; di++) validKeys.add(`w${wi + 1}d${di + 1}`);
-  });
-  return Object.entries(hours).filter(([k]) => validKeys.has(k)).reduce((s, [, v]) => s + v, 0);
-}
 
 function aggregateReviewToWeekly(
   reviewWeeklyHours: Record<string, Record<string, number>>,

@@ -644,20 +644,44 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     );
   };
 
-  // '담당자' 필드는 팀/파트 formConfig에서 명칭이 바뀌거나(customLabel), 실제 인물이 아닌
-  // 커스텀 선택형 값으로 쓰이는 경우도 있어 team assignees 목록만으로는 값이 다 안 잡힘.
-  // 그래서 라벨은 formConfig customLabel을 따르고, 옵션은 팀원 목록 + 실제 데이터에 등장한
-  // 값을 합쳐서 만든다.
-  const personFieldOptions = (getField: (t: Task) => string | undefined) => {
-    const known = new Set(assignees);
+  // '담당자'/'접수자' 필드는 팀/파트 formConfig에서 명칭이 바뀌고(customLabel), 직군이
+  // 지정돼 있으면 해당 직군 팀원만 후보가 되며, 실제 인물이 아닌 커스텀 선택형 값으로
+  // 쓰이기도 한다. 그래서 team assignees 전체를 그냥 보여주면 안 되고, 현재 보이는
+  // 파트(전체 탭이면 모든 파트)의 필드 설정을 반영해 후보를 좁혀야 한다.
+  const relevantParts = activeCategory !== 'all'
+    ? (parts?.filter(p => p.name === activeCategory) ?? [])
+    : (parts ?? []);
+  const personFieldOptions = (fieldKey: 'assignee' | 'receiver', getField: (t: Task) => string | undefined) => {
+    const deptPool = new Set<string>();
+    if (relevantParts.length === 0) {
+      assignees.forEach(a => deptPool.add(a));
+    } else {
+      relevantParts.forEach(part => {
+        const pFields = resolveBuiltinFields(part.formConfig ?? formConfig);
+        const fc = pFields.find(f => f.key === fieldKey);
+        if (fc?.customType === 'select' && fc.options?.length) {
+          fc.options.forEach(o => deptPool.add(o));
+          return;
+        }
+        const depts = fc ? resolveFieldDepts(fc) : null;
+        const names = depts && teamMembers?.length
+          ? teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name)
+          : assignees;
+        names.forEach(n => deptPool.add(n));
+      });
+    }
+    // 실데이터에 등장했지만 현재 필드 설정으로는 후보에 없는 값(설정 변경 이전 데이터 등)도 필터링은 가능해야 함
     const extra = new Set<string>();
-    tasks.forEach(t => { const v = getField(t); if (v && !known.has(v)) extra.add(v); });
-    return [...assignees, ...[...extra].sort((a, b) => a.localeCompare(b))];
+    tasks.forEach(t => { const v = getField(t); if (v && !deptPool.has(v)) extra.add(v); });
+    const ordered = assignees.filter(a => deptPool.has(a));
+    const deptOnly = [...deptPool].filter(v => !assignees.includes(v)).sort((a, b) => a.localeCompare(b));
+    const extraSorted = [...extra].sort((a, b) => a.localeCompare(b));
+    return [...ordered, ...deptOnly, ...extraSorted];
   };
   const assigneeFieldLabel = builtinLabels.assignee;
-  const assigneeOptions = personFieldOptions(t => t.assignee);
+  const assigneeOptions = personFieldOptions('assignee', t => t.assignee);
   const receiverFieldLabel = builtinLabels.receiver;
-  const receiverOptions = personFieldOptions(t => t.receiver);
+  const receiverOptions = personFieldOptions('receiver', t => t.receiver);
 
   useEffect(() => {
     if (assigneeFilter && !assigneeOptions.includes(assigneeFilter)) setAssigneeFilter('');

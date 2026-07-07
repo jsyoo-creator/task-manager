@@ -29,6 +29,7 @@ interface Props {
   metaFields?: MetaField[];
   currentUserName?: string;
   canSeeAll?: boolean;
+  canFilterByPerson?: boolean; // 담당자/접수자 필터·담당자별 보기 노출 여부 (중간 관리자 이상)
   userPhotoMap?: Map<string, string>;
   excelConfig?: ExcelFieldConfig[];
   allMetaFields?: MetaField[];
@@ -98,7 +99,7 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, canFilterByPerson = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(() => {
     const saved = localStorage.getItem('tm_yearFilter');
@@ -670,8 +671,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (myTasksOnly && !isMyTask(t)) return false;
-    if (assigneeFilter && t.assignee !== assigneeFilter) return false;
-    if (receiverFilter && t.receiver !== receiverFilter) return false;
+    if (canFilterByPerson && assigneeFilter && t.assignee !== assigneeFilter) return false;
+    if (canFilterByPerson && receiverFilter && t.receiver !== receiverFilter) return false;
     if (hideCompleted && (t.status?.replace(/\s/g, '') === '완료')) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
@@ -685,7 +686,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   // 담당자별로 묶기 (담당자 필터와 별개로, 목록 전체를 사람 단위 섹션으로 재구성)
   const personGroupedView = (): GroupBlock[] | null => {
-    if (!groupByPerson) return null;
+    if (!canFilterByPerson || !groupByPerson) return null;
     const orderIdx = new Map(assigneeOptions.map((a, i) => [a, i]));
     const groups = new Map<string, Task[]>();
     filtered.forEach(t => {
@@ -1026,19 +1027,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <User size={11} />
           내 업무만
         </button>
-        {receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
+        {canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
           <FilterSelect label={receiverFieldLabel} value={receiverFilter} onChange={setReceiverFilter}>
             <option value="">전체</option>
             {receiverOptions.map(a => <option key={a} value={a}>{a}</option>)}
           </FilterSelect>
         )}
-        {assigneeOptions.length > 0 && (
+        {canFilterByPerson && assigneeOptions.length > 0 && (
           <FilterSelect label={assigneeFieldLabel} value={assigneeFilter} onChange={setAssigneeFilter}>
             <option value="">전체</option>
             {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
           </FilterSelect>
         )}
-        {assigneeOptions.length > 0 && (
+        {canFilterByPerson && assigneeOptions.length > 0 && (
           <button
             onClick={() => setGroupByPerson(o => !o)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${

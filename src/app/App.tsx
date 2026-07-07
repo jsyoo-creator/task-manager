@@ -878,6 +878,7 @@ function App() {
                 allMetaFields={selectedTeam?.metaFields}
                 currentUserName={currentUserName}
                 canSeeAll={canSeeAll}
+                canFilterByPerson={permissions.canViewAllCalendarWeekly}
                 userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
                 plMainTaskTypes={selectedTeam?.plMainTaskTypes}
                 teams={teams}

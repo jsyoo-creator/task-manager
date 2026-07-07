@@ -626,10 +626,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [myTasksOnly, setMyTasksOnly] = useState(() => localStorage.getItem('tm_myTasksOnly') === 'true');
   const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('tm_hideCompleted') === 'true');
   const [assigneeFilter, setAssigneeFilter] = useState(() => localStorage.getItem('tm_assigneeFilter') ?? '');
+  const [receiverFilter, setReceiverFilter] = useState(() => localStorage.getItem('tm_receiverFilter') ?? '');
   const [groupByPerson, setGroupByPerson] = useState(() => localStorage.getItem('tm_groupByPerson') === 'true');
   useEffect(() => { localStorage.setItem('tm_myTasksOnly', String(myTasksOnly)); }, [myTasksOnly]);
   useEffect(() => { localStorage.setItem('tm_hideCompleted', String(hideCompleted)); }, [hideCompleted]);
   useEffect(() => { localStorage.setItem('tm_assigneeFilter', assigneeFilter); }, [assigneeFilter]);
+  useEffect(() => { localStorage.setItem('tm_receiverFilter', receiverFilter); }, [receiverFilter]);
   useEffect(() => { localStorage.setItem('tm_groupByPerson', String(groupByPerson)); }, [groupByPerson]);
 
   const isMyTask = (t: Task): boolean => {
@@ -645,23 +647,31 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   // 커스텀 선택형 값으로 쓰이는 경우도 있어 team assignees 목록만으로는 값이 다 안 잡힘.
   // 그래서 라벨은 formConfig customLabel을 따르고, 옵션은 팀원 목록 + 실제 데이터에 등장한
   // 값을 합쳐서 만든다.
-  const assigneeFieldLabel = builtinLabels.assignee;
-  const assigneeOptions = (() => {
+  const personFieldOptions = (getField: (t: Task) => string | undefined) => {
     const known = new Set(assignees);
     const extra = new Set<string>();
-    tasks.forEach(t => { if (t.assignee && !known.has(t.assignee)) extra.add(t.assignee); });
+    tasks.forEach(t => { const v = getField(t); if (v && !known.has(v)) extra.add(v); });
     return [...assignees, ...[...extra].sort((a, b) => a.localeCompare(b))];
-  })();
+  };
+  const assigneeFieldLabel = builtinLabels.assignee;
+  const assigneeOptions = personFieldOptions(t => t.assignee);
+  const receiverFieldLabel = builtinLabels.receiver;
+  const receiverOptions = personFieldOptions(t => t.receiver);
 
   useEffect(() => {
     if (assigneeFilter && !assigneeOptions.includes(assigneeFilter)) setAssigneeFilter('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assigneeOptions.join(',')]);
+  useEffect(() => {
+    if (receiverFilter && !receiverOptions.includes(receiverFilter)) setReceiverFilter('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiverOptions.join(',')]);
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (myTasksOnly && !isMyTask(t)) return false;
     if (assigneeFilter && t.assignee !== assigneeFilter) return false;
+    if (receiverFilter && t.receiver !== receiverFilter) return false;
     if (hideCompleted && (t.status?.replace(/\s/g, '') === '완료')) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
@@ -1005,12 +1015,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
-        {assigneeOptions.length > 0 && (
-          <FilterSelect label={assigneeFieldLabel} value={assigneeFilter} onChange={setAssigneeFilter}>
-            <option value="">전체</option>
-            {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
-          </FilterSelect>
-        )}
         <button
           onClick={() => setMyTasksOnly(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -1022,6 +1026,18 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <User size={11} />
           내 업무만
         </button>
+        {receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
+          <FilterSelect label={receiverFieldLabel} value={receiverFilter} onChange={setReceiverFilter}>
+            <option value="">전체</option>
+            {receiverOptions.map(a => <option key={a} value={a}>{a}</option>)}
+          </FilterSelect>
+        )}
+        {assigneeOptions.length > 0 && (
+          <FilterSelect label={assigneeFieldLabel} value={assigneeFilter} onChange={setAssigneeFilter}>
+            <option value="">전체</option>
+            {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
+          </FilterSelect>
+        )}
         {assigneeOptions.length > 0 && (
           <button
             onClick={() => setGroupByPerson(o => !o)}

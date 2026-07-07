@@ -17,6 +17,7 @@ import VacationPage from '../pages/VacationPage';
 import SeatMapPage from '../pages/SeatMapPage';
 import BoardPage from '../pages/BoardPage';
 import AccountInfoPage from '../pages/AccountInfoPage';
+import TrashPage from '../pages/TrashPage';
 import AdminPage from '../pages/AdminPage';
 import { useTeamNotices } from '../hooks/useTeamNotices';
 import SettingsPage from '../pages/SettingsPage';
@@ -466,11 +467,12 @@ function App() {
     [activePart, selectedTeam]
   );
 
-  // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리)
+  // 파트 필터 (팀 필터는 useTasks 쿼리에서 처리) + 휴지통으로 이동한(소프트 삭제) 업무는 일반 화면에서 제외
   const filteredTasks = useMemo(() => {
-    if (activeParts.length === 0) return tasks;
+    const alive = tasks.filter(t => !t.deletedAt);
+    if (activeParts.length === 0) return alive;
     const activePartNames = new Set(activeParts.map(p => p.name));
-    return tasks.filter(t =>
+    return alive.filter(t =>
       t.plTask
         ? (t.plParts?.some(p => activePartNames.has(p)) ?? false)
         : activePartNames.has(t.category)
@@ -480,6 +482,7 @@ function App() {
   const validCategories = activeParts.map(p => p.name);
   const orphanTaskCount = activeParts.length > 0
     ? tasks.filter(t => {
+        if (t.deletedAt) return false; // 휴지통에 있는 업무는 고아 정리 대상에서 제외 — 복구 기회를 남겨둠
         if (t.plTask && t.plParts?.length) {
           return !t.plParts.some(p => validCategories.includes(p));
         }
@@ -786,6 +789,30 @@ function App() {
   const canSeeAllCalendarWeekly = permissions.canViewAllCalendarWeekly;
   const currentUserName = appUser?.displayName ?? '';
 
+  // 휴지통: 메인업무는 deletedAt/deletedBy만 채워서 소프트 삭제(빈 문자열 = 삭제 안 됨 처리, filteredTasks에서 제외)
+  const moveTaskToTrash = (id: string) => updateTask(id, { deletedAt: new Date().toISOString(), deletedBy: currentUserName });
+  const restoreTask = (id: string) => updateTask(id, { deletedAt: '', deletedBy: '' });
+  const permanentlyDeleteTask = (id: string) => deleteTask(id);
+
+  const restoreSubtask = (taskId: string, subKey: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    const deleted = task?.deletedSubTasks?.[subKey];
+    if (!task || !deleted) return;
+    const nextSubTaskData = { ...(task.subTaskData ?? {}), [subKey]: deleted.entry };
+    const nextDeletedSubTasks = { ...(task.deletedSubTasks ?? {}) };
+    delete nextDeletedSubTasks[subKey];
+    const nextHidden = (task.hiddenSubTaskTypeIds ?? []).filter(id => id !== subKey);
+    updateTask(taskId, { subTaskData: nextSubTaskData, deletedSubTasks: nextDeletedSubTasks, hiddenSubTaskTypeIds: nextHidden });
+  };
+
+  const permanentlyDeleteSubtask = (taskId: string, subKey: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task?.deletedSubTasks) return;
+    const nextDeletedSubTasks = { ...task.deletedSubTasks };
+    delete nextDeletedSubTasks[subKey];
+    updateTask(taskId, { deletedSubTasks: nextDeletedSubTasks });
+  };
+
   return (
     <HolidaysContext.Provider value={holidayMap}>
     <>
@@ -836,7 +863,7 @@ function App() {
             <Route path="/tasks" element={!menuEnabled('/tasks') ? <Navigate to="/" replace /> : (
               <TaskManagement
                 tasks={filteredTasks} onAddTask={addTaskForTeam} onUpdateTask={updateTask}
-                onDeleteTask={deleteTask} onOpenDetail={setDetailTaskId} activeTaskId={detailTaskId} projectId={projectId}
+                onDeleteTask={moveTaskToTrash} onOpenDetail={setDetailTaskId} activeTaskId={detailTaskId} projectId={projectId}
                 activeCategory={activeCategory} onCategoryChange={setActiveCategory}
                 canCreate={permissions.canCreateTasks}
                 canManage={permissions.canEditTasks}
@@ -875,6 +902,17 @@ function App() {
               />
             )} />
             <Route path="/seats" element={!menuEnabled('/seats') ? <Navigate to="/" replace /> : <SeatMapPage canEdit={permissions.canEditSeatMap} teams={teams} allUsers={allUsers} workplaceId={activeWorkplaceId ?? undefined} />} />
+            <Route path="/trash" element={!menuEnabled('/trash') ? <Navigate to="/" replace /> : (
+              <TrashPage
+                tasks={tasks}
+                parts={activeParts}
+                canManage={permissions.canDeleteTasks}
+                onRestoreTask={restoreTask}
+                onPermanentDeleteTask={permanentlyDeleteTask}
+                onRestoreSubtask={restoreSubtask}
+                onPermanentDeleteSubtask={permanentlyDeleteSubtask}
+              />
+            )} />
             <Route path="/board" element={!menuEnabled('/board') ? <Navigate to="/" replace /> : (appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} /> : null)} />
             <Route path="/accounts" element={
               permissions.canViewAccounts && menuEnabled('/accounts')
@@ -965,7 +1003,7 @@ function App() {
               task={detailTask}
               onClose={() => setDetailTaskId(null)}
               onUpdate={updateTask}
-              onDelete={(id) => { deleteTask(id); setDetailTaskId(null); }}
+              onDelete={(id) => { moveTaskToTrash(id); setDetailTaskId(null); }}
               assignees={teamAssignees}
               parts={activeParts}
               canManage={permissions.canEditTasks}

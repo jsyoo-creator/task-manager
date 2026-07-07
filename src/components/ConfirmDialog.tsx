@@ -4,11 +4,13 @@ interface Props {
   open: boolean;
   taskTitle: string;
   title?: string;
+  message?: string;
+  subMessage?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제', onConfirm, onCancel }: Props) {
+export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제', message = '업무를 삭제할까요?', subMessage = '삭제 후 복구할 수 없습니다', onConfirm, onCancel }: Props) {
   if (!open) return null;
   return (
     <div
@@ -36,8 +38,8 @@ export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제'
             <p className="text-sm font-semibold text-gray-800 truncate max-w-[260px]" title={taskTitle}>
               {taskTitle}
             </p>
-            <p className="text-sm text-gray-500 mt-1">업무를 삭제할까요?</p>
-            <p className="text-xs text-gray-400 mt-1.5">삭제 후 복구할 수 없습니다</p>
+            <p className="text-sm text-gray-500 mt-1">{message}</p>
+            <p className="text-xs text-gray-400 mt-1.5">{subMessage}</p>
           </div>
         </div>
 

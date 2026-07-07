@@ -54,6 +54,7 @@ export const TOGGLEABLE_MENU_ITEMS: MenuItemMeta[] = [
   { id: 'board',    path: '/board',    label: '커뮤니티' },
   { id: 'accounts', path: '/accounts', label: '계정 정보' },
   { id: 'seats',    path: '/seats',    label: '자리 배치도' },
+  { id: 'trash',    path: '/trash',    label: '휴지통' },
 ];
 
 export function isMenuEnabled(menuId: string, menuConfig?: Record<string, boolean>): boolean {
@@ -611,6 +612,31 @@ export interface SubTask {
   createdAt: string;
 }
 
+export interface SubTaskDataEntry {
+  status?: TaskStatus;
+  assignee?: string;
+  substitute?: string; // 대무자 (담당자 휴가 시)
+  startDate?: string;
+  endDate?: string;
+  weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)
+  totalHours: number;
+  substituteWeeklyHours?: Record<string, number>; // 대무자 주차별 시간
+  substituteTotalHours?: number;
+  memos?: SubTaskMemo[];
+  checkedItems?: string[]; // review 타입 필드: 선택된 업무 ID 목록
+  reviewWeeklyHours?: Record<string, Record<string, number>>; // review 타입 필드: taskId → { w1d1... }
+  reviewDates?: Record<string, { startDate?: string; endDate?: string }>; // review 타입 필드: taskId → 날짜
+  reviewStatus?: Record<string, string>; // review 타입 필드: taskId → 검수 상태
+}
+
+// 휴지통: 개별 삭제된 세부업무의 스냅샷 (typeName은 삭제 시점 이름 — 이후 세부업무 타입이 이름 변경/삭제돼도 표시 가능하도록 보존)
+export interface DeletedSubTaskEntry {
+  entry: SubTaskDataEntry;
+  typeName: string;
+  deletedAt: string;
+  deletedBy: string;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -630,22 +656,7 @@ export interface Task {
   revisionLevel: number; // deprecated — 하위 호환용
   revisionCounts?: Record<string, number>; // 'F1'~'F6' → 횟수
   customFields?: Record<string, string>;
-  subTaskData?: Record<string, {
-    status?: TaskStatus;
-    assignee?: string;
-    substitute?: string; // 대무자 (담당자 휴가 시)
-    startDate?: string;
-    endDate?: string;
-    weeklyHours: Record<string, number>; // w1d1~w5d5 (week×day)
-    totalHours: number;
-    substituteWeeklyHours?: Record<string, number>; // 대무자 주차별 시간
-    substituteTotalHours?: number;
-    memos?: SubTaskMemo[];
-    checkedItems?: string[]; // review 타입 필드: 선택된 업무 ID 목록
-    reviewWeeklyHours?: Record<string, Record<string, number>>; // review 타입 필드: taskId → { w1d1... }
-    reviewDates?: Record<string, { startDate?: string; endDate?: string }>; // review 타입 필드: taskId → 날짜
-    reviewStatus?: Record<string, string>; // review 타입 필드: taskId → 검수 상태
-  }>;
+  subTaskData?: Record<string, SubTaskDataEntry>;
   memo?: string;
   hiddenSubTaskTypeIds?: string[]; // 이 업무에서 숨긴 세부업무 타입 ID 목록
   plTask?: boolean;          // PL업무 여부
@@ -653,6 +664,9 @@ export interface Task {
   plSelectedTypes?: string[]; // PL업무에서 선택된 메인업무 타입 ID 목록
   requestedFromTeamId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 팀 ID (참고용, 동기화 없음)
   requestedFromTaskId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 ID (참고용, 동기화 없음)
+  deletedAt?: string;   // 휴지통: 메인업무 소프트 삭제 시각 (있으면 휴지통에 있는 상태)
+  deletedBy?: string;
+  deletedSubTasks?: Record<string, DeletedSubTaskEntry>; // 휴지통: 업무는 살아있지만 개별 삭제된 세부업무들
   createdAt: string;
   updatedAt: string;
 }

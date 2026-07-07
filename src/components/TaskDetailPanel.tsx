@@ -1642,6 +1642,8 @@ export default function TaskDetailPanel({
     <ConfirmDialog
       open={pendingDeleteTask}
       taskTitle={task.title}
+      message="업무를 휴지통으로 이동할까요?"
+      subMessage="휴지통 페이지에서 다시 복구할 수 있습니다"
       onConfirm={() => {
         setPendingDeleteTask(false);
         handleClose();
@@ -1654,15 +1656,28 @@ export default function TaskDetailPanel({
       open={!!pendingDeleteSubTask}
       title="세부업무 삭제"
       taskTitle={pendingDeleteSubTask?.name ?? ''}
+      message="세부업무를 휴지통으로 이동할까요?"
+      subMessage="휴지통 페이지에서 다시 복구할 수 있습니다"
       onConfirm={() => {
         if (!pendingDeleteSubTask) return;
         // localSubTaskData가 비어있는 경우 대비해 task.subTaskData를 병합
         const base = { ...(task.subTaskData ?? {}), ...localSubTaskData };
+        const deletedEntry = base[pendingDeleteSubTask.id];
         delete base[pendingDeleteSubTask.id];
         setLocalSubTaskData(base);
         saveSubTaskData(base, true);
         const hiddenIds = [...(task.hiddenSubTaskTypeIds ?? []), pendingDeleteSubTask.id];
-        onUpdate(task.id, { hiddenSubTaskTypeIds: hiddenIds });
+        // 휴지통 복구용 스냅샷 보관 — 세부업무 타입이 나중에 이름 변경/삭제돼도 typeName으로 표시 가능
+        const nextDeletedSubTasks = deletedEntry ? {
+          ...(task.deletedSubTasks ?? {}),
+          [pendingDeleteSubTask.id]: {
+            entry: deletedEntry,
+            typeName: pendingDeleteSubTask.name,
+            deletedAt: new Date().toISOString(),
+            deletedBy: currentUserName,
+          },
+        } : task.deletedSubTasks;
+        onUpdate(task.id, { hiddenSubTaskTypeIds: hiddenIds, deletedSubTasks: nextDeletedSubTasks });
         setDeletedSubTaskIds(prev => new Set([...prev, pendingDeleteSubTask.id]));
         setPendingDeleteSubTask(null);
       }}

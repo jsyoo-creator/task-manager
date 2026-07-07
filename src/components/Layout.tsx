@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router';
 import {
   LayoutDashboard, ClipboardList, CalendarDays, BarChart3, Umbrella,
-  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2, Star
+  Grid3X3, MessageSquare, LogOut, Settings, AlertCircle, ChevronDown, Contact, Building2, Star, Trash2
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { Project, TaskCategory, AppUser, Team, ProfileFieldDef, Workplace, RoleLabels } from '../types';
@@ -41,6 +41,7 @@ const NAV_ALL = [
   { to: '/board', id: 'board', label: '커뮤니티', icon: MessageSquare, minRole: null },
   { to: '/accounts', id: 'accounts', label: '계정 정보', icon: Contact, minRole: 'manager' as const },
   { to: '/seats', id: 'seats', label: '자리 배치도', icon: Grid3X3, minRole: null },
+  { to: '/trash', id: 'trash', label: '휴지통', icon: Trash2, minRole: 'manager' as const },
   { to: '/settings', id: 'settings', label: '설정', icon: Settings, minRole: null },
 ];
 const NAV_SETTINGS_ONLY = [

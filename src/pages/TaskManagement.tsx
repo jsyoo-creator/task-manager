@@ -1062,6 +1062,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       <ConfirmDialog
         open={!!pendingDelete}
         taskTitle={pendingDelete?.title ?? ''}
+        message="업무를 휴지통으로 이동할까요?"
+        subMessage="휴지통 페이지에서 다시 복구할 수 있습니다"
         onConfirm={() => { onDeleteTask(pendingDelete!.id); setPendingDelete(null); }}
         onCancel={() => setPendingDelete(null)}
       />
@@ -1069,6 +1071,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       <ConfirmDialog
         open={pendingBulkDelete}
         taskTitle={`선택한 ${selectedIds.size}개의 업무`}
+        message="업무를 휴지통으로 이동할까요?"
+        subMessage="휴지통 페이지에서 다시 복구할 수 있습니다"
         onConfirm={() => {
           selectedIds.forEach(id => onDeleteTask(id));
           setSelectedIds(new Set());

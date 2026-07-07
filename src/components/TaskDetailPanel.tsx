@@ -47,6 +47,12 @@ const CAT_DOT: Record<string, string> = {
   '라이브': 'bg-red-500', '복지': 'bg-orange-400', '사업자': 'bg-indigo-500', '기타': 'bg-gray-400',
 };
 
+const DEPT_TAB_ACTIVE: Record<string, string> = {
+  '기획':  'bg-violet-500 text-white shadow shadow-violet-500/25',
+  '디자인': 'bg-pink-500 text-white shadow shadow-pink-500/25',
+  '퍼블':  'bg-teal-500 text-white shadow shadow-teal-500/25',
+};
+
 const DEPT_BADGE: Record<string, string> = {
   '기획':  'bg-violet-100 text-violet-700',
   '디자인': 'bg-pink-100 text-pink-700',
@@ -915,16 +921,16 @@ export default function TaskDetailPanel({
           ) : (
             <div className="space-y-3">
               {showDeptTabs && (
-                <div className="flex items-center gap-1.5 -mt-0.5">
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
                   {orderedDepts.map(d => {
                     const isActive = activeDept === d;
                     return (
                       <button key={d} type="button"
                         onClick={() => setActiveDeptTab(d)}
-                        className={`text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
-                          isActive ? (DEPT_BADGE[d] ?? 'bg-gray-200 text-gray-700') : 'text-gray-400 hover:bg-gray-100'
+                        className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-all ${
+                          isActive ? (DEPT_TAB_ACTIVE[d] ?? 'bg-gray-700 text-white') : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
                         }`}>
-                        {d}{d === myDept && <span className="ml-0.5 opacity-60">·나</span>}
+                        {d}
                       </button>
                     );
                   })}

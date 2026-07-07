@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, EyeOff, Send } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls } from '../types';
@@ -625,8 +625,17 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const [myTasksOnly, setMyTasksOnly] = useState(() => localStorage.getItem('tm_myTasksOnly') === 'true');
   const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('tm_hideCompleted') === 'true');
+  const [assigneeFilter, setAssigneeFilter] = useState(() => localStorage.getItem('tm_assigneeFilter') ?? '');
+  const [groupByPerson, setGroupByPerson] = useState(() => localStorage.getItem('tm_groupByPerson') === 'true');
   useEffect(() => { localStorage.setItem('tm_myTasksOnly', String(myTasksOnly)); }, [myTasksOnly]);
   useEffect(() => { localStorage.setItem('tm_hideCompleted', String(hideCompleted)); }, [hideCompleted]);
+  useEffect(() => { localStorage.setItem('tm_assigneeFilter', assigneeFilter); }, [assigneeFilter]);
+  useEffect(() => { localStorage.setItem('tm_groupByPerson', String(groupByPerson)); }, [groupByPerson]);
+  // 담당자 목록에서 사라진 값이 필터에 남아있으면 정리 (파트 변경 등으로 목록이 바뀔 때)
+  useEffect(() => {
+    if (assigneeFilter && !assignees.includes(assigneeFilter)) setAssigneeFilter('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignees.join(',')]);
 
   const isMyTask = (t: Task): boolean => {
     if (!currentUserName) return false;
@@ -640,6 +649,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (myTasksOnly && !isMyTask(t)) return false;
+    if (assigneeFilter && t.assignee !== assigneeFilter) return false;
     if (hideCompleted && (t.status?.replace(/\s/g, '') === '완료')) return false;
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
@@ -649,8 +659,30 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     return true;
   });
 
+  type GroupBlock = { key: string; label: string; tasks: Task[]; part?: TeamPart | null; isPerson?: boolean };
+
+  // 담당자별로 묶기 (담당자 필터와 별개로, 목록 전체를 사람 단위 섹션으로 재구성)
+  const personGroupedView = (): GroupBlock[] | null => {
+    if (!groupByPerson) return null;
+    const orderIdx = new Map(assignees.map((a, i) => [a, i]));
+    const groups = new Map<string, Task[]>();
+    filtered.forEach(t => {
+      const key = t.assignee || '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
+    });
+    const names = [...groups.keys()].filter(k => k !== '').sort((a, b) => {
+      const ai = orderIdx.has(a) ? orderIdx.get(a)! : Infinity;
+      const bi = orderIdx.has(b) ? orderIdx.get(b)! : Infinity;
+      return ai !== bi ? ai - bi : a.localeCompare(b);
+    });
+    const result: GroupBlock[] = names.map(name => ({ key: name, label: name, tasks: groups.get(name)!, isPerson: true }));
+    if (groups.has('')) result.push({ key: '__unassigned', label: '미배정', tasks: groups.get('')! });
+    return result;
+  };
+
   // 전체 보기 시 파트 순서대로 그룹핑
-  const groupedView = (() => {
+  const partGroupedView = (): GroupBlock[] | null => {
     if (activeCategory !== 'all' || !parts || parts.length === 0) return null;
     const partNameOrder = new Map(parts.map((p, i) => [p.name, i]));
     const groups = new Map<string, Task[]>();
@@ -663,14 +695,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         ungrouped.push(t);
       }
     });
-    const result: { part: TeamPart | null; tasks: Task[] }[] = [];
+    const result: GroupBlock[] = [];
     parts.forEach(part => {
       const grp = groups.get(part.name);
-      if (grp && grp.length > 0) result.push({ part, tasks: grp });
+      if (grp && grp.length > 0) result.push({ key: part.id, label: part.name, part, tasks: grp });
     });
-    if (ungrouped.length > 0) result.push({ part: null, tasks: ungrouped });
+    if (ungrouped.length > 0) result.push({ key: '__ungrouped', label: '미분류', part: null, tasks: ungrouped });
     return result;
-  })();
+  };
+
+  const groupedView = personGroupedView() ?? partGroupedView();
 
   const displayFlat = groupedView ? groupedView.flatMap(g => g.tasks) : filtered;
 
@@ -959,6 +993,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
+        {assignees.length > 0 && (
+          <FilterSelect label="담당자" value={assigneeFilter} onChange={setAssigneeFilter}>
+            <option value="">전체</option>
+            {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+          </FilterSelect>
+        )}
         <button
           onClick={() => setMyTasksOnly(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -981,6 +1021,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <EyeOff size={11} />
           완료 숨기기
         </button>
+        {assignees.length > 0 && (
+          <button
+            onClick={() => setGroupByPerson(o => !o)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              groupByPerson
+                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
+                : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
+            }`}
+          >
+            <Users size={11} />
+            담당자별로 보기
+          </button>
+        )}
         <div className="flex-1" />
         <span className="text-xs text-gray-400">총 {filtered.length}건</span>
       </div>
@@ -1038,19 +1091,24 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <div className="py-14 text-center text-sm text-gray-400">등록된 업무가 없습니다</div>
         )}
 
-        {groupedView ? groupedView.map(({ part, tasks: grpTasks }) => (
-          <div key={part?.id ?? '__ungrouped'}>
+        {groupedView ? groupedView.map(({ key, label, part, tasks: grpTasks, isPerson }) => (
+          <div key={key}>
             <div
               className="flex items-center gap-2 px-3 py-2 bg-gray-50/70 border-b border-black/5"
               style={{ minWidth: colMinWidth }}
             >
-              {part ? (
+              {isPerson ? (
+                <>
+                  <MiniAvatar name={label} photoURL={userPhotoMap?.get(label)} />
+                  <span className="text-[11px] font-bold text-gray-700">{label}</span>
+                </>
+              ) : part ? (
                 <>
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />
                   <span className="text-[11px] font-bold text-gray-700">{part.name}</span>
                 </>
               ) : (
-                <span className="text-[11px] font-bold text-gray-500">미분류</span>
+                <span className="text-[11px] font-bold text-gray-500">{label}</span>
               )}
               <span className="text-[11px] text-gray-400 ml-0.5">{grpTasks.length}건</span>
             </div>

@@ -679,9 +679,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         names.forEach(n => deptPool.add(n));
       });
     }
-    // 실데이터에 등장했지만 현재 필드 설정으로는 후보에 없는 값(설정 변경 이전 데이터 등)도 필터링은 가능해야 함
+    // 실데이터에 등장했지만 현재 필드 설정으로는 후보에 없는 값(설정 변경 이전 데이터 등)도 필터링은
+    // 가능해야 함 — 단, tasks prop은 파트 구분 없이 팀 전체 업무가 다 들어있으므로 activeCategory가
+    // 특정 파트면 그 파트 업무만 봐야 함. 안 그러면 다른 파트의 실제 담당자 이름이 이 파트 드롭다운에
+    // 그대로 새어 들어옴(예: 라이브 업무의 담당자가 복지몰 담당자 드롭다운에 나타남)
+    const relevantTasks = activeCategory !== 'all' ? tasks.filter(t => t.category === activeCategory) : tasks;
     const extra = new Set<string>();
-    tasks.forEach(t => { const v = getField(t); if (v && !deptPool.has(v)) extra.add(v); });
+    relevantTasks.forEach(t => { const v = getField(t); if (v && !deptPool.has(v)) extra.add(v); });
     const ordered = assignees.filter(a => deptPool.has(a));
     const deptOnly = [...deptPool].filter(v => !assignees.includes(v)).sort((a, b) => a.localeCompare(b));
     const extraSorted = [...extra].sort((a, b) => a.localeCompare(b));
@@ -691,6 +695,42 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const assigneeOptions = personFieldOptions('assignee', t => t.assignee);
   const receiverFieldLabel = builtinLabels.receiver;
   const receiverOptions = personFieldOptions('receiver', t => t.receiver);
+
+  // TEMP DEBUG — 담당자/접수자 후보 목록이 왜 이렇게 나오는지 원인 확인용. 확인 끝나면 제거할 것.
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.group(`[TM DEBUG] activeCategory=${activeCategory}`);
+    // eslint-disable-next-line no-console
+    console.log('relevantParts 상세:', relevantParts.map(p => {
+      const merged = p.formConfig ? mergeFormConfig(p.formConfig, formConfig) : formConfig;
+      const pf = resolveBuiltinFields(merged);
+      const af = pf.find(f => f.key === 'assignee');
+      const rf = pf.find(f => f.key === 'receiver');
+      return {
+        파트명: p.name,
+        '파트.departments(파트 편집 화면)': p.departments,
+        담당자필드: { 라벨: af?.customLabel, 타입: af?.customType, department: af?.department, departments: af?.departments },
+        접수자필드: { 라벨: rf?.customLabel, 타입: rf?.customType, department: rf?.department, departments: rf?.departments },
+      };
+    }));
+    // eslint-disable-next-line no-console
+    console.log('assignees prop(무제한 폴백 후보):', assignees);
+    // eslint-disable-next-line no-console
+    console.log('teamMembers prop(이름+직군):', teamMembers);
+    // eslint-disable-next-line no-console
+    console.log('최종 assigneeOptions:', assigneeOptions);
+    // eslint-disable-next-line no-console
+    console.log('최종 receiverOptions:', receiverOptions);
+    console.groupEnd();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory]);
+  // 필터 바의 담당자/접수자 노출 순서를 테이블 컬럼 순서(builtinFields, 파트별 fieldOrder 반영)와
+  // 맞춤 — 이전엔 항상 접수자 먼저 코드 순서로 고정돼 있어서, 파트에서 담당자 쪽 컬럼을 앞으로
+  // 옮겨놔도(예: 복지몰이 '기획'을 뒤로, '디자인'을 앞으로) 필터 바만 반대 순서로 나왔음
+  const receiverColIdx = builtinFields.findIndex(f => f.key === 'receiver');
+  const assigneeColIdx = builtinFields.findIndex(f => f.key === 'assignee');
+  const receiverFilterFirst = receiverColIdx === -1 || assigneeColIdx === -1 || receiverColIdx < assigneeColIdx;
+  const personFilterOrder: ('receiver' | 'assignee')[] = receiverFilterFirst ? ['receiver', 'assignee'] : ['assignee', 'receiver'];
 
   useEffect(() => {
     if (assigneeFilter && !assigneeOptions.includes(assigneeFilter)) setAssigneeFilter('');
@@ -1073,45 +1113,42 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           내 업무만
         </button>
         {/* 담당자/접수자 필터·그룹보기는 파트마다 라벨/직군이 달라 '전체' 탭에서 하나로 합칠 수
-            없으므로, 파트가 특정된 탭에서만 노출한다 */}
-        {activeCategory !== 'all' && canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
-          <FilterSelect label={receiverFieldLabel} value={receiverFilter} onChange={setReceiverFilter}>
-            <option value="">전체</option>
-            {receiverOptions.map(a => <option key={a} value={a}>{a}</option>)}
-          </FilterSelect>
-        )}
-        {activeCategory !== 'all' && canFilterByPerson && assigneeOptions.length > 0 && (
-          <FilterSelect label={assigneeFieldLabel} value={assigneeFilter} onChange={setAssigneeFilter}>
-            <option value="">전체</option>
-            {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
-          </FilterSelect>
-        )}
-        {activeCategory !== 'all' && canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
-          <button
-            onClick={() => setGroupByField(f => f === 'receiver' ? null : 'receiver')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              groupByField === 'receiver'
-                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
-                : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
-            }`}
-          >
-            <Users size={11} />
-            {receiverFieldLabel}별로 보기
-          </button>
-        )}
-        {activeCategory !== 'all' && canFilterByPerson && assigneeOptions.length > 0 && (
-          <button
-            onClick={() => setGroupByField(f => f === 'assignee' ? null : 'assignee')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              groupByField === 'assignee'
-                ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
-                : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
-            }`}
-          >
-            <Users size={11} />
-            {assigneeFieldLabel}별로 보기
-          </button>
-        )}
+            없으므로, 파트가 특정된 탭에서만 노출한다. 노출 순서는 personFilterOrder(테이블
+            컬럼 순서와 동일)를 따른다 — 예전엔 항상 접수자를 먼저 렌더링해서, 파트에서 담당자
+            컬럼을 앞으로 옮겨도 필터 바만 반대 순서로 나왔음 */}
+        {activeCategory !== 'all' && canFilterByPerson && personFilterOrder.map(key => {
+          if (key === 'receiver' && receiverFieldLabel === assigneeFieldLabel) return null;
+          const label = key === 'receiver' ? receiverFieldLabel : assigneeFieldLabel;
+          const options = key === 'receiver' ? receiverOptions : assigneeOptions;
+          const value = key === 'receiver' ? receiverFilter : assigneeFilter;
+          const onChange = key === 'receiver' ? setReceiverFilter : setAssigneeFilter;
+          if (options.length === 0) return null;
+          return (
+            <FilterSelect key={key} label={label} value={value} onChange={onChange}>
+              <option value="">전체</option>
+              {options.map(a => <option key={a} value={a}>{a}</option>)}
+            </FilterSelect>
+          );
+        })}
+        {activeCategory !== 'all' && canFilterByPerson && personFilterOrder.map(key => {
+          if (key === 'receiver' && receiverFieldLabel === assigneeFieldLabel) return null;
+          const label = key === 'receiver' ? receiverFieldLabel : assigneeFieldLabel;
+          const options = key === 'receiver' ? receiverOptions : assigneeOptions;
+          if (options.length === 0) return null;
+          return (
+            <button key={key}
+              onClick={() => setGroupByField(f => f === key ? null : key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                groupByField === key
+                  ? 'bg-violet-600 text-white shadow-sm shadow-violet-200'
+                  : 'glass-card !rounded-lg !overflow-visible text-gray-600 hover:text-violet-600'
+              }`}
+            >
+              <Users size={11} />
+              {label}별로 보기
+            </button>
+          );
+        })}
         <button
           onClick={() => setHideCompleted(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${

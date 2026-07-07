@@ -154,7 +154,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
   metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, formConfig, teamFormConfig, userPhotoMap,
-  canSeeAll = true, currentUserName = '', vacations = [], reviewTasks,
+  canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
 }: {
   task: Task;
   onClose: () => void;
@@ -173,6 +173,7 @@ export default function TaskDetailPanel({
   userPhotoMap?: Map<string, string>;
   canSeeAll?: boolean;
   currentUserName?: string;
+  currentUserDept?: Department; // 팀 소속 여부와 무관한, 로그인 사용자 본인의 직군 (세부업무 탭 우선순위용)
   vacations?: Vacation[];
   reviewTasks?: Task[];
 }) {
@@ -467,7 +468,10 @@ export default function TaskDetailPanel({
   });
   // 직군 지정된 세부업무가 2개 이상의 직군에 걸쳐 있을 때만 탭으로 분리.
   // 직군 미지정 세부업무(공통)는 모든 탭에 항상 표시.
-  const myDept = teamMembers?.find(m => m.name === currentUserName)?.department;
+  // 주의: teamMembers는 "현재 팀의 기본 소속원" 기준이라, 접속 시 기본 팀이 아닌
+  // 다른 팀(내가 추가로 선택만 해둔 팀)에서는 내가 목록에 없어 department를 못 찾음.
+  // 직군은 팀과 무관한 사용자 개인 속성이므로 currentUserDept를 그대로 사용한다.
+  const myDept = currentUserDept ?? teamMembers?.find(m => m.name === currentUserName)?.department;
   const DEPT_TAB_ORDER: Department[] = ['기획', '디자인', '퍼블'];
   const presentDepts = DEPT_TAB_ORDER.filter(d => visibleSubTaskTypes.some(t => t.department === d));
   const orderedDepts = myDept && presentDepts.includes(myDept)

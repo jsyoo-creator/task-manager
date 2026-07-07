@@ -1017,6 +1017,7 @@ function App() {
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}
               canSeeAll={canSeeAll}
               currentUserName={currentUserName}
+              currentUserDept={appUser?.department}
               vacations={teamVacations}
               reviewTasks={detailTask.plTask
                 ? tasks.filter(t =>

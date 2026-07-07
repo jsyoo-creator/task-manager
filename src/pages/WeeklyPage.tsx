@@ -501,14 +501,15 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
                         const h = getSubWeekHours(s, start, isSubstitute);
                         const [subTaskId, subKey, reviewItemId] = s.id.split('__');
                         const editable = !!onUpdateTask;
-                        const isEditing = editingSubId === s.id;
+                        const editKey = `${person}::${s.id}`;
+                        const isEditing = editingSubId === editKey;
                         const editTask = isEditing ? allTaskMap.get(subTaskId) : undefined;
                         return (
                           <div key={s.id}>
                             <div className="flex items-center gap-2">
                               {editable ? (
                                 <button
-                                  onClick={() => setEditingSubId(isEditing ? null : s.id)}
+                                  onClick={() => setEditingSubId(isEditing ? null : editKey)}
                                   className={`text-xs flex-1 truncate text-left transition-colors ${isEditing ? 'text-[#5B5BD6] font-semibold' : 'text-gray-600 hover:text-[#5B5BD6] hover:underline'}`}
                                 >
                                   {s.title}

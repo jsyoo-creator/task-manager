@@ -669,10 +669,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           fc.options.forEach(o => deptPool.add(o));
           return;
         }
-        // 필드 자체엔 직군이 안 붙어 있어도 파트에 직군이 연결돼 있으면(TeamPart.departments)
-        // 그걸 기본값으로 써야 함 — 안 그러면 파트별로 직군을 나눈 팀(B팀 등)에서 필드에
-        // 직군을 따로 안 넣은 경우 전체 팀원이 그대로 후보로 나와버림
-        const depts = (fc ? resolveFieldDepts(fc) : null) ?? (part.departments?.length ? part.departments : null);
+        // TeamPart.departments(파트에 연결된 직군)는 이 필드의 직군 설정과 무관한 별개 용도로
+        //쓰이는 값이라 여기 fallback으로 쓰면 안 됨 — 필드 자체에 직군이 없으면(='전체') 그
+        // 파트에선 정말 제한이 없다는 뜻이므로 그대로 무제한(assignees)으로 둬야 함
+        const depts = fc ? resolveFieldDepts(fc) : null;
         const names = depts && teamMembers?.length
           ? teamMembers.filter(m => m.department && depts.includes(m.department)).map(m => m.name)
           : assignees;
@@ -700,6 +700,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     if (receiverFilter && !receiverOptions.includes(receiverFilter)) setReceiverFilter('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiverOptions.join(',')]);
+  // '전체' 탭은 담당자/접수자 필터 UI 자체를 숨기므로, 다른 파트 탭에서 걸어둔 필터가
+  // 안 보이는 채로 계속 적용되는 걸 방지하기 위해 '전체'로 돌아오면 초기화한다
+  useEffect(() => {
+    if (activeCategory === 'all') {
+      setAssigneeFilter('');
+      setReceiverFilter('');
+      setGroupByField(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory]);
 
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
@@ -1062,19 +1072,21 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <User size={11} />
           내 업무만
         </button>
-        {canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
+        {/* 담당자/접수자 필터·그룹보기는 파트마다 라벨/직군이 달라 '전체' 탭에서 하나로 합칠 수
+            없으므로, 파트가 특정된 탭에서만 노출한다 */}
+        {activeCategory !== 'all' && canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
           <FilterSelect label={receiverFieldLabel} value={receiverFilter} onChange={setReceiverFilter}>
             <option value="">전체</option>
             {receiverOptions.map(a => <option key={a} value={a}>{a}</option>)}
           </FilterSelect>
         )}
-        {canFilterByPerson && assigneeOptions.length > 0 && (
+        {activeCategory !== 'all' && canFilterByPerson && assigneeOptions.length > 0 && (
           <FilterSelect label={assigneeFieldLabel} value={assigneeFilter} onChange={setAssigneeFilter}>
             <option value="">전체</option>
             {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
           </FilterSelect>
         )}
-        {canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
+        {activeCategory !== 'all' && canFilterByPerson && receiverOptions.length > 0 && receiverFieldLabel !== assigneeFieldLabel && (
           <button
             onClick={() => setGroupByField(f => f === 'receiver' ? null : 'receiver')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -1087,7 +1099,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             {receiverFieldLabel}별로 보기
           </button>
         )}
-        {canFilterByPerson && assigneeOptions.length > 0 && (
+        {activeCategory !== 'all' && canFilterByPerson && assigneeOptions.length > 0 && (
           <button
             onClick={() => setGroupByField(f => f === 'assignee' ? null : 'assignee')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${

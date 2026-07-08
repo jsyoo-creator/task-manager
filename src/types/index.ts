@@ -601,8 +601,9 @@ export interface Team {
 // 커뮤니티 > AI 툴 리스트 — 팀 구분 없이 전체 공용으로 노출되는 추천 리스트
 export interface AiTool {
   id: string;
-  name: string;          // 표시명, 예: '클로드(Claude)'
-  description: string;   // 설명 (길게 작성 가능, 줄바꿈 유지)
+  name: string;          // 메인 제목, 예: '클로드(Claude)'
+  subtitle?: string;     // 서브 제목 — 목록에서 메인 제목 옆에 한 줄로 표시
+  description: string;   // 상세 설명 (길게 작성 가능, 줄바꿈 유지)
   category: string;      // 강조 배지 텍스트, 예: 'AI · LLM'
   tags: string[];        // 추가 태그 목록, 예: ['대화형 AI', '글쓰기']
   siteUrl?: string;      // 공식 사이트 링크 (있으면 클릭 시 새 탭으로 이동)

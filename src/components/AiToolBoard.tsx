@@ -73,6 +73,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
   onSubmit: (data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => Promise<void>;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
+  const [subtitle, setSubtitle] = useState(initial?.subtitle ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [category, setCategory] = useState(initial?.category ?? '');
   const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
@@ -88,6 +89,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
     try {
       await onSubmit({
         name: name.trim(),
+        subtitle: subtitle.trim() || undefined,
         description: description.trim(),
         category: category.trim(),
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
@@ -121,17 +123,22 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
 
       <div className="p-5 space-y-4">
         <div>
-          <label className={lCls}>이름</label>
+          <label className={lCls}>메인 제목</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="클로드(Claude)" autoFocus className={iCls} />
         </div>
 
         <div>
-          <label className={lCls}>설명</label>
+          <label className={lCls}>서브 제목 (선택, 목록에 메인 제목 옆 한 줄로 표시)</label>
+          <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="채팅·업무 위임·코딩까지 한 번에 처리하는 앤트로픽의 AI LLM" className={iCls} />
+        </div>
+
+        <div>
+          <label className={lCls}>상세 설명</label>
           <textarea
             value={description}
             onChange={e => setDescription(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(); }}
-            placeholder="자유롭게 길게 작성하세요 (Ctrl+Enter로 등록)"
+            placeholder="상세 페이지에 보여줄 내용을 자유롭게 길게 작성하세요 (Ctrl+Enter로 등록)"
             rows={10}
             className={`${iCls} resize-none leading-relaxed`}
           />
@@ -213,7 +220,10 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
           <div className="flex items-start gap-4">
             <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={56} />
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 leading-snug">{tool.name}</h1>
+              <h1 className="text-xl font-bold text-gray-900 leading-snug">
+                {tool.name}
+                {tool.subtitle && <span className="text-base font-normal text-gray-500"> — {tool.subtitle}</span>}
+              </h1>
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 {tool.category && (
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
@@ -361,7 +371,7 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
                       <span className="text-[15px] font-bold text-gray-900">{tool.name}</span>
-                      {tool.description && <span className="text-[13px] text-gray-500 truncate">— {tool.description}</span>}
+                      {tool.subtitle && <span className="text-[13px] text-gray-500 truncate">— {tool.subtitle}</span>}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {tool.category && (

@@ -24,9 +24,10 @@ export function useAiTools() {
   };
 
   const updateTool = async (id: string, data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => {
-    const { siteUrl, iconUrl, ...rest } = data;
+    const { subtitle, siteUrl, iconUrl, ...rest } = data;
     await updateDoc(doc(db, 'aiTools', id), {
       ...rest,
+      subtitle: subtitle || deleteField(),
       siteUrl: siteUrl || deleteField(),
       iconUrl: iconUrl || deleteField(),
       updatedAt: new Date().toISOString(),

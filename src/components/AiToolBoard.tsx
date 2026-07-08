@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink, MessagesSquare } from 'lucide-react';
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
+import { useComments } from '../hooks/usePosts';
+import { useDiscussionRead } from '../hooks/useDiscussionRead';
 import RichTextEditor from './RichTextEditor';
 import CommentSection from './CommentSection';
 import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '../lib/sanitizeRichText';
@@ -247,6 +249,17 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
     .filter((t): t is AiTool => !!t);
   const { html: descriptionHtml, headings } = useMemo(() => extractToc(toDisplayHtml(tool.description)), [tool.description]);
 
+  // 토론하기 버튼 배지용 — 패널을 펼치기 전에도 댓글 존재/안 읽음 여부를 보여줘야 해서
+  // CommentSection과 별개로 한 번 더 구독함 (사용 규모상 중복 리스너 비용은 무시 가능)
+  const { comments } = useComments(tool.id);
+  const { lastReadAt, loaded: readLoaded, markRead } = useDiscussionRead(tool.id, appUser.uid);
+  const unreadCount = lastReadAt ? comments.filter(c => c.createdAt > lastReadAt).length : comments.length;
+
+  useEffect(() => {
+    if (showDiscussion) markRead();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDiscussion, comments.length]);
+
   const scrollToHeading = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -303,11 +316,18 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
                 )}
                 <button
                   onClick={() => setShowDiscussion(v => !v)}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  className={`relative inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                     showDiscussion ? 'bg-gray-100 border-gray-200 text-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   <MessagesSquare size={14} />토론하기
+                  {readLoaded && comments.length > 0 && (
+                    <span className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                      unreadCount > 0 ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'
+                    }`}>
+                      {unreadCount > 0 ? unreadCount : comments.length}
+                    </span>
+                  )}
                 </button>
               </div>
             </div>

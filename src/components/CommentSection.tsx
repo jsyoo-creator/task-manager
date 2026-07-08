@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { MessageSquare, Pencil, Trash2, Send } from 'lucide-react';
+import { Pencil, Trash2, Send } from 'lucide-react';
 import type { AppUser } from '../types';
 import { useComments, type PostComment } from '../hooks/usePosts';
 
@@ -119,12 +119,6 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
-        <MessageSquare size={14} className="text-gray-400" />
-        <span className="text-sm font-semibold text-gray-700">댓글</span>
-        <span className="text-xs text-gray-400">{comments.length}</span>
-      </div>
-
       {comments.length === 0 ? (
         <p className="text-xs text-gray-400 py-4 text-center">첫 번째 댓글을 남겨보세요</p>
       ) : (

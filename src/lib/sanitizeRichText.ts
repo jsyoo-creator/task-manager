@@ -7,7 +7,9 @@ const ALLOWED_TAGS = [
   'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre',
   'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span', 'div',
 ];
-const ALLOWED_ATTR = ['href'];
+// style 허용 — 붙여넣은 콜아웃 박스 등의 배경색·테두리·둥근 모서리를 그대로 보존하기 위함.
+// DOMPurify가 style 값 안의 위험한 패턴(javascript:, expression(), -moz-binding 등)은 계속 걸러낸다.
+const ALLOWED_ATTR = ['href', 'style'];
 
 export function sanitizeRichText(html: string): string {
   const clean = DOMPurify.sanitize(html, {

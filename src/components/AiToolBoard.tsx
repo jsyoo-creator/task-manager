@@ -330,15 +330,16 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
 }) {
   const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools();
   const [sortMode, setSortMode] = useState<SortMode>('recommend');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | string>('all');
   const setView = onViewChange;
   const [deleteTarget, setDeleteTarget] = useState<AiTool | null>(null);
 
   const sorted = useMemo(() => {
-    const arr = [...tools];
+    const arr = (categoryFilter === 'all' ? tools : tools.filter(t => t.category === categoryFilter)).slice();
     if (sortMode === 'recommend') arr.sort((a, b) => b.recommendedBy.length - a.recommendedBy.length);
     else arr.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     return arr;
-  }, [tools, sortMode]);
+  }, [tools, sortMode, categoryFilter]);
 
   const selectedTool = (view.type === 'read' || view.type === 'edit') ? (tools.find(t => t.id === view.toolId) ?? null) : null;
 
@@ -388,7 +389,7 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
     <>
       <div className="glass-card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">오늘의 톱 {tools.length}</h2>
+          <h2 className="text-base font-bold text-gray-900">오늘의 톱 {sorted.length}</h2>
           <div className="flex items-center gap-3">
             {SORT_OPTIONS.map(opt => (
               <button key={opt.key} onClick={() => setSortMode(opt.key)}
@@ -399,6 +400,23 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
               </button>
             ))}
           </div>
+        </div>
+
+        {/* 카테고리 필터 */}
+        <div className="flex items-center gap-1.5 px-5 py-3 border-b border-gray-100 flex-wrap">
+          {(['all', ...CATEGORY_OPTIONS] as const).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setCategoryFilter(opt)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                categoryFilter === opt
+                  ? 'bg-[#6C63FF] text-white border-[#6C63FF]'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {opt === 'all' ? '전체' : opt}
+            </button>
+          ))}
         </div>
 
         {loading ? (
@@ -416,8 +434,10 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(108,99,255,0.08)' }}>
               <Sparkles size={20} style={{ color: 'rgba(108,99,255,0.4)' }} />
             </div>
-            <p className="text-sm text-gray-400">아직 등록된 AI 툴이 없습니다</p>
-            {canManage && (
+            <p className="text-sm text-gray-400">
+              {categoryFilter === 'all' ? '아직 등록된 AI 툴이 없습니다' : '이 카테고리에는 등록된 AI 툴이 없습니다'}
+            </p>
+            {canManage && categoryFilter === 'all' && (
               <button onClick={() => setView({ type: 'write' })} className="text-[13px] font-semibold text-[#6C63FF] hover:underline">
                 첫 번째 AI 툴을 추가해보세요
               </button>

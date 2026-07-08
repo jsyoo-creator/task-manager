@@ -3,7 +3,7 @@ import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink, MessagesSquare } fro
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 import { useComments } from '../hooks/usePosts';
-import { useDiscussionRead } from '../hooks/useDiscussionRead';
+import { useDiscussionRead, useDiscussionUnreadCounts } from '../hooks/useDiscussionRead';
 import RichTextEditor from './RichTextEditor';
 import CommentSection from './CommentSection';
 import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '../lib/sanitizeRichText';
@@ -440,6 +440,10 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
     ...CATEGORY_OPTIONS.map(c => ({ key: c, label: c, count: tools.filter(t => t.category === c).length })),
   ], [tools]);
 
+  // 목록 아이콘에 표시할 항목별 안 읽은 토론 수 — 상세보기 배지와 같은 read 기록을 사용
+  const toolIds = useMemo(() => sorted.map(t => t.id), [sorted]);
+  const unreadCounts = useDiscussionUnreadCounts(toolIds, appUser.uid);
+
   const selectedTool = (view.type === 'read' || view.type === 'edit') ? (tools.find(t => t.id === view.toolId) ?? null) : null;
 
   // 상세/수정 화면에서 항목이 삭제되면 목록으로
@@ -534,12 +538,20 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
               <div>
                 {sorted.map((tool, i) => {
                   const hasRecommended = tool.recommendedBy.includes(appUser.uid);
+                  const unread = unreadCounts[tool.id] ?? 0;
                   return (
                     <div key={tool.id}
                       onClick={() => setView({ type: 'read', toolId: tool.id })}
                       className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0 group hover:bg-gray-50/60 transition-colors cursor-pointer">
                       <span className="w-7 text-sm font-bold text-gray-300 tabular-nums flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
-                      <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={48} />
+                      <div className="relative flex-shrink-0">
+                        <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={48} />
+                        {unread > 0 && (
+                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                            {unread}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-1.5 flex-wrap">
                           <span className="text-[15px] font-bold text-gray-900">{tool.name}</span>

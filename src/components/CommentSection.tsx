@@ -1,7 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pencil, Trash2, Send } from 'lucide-react';
 import type { AppUser } from '../types';
 import { useComments, type PostComment } from '../hooks/usePosts';
+import Pagination from './Pagination';
+
+const COMMENTS_PAGE_SIZE = 3;
 
 // 댓글은 일반 텍스트로 저장되므로 dangerouslySetInnerHTML 없이, URL만 골라
 // <a> 엘리먼트로 바꿔 안전하게 클릭 가능한 링크로 렌더링
@@ -75,7 +78,17 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
   const [editTarget, setEditTarget] = useState<PostComment | null>(null);
   const [editText, setEditText] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [page, setPage] = useState(1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const totalPages = Math.max(1, Math.ceil(comments.length / COMMENTS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedComments = comments.slice((safePage - 1) * COMMENTS_PAGE_SIZE, safePage * COMMENTS_PAGE_SIZE);
+
+  // 댓글이 삭제돼 총 페이지가 줄어들면 현재 페이지도 같이 당겨줌
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const handleSubmit = async () => {
     const trimmed = text.trim();
@@ -91,6 +104,8 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
       });
       setText('');
       textareaRef.current?.focus();
+      // 새 댓글은 목록 맨 끝에 붙으므로, 방금 쓴 글이 바로 보이도록 마지막 페이지로 이동
+      setPage(Math.ceil((comments.length + 1) / COMMENTS_PAGE_SIZE));
     } finally {
       setSubmitting(false);
     }
@@ -122,8 +137,9 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
       {comments.length === 0 ? (
         <p className="text-xs text-gray-400 py-4 text-center">첫 번째 댓글을 남겨보세요</p>
       ) : (
-        <div className="space-y-4 mb-5">
-          {comments.map(c => {
+        <div className="mb-5">
+        <div className="space-y-4 mb-1">
+          {pagedComments.map(c => {
             const canManage = c.authorUid === appUser.uid || canManageBoard;
             const isEditing = editTarget?.id === c.id;
             return (
@@ -179,6 +195,8 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
               </div>
             );
           })}
+        </div>
+        <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </div>
       )}
 

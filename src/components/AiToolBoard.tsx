@@ -276,7 +276,7 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
             />
 
             {hasSidebar && (
-              <div className="w-[220px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block">
+              <div className="w-[300px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block">
                 {tool.tags.length > 0 && (
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>

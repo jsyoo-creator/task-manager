@@ -183,14 +183,14 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
       )}
 
       {/* 댓글 입력 */}
-      <div className="flex items-end gap-2.5">
+      <div className="flex items-center gap-2.5">
         <Avatar name={appUser.displayName} photoURL={appUser.photoURL} size={7} />
         <textarea
           ref={textareaRef}
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(); }}
-          placeholder="댓글 달기… (Ctrl+Enter로 등록)"
+          placeholder="Ctrl+Enter로 등록"
           rows={1}
           className="flex-1 text-sm px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 focus:border-[#6C63FF]/50 resize-none text-gray-800 placeholder:text-gray-400 transition-all"
           style={{ minHeight: 40, maxHeight: 120 }}

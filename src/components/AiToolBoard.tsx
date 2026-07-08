@@ -240,8 +240,8 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
 
         <div className="px-6 pt-6 pb-6">
           {/* 제목 영역 — 전체 너비 */}
-          <div className="flex items-start gap-5">
-            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={64} />
+          <div className="flex items-start gap-8">
+            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={88} />
             <div className="flex-1 min-w-0">
               {(tool.category || tool.tags.length > 0) && (
                 <div className="flex items-center gap-1.5 mb-2 flex-wrap">
@@ -253,7 +253,7 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
                   ))}
                 </div>
               )}
-              <h1 className="text-3xl font-extrabold text-gray-900 leading-tight tracking-tight">{tool.name}</h1>
+              <h1 className="text-4xl font-extrabold text-gray-900 leading-tight tracking-tight">{tool.name}</h1>
               {tool.subtitle && <p className="text-base font-semibold text-gray-500 mt-1.5">{tool.subtitle}</p>}
               {tool.siteUrl && (
                 <a href={tool.siteUrl} target="_blank" rel="noreferrer"

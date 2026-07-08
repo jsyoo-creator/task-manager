@@ -36,13 +36,11 @@ function ToolIcon({ iconUrl, name, size = 48 }: { iconUrl?: string; name: string
   );
 }
 
-function RecommendButton({ count, active, onClick }: { count: number; active: boolean; onClick: (e: React.MouseEvent) => void }) {
+function RecommendButton({ count, onClick }: { count: number; active: boolean; onClick: (e: React.MouseEvent) => void }) {
   return (
     <button
       onClick={onClick}
-      className={`w-14 h-12 rounded-xl border flex flex-col items-center justify-center flex-shrink-0 transition-colors ${
-        active ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-200 text-gray-800 hover:border-gray-300'
-      }`}
+      className="w-14 h-12 rounded-xl border border-gray-200 bg-white text-gray-800 hover:border-gray-300 flex flex-col items-center justify-center flex-shrink-0 transition-colors"
     >
       <span className="leading-none text-[10px]">▲</span>
       <span className="text-sm font-bold leading-none mt-0.5">{count}</span>

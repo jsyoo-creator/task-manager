@@ -236,6 +236,7 @@ function WriteView({ activeTeam, appUser, canSetNotice, onBack, onSubmit }: {
             initialValue={content}
             onChange={setContent}
             placeholder="내용을 작성하거나, 서식이 있는 글을 그대로 붙여넣으세요"
+            hideImageButton
           />
         </div>
       </div>
@@ -303,6 +304,7 @@ function EditView({ post, onBack, onSubmit }: {
           initialValue={content}
           onChange={setContent}
           placeholder="내용을 작성하거나, 서식이 있는 글을 그대로 붙여넣으세요"
+          hideImageButton
         />
       </div>
 

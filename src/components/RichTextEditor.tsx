@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { sanitizeRichText } from '../lib/sanitizeRichText';
 
-export default function RichTextEditor({ initialValue, onChange, placeholder, className }: {
+export default function RichTextEditor({ initialValue, onChange, placeholder, className, hideImageButton }: {
   initialValue: string;
   onChange: (html: string) => void;
   placeholder?: string;
   className?: string;
+  hideImageButton?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -39,16 +40,18 @@ export default function RichTextEditor({ initialValue, onChange, placeholder, cl
 
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <button
-          type="button"
-          onMouseDown={e => e.preventDefault()}
-          onClick={handleInsertImage}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
-        >
-          <ImageIcon size={12} />이미지 삽입
-        </button>
-      </div>
+      {!hideImageButton && (
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <button
+            type="button"
+            onMouseDown={e => e.preventDefault()}
+            onClick={handleInsertImage}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            <ImageIcon size={12} />이미지 삽입
+          </button>
+        </div>
+      )}
       <div
         ref={ref}
         contentEditable

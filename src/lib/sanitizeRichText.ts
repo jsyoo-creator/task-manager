@@ -4,12 +4,14 @@ import DOMPurify from 'dompurify';
 // 항상 이 필터를 거친다 — 붙여넣기 직후, 저장 직전, 렌더링 직전 3곳에서 반복 적용(중복 방어).
 const ALLOWED_TAGS = [
   'h1', 'h2', 'h3', 'h4', 'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's',
-  'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre',
+  'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre', 'img',
   'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span', 'div',
 ];
 // style 허용 — 붙여넣은 콜아웃 박스 등의 배경색·테두리·둥근 모서리를 그대로 보존하기 위함.
 // DOMPurify가 style 값 안의 위험한 패턴(javascript:, expression(), -moz-binding 등)은 계속 걸러낸다.
-const ALLOWED_ATTR = ['href', 'style'];
+// src/alt 허용 — 실제 <img src="https://...">는 통과시켜 붙여넣은 이미지가 그대로 보이게 함
+// (SVG로 그려진 미리보기 등 이미지가 아닌 요소는 애초에 허용 태그가 아니라서 계속 빠짐)
+const ALLOWED_ATTR = ['href', 'style', 'src', 'alt'];
 
 export function sanitizeRichText(html: string): string {
   const clean = DOMPurify.sanitize(html, {
@@ -30,6 +32,12 @@ export function sanitizeRichText(html: string): string {
     el.style.removeProperty('background');
     el.style.removeProperty('background-color');
     el.style.removeProperty('background-image');
+  });
+  // 원본에 SVG·캔버스 등 허용되지 않는 요소(이미지가 아닌 미리보기 등)만 들어있던 칸은
+  // 내용이 통째로 사라져 빈 상자·이상한 여백만 남으므로, 완전히 빈 div/p는 제거
+  wrap.querySelectorAll('div, p').forEach(el => {
+    const hasContent = (el.textContent ?? '').trim().length > 0 || el.querySelector('img, table');
+    if (!hasContent) el.remove();
   });
   return wrap.innerHTML;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import { sanitizeRichText } from '../lib/sanitizeRichText';
 
 export default function RichTextEditor({ initialValue, onChange, placeholder, className }: {
@@ -25,15 +26,38 @@ export default function RichTextEditor({ initialValue, onChange, placeholder, cl
     onChange(ref.current?.innerHTML ?? '');
   };
 
+  // 외부(노션·챗봇 등)에서 복사한 미리보기 이미지는 대부분 SVG·캔버스라 붙여넣기로 옮겨오지
+  // 못한다 — 직접 이미지 URL을 넣을 수 있는 수동 삽입 버튼을 제공
+  const handleInsertImage = () => {
+    const url = window.prompt('삽입할 이미지 URL을 입력하세요');
+    if (!url?.trim()) return;
+    ref.current?.focus();
+    const safeUrl = url.trim().replace(/"/g, '&quot;');
+    document.execCommand('insertHTML', false, sanitizeRichText(`<img src="${safeUrl}">`));
+    onChange(ref.current?.innerHTML ?? '');
+  };
+
   return (
-    <div
-      ref={ref}
-      contentEditable
-      onPaste={handlePaste}
-      onInput={() => onChange(ref.current?.innerHTML ?? '')}
-      data-placeholder={placeholder}
-      className={`ai-tool-rich rich-text-editor ${className ?? ''}`}
-      suppressContentEditableWarning
-    />
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <button
+          type="button"
+          onMouseDown={e => e.preventDefault()}
+          onClick={handleInsertImage}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          <ImageIcon size={12} />이미지 삽입
+        </button>
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        onPaste={handlePaste}
+        onInput={() => onChange(ref.current?.innerHTML ?? '')}
+        data-placeholder={placeholder}
+        className={`ai-tool-rich rich-text-editor ${className ?? ''}`}
+        suppressContentEditableWarning
+      />
+    </div>
   );
 }

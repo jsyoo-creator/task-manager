@@ -193,6 +193,7 @@ body {
 .ai-tool-rich table { border-collapse: collapse; width: 100%; margin: 0.75em 0; font-size: 0.85em; }
 .ai-tool-rich th, .ai-tool-rich td { border: 1px solid #E5E7EB; padding: 0.5em 0.75em; text-align: left; vertical-align: top; }
 .ai-tool-rich th { background: #F9FAFB; font-weight: 600; }
+.ai-tool-rich img { max-width: 100%; height: auto; border-radius: 12px; margin: 0.75em 0; display: block; }
 
 .rich-text-editor {
   min-height: 220px;

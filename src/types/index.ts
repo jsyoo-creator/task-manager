@@ -76,6 +76,7 @@ export interface UserPermissions {
   canEditSeatMap: boolean;          // 자리 배치도 편집
   canSetNotice: boolean;            // 게시판 공지 설정
   canManageBoard: boolean;          // 게시판 타인 글/댓글 관리
+  canManageAiTools: boolean;        // AI 툴 리스트 추가·수정·삭제
   canViewAllCalendarWeekly: boolean; // 캘린더/위클리에서 타인 업무 조회 (false면 본인 것만)
 }
 
@@ -93,6 +94,7 @@ export interface RolePermissionConfig {
   canEditSeatMap: boolean;
   canSetNotice: boolean;
   canManageBoard: boolean;
+  canManageAiTools: boolean;
   canViewAllCalendarWeekly: boolean;
 }
 
@@ -116,6 +118,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canEditSeatMap: true,
     canSetNotice: true,
     canManageBoard: true,
+    canManageAiTools: true,
     canViewAllCalendarWeekly: true,
   },
   user: {
@@ -132,6 +135,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canEditSeatMap: false,
     canSetNotice: false,
     canManageBoard: false,
+    canManageAiTools: false,
     canViewAllCalendarWeekly: false,
   },
 };
@@ -166,6 +170,7 @@ export function getPermissions(role: UserRole, rolePerms: RolePermissions = DEFA
       canEditSeatMap: true,
       canSetNotice: true,
       canManageBoard: true,
+      canManageAiTools: true,
       canViewAllCalendarWeekly: true,
     };
   }

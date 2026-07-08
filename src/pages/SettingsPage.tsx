@@ -124,6 +124,7 @@ const PERM_ROWS: { key: keyof RolePermissionConfig; label: string; group: string
   { key: 'canEditSeatMap',         label: '자리 배치도 편집',         group: '설정' },
   { key: 'canSetNotice',           label: '게시판 공지 설정',         group: '게시판' },
   { key: 'canManageBoard',         label: '게시판 타인 글 / 댓글 관리', group: '게시판' },
+  { key: 'canManageAiTools',       label: 'AI 툴 리스트 관리',        group: '게시판' },
 ];
 
 function PermToggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {

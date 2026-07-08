@@ -697,9 +697,10 @@ interface Props {
   onReadNotice?: (postId: string) => void;
   canSetNotice: boolean;
   canManageBoard: boolean;
+  canManageAiTools: boolean;
 }
 
-export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, canManageBoard }: Props) {
+export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, canManageBoard, canManageAiTools }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
   // 커뮤니티 진입 시 기본 화면은 'AI 툴 리스트' (팀 구분 없는 전체 공용 탭)
@@ -817,7 +818,7 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
 
       {/* 뷰 렌더 */}
       {activeView === 'aitools' ? (
-        <AiToolBoard appUser={appUser} canManage={canManageBoard} />
+        <AiToolBoard appUser={appUser} canManage={canManageAiTools} />
       ) : !activeTeam ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[#6C63FF]/10 flex items-center justify-center">

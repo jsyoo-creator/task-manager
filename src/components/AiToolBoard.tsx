@@ -323,7 +323,7 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
                   <MessagesSquare size={14} />토론하기
                   {readLoaded && comments.length > 0 && (
                     <span className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
-                      unreadCount > 0 ? 'bg-red-500 text-white' : 'bg-gray-300 text-gray-700'
+                      unreadCount > 0 ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500'
                     }`}>
                       {unreadCount > 0 ? unreadCount : comments.length}
                     </span>

@@ -295,8 +295,9 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
                         <button
                           key={h.id}
                           onClick={() => scrollToHeading(h.id)}
+                          title={h.text}
                           style={{ paddingLeft: (h.level - 1) * 10 }}
-                          className="text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors leading-snug"
+                          className="block w-full truncate text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors"
                         >
                           {h.text}
                         </button>

@@ -3,6 +3,8 @@ import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil, Chev
 import type { AppUser, Team } from '../types';
 import { usePosts, useComments, type Post, type PostComment } from '../hooks/usePosts';
 import AiToolBoard, { type ToolView } from '../components/AiToolBoard';
+import RichTextEditor from '../components/RichTextEditor';
+import { sanitizeRichText, isRichTextEmpty, toDisplayHtml } from '../lib/sanitizeRichText';
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
@@ -225,11 +227,13 @@ function WriteView({ activeTeam, appUser, canSetNotice, onBack, onSubmit }: {
   const [isNotice, setIsNotice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const isContentEmpty = isRichTextEmpty(content);
+
   const handleSubmit = async () => {
-    if (!title.trim() || !content.trim() || submitting) return;
+    if (!title.trim() || isContentEmpty || submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(title.trim(), content.trim(), isNotice);
+      await onSubmit(title.trim(), sanitizeRichText(content), isNotice);
     } finally {
       setSubmitting(false);
     }
@@ -247,7 +251,7 @@ function WriteView({ activeTeam, appUser, canSetNotice, onBack, onSubmit }: {
         <div className="flex-1" />
         <button
           onClick={handleSubmit}
-          disabled={!title.trim() || !content.trim() || submitting}
+          disabled={!title.trim() || isContentEmpty || submitting}
           className="px-4 py-1.5 text-sm font-semibold rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white disabled:opacity-40 transition-colors"
         >
           {submitting ? '등록 중…' : '등록'}
@@ -292,13 +296,10 @@ function WriteView({ activeTeam, appUser, canSetNotice, onBack, onSubmit }: {
         {/* 내용 */}
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1.5">내용</label>
-          <textarea
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(); }}
-            placeholder="내용을 입력하세요 (Ctrl+Enter로 등록)"
-            rows={16}
-            className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 focus:border-[#6C63FF]/50 text-gray-800 placeholder:text-gray-300 resize-none leading-relaxed transition-all"
+          <RichTextEditor
+            initialValue={content}
+            onChange={setContent}
+            placeholder="내용을 작성하거나, 서식이 있는 글을 그대로 붙여넣으세요"
           />
         </div>
       </div>
@@ -309,7 +310,7 @@ function WriteView({ activeTeam, appUser, canSetNotice, onBack, onSubmit }: {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!title.trim() || !content.trim() || submitting}
+          disabled={!title.trim() || isContentEmpty || submitting}
           className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white disabled:opacity-40 transition-colors"
         >
           {submitting ? '등록 중…' : '등록'}
@@ -481,14 +482,16 @@ function EditView({ post, onBack, onSubmit }: {
   onSubmit: (title: string, content: string) => Promise<void>;
 }) {
   const [title, setTitle] = useState(post.title);
-  const [content, setContent] = useState(post.content);
+  const [content, setContent] = useState(() => toDisplayHtml(post.content));
   const [submitting, setSubmitting] = useState(false);
 
+  const isContentEmpty = isRichTextEmpty(content);
+
   const handleSubmit = async () => {
-    if (!title.trim() || !content.trim() || submitting) return;
+    if (!title.trim() || isContentEmpty || submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(title.trim(), content.trim());
+      await onSubmit(title.trim(), sanitizeRichText(content));
     } finally {
       setSubmitting(false);
     }
@@ -515,12 +518,10 @@ function EditView({ post, onBack, onSubmit }: {
           placeholder="제목을 입력하세요"
           className="w-full text-base font-semibold px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 focus:border-[#6C63FF]/50 text-gray-800 placeholder:text-gray-400 transition-all"
         />
-        <textarea
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder="내용을 입력하세요"
-          rows={10}
-          className="w-full text-sm px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/20 focus:border-[#6C63FF]/50 resize-none text-gray-800 placeholder:text-gray-400 transition-all"
+        <RichTextEditor
+          initialValue={content}
+          onChange={setContent}
+          placeholder="내용을 작성하거나, 서식이 있는 글을 그대로 붙여넣으세요"
         />
       </div>
 
@@ -533,7 +534,7 @@ function EditView({ post, onBack, onSubmit }: {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!title.trim() || !content.trim() || submitting}
+          disabled={!title.trim() || isContentEmpty || submitting}
           className="px-5 py-2 rounded-xl text-sm font-semibold bg-[#6C63FF] text-white hover:bg-[#5a52e0] disabled:opacity-40 transition-colors shadow-md shadow-[#6C63FF]/25"
         >
           {submitting ? '저장 중…' : '수정 완료'}
@@ -640,9 +641,10 @@ function ReadView({ post, appUser, regularPosts, canSetNotice, canManageBoard, o
           </div>
 
           {/* 본문 */}
-          <div className="py-6 min-h-[160px]">
-            <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-[1.9]">{post.content}</p>
-          </div>
+          <div
+            className="ai-tool-rich py-6 min-h-[160px]"
+            dangerouslySetInnerHTML={{ __html: toDisplayHtml(post.content) }}
+          />
         </div>
 
         {/* 댓글 */}

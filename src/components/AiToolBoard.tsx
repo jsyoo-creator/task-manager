@@ -3,7 +3,7 @@ import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 import RichTextEditor from './RichTextEditor';
-import { sanitizeRichText, isRichTextEmpty, toDisplayHtml } from '../lib/sanitizeRichText';
+import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '../lib/sanitizeRichText';
 
 type SortMode = 'recommend' | 'name';
 export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
@@ -203,57 +203,97 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
   onDelete: () => void;
 }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { html: descriptionHtml, headings } = useMemo(() => extractToc(toDisplayHtml(tool.description)), [tool.description]);
+
+  const scrollToHeading = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <>
-      <div className="glass-card">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-black/5">
-          <button onClick={onBack} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-all">
-            <ArrowLeft size={14} />
-            목록으로
-          </button>
-          <div className="flex-1" />
-          {canManage && (
-            <>
-              <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
-                <Pencil size={12} />수정
-              </button>
-              <button onClick={() => setShowDeleteModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-400 hover:bg-red-100 transition-all">
-                <Trash2 size={12} />삭제
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="px-6 pt-6 pb-4">
-          <div className="flex items-start gap-4">
-            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={56} />
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 leading-snug">
-                {tool.name}
-                {tool.subtitle && <span className="text-base font-normal text-gray-500"> — {tool.subtitle}</span>}
-              </h1>
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                {tool.category && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
-                )}
-                {tool.tags.map((t, i) => <span key={i} className="text-[12px] text-gray-400">· {t}</span>)}
-                {tool.siteUrl && (
-                  <a href={tool.siteUrl} target="_blank" rel="noreferrer"
-                    className="text-[12px] text-gray-400 hover:text-[#6C63FF] flex items-center gap-0.5 transition-colors">
-                    · 공식 사이트<ExternalLink size={10} />
-                  </a>
-                )}
-              </div>
-            </div>
-            <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
+      <div className="flex items-start gap-5">
+        <div className="glass-card flex-1 min-w-0">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-black/5">
+            <button onClick={onBack} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-all">
+              <ArrowLeft size={14} />
+              목록으로
+            </button>
+            <div className="flex-1" />
+            {canManage && (
+              <>
+                <button onClick={onEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all">
+                  <Pencil size={12} />수정
+                </button>
+                <button onClick={() => setShowDeleteModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-400 hover:bg-red-100 transition-all">
+                  <Trash2 size={12} />삭제
+                </button>
+              </>
+            )}
           </div>
 
-          <div
-            className="ai-tool-rich py-6 min-h-[120px] border-t border-gray-100 mt-5"
-            dangerouslySetInnerHTML={{ __html: toDisplayHtml(tool.description) }}
-          />
+          <div className="px-6 pt-6 pb-4">
+            <div className="flex items-start gap-4">
+              <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={56} />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-gray-900 leading-snug">
+                  {tool.name}
+                  {tool.subtitle && <span className="text-base font-normal text-gray-500"> — {tool.subtitle}</span>}
+                </h1>
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  {tool.category && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
+                  )}
+                  {tool.tags.map((t, i) => <span key={i} className="text-[12px] text-gray-400">· {t}</span>)}
+                  {tool.siteUrl && (
+                    <a href={tool.siteUrl} target="_blank" rel="noreferrer"
+                      className="text-[12px] text-gray-400 hover:text-[#6C63FF] flex items-center gap-0.5 transition-colors">
+                      · 공식 사이트<ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+              </div>
+              <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
+            </div>
+
+            <div
+              className="ai-tool-rich py-6 min-h-[120px] border-t border-gray-100 mt-5"
+              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+            />
+          </div>
         </div>
+
+        {/* 우측 사이드바 — 태그(USE CASE) / 목차(CONTENTS) */}
+        {(tool.tags.length > 0 || headings.length > 0) && (
+          <div className="w-[260px] flex-shrink-0 sticky top-0 space-y-4 hidden lg:block">
+            {tool.tags.length > 0 && (
+              <div className="glass-card p-5">
+                <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tool.tags.map((t, i) => (
+                    <span key={i} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {headings.length > 0 && (
+              <div className="glass-card p-5">
+                <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">CONTENTS</p>
+                <div className="flex flex-col gap-2.5">
+                  {headings.map(h => (
+                    <button
+                      key={h.id}
+                      onClick={() => scrollToHeading(h.id)}
+                      style={{ paddingLeft: (h.level - 1) * 10 }}
+                      className="text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors leading-snug"
+                    >
+                      {h.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {showDeleteModal && (

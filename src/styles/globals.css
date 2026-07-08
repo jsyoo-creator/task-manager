@@ -175,6 +175,7 @@ body {
   color: #111827;
   line-height: 1.35;
   margin: 1.1em 0 0.5em;
+  scroll-margin-top: 24px;
 }
 .ai-tool-rich h1 { font-size: 1.25rem; }
 .ai-tool-rich h2 { font-size: 1.125rem; }

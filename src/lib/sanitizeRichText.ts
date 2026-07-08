@@ -50,3 +50,25 @@ export function toDisplayHtml(raw: string): string {
   }
   return sanitizeRichText(raw);
 }
+
+export interface TocHeading {
+  id: string;
+  text: string;
+  level: number;
+}
+
+// 상세 설명 안의 제목(h1~h4)에 고유 id를 붙이고 목차 목록을 뽑아낸다 —
+// 우측 사이드바 CONTENTS 클릭 시 해당 위치로 스크롤 이동시키기 위함
+export function extractToc(html: string): { html: string; headings: TocHeading[] } {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  const headings: TocHeading[] = [];
+  wrap.querySelectorAll('h1, h2, h3, h4').forEach((el, i) => {
+    const text = (el.textContent ?? '').trim();
+    if (!text) return;
+    const id = `toc-${i}`;
+    el.id = id;
+    headings.push({ id, text, level: Number(el.tagName[1]) });
+  });
+  return { html: wrap.innerHTML, headings };
+}

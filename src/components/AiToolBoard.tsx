@@ -377,13 +377,14 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
   );
 }
 
-export default function AiToolBoard({ appUser, canManage, view, onViewChange }: {
+export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName }: {
   appUser: AppUser;
   canManage: boolean;
   view: ToolView;
   onViewChange: (v: ToolView) => void;
+  collectionName: string;
 }) {
-  const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools();
+  const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools(collectionName);
   const [sortMode, setSortMode] = useState<SortMode>('recommend');
   const [categoryFilter, setCategoryFilter] = useState<'all' | string>('all');
   const setView = onViewChange;

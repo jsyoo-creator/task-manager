@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil, ChevronLeft, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
 import type { AppUser, Team } from '../types';
 import { usePosts, useComments, type Post, type PostComment } from '../hooks/usePosts';
 import AiToolBoard, { type ToolView } from '../components/AiToolBoard';
@@ -710,16 +710,18 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
     : userTeams;
 
   // 커뮤니티 진입 시 기본 화면은 'AI 툴 리스트' (팀 구분 없는 전체 공용 탭)
-  const [activeView, setActiveView] = useState<'aitools' | string>('aitools');
+  const [activeView, setActiveView] = useState<'aitools' | 'uiterms' | string>('aitools');
   const [view, setView] = useState<BoardView>({ type: 'list' });
   const [toolView, setToolView] = useState<ToolView>({ type: 'list' });
+  const [uiTermView, setUiTermView] = useState<ToolView>({ type: 'list' });
   const [listPage, setListPage] = useState(1);
 
-  const activeTeamId = activeView === 'aitools' ? null : activeView;
+  const isTeamBoardView = activeView !== 'aitools' && activeView !== 'uiterms';
+  const activeTeamId = isTeamBoardView ? activeView : null;
 
   // 소속 팀 탭이 사라지면(팀 변경 등) AI 툴 리스트로 복귀
   useEffect(() => {
-    if (activeView !== 'aitools' && !userTeams.some(t => t.id === activeView)) {
+    if (isTeamBoardView && !userTeams.some(t => t.id === activeView)) {
       setActiveView('aitools');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -794,6 +796,17 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
               <Sparkles size={13} />
               <span>AI 툴 리스트</span>
             </button>
+            <button
+              onClick={() => { setActiveView('uiterms'); setUiTermView({ type: 'list' }); setListPage(1); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
+                activeView === 'uiterms'
+                  ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+              }`}
+            >
+              <BookOpen size={13} />
+              <span>AI UI 어휘 사전</span>
+            </button>
             {orderedUserTeams.map(t => (
               <button
                 key={t.id}
@@ -811,8 +824,8 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
           </div>
         </div>
 
-        {/* 글쓰기 버튼 — 목록에서만 (팀 게시판 / AI 툴 리스트 공통 위치) */}
-        {activeView !== 'aitools' && activeTeam && view.type === 'list' && (
+        {/* 글쓰기 버튼 — 목록에서만 (팀 게시판 / AI 툴 리스트 / AI UI 어휘 사전 공통 위치) */}
+        {isTeamBoardView && activeTeam && view.type === 'list' && (
           <button
             onClick={() => setView({ type: 'write' })}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-[13px] font-semibold transition-colors shadow-md shadow-[#6C63FF]/25"
@@ -830,11 +843,22 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
             <span>AI 툴 추가</span>
           </button>
         )}
+        {activeView === 'uiterms' && canManageAiTools && uiTermView.type === 'list' && (
+          <button
+            onClick={() => setUiTermView({ type: 'write' })}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-[13px] font-semibold transition-colors shadow-md shadow-[#6C63FF]/25"
+          >
+            <Plus size={14} />
+            <span>용어 추가</span>
+          </button>
+        )}
       </div>
 
       {/* 뷰 렌더 */}
       {activeView === 'aitools' ? (
-        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={toolView} onViewChange={setToolView} />
+        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={toolView} onViewChange={setToolView} collectionName="aiTools" />
+      ) : activeView === 'uiterms' ? (
+        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={uiTermView} onViewChange={setUiTermView} collectionName="uiTerms" />
       ) : !activeTeam ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[#6C63FF]/10 flex items-center justify-center">

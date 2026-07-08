@@ -80,6 +80,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
   const [subtitle, setSubtitle] = useState(initial?.subtitle ?? '');
   const [description, setDescription] = useState(() => (initial ? toDisplayHtml(initial.description) : ''));
   const [category, setCategory] = useState(initial?.category ?? '');
+  const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
   const [submitting, setSubmitting] = useState(false);
 
@@ -94,7 +95,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         subtitle: subtitle.trim() || undefined,
         description: sanitizeRichText(description),
         category: category.trim(),
-        tags: initial?.tags ?? [],
+        tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         siteUrl: initial?.siteUrl,
         iconUrl: iconUrl.trim() || undefined,
       });
@@ -161,6 +162,11 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className={lCls}>태그 (쉼표로 구분, 선택)</label>
+          <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
         </div>
 
         <div>

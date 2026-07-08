@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink, MessagesSquare } from 'lucide-react';
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 import RichTextEditor from './RichTextEditor';
+import CommentSection from './CommentSection';
 import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '../lib/sanitizeRichText';
 
 type SortMode = 'recommend' | 'name';
@@ -227,9 +228,10 @@ function ToolWriteView({ initial, allTools, onBack, onSubmit }: {
 }
 
 // ─── 상세 보기 뷰 ─────────────────────────────────────────────────────
-function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
+function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
   tool: AiTool;
   allTools: AiTool[];
+  appUser: AppUser;
   canManage: boolean;
   hasRecommended: boolean;
   onBack: () => void;
@@ -239,6 +241,7 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
   onNavigateToTool: (id: string) => void;
 }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDiscussion, setShowDiscussion] = useState(false);
   const relatedTools = (tool.relatedToolIds ?? [])
     .map(id => allTools.find(t => t.id === id))
     .filter((t): t is AiTool => !!t);
@@ -291,15 +294,31 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
               )}
               <h1 className="text-5xl font-extrabold text-gray-900 leading-tight tracking-tight">{tool.name}</h1>
               {tool.subtitle && <p className="text-base font-semibold text-gray-500 mt-1.5">{tool.subtitle}</p>}
-              {tool.siteUrl && (
-                <a href={tool.siteUrl} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors">
-                  공식 사이트 열기 <ExternalLink size={14} />
-                </a>
-              )}
+              <div className="flex items-center gap-2 mt-4">
+                {tool.siteUrl && (
+                  <a href={tool.siteUrl} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors">
+                    공식 사이트 열기 <ExternalLink size={14} />
+                  </a>
+                )}
+                <button
+                  onClick={() => setShowDiscussion(v => !v)}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                    showDiscussion ? 'bg-gray-100 border-gray-200 text-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <MessagesSquare size={14} />토론하기
+                </button>
+              </div>
             </div>
             <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
           </div>
+
+          {showDiscussion && (
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <CommentSection postId={tool.id} appUser={appUser} canManageBoard={canManage} />
+            </div>
+          )}
 
           {/* 본문 + 사이드바 — 제목 영역 아래에서 시작하는 2단 레이아웃 */}
           <div className="flex items-start gap-6 mt-6 pt-6 border-t border-gray-100">
@@ -436,6 +455,7 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
       <ToolReadView
         tool={selectedTool}
         allTools={tools}
+        appUser={appUser}
         canManage={canManage}
         hasRecommended={selectedTool.recommendedBy.includes(appUser.uid)}
         onBack={() => setView({ type: 'list' })}

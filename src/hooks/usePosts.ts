@@ -100,7 +100,7 @@ export function useComments(postId: string | null, parentCollection?: string) {
     const q = query(collection(db, 'comments'), where('postId', '==', postId));
     const unsub = onSnapshot(q, snap => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as PostComment));
-      data.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      data.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       setComments(data);
     }, err => {
       console.error('useComments error:', err);

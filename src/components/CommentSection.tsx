@@ -104,8 +104,8 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
       });
       setText('');
       textareaRef.current?.focus();
-      // 새 댓글은 목록 맨 끝에 붙으므로, 방금 쓴 글이 바로 보이도록 마지막 페이지로 이동
-      setPage(Math.ceil((comments.length + 1) / COMMENTS_PAGE_SIZE));
+      // 최신 댓글이 맨 앞에 오므로, 방금 쓴 글이 바로 보이도록 첫 페이지로 이동
+      setPage(1);
     } finally {
       setSubmitting(false);
     }

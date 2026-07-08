@@ -8,6 +8,8 @@ import { sanitizeRichText, isRichTextEmpty, toDisplayHtml } from '../lib/sanitiz
 type SortMode = 'recommend' | 'name';
 export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
 
+const CATEGORY_OPTIONS = ['AI · LLM', 'Workspace', '디자인·웹', '자동화'];
+
 const SORT_OPTIONS: { key: SortMode; label: string }[] = [
   { key: 'recommend', label: '추천순' },
   { key: 'name', label: '이름순' },
@@ -143,15 +145,29 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={lCls}>카테고리 (선택)</label>
-            <input value={category} onChange={e => setCategory(e.target.value)} placeholder="AI · LLM" className={iCls} />
+        <div>
+          <label className={lCls}>카테고리 (선택)</label>
+          <div className="flex flex-wrap gap-1.5">
+            {CATEGORY_OPTIONS.map(opt => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => setCategory(c => c === opt ? '' : opt)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                  category === opt
+                    ? 'bg-[#6C63FF] text-white border-[#6C63FF]'
+                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className={lCls}>태그 (쉼표로 구분, 선택)</label>
-            <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
-          </div>
+        </div>
+
+        <div>
+          <label className={lCls}>태그 (쉼표로 구분, 선택)</label>
+          <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
         </div>
 
         <div>

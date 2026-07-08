@@ -3,6 +3,18 @@ import { MessageSquare, Pencil, Trash2, Send } from 'lucide-react';
 import type { AppUser } from '../types';
 import { useComments, type PostComment } from '../hooks/usePosts';
 
+// 댓글은 일반 텍스트로 저장되므로 dangerouslySetInnerHTML 없이, URL만 골라
+// <a> 엘리먼트로 바꿔 안전하게 클릭 가능한 링크로 렌더링
+function linkify(text: string) {
+  // split의 캡처 그룹 덕에 매칭된 URL도 결과 배열에 그대로 끼어 들어옴 —
+  // 매 호출마다 새 정규식을 만들어야 g 플래그의 lastIndex 상태가 다음 호출로 새지 않음
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-[#6C63FF] underline break-all">{part}</a>
+      : <span key={i}>{part}</span>
+  );
+}
+
 export function formatRelative(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   const s = Math.floor(ms / 1000);
@@ -55,8 +67,8 @@ function DeleteModal({ label, onConfirm, onCancel }: { label: string; onConfirm:
 
 // postId 자리에 게시글 id뿐 아니라 AiTool id 등 임의의 문서 id를 넘겨도 됨 —
 // comments 컬렉션은 postId 필드로만 묶이는 평평한 구조라 게시판 종류를 가리지 않음
-export default function CommentSection({ postId, appUser, canManageBoard }: { postId: string; appUser: AppUser; canManageBoard: boolean }) {
-  const { comments, addComment, updateComment, deleteComment } = useComments(postId);
+export default function CommentSection({ postId, appUser, canManageBoard, parentCollection }: { postId: string; appUser: AppUser; canManageBoard: boolean; parentCollection?: string }) {
+  const { comments, addComment, updateComment, deleteComment } = useComments(postId, parentCollection);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PostComment | null>(null);
@@ -167,7 +179,7 @@ export default function CommentSection({ postId, appUser, canManageBoard }: { po
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words leading-relaxed">{c.content}</p>
+                    <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words leading-relaxed">{linkify(c.content)}</p>
                   )}
                 </div>
               </div>

@@ -88,7 +88,11 @@ export function usePosts(teamId: string | null) {
   return { posts, loading, addPost, updatePost, deletePost, setNotice };
 }
 
-export function useComments(postId: string | null) {
+// parentCollection을 넘기면 해당 컬렉션 문서의 commentCount를 증감 — 게시판 글(posts)처럼
+// 목록에 댓글 수 배지를 보여주는 경우에만 사용. 생략하면 comments 문서만 쓰고/지우고 끝
+// (예: AI 툴 상세 '토론하기'처럼 부모 문서에 commentCount 필드가 없는 경우 생략해야
+// 존재하지 않는 문서를 업데이트하려다 실패하는 일이 없음)
+export function useComments(postId: string | null, parentCollection?: string) {
   const [comments, setComments] = useState<PostComment[]>([]);
 
   useEffect(() => {
@@ -109,12 +113,16 @@ export function useComments(postId: string | null) {
       ...data,
       createdAt: new Date().toISOString(),
     });
-    await updateDoc(doc(db, 'posts', data.postId), { commentCount: increment(1) });
+    if (parentCollection) {
+      await updateDoc(doc(db, parentCollection, data.postId), { commentCount: increment(1) });
+    }
   };
 
   const deleteComment = async (commentId: string, postId: string) => {
     await deleteDoc(doc(db, 'comments', commentId));
-    await updateDoc(doc(db, 'posts', postId), { commentCount: increment(-1) });
+    if (parentCollection) {
+      await updateDoc(doc(db, parentCollection, postId), { commentCount: increment(-1) });
+    }
   };
 
   const updateComment = async (commentId: string, content: string) => {

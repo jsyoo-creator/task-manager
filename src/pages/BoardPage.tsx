@@ -465,7 +465,7 @@ function ReadView({ post, appUser, regularPosts, canSetNotice, canManageBoard, o
 
         {/* 댓글 */}
         <div className="px-6 pb-6 pt-2 border-t border-gray-100">
-          <CommentSection postId={post.id} appUser={appUser} canManageBoard={canManageBoard} />
+          <CommentSection postId={post.id} appUser={appUser} canManageBoard={canManageBoard} parentCollection="posts" />
         </div>
 
         {/* 이전글 / 다음글 */}

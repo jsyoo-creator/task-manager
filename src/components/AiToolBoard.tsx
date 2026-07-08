@@ -341,6 +341,11 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
     return arr;
   }, [tools, sortMode, categoryFilter]);
 
+  const categoryCounts = useMemo(() => [
+    { key: 'all', label: '전체', count: tools.length },
+    ...CATEGORY_OPTIONS.map(c => ({ key: c, label: c, count: tools.filter(t => t.category === c).length })),
+  ], [tools]);
+
   const selectedTool = (view.type === 'read' || view.type === 'edit') ? (tools.find(t => t.id === view.toolId) ?? null) : null;
 
   // 상세/수정 화면에서 항목이 삭제되면 목록으로
@@ -402,91 +407,97 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
           </div>
         </div>
 
-        {/* 카테고리 필터 */}
-        <div className="flex items-center gap-1.5 px-5 py-3 border-b border-gray-100 flex-wrap">
-          {(['all', ...CATEGORY_OPTIONS] as const).map(opt => (
-            <button
-              key={opt}
-              onClick={() => setCategoryFilter(opt)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                categoryFilter === opt
-                  ? 'bg-[#6C63FF] text-white border-[#6C63FF]'
-                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              {opt === 'all' ? '전체' : opt}
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-gray-50">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
-                <div className="w-8 h-4 bg-gray-100 rounded-full" />
-                <div className="w-12 h-12 bg-gray-100 rounded-2xl" />
-                <div className="flex-1"><div className="h-3 w-1/2 bg-gray-100 rounded-full" /></div>
+        <div className="flex items-start">
+          <div className="flex-1 min-w-0">
+            {loading ? (
+              <div className="divide-y divide-gray-50">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
+                    <div className="w-8 h-4 bg-gray-100 rounded-full" />
+                    <div className="w-12 h-12 bg-gray-100 rounded-2xl" />
+                    <div className="flex-1"><div className="h-3 w-1/2 bg-gray-100 rounded-full" /></div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(108,99,255,0.08)' }}>
-              <Sparkles size={20} style={{ color: 'rgba(108,99,255,0.4)' }} />
-            </div>
-            <p className="text-sm text-gray-400">
-              {categoryFilter === 'all' ? '아직 등록된 AI 툴이 없습니다' : '이 카테고리에는 등록된 AI 툴이 없습니다'}
-            </p>
-            {canManage && categoryFilter === 'all' && (
-              <button onClick={() => setView({ type: 'write' })} className="text-[13px] font-semibold text-[#6C63FF] hover:underline">
-                첫 번째 AI 툴을 추가해보세요
-              </button>
+            ) : sorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(108,99,255,0.08)' }}>
+                  <Sparkles size={20} style={{ color: 'rgba(108,99,255,0.4)' }} />
+                </div>
+                <p className="text-sm text-gray-400">
+                  {categoryFilter === 'all' ? '아직 등록된 AI 툴이 없습니다' : '이 카테고리에는 등록된 AI 툴이 없습니다'}
+                </p>
+                {canManage && categoryFilter === 'all' && (
+                  <button onClick={() => setView({ type: 'write' })} className="text-[13px] font-semibold text-[#6C63FF] hover:underline">
+                    첫 번째 AI 툴을 추가해보세요
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div>
+                {sorted.map((tool, i) => {
+                  const hasRecommended = tool.recommendedBy.includes(appUser.uid);
+                  return (
+                    <div key={tool.id}
+                      onClick={() => setView({ type: 'read', toolId: tool.id })}
+                      className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0 group hover:bg-gray-50/60 transition-colors cursor-pointer">
+                      <span className="w-7 text-sm font-bold text-gray-300 tabular-nums flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                      <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={48} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                          <span className="text-[15px] font-bold text-gray-900">{tool.name}</span>
+                          {tool.subtitle && <span className="text-[13px] text-gray-500 truncate">— {tool.subtitle}</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {tool.category && (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF] flex-shrink-0">{tool.category}</span>
+                          )}
+                          {tool.tags.map((t, ti) => (
+                            <span key={ti} className="text-[12px] text-gray-400">· {t}</span>
+                          ))}
+                        </div>
+                      </div>
+                      {canManage && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <button onClick={() => setView({ type: 'edit', toolId: tool.id })} className="p-1.5 text-gray-400 hover:text-[#6C63FF] hover:bg-gray-100 rounded-lg transition-colors">
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => setDeleteTarget(tool)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-100 rounded-lg transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                      <RecommendButton
+                        count={tool.recommendedBy.length}
+                        active={hasRecommended}
+                        onClick={e => { e.stopPropagation(); handleToggleRecommend(tool); }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
-        ) : (
-          <div>
-            {sorted.map((tool, i) => {
-              const hasRecommended = tool.recommendedBy.includes(appUser.uid);
-              return (
-                <div key={tool.id}
-                  onClick={() => setView({ type: 'read', toolId: tool.id })}
-                  className="flex items-center gap-4 px-5 py-4 border-b border-gray-50 last:border-0 group hover:bg-gray-50/60 transition-colors cursor-pointer">
-                  <span className="w-7 text-sm font-bold text-gray-300 tabular-nums flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
-                  <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={48} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-[15px] font-bold text-gray-900">{tool.name}</span>
-                      {tool.subtitle && <span className="text-[13px] text-gray-500 truncate">— {tool.subtitle}</span>}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      {tool.category && (
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF] flex-shrink-0">{tool.category}</span>
-                      )}
-                      {tool.tags.map((t, ti) => (
-                        <span key={ti} className="text-[12px] text-gray-400">· {t}</span>
-                      ))}
-                    </div>
-                  </div>
-                  {canManage && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => setView({ type: 'edit', toolId: tool.id })} className="p-1.5 text-gray-400 hover:text-[#6C63FF] hover:bg-gray-100 rounded-lg transition-colors">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => setDeleteTarget(tool)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-100 rounded-lg transition-colors">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  )}
-                  <RecommendButton
-                    count={tool.recommendedBy.length}
-                    active={hasRecommended}
-                    onClick={e => { e.stopPropagation(); handleToggleRecommend(tool); }}
-                  />
-                </div>
-              );
-            })}
+
+          {/* 카테고리 필터 — 우측 사이드바 */}
+          <div className="w-[200px] flex-shrink-0 border-l border-gray-100 p-4 hidden md:block">
+            <p className="text-[11px] font-bold text-gray-400 tracking-widest px-3.5 mb-2">CATEGORIES</p>
+            <div className="space-y-1">
+              {categoryCounts.map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setCategoryFilter(opt.key)}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    categoryFilter === opt.key ? 'bg-[#6C63FF]/10 text-[#6C63FF]' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  <span className={categoryFilter === opt.key ? 'text-[#6C63FF]' : 'text-gray-300'}>{opt.count}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {deleteTarget && (

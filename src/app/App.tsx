@@ -20,6 +20,8 @@ import AccountInfoPage from '../pages/AccountInfoPage';
 import TrashPage from '../pages/TrashPage';
 import AdminPage from '../pages/AdminPage';
 import { useTeamNotices } from '../hooks/useTeamNotices';
+import { useAiTools } from '../hooks/useAiTools';
+import { useDiscussionUnreadCounts } from '../hooks/useDiscussionRead';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
@@ -335,7 +337,17 @@ function App() {
   // selectedTeamIds는 근무지 구분 없는 전역 값이라 다른 근무지의 팀 id가 섞여 있을 수 있음 —
   // 현재 근무지의 teams에 실제로 속한 것만 걸러서 공지를 조회한다
   const teamNotices = useTeamNotices((appUser?.selectedTeamIds ?? []).filter(id => teams.some(t => t.id === id)));
-  const unreadNoticeCount = teamNotices.filter(n => !readNoticeIds.has(n.id)).length;
+
+  // 사이드바 '커뮤니티' 배지 = 안 읽은 공지 + 안 읽은 AI 툴 토론(댓글) 합산
+  const { tools: aiTools } = useAiTools();
+  const aiToolIds = useMemo(() => (appUser ? aiTools.map(t => t.id) : []), [appUser, aiTools]);
+  const discussionUnreadByTool = useDiscussionUnreadCounts(aiToolIds, appUser?.uid ?? '');
+  const totalUnreadDiscussions = useMemo(
+    () => Object.values(discussionUnreadByTool).reduce((sum, n) => sum + n, 0),
+    [discussionUnreadByTool]
+  );
+
+  const unreadNoticeCount = teamNotices.filter(n => !readNoticeIds.has(n.id)).length + totalUnreadDiscussions;
 
   // activeTeamId 유효성 검사 — 선택 팀 목록이나 현재 근무지의 팀 목록이 바뀔 때 보정.
   // teams는 activeWorkplaceId 기준으로 로드되므로, 근무지를 전환해 teams가 새로 로드될 때도

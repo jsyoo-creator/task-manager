@@ -202,10 +202,12 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
           <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
         </div>
 
-        <div>
-          <label className={lCls}>공식 사이트 URL (선택)</label>
-          <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)} placeholder="https://..." className={iCls} />
-        </div>
+        {layout !== 'gallery' && (
+          <div>
+            <label className={lCls}>공식 사이트 URL (선택)</label>
+            <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)} placeholder="https://..." className={iCls} />
+          </div>
+        )}
 
         <div>
           <label className={lCls}>{layout === 'gallery' ? '이미지 URL (선택, 카드 상단에 크게 표시)' : '아이콘 이미지 URL (선택)'}</label>

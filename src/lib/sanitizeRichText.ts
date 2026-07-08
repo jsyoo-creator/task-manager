@@ -56,14 +56,50 @@ export function stripHtml(html: string): string {
   return (wrap.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
+// <a>로 감싸지 않고 그냥 텍스트로 타이핑/붙여넣기한 URL은 사용자가 직접 링크 삽입 기능을
+// 쓰지 않는 한 계속 평문으로 남아 클릭이 안 되므로, 표시 직전에 찾아서 <a>로 감싼다
+function linkifyPlainUrls(root: HTMLElement) {
+  const urlPattern = /https?:\/\/[^\s<]+/g;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: node => (node.parentElement?.closest('a') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  const targets: Text[] = [];
+  let node: Node | null;
+  // eslint-disable-next-line no-cond-assign
+  while ((node = walker.nextNode())) targets.push(node as Text);
+  targets.forEach(textNode => {
+    const text = textNode.textContent ?? '';
+    urlPattern.lastIndex = 0;
+    if (!urlPattern.test(text)) return;
+    urlPattern.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = urlPattern.exec(text))) {
+      if (match.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      const a = document.createElement('a');
+      a.href = match[0];
+      a.target = '_blank';
+      a.rel = 'noreferrer noopener';
+      a.textContent = match[0];
+      frag.appendChild(a);
+      lastIndex = match.index + match[0].length;
+    }
+    frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    textNode.replaceWith(frag);
+  });
+}
+
 // 리치 에디터 도입 이전에 일반 텍스트(줄바꿈 포함)로 저장된 설명과 호환 — 태그가 전혀 없으면
 // 평문으로 간주해 이스케이프 후 줄바꿈만 <br>로 변환, 이미 HTML이면 그대로 정제
 export function toDisplayHtml(raw: string): string {
-  if (!/<[a-z][\s\S]*>/i.test(raw)) {
-    const escaped = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return escaped.replace(/\n/g, '<br>');
-  }
-  return sanitizeRichText(raw);
+  const html = !/<[a-z][\s\S]*>/i.test(raw)
+    ? raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    : sanitizeRichText(raw);
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  linkifyPlainUrls(wrap);
+  return wrap.innerHTML;
 }
 
 export interface TocHeading {

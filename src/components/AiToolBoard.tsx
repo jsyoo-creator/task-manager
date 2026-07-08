@@ -445,9 +445,6 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
                       {tool.tags.map((t, ti) => (
                         <span key={ti} className="text-[12px] text-gray-400">· {t}</span>
                       ))}
-                      {tool.siteUrl && (
-                        <span className="text-[12px] text-gray-400 flex items-center gap-0.5">· 공식 사이트<ExternalLink size={10} /></span>
-                      )}
                     </div>
                   </div>
                   {canManage && (

@@ -351,7 +351,7 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
                   <button
                     key={rt.id}
                     onClick={() => onNavigateToTool(rt.id)}
-                    className="flex items-start gap-3 p-4 rounded-2xl border border-gray-100 bg-white hover:border-[#6C63FF]/40 hover:shadow-sm transition-all text-left"
+                    className="flex items-center gap-3 p-4 rounded-2xl border border-gray-100 bg-white hover:border-[#6C63FF]/40 hover:shadow-sm transition-all text-left"
                   >
                     <ToolIcon iconUrl={rt.iconUrl} name={rt.name} size={48} />
                     <div className="min-w-0">

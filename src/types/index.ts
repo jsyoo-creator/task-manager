@@ -608,6 +608,7 @@ export interface AiTool {
   tags: string[];        // 추가 태그 목록, 예: ['대화형 AI', '글쓰기']
   siteUrl?: string;      // 공식 사이트 링크 (있으면 클릭 시 새 탭으로 이동)
   iconUrl?: string;      // 아이콘 이미지 URL (없으면 기본 아이콘 표시)
+  relatedToolIds?: string[]; // 상세보기 하단 '같이 보면 좋은 도구'에 표시할 다른 AiTool id 목록
   recommendedBy: string[]; // 추천한 사용자 uid 목록 — 순위(추천순)는 이 길이로 계산
   authorUid: string;
   authorName: string;

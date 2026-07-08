@@ -69,8 +69,9 @@ function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfir
 }
 
 // ─── 글쓰기 / 수정 뷰 — 일반 게시판 글쓰기와 동일한 형태 ────────────────
-function ToolWriteView({ initial, onBack, onSubmit }: {
+function ToolWriteView({ initial, allTools, onBack, onSubmit }: {
   initial: AiTool | null;
+  allTools: AiTool[];
   onBack: () => void;
   onSubmit: (data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => Promise<void>;
 }) {
@@ -81,7 +82,14 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
   const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
   const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? '');
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
+  const [relatedToolIds, setRelatedToolIds] = useState<string[]>(initial?.relatedToolIds ?? []);
   const [submitting, setSubmitting] = useState(false);
+
+  const pickableTools = allTools.filter(t => t.id !== initial?.id);
+
+  const toggleRelated = (id: string) => {
+    setRelatedToolIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  };
 
   const valid = name.trim() && !isRichTextEmpty(description);
 
@@ -97,6 +105,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         siteUrl: siteUrl.trim() || undefined,
         iconUrl: iconUrl.trim() || undefined,
+        relatedToolIds,
       });
     } finally {
       setSubmitting(false);
@@ -180,6 +189,27 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
             <input value={iconUrl} onChange={e => setIconUrl(e.target.value)} placeholder="https://.../icon.png" className={iCls} />
           </div>
         </div>
+
+        {pickableTools.length > 0 && (
+          <div>
+            <label className={lCls}>같이 보면 좋은 도구 (선택, 상세보기 하단에 표시)</label>
+            <div className="max-h-52 overflow-y-auto rounded-xl border border-gray-200 p-2 space-y-0.5">
+              {pickableTools.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleRelated(t.id)}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                    relatedToolIds.includes(t.id) ? 'bg-[#6C63FF]/10' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <ToolIcon iconUrl={t.iconUrl} name={t.name} size={26} />
+                  <span className={`text-sm truncate ${relatedToolIds.includes(t.id) ? 'font-semibold text-[#6C63FF]' : 'text-gray-700'}`}>{t.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2.5 px-5 pb-5">
@@ -197,16 +227,21 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
 }
 
 // ─── 상세 보기 뷰 ─────────────────────────────────────────────────────
-function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete }: {
+function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
   tool: AiTool;
+  allTools: AiTool[];
   canManage: boolean;
   hasRecommended: boolean;
   onBack: () => void;
   onToggleRecommend: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onNavigateToTool: (id: string) => void;
 }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const relatedTools = (tool.relatedToolIds ?? [])
+    .map(id => allTools.find(t => t.id === id))
+    .filter((t): t is AiTool => !!t);
   const { html: descriptionHtml, headings } = useMemo(() => extractToc(toDisplayHtml(tool.description)), [tool.description]);
 
   const scrollToHeading = (id: string) => {
@@ -306,6 +341,28 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
               </div>
             )}
           </div>
+
+          {relatedTools.length > 0 && (
+            <div className="mt-10 pt-8 border-t border-gray-100">
+              <p className="text-[11px] font-bold text-[#6C63FF] tracking-widest mb-1">RELATED TOOLS</p>
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-5">같이 보면 좋은 도구</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {relatedTools.map(rt => (
+                  <button
+                    key={rt.id}
+                    onClick={() => onNavigateToTool(rt.id)}
+                    className="flex items-start gap-3 p-4 rounded-2xl border border-gray-100 bg-white hover:border-[#6C63FF]/40 hover:shadow-sm transition-all text-left"
+                  >
+                    <ToolIcon iconUrl={rt.iconUrl} name={rt.name} size={48} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{rt.name}</p>
+                      {rt.subtitle && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{rt.subtitle}</p>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -369,21 +426,23 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange }: 
   };
 
   if (view.type === 'write') {
-    return <ToolWriteView initial={null} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
+    return <ToolWriteView initial={null} allTools={tools} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
   }
   if (view.type === 'edit' && selectedTool) {
-    return <ToolWriteView initial={selectedTool} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
+    return <ToolWriteView initial={selectedTool} allTools={tools} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
   }
   if (view.type === 'read' && selectedTool) {
     return (
       <ToolReadView
         tool={selectedTool}
+        allTools={tools}
         canManage={canManage}
         hasRecommended={selectedTool.recommendedBy.includes(appUser.uid)}
         onBack={() => setView({ type: 'list' })}
         onToggleRecommend={() => handleToggleRecommend(selectedTool)}
         onEdit={() => setView({ type: 'edit', toolId: selectedTool.id })}
         onDelete={() => { deleteTool(selectedTool.id); setView({ type: 'list' }); }}
+        onNavigateToTool={id => setView({ type: 'read', toolId: id })}
       />
     );
   }

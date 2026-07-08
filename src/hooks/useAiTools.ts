@@ -20,16 +20,22 @@ export function useAiTools() {
   }, []);
 
   const addTool = async (data: Omit<AiTool, 'id' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => {
-    await addDoc(collection(db, 'aiTools'), { ...data, recommendedBy: [], createdAt: new Date().toISOString() });
+    await addDoc(collection(db, 'aiTools'), {
+      ...data,
+      relatedToolIds: data.relatedToolIds ?? [],
+      recommendedBy: [],
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const updateTool = async (id: string, data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => {
-    const { subtitle, siteUrl, iconUrl, ...rest } = data;
+    const { subtitle, siteUrl, iconUrl, relatedToolIds, ...rest } = data;
     await updateDoc(doc(db, 'aiTools', id), {
       ...rest,
       subtitle: subtitle || deleteField(),
       siteUrl: siteUrl || deleteField(),
       iconUrl: iconUrl || deleteField(),
+      relatedToolIds: relatedToolIds ?? [],
       updatedAt: new Date().toISOString(),
     });
   };

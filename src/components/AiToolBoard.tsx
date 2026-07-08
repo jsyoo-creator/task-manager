@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Sparkles, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 
 type SortMode = 'recommend' | 'name';
-type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
+export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
 
 const SORT_OPTIONS: { key: SortMode; label: string }[] = [
   { key: 'recommend', label: '추천순' },
@@ -247,10 +247,15 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
   );
 }
 
-export default function AiToolBoard({ appUser, canManage }: { appUser: AppUser; canManage: boolean }) {
+export default function AiToolBoard({ appUser, canManage, view, onViewChange }: {
+  appUser: AppUser;
+  canManage: boolean;
+  view: ToolView;
+  onViewChange: (v: ToolView) => void;
+}) {
   const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools();
   const [sortMode, setSortMode] = useState<SortMode>('recommend');
-  const [view, setView] = useState<ToolView>({ type: 'list' });
+  const setView = onViewChange;
   const [deleteTarget, setDeleteTarget] = useState<AiTool | null>(null);
 
   const sorted = useMemo(() => {
@@ -310,22 +315,14 @@ export default function AiToolBoard({ appUser, canManage }: { appUser: AppUser; 
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-base font-bold text-gray-900">오늘의 톱 {tools.length}</h2>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3">
-              {SORT_OPTIONS.map(opt => (
-                <button key={opt.key} onClick={() => setSortMode(opt.key)}
-                  className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
-                    sortMode === opt.key ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'
-                  }`}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {canManage && (
-              <button onClick={() => setView({ type: 'write' })}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-[12px] font-semibold transition-colors shadow-md shadow-[#6C63FF]/25">
-                <Plus size={13} /><span>AI 툴 추가</span>
+            {SORT_OPTIONS.map(opt => (
+              <button key={opt.key} onClick={() => setSortMode(opt.key)}
+                className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
+                  sortMode === opt.key ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700'
+                }`}>
+                {opt.label}
               </button>
-            )}
+            ))}
           </div>
         </div>
 

@@ -219,7 +219,8 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
 
   return (
     <>
-      <div className="glass-card">
+      {/* 제목 카드 — 전체 너비 */}
+      <div className="glass-card mb-5">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-black/5">
           <button onClick={onBack} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-all">
             <ArrowLeft size={14} />
@@ -238,73 +239,73 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
           )}
         </div>
 
-        <div className="px-6 pt-6 pb-6">
-          {/* 제목 영역 — 전체 너비 */}
-          <div className="flex items-start gap-8">
-            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={88} />
-            <div className="flex-1 min-w-0">
-              {(tool.category || tool.tags.length > 0) && (
-                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                  {tool.category && (
-                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
-                  )}
+        <div className="flex items-start gap-8 px-6 pt-6 pb-6">
+          <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={88} />
+          <div className="flex-1 min-w-0">
+            {(tool.category || tool.tags.length > 0) && (
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {tool.category && (
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
+                )}
+                {tool.tags.map((t, i) => (
+                  <span key={i} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{t}</span>
+                ))}
+              </div>
+            )}
+            <h1 className="text-4xl font-extrabold text-gray-900 leading-tight tracking-tight">{tool.name}</h1>
+            {tool.subtitle && <p className="text-base font-semibold text-gray-500 mt-1.5">{tool.subtitle}</p>}
+            {tool.siteUrl && (
+              <a href={tool.siteUrl} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors">
+                공식 사이트 열기 <ExternalLink size={14} />
+              </a>
+            )}
+          </div>
+          <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
+        </div>
+      </div>
+
+      {/* 본문 + 사이드바 — glass-card 밖의 형제 요소여야 sticky가 실제로 동작함
+          (.glass-card는 overflow:hidden이라 그 안에 sticky를 넣으면 스크롤 시 그대로 함께 사라짐) */}
+      <div className="flex items-start gap-5">
+        <div className="glass-card flex-1 min-w-0">
+          <div
+            className="ai-tool-rich px-6 py-6"
+            dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+          />
+        </div>
+
+        {hasSidebar && (
+          <div className="w-[220px] flex-shrink-0 space-y-5 sticky top-6 hidden lg:block">
+            {tool.tags.length > 0 && (
+              <div className="glass-card p-5">
+                <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>
+                <div className="flex flex-wrap gap-1.5">
                   {tool.tags.map((t, i) => (
-                    <span key={i} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{t}</span>
+                    <span key={i} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{t}</span>
                   ))}
                 </div>
-              )}
-              <h1 className="text-4xl font-extrabold text-gray-900 leading-tight tracking-tight">{tool.name}</h1>
-              {tool.subtitle && <p className="text-base font-semibold text-gray-500 mt-1.5">{tool.subtitle}</p>}
-              {tool.siteUrl && (
-                <a href={tool.siteUrl} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors">
-                  공식 사이트 열기 <ExternalLink size={14} />
-                </a>
-              )}
-            </div>
-            <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
-          </div>
-
-          {/* 본문 + 사이드바 — 제목 영역 아래에서 시작하는 2단 레이아웃 */}
-          <div className="flex items-start gap-6 mt-6 pt-6 border-t border-gray-100">
-            <div
-              className="ai-tool-rich flex-1 min-w-0"
-              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-            />
-
-            {hasSidebar && (
-              <div className="w-[220px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block">
-                {tool.tags.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {tool.tags.map((t, i) => (
-                        <span key={i} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {headings.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">CONTENTS</p>
-                    <div className="flex flex-col gap-2.5">
-                      {headings.map(h => (
-                        <button
-                          key={h.id}
-                          onClick={() => scrollToHeading(h.id)}
-                          style={{ paddingLeft: (h.level - 1) * 10 }}
-                          className="text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors leading-snug"
-                        >
-                          {h.text}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              </div>
+            )}
+            {headings.length > 0 && (
+              <div className="glass-card p-5">
+                <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">CONTENTS</p>
+                <div className="flex flex-col gap-2.5">
+                  {headings.map(h => (
+                    <button
+                      key={h.id}
+                      onClick={() => scrollToHeading(h.id)}
+                      style={{ paddingLeft: (h.level - 1) * 10 }}
+                      className="text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors leading-snug"
+                    >
+                      {h.text}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {showDeleteModal && (

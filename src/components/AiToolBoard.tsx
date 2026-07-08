@@ -137,7 +137,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         </div>
 
         <div>
-          <label className={lCls}>상세 설명 — 다른 곳에서 복사한 굵게·제목·목록·표 서식을 그대로 붙여넣을 수 있습니다</label>
+          <label className={lCls}>상세 설명</label>
           <RichTextEditor
             initialValue={description}
             onChange={setDescription}

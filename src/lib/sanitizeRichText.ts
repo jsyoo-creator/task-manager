@@ -17,12 +17,19 @@ export function sanitizeRichText(html: string): string {
     ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
   });
-  // <a>는 href만 허용했으니 target/rel은 항상 안전한 값으로 통일
   const wrap = document.createElement('div');
   wrap.innerHTML = clean;
+  // <a>는 href만 허용했으니 target/rel은 항상 안전한 값으로 통일
   wrap.querySelectorAll('a').forEach(a => {
     a.setAttribute('target', '_blank');
     a.setAttribute('rel', 'noreferrer noopener');
+  });
+  // 배경색은 붙여넣은 원본 사이트의 배경(대부분 의도치 않은 회색·크림색 박스)이라 항상 제거.
+  // 테두리·둥근 모서리·글자색 등은 그대로 유지해 콜아웃 박스 형태는 살아있게 함
+  wrap.querySelectorAll<HTMLElement>('[style]').forEach(el => {
+    el.style.removeProperty('background');
+    el.style.removeProperty('background-color');
+    el.style.removeProperty('background-image');
   });
   return wrap.innerHTML;
 }

@@ -4,6 +4,12 @@ import type { AppUser, Team } from '../types';
 import { usePosts, useComments, type Post, type PostComment } from '../hooks/usePosts';
 import AiToolBoard, { type ToolView } from '../components/AiToolBoard';
 
+const AI_TOOL_CATEGORIES = ['AI · LLM', 'Workspace', '디자인·웹', '자동화'];
+const UI_TERM_CATEGORIES = [
+  '페이지 구조', '내비게이션', '액션·컨트롤', '폼·입력', '오버레이', '데이터 표현',
+  '피드백·상태', '인터랙션·모션', '타이포·색·테마', '미디어', '국내 UI 패턴', 'AI 협업·생성형 UI',
+];
+
 // ─── 유틸 ─────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -856,9 +862,9 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
 
       {/* 뷰 렌더 */}
       {activeView === 'aitools' ? (
-        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={toolView} onViewChange={setToolView} collectionName="aiTools" />
+        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={toolView} onViewChange={setToolView} collectionName="aiTools" categoryOptions={AI_TOOL_CATEGORIES} />
       ) : activeView === 'uiterms' ? (
-        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={uiTermView} onViewChange={setUiTermView} collectionName="uiTerms" />
+        <AiToolBoard appUser={appUser} canManage={canManageAiTools} view={uiTermView} onViewChange={setUiTermView} collectionName="uiTerms" categoryOptions={UI_TERM_CATEGORIES} />
       ) : !activeTeam ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-14 h-14 rounded-2xl bg-[#6C63FF]/10 flex items-center justify-center">

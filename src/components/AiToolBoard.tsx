@@ -8,8 +8,6 @@ import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '..
 type SortMode = 'recommend' | 'name';
 export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
 
-const CATEGORY_OPTIONS = ['AI · LLM', 'Workspace', '디자인·웹', '자동화'];
-
 const SORT_OPTIONS: { key: SortMode; label: string }[] = [
   { key: 'recommend', label: '추천순' },
   { key: 'name', label: '이름순' },
@@ -69,9 +67,10 @@ function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfir
 }
 
 // ─── 글쓰기 / 수정 뷰 — 일반 게시판 글쓰기와 동일한 형태 ────────────────
-function ToolWriteView({ initial, allTools, onBack, onSubmit }: {
+function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }: {
   initial: AiTool | null;
   allTools: AiTool[];
+  categoryOptions: string[];
   onBack: () => void;
   onSubmit: (data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => Promise<void>;
 }) {
@@ -155,7 +154,7 @@ function ToolWriteView({ initial, allTools, onBack, onSubmit }: {
         <div>
           <label className={lCls}>카테고리 (선택)</label>
           <div className="flex flex-wrap gap-1.5">
-            {CATEGORY_OPTIONS.map(opt => (
+            {categoryOptions.map(opt => (
               <button
                 key={opt}
                 type="button"
@@ -377,12 +376,13 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
   );
 }
 
-export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName }: {
+export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName, categoryOptions }: {
   appUser: AppUser;
   canManage: boolean;
   view: ToolView;
   onViewChange: (v: ToolView) => void;
   collectionName: string;
+  categoryOptions: string[];
 }) {
   const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools(collectionName);
   const [sortMode, setSortMode] = useState<SortMode>('recommend');
@@ -399,8 +399,8 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
 
   const categoryCounts = useMemo(() => [
     { key: 'all', label: '전체', count: tools.length },
-    ...CATEGORY_OPTIONS.map(c => ({ key: c, label: c, count: tools.filter(t => t.category === c).length })),
-  ], [tools]);
+    ...categoryOptions.map(c => ({ key: c, label: c, count: tools.filter(t => t.category === c).length })),
+  ], [tools, categoryOptions]);
 
   const selectedTool = (view.type === 'read' || view.type === 'edit') ? (tools.find(t => t.id === view.toolId) ?? null) : null;
 
@@ -427,10 +427,10 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
   };
 
   if (view.type === 'write') {
-    return <ToolWriteView initial={null} allTools={tools} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
+    return <ToolWriteView initial={null} allTools={tools} categoryOptions={categoryOptions} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
   }
   if (view.type === 'edit' && selectedTool) {
-    return <ToolWriteView initial={selectedTool} allTools={tools} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
+    return <ToolWriteView initial={selectedTool} allTools={tools} categoryOptions={categoryOptions} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
   }
   if (view.type === 'read' && selectedTool) {
     return (

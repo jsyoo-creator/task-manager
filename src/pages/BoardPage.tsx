@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, Trash2, Send, Pin, PinOff, Pencil, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import type { AppUser, Team } from '../types';
 import { usePosts, useComments, type Post, type PostComment } from '../hooks/usePosts';
+import AiToolBoard from '../components/AiToolBoard';
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
@@ -701,19 +702,17 @@ interface Props {
 export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, canManageBoard }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
-  const resolveTeam = (list: typeof userTeams) => {
-    const defaultVal = Object.values(appUser.defaultTeamIdByWorkplace ?? {}).find(id => list.some(t => t.id === id));
-    if (defaultVal) return defaultVal;
-    return list[0]?.id ?? null;
-  };
-
-  const [activeTeamId, setActiveTeamId] = useState<string | null>(() => resolveTeam(userTeams));
+  // 커뮤니티 진입 시 기본 화면은 'AI 툴 리스트' (팀 구분 없는 전체 공용 탭)
+  const [activeView, setActiveView] = useState<'aitools' | string>('aitools');
   const [view, setView] = useState<BoardView>({ type: 'list' });
   const [listPage, setListPage] = useState(1);
 
+  const activeTeamId = activeView === 'aitools' ? null : activeView;
+
+  // 소속 팀 탭이 사라지면(팀 변경 등) AI 툴 리스트로 복귀
   useEffect(() => {
-    if (userTeams.length > 0 && (!activeTeamId || !userTeams.some(t => t.id === activeTeamId))) {
-      setActiveTeamId(resolveTeam(userTeams));
+    if (activeView !== 'aitools' && !userTeams.some(t => t.id === activeView)) {
+      setActiveView('aitools');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userTeams.map(t => t.id).join(',')]);
@@ -756,24 +755,11 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
   };
 
   const handleTeamChange = (teamId: string) => {
-    setActiveTeamId(teamId);
+    setActiveView(teamId);
     setView({ type: 'list' });
     setListPage(1);
   };
   const regularPosts = posts.filter(p => !p.isNotice);
-
-  // 소속 팀 없음
-  if (userTeams.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-[#6C63FF]/10 flex items-center justify-center">
-          <MessageSquare size={24} className="text-[#6C63FF]" />
-        </div>
-        <p className="text-sm text-gray-500">소속 팀이 없어 게시판을 볼 수 없습니다.</p>
-        <p className="text-xs text-gray-400">설정에서 팀을 선택해주세요.</p>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -787,32 +773,38 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
             <h1 className="text-base font-bold text-gray-900">커뮤니티</h1>
           </div>
 
-          {/* 팀 탭 */}
-          {userTeams.length > 1 && (
-            <div className="flex items-center gap-1 p-1 rounded-[12px] bg-gray-100 border border-black/6">
-              {userTeams.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => handleTeamChange(t.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
-                    t.id === activeTeamId
-                      ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
-                  }`}
-                >
-                  <span>{t.emoji}</span>
-                  <span>{t.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {userTeams.length === 1 && activeTeam && (
-            <span className="text-sm text-gray-400">{activeTeam.emoji} {activeTeam.name}</span>
-          )}
+          {/* 탭: AI 툴 리스트(공용, 기본) + 소속 팀 게시판들 */}
+          <div className="flex items-center gap-1 p-1 rounded-[12px] bg-gray-100 border border-black/6 flex-wrap">
+            <button
+              onClick={() => { setActiveView('aitools'); setView({ type: 'list' }); setListPage(1); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
+                activeView === 'aitools'
+                  ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+              }`}
+            >
+              <Sparkles size={13} />
+              <span>AI 툴 리스트</span>
+            </button>
+            {userTeams.map(t => (
+              <button
+                key={t.id}
+                onClick={() => handleTeamChange(t.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
+                  t.id === activeView
+                    ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >
+                <span>{t.emoji}</span>
+                <span>{t.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* 글쓰기 버튼 — 목록에서만 */}
-        {view.type === 'list' && (
+        {/* 글쓰기 버튼 — 팀 게시판 목록에서만 (AI 툴 리스트는 자체 추가 버튼 사용) */}
+        {activeView !== 'aitools' && activeTeam && view.type === 'list' && (
           <button
             onClick={() => setView({ type: 'write' })}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-[13px] font-semibold transition-colors shadow-md shadow-[#6C63FF]/25"
@@ -824,49 +816,63 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
       </div>
 
       {/* 뷰 렌더 */}
-      {view.type === 'list' && (
-        <ListView
-          posts={posts}
-          loading={loading}
-          page={listPage}
-          onPageChange={setListPage}
-          onSelect={postId => setView({ type: 'read', postId })}
-          onWrite={() => setView({ type: 'write' })}
-        />
-      )}
+      {activeView === 'aitools' ? (
+        <AiToolBoard appUser={appUser} canManage={canManageBoard} />
+      ) : !activeTeam ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#6C63FF]/10 flex items-center justify-center">
+            <MessageSquare size={24} className="text-[#6C63FF]" />
+          </div>
+          <p className="text-sm text-gray-500">소속 팀이 없어 게시판을 볼 수 없습니다.</p>
+          <p className="text-xs text-gray-400">설정에서 팀을 선택해주세요.</p>
+        </div>
+      ) : (
+        <>
+          {view.type === 'list' && (
+            <ListView
+              posts={posts}
+              loading={loading}
+              page={listPage}
+              onPageChange={setListPage}
+              onSelect={postId => setView({ type: 'read', postId })}
+              onWrite={() => setView({ type: 'write' })}
+            />
+          )}
 
-      {view.type === 'write' && activeTeam && (
-        <WriteView
-          activeTeam={activeTeam}
-          appUser={appUser}
-          canSetNotice={canSetNotice}
-          onBack={() => setView({ type: 'list' })}
-          onSubmit={handleWrite}
-        />
-      )}
+          {view.type === 'write' && activeTeam && (
+            <WriteView
+              activeTeam={activeTeam}
+              appUser={appUser}
+              canSetNotice={canSetNotice}
+              onBack={() => setView({ type: 'list' })}
+              onSubmit={handleWrite}
+            />
+          )}
 
-      {view.type === 'read' && selectedPost && (
-        <ReadView
-          post={selectedPost}
-          appUser={appUser}
-          regularPosts={regularPosts}
-          canSetNotice={canSetNotice}
-          canManageBoard={canManageBoard}
-          onBack={() => setView({ type: 'list' })}
-          onDelete={() => handleDelete(selectedPost.id)}
-          onEdit={() => setView({ type: 'edit', postId: selectedPost.id })}
-          onSetNotice={isNotice => setNotice(selectedPost.id, isNotice)}
-          onReadNotice={onReadNotice}
-          onNavigate={postId => setView({ type: 'read', postId })}
-        />
-      )}
+          {view.type === 'read' && selectedPost && (
+            <ReadView
+              post={selectedPost}
+              appUser={appUser}
+              regularPosts={regularPosts}
+              canSetNotice={canSetNotice}
+              canManageBoard={canManageBoard}
+              onBack={() => setView({ type: 'list' })}
+              onDelete={() => handleDelete(selectedPost.id)}
+              onEdit={() => setView({ type: 'edit', postId: selectedPost.id })}
+              onSetNotice={isNotice => setNotice(selectedPost.id, isNotice)}
+              onReadNotice={onReadNotice}
+              onNavigate={postId => setView({ type: 'read', postId })}
+            />
+          )}
 
-      {view.type === 'edit' && selectedPost && (
-        <EditView
-          post={selectedPost}
-          onBack={() => setView({ type: 'read', postId: selectedPost.id })}
-          onSubmit={handleEdit}
-        />
+          {view.type === 'edit' && selectedPost && (
+            <EditView
+              post={selectedPost}
+              onBack={() => setView({ type: 'read', postId: selectedPost.id })}
+              onSubmit={handleEdit}
+            />
+          )}
+        </>
       )}
     </>
   );

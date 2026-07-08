@@ -593,6 +593,25 @@ export interface Team {
   revisionSteps?: RevisionStep[]; // 수정단계 목록 팀 기본값 (없으면 DEFAULT_REVISION_STEPS)
 }
 
+// 커뮤니티 > AI 툴 리스트 — 팀 구분 없이 전체 공용으로 노출되는 랭킹 리스트
+export interface AiTool {
+  id: string;
+  rank: number;          // 관리자가 지정하는 순위 (랭크순 정렬 기준, 동률 허용)
+  rankChange: number;    // 순위 변동 배지에 표시할 값 (양수면 ▲, 음수면 ▼, 0이면 ▲0으로 표시)
+  popularity: number;    // 인기순 정렬 기준값 (관리자가 입력하는 임의의 점수)
+  name: string;          // 표시명, 예: '클로드(Claude)'
+  description: string;   // 한 줄 설명
+  category: string;      // 강조 배지 텍스트, 예: 'AI · LLM'
+  tags: string[];        // 추가 태그 목록, 예: ['대화형 AI', '글쓰기']
+  siteUrl?: string;      // 공식 사이트 링크 (있으면 클릭 시 새 탭으로 이동)
+  iconLabel: string;     // 아이콘에 표시할 짧은 텍스트, 예: 'AI', 'Go'
+  iconColor: string;     // 아이콘 배경색 (hex)
+  authorUid: string;
+  authorName: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface SubTask {
   id: string;
   taskId: string;

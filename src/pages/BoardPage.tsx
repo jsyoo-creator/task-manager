@@ -703,6 +703,12 @@ interface Props {
 export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, canManageBoard, canManageAiTools }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
+  // 팀 탭 순서: 우선 표시 팀(defaultTeamIdByWorkplace)으로 지정된 팀을 맨 앞으로
+  const priorityTeamId = Object.values(appUser.defaultTeamIdByWorkplace ?? {}).find(id => userTeams.some(t => t.id === id));
+  const orderedUserTeams = priorityTeamId
+    ? [...userTeams].sort((a, b) => (a.id === priorityTeamId ? -1 : b.id === priorityTeamId ? 1 : 0))
+    : userTeams;
+
   // 커뮤니티 진입 시 기본 화면은 'AI 툴 리스트' (팀 구분 없는 전체 공용 탭)
   const [activeView, setActiveView] = useState<'aitools' | string>('aitools');
   const [view, setView] = useState<BoardView>({ type: 'list' });
@@ -788,7 +794,7 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
               <Sparkles size={13} />
               <span>AI 툴 리스트</span>
             </button>
-            {userTeams.map(t => (
+            {orderedUserTeams.map(t => (
               <button
                 key={t.id}
                 onClick={() => handleTeamChange(t.id)}

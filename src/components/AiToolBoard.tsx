@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
+import RichTextEditor from './RichTextEditor';
+import { sanitizeRichText, isRichTextEmpty, toDisplayHtml } from '../lib/sanitizeRichText';
 
 type SortMode = 'recommend' | 'name';
 export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
@@ -74,14 +76,14 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [subtitle, setSubtitle] = useState(initial?.subtitle ?? '');
-  const [description, setDescription] = useState(initial?.description ?? '');
+  const [description, setDescription] = useState(() => (initial ? toDisplayHtml(initial.description) : ''));
   const [category, setCategory] = useState(initial?.category ?? '');
   const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
   const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? '');
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
   const [submitting, setSubmitting] = useState(false);
 
-  const valid = name.trim() && description.trim();
+  const valid = name.trim() && !isRichTextEmpty(description);
 
   const handleSubmit = async () => {
     if (!valid || submitting) return;
@@ -90,7 +92,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
       await onSubmit({
         name: name.trim(),
         subtitle: subtitle.trim() || undefined,
-        description: description.trim(),
+        description: sanitizeRichText(description),
         category: category.trim(),
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         siteUrl: siteUrl.trim() || undefined,
@@ -133,14 +135,11 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         </div>
 
         <div>
-          <label className={lCls}>상세 설명</label>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(); }}
-            placeholder="상세 페이지에 보여줄 내용을 자유롭게 길게 작성하세요 (Ctrl+Enter로 등록)"
-            rows={10}
-            className={`${iCls} resize-none leading-relaxed`}
+          <label className={lCls}>상세 설명 — 다른 곳에서 복사한 굵게·제목·목록·표 서식을 그대로 붙여넣을 수 있습니다</label>
+          <RichTextEditor
+            initialValue={description}
+            onChange={setDescription}
+            placeholder="상세 페이지에 보여줄 내용을 작성하거나, 서식이 있는 글을 그대로 붙여넣으세요"
           />
         </div>
 
@@ -240,9 +239,10 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
             <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
           </div>
 
-          <div className="py-6 min-h-[120px] border-t border-gray-100 mt-5">
-            <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-[1.9]">{tool.description}</p>
-          </div>
+          <div
+            className="ai-tool-rich py-6 min-h-[120px] border-t border-gray-100 mt-5"
+            dangerouslySetInnerHTML={{ __html: toDisplayHtml(tool.description) }}
+          />
         </div>
       </div>
 

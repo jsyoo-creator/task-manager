@@ -160,3 +160,56 @@ body {
   transform-origin: left;
   animation: bar-grow 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* ─────────────────────────────────────
+   AI 툴 리스트 — 서식 있는 상세 설명 (붙여넣기/렌더링 공용)
+───────────────────────────────────── */
+.ai-tool-rich {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #1f2937;
+  word-break: break-word;
+}
+.ai-tool-rich h1, .ai-tool-rich h2, .ai-tool-rich h3, .ai-tool-rich h4 {
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.35;
+  margin: 1.1em 0 0.5em;
+}
+.ai-tool-rich h1 { font-size: 1.25rem; }
+.ai-tool-rich h2 { font-size: 1.125rem; }
+.ai-tool-rich h3, .ai-tool-rich h4 { font-size: 1rem; }
+.ai-tool-rich p { margin: 0.6em 0; }
+.ai-tool-rich strong, .ai-tool-rich b { font-weight: 700; }
+.ai-tool-rich ul { list-style: disc; padding-left: 1.4em; margin: 0.6em 0; }
+.ai-tool-rich ol { list-style: decimal; padding-left: 1.4em; margin: 0.6em 0; }
+.ai-tool-rich li { margin: 0.3em 0; }
+.ai-tool-rich a { color: #6C63FF; text-decoration: underline; text-underline-offset: 2px; }
+.ai-tool-rich blockquote { border-left: 3px solid #E5E7EB; padding-left: 0.9em; color: #6b7280; margin: 0.75em 0; }
+.ai-tool-rich code { background: #F3F4F6; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.85em; }
+.ai-tool-rich pre { background: #F3F4F6; padding: 0.75em 1em; border-radius: 10px; overflow-x: auto; margin: 0.75em 0; }
+.ai-tool-rich pre code { background: none; padding: 0; }
+.ai-tool-rich table { border-collapse: collapse; width: 100%; margin: 0.75em 0; font-size: 0.85em; }
+.ai-tool-rich th, .ai-tool-rich td { border: 1px solid #E5E7EB; padding: 0.5em 0.75em; text-align: left; vertical-align: top; }
+.ai-tool-rich th { background: #F9FAFB; font-weight: 600; }
+
+.rich-text-editor {
+  min-height: 220px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.rich-text-editor:focus {
+  outline: none;
+  border-color: rgba(108,99,255,0.5);
+  box-shadow: 0 0 0 2px rgba(108,99,255,0.2);
+}
+.rich-text-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #d1d5db;
+  pointer-events: none;
+}

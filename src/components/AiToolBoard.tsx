@@ -81,6 +81,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
   const [description, setDescription] = useState(() => (initial ? toDisplayHtml(initial.description) : ''));
   const [category, setCategory] = useState(initial?.category ?? '');
   const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
+  const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? '');
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
   const [submitting, setSubmitting] = useState(false);
 
@@ -96,7 +97,7 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         description: sanitizeRichText(description),
         category: category.trim(),
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
-        siteUrl: initial?.siteUrl,
+        siteUrl: siteUrl.trim() || undefined,
         iconUrl: iconUrl.trim() || undefined,
       });
     } finally {
@@ -170,6 +171,11 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         </div>
 
         <div>
+          <label className={lCls}>공식 사이트 URL (선택)</label>
+          <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)} placeholder="https://..." className={iCls} />
+        </div>
+
+        <div>
           <label className={lCls}>아이콘 이미지 URL (선택)</label>
           <div className="flex items-center gap-3">
             <ToolIcon iconUrl={iconUrl || undefined} name={name} size={40} />
@@ -232,69 +238,72 @@ function ToolReadView({ tool, canManage, hasRecommended, onBack, onToggleRecomme
           )}
         </div>
 
-        <div className="flex items-start gap-6 px-6 pt-6 pb-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start gap-4">
-              <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={56} />
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold text-gray-900 leading-snug">
-                  {tool.name}
-                  {tool.subtitle && <span className="text-base font-normal text-gray-500"> — {tool.subtitle}</span>}
-                </h1>
-                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+        <div className="px-6 pt-6 pb-6">
+          {/* 제목 영역 — 전체 너비 */}
+          <div className="flex items-start gap-5">
+            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={64} />
+            <div className="flex-1 min-w-0">
+              {(tool.category || tool.tags.length > 0) && (
+                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                   {tool.category && (
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
                   )}
-                  {tool.tags.map((t, i) => <span key={i} className="text-[12px] text-gray-400">· {t}</span>)}
-                  {tool.siteUrl && (
-                    <a href={tool.siteUrl} target="_blank" rel="noreferrer"
-                      className="text-[12px] text-gray-400 hover:text-[#6C63FF] flex items-center gap-0.5 transition-colors">
-                      · 공식 사이트<ExternalLink size={10} />
-                    </a>
-                  )}
+                  {tool.tags.map((t, i) => (
+                    <span key={i} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{t}</span>
+                  ))}
                 </div>
-              </div>
-              <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
+              )}
+              <h1 className="text-3xl font-extrabold text-gray-900 leading-tight tracking-tight">{tool.name}</h1>
+              {tool.subtitle && <p className="text-base font-semibold text-gray-500 mt-1.5">{tool.subtitle}</p>}
+              {tool.siteUrl && (
+                <a href={tool.siteUrl} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors">
+                  공식 사이트 열기 <ExternalLink size={14} />
+                </a>
+              )}
             </div>
-
-            <div
-              className="ai-tool-rich py-6 min-h-[120px] border-t border-gray-100 mt-5"
-              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
-            />
+            <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
           </div>
 
-          {/* 본문 우측에 포함되는 사이드 정보 — 태그(USE CASE) / 목차(CONTENTS) */}
-          {hasSidebar && (
-            <div className="w-[220px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block">
-              {tool.tags.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {tool.tags.map((t, i) => (
-                      <span key={i} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{t}</span>
-                    ))}
+          {/* 본문 + 사이드바 — 제목 영역 아래에서 시작하는 2단 레이아웃 */}
+          <div className="flex items-start gap-6 mt-6 pt-6 border-t border-gray-100">
+            <div
+              className="ai-tool-rich flex-1 min-w-0"
+              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+            />
+
+            {hasSidebar && (
+              <div className="w-[220px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block">
+                {tool.tags.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {tool.tags.map((t, i) => (
+                        <span key={i} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{t}</span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {headings.length > 0 && (
-                <div>
-                  <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">CONTENTS</p>
-                  <div className="flex flex-col gap-2.5">
-                    {headings.map(h => (
-                      <button
-                        key={h.id}
-                        onClick={() => scrollToHeading(h.id)}
-                        style={{ paddingLeft: (h.level - 1) * 10 }}
-                        className="text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors leading-snug"
-                      >
-                        {h.text}
-                      </button>
-                    ))}
+                )}
+                {headings.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">CONTENTS</p>
+                    <div className="flex flex-col gap-2.5">
+                      {headings.map(h => (
+                        <button
+                          key={h.id}
+                          onClick={() => scrollToHeading(h.id)}
+                          style={{ paddingLeft: (h.level - 1) * 10 }}
+                          className="text-left text-[13px] text-gray-600 hover:text-[#6C63FF] transition-colors leading-snug"
+                        >
+                          {h.text}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

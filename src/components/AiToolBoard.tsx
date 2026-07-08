@@ -80,8 +80,6 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
   const [subtitle, setSubtitle] = useState(initial?.subtitle ?? '');
   const [description, setDescription] = useState(() => (initial ? toDisplayHtml(initial.description) : ''));
   const [category, setCategory] = useState(initial?.category ?? '');
-  const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
-  const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? '');
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
   const [submitting, setSubmitting] = useState(false);
 
@@ -96,8 +94,8 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
         subtitle: subtitle.trim() || undefined,
         description: sanitizeRichText(description),
         category: category.trim(),
-        tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
-        siteUrl: siteUrl.trim() || undefined,
+        tags: initial?.tags ?? [],
+        siteUrl: initial?.siteUrl,
         iconUrl: iconUrl.trim() || undefined,
       });
     } finally {
@@ -163,16 +161,6 @@ function ToolWriteView({ initial, onBack, onSubmit }: {
               </button>
             ))}
           </div>
-        </div>
-
-        <div>
-          <label className={lCls}>태그 (쉼표로 구분, 선택)</label>
-          <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
-        </div>
-
-        <div>
-          <label className={lCls}>공식 사이트 URL (선택)</label>
-          <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)} placeholder="https://..." className={iCls} />
         </div>
 
         <div>

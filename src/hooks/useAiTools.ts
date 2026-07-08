@@ -31,12 +31,13 @@ export function useAiTools(collectionName: string) {
   };
 
   const updateTool = async (id: string, data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => {
-    const { subtitle, siteUrl, iconUrl, relatedToolIds, ...rest } = data;
+    const { subtitle, siteUrl, iconUrl, level, relatedToolIds, ...rest } = data;
     await updateDoc(doc(db, collectionName, id), {
       ...rest,
       subtitle: subtitle || deleteField(),
       siteUrl: siteUrl || deleteField(),
       iconUrl: iconUrl || deleteField(),
+      level: level || deleteField(),
       relatedToolIds: relatedToolIds ?? [],
       updatedAt: new Date().toISOString(),
     });

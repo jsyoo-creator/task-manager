@@ -67,10 +67,12 @@ function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfir
 }
 
 // ─── 글쓰기 / 수정 뷰 — 일반 게시판 글쓰기와 동일한 형태 ────────────────
-function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }: {
+function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layout, onBack, onSubmit }: {
   initial: AiTool | null;
   allTools: AiTool[];
   categoryOptions: string[];
+  levelOptions: string[];
+  layout: 'list' | 'gallery';
   onBack: () => void;
   onSubmit: (data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => Promise<void>;
 }) {
@@ -78,6 +80,7 @@ function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }:
   const [subtitle, setSubtitle] = useState(initial?.subtitle ?? '');
   const [description, setDescription] = useState(() => (initial ? toDisplayHtml(initial.description) : ''));
   const [category, setCategory] = useState(initial?.category ?? '');
+  const [level, setLevel] = useState(initial?.level ?? '');
   const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
   const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? '');
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
@@ -101,6 +104,7 @@ function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }:
         subtitle: subtitle.trim() || undefined,
         description: sanitizeRichText(description),
         category: category.trim(),
+        level: level || undefined,
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         siteUrl: siteUrl.trim() || undefined,
         iconUrl: iconUrl.trim() || undefined,
@@ -171,6 +175,28 @@ function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }:
           </div>
         </div>
 
+        {levelOptions.length > 0 && (
+          <div>
+            <label className={lCls}>난이도 배지 (선택)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {levelOptions.map(opt => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setLevel(l => l === opt ? '' : opt)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    level === opt
+                      ? 'bg-green-500 text-white border-green-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className={lCls}>태그 (쉼표로 구분, 선택)</label>
           <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
@@ -182,10 +208,10 @@ function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }:
         </div>
 
         <div>
-          <label className={lCls}>아이콘 이미지 URL (선택)</label>
+          <label className={lCls}>{layout === 'gallery' ? '이미지 URL (선택, 카드 상단에 크게 표시)' : '아이콘 이미지 URL (선택)'}</label>
           <div className="flex items-center gap-3">
-            <ToolIcon iconUrl={iconUrl || undefined} name={name} size={40} />
-            <input value={iconUrl} onChange={e => setIconUrl(e.target.value)} placeholder="https://.../icon.png" className={iCls} />
+            {layout !== 'gallery' && <ToolIcon iconUrl={iconUrl || undefined} name={name} size={40} />}
+            <input value={iconUrl} onChange={e => setIconUrl(e.target.value)} placeholder="https://.../image.png" className={iCls} />
           </div>
         </div>
 
@@ -202,7 +228,7 @@ function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }:
                     relatedToolIds.includes(t.id) ? 'bg-[#6C63FF]/10' : 'hover:bg-gray-50'
                   }`}
                 >
-                  <ToolIcon iconUrl={t.iconUrl} name={t.name} size={26} />
+                  {layout !== 'gallery' && <ToolIcon iconUrl={t.iconUrl} name={t.name} size={26} />}
                   <span className={`text-sm truncate ${relatedToolIds.includes(t.id) ? 'font-semibold text-[#6C63FF]' : 'text-gray-700'}`}>{t.name}</span>
                 </button>
               ))}
@@ -226,9 +252,10 @@ function ToolWriteView({ initial, allTools, categoryOptions, onBack, onSubmit }:
 }
 
 // ─── 상세 보기 뷰 ─────────────────────────────────────────────────────
-function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
+function ToolReadView({ tool, allTools, layout, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
   tool: AiTool;
   allTools: AiTool[];
+  layout: 'list' | 'gallery';
   canManage: boolean;
   hasRecommended: boolean;
   onBack: () => void;
@@ -275,13 +302,16 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
 
         <div className="px-6 pt-6 pb-6">
           {/* 제목 영역 — 전체 너비 */}
-          <div className="flex items-start gap-11">
-            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={112} />
+          <div className={`flex items-start ${layout === 'gallery' ? '' : 'gap-11'}`}>
+            {layout !== 'gallery' && <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={112} />}
             <div className="flex-1 min-w-0">
-              {(tool.category || tool.tags.length > 0) && (
+              {(tool.category || tool.level || tool.tags.length > 0) && (
                 <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                   {tool.category && (
                     <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
+                  )}
+                  {tool.level && (
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600">{tool.level}</span>
                   )}
                   {tool.tags.map((t, i) => (
                     <span key={i} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{t}</span>
@@ -352,7 +382,7 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
                     onClick={() => onNavigateToTool(rt.id)}
                     className="flex items-center gap-3 p-4 rounded-2xl border border-gray-100 bg-white hover:border-[#6C63FF]/40 hover:shadow-sm transition-all text-left"
                   >
-                    <ToolIcon iconUrl={rt.iconUrl} name={rt.name} size={48} />
+                    {layout !== 'gallery' && <ToolIcon iconUrl={rt.iconUrl} name={rt.name} size={48} />}
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-gray-900 truncate">{rt.name}</p>
                       {rt.subtitle && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{rt.subtitle}</p>}
@@ -376,13 +406,14 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
   );
 }
 
-export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName, categoryOptions, layout = 'list' }: {
+export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName, categoryOptions, levelOptions = [], layout = 'list' }: {
   appUser: AppUser;
   canManage: boolean;
   view: ToolView;
   onViewChange: (v: ToolView) => void;
   collectionName: string;
   categoryOptions: string[];
+  levelOptions?: string[];
   layout?: 'list' | 'gallery';
 }) {
   const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools(collectionName);
@@ -428,16 +459,17 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
   };
 
   if (view.type === 'write') {
-    return <ToolWriteView initial={null} allTools={tools} categoryOptions={categoryOptions} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
+    return <ToolWriteView initial={null} allTools={tools} categoryOptions={categoryOptions} levelOptions={levelOptions} layout={layout} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
   }
   if (view.type === 'edit' && selectedTool) {
-    return <ToolWriteView initial={selectedTool} allTools={tools} categoryOptions={categoryOptions} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
+    return <ToolWriteView initial={selectedTool} allTools={tools} categoryOptions={categoryOptions} levelOptions={levelOptions} layout={layout} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
   }
   if (view.type === 'read' && selectedTool) {
     return (
       <ToolReadView
         tool={selectedTool}
         allTools={tools}
+        layout={layout}
         canManage={canManage}
         hasRecommended={selectedTool.recommendedBy.includes(appUser.uid)}
         onBack={() => setView({ type: 'list' })}
@@ -539,7 +571,12 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
                         )}
                       </div>
                       <div className="p-4 flex-1 flex flex-col">
-                        {tool.category && <p className="text-xs font-medium text-gray-400 mb-1">{tool.category}</p>}
+                        {(tool.category || tool.level) && (
+                          <div className="flex items-center justify-between mb-1">
+                            {tool.category && <p className="text-xs font-medium text-gray-400">{tool.category}</p>}
+                            {tool.level && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600">{tool.level}</span>}
+                          </div>
+                        )}
                         <h3 className="text-base font-bold text-gray-900 leading-snug">{tool.name}</h3>
                         {tool.subtitle && <p className="text-xs text-gray-400 mt-0.5">{tool.subtitle}</p>}
                         <p className="text-sm text-gray-600 mt-2 line-clamp-2">{stripHtml(tool.description)}</p>
@@ -573,6 +610,9 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           {tool.category && (
                             <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF] flex-shrink-0">{tool.category}</span>
+                          )}
+                          {tool.level && (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-50 text-green-600 flex-shrink-0">{tool.level}</span>
                           )}
                           {tool.tags.map((t, ti) => (
                             <span key={ti} className="text-[12px] text-gray-400">· {t}</span>

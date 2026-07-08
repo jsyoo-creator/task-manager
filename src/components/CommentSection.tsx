@@ -128,7 +128,7 @@ export default function CommentSection({ postId, appUser, canManageBoard, parent
             const isEditing = editTarget?.id === c.id;
             return (
               <div key={c.id} className="flex gap-3 group">
-                <Avatar name={c.authorName} photoURL={c.authorPhotoURL} size={7} />
+                <div className="mt-1.5"><Avatar name={c.authorName} photoURL={c.authorPhotoURL} size={7} /></div>
                 <div className="flex-1 min-w-0 bg-gray-50 rounded-xl px-3.5 py-2.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-gray-800">{c.authorName}</span>

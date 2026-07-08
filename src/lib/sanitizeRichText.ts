@@ -41,6 +41,13 @@ export function isRichTextEmpty(html: string): boolean {
   return (wrap.textContent ?? '').trim().length === 0;
 }
 
+// 갤러리 카드 미리보기 등 순수 텍스트만 필요한 곳에서 태그를 걷어내고 공백을 정리
+export function stripHtml(html: string): string {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  return (wrap.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
 // 리치 에디터 도입 이전에 일반 텍스트(줄바꿈 포함)로 저장된 설명과 호환 — 태그가 전혀 없으면
 // 평문으로 간주해 이스케이프 후 줄바꿈만 <br>로 변환, 이미 HTML이면 그대로 정제
 export function toDisplayHtml(raw: string): string {

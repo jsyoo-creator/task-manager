@@ -3,7 +3,7 @@ import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 import RichTextEditor from './RichTextEditor';
-import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '../lib/sanitizeRichText';
+import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc, stripHtml } from '../lib/sanitizeRichText';
 
 type SortMode = 'recommend' | 'name';
 export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
@@ -376,13 +376,14 @@ function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onTog
   );
 }
 
-export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName, categoryOptions }: {
+export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName, categoryOptions, layout = 'list' }: {
   appUser: AppUser;
   canManage: boolean;
   view: ToolView;
   onViewChange: (v: ToolView) => void;
   collectionName: string;
   categoryOptions: string[];
+  layout?: 'list' | 'gallery';
 }) {
   const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools(collectionName);
   const [sortMode, setSortMode] = useState<SortMode>('recommend');
@@ -468,15 +469,29 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
         <div className="flex items-start">
           <div className="flex-1 min-w-0">
             {loading ? (
-              <div className="divide-y divide-gray-50">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
-                    <div className="w-8 h-4 bg-gray-100 rounded-full" />
-                    <div className="w-12 h-12 bg-gray-100 rounded-2xl" />
-                    <div className="flex-1"><div className="h-3 w-1/2 bg-gray-100 rounded-full" /></div>
-                  </div>
-                ))}
-              </div>
+              layout === 'gallery' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 p-5">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div key={i} className="rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
+                      <div className="aspect-[4/3] bg-gray-100" />
+                      <div className="p-4 space-y-2">
+                        <div className="h-3 w-1/3 bg-gray-100 rounded-full" />
+                        <div className="h-4 w-2/3 bg-gray-100 rounded-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
+                      <div className="w-8 h-4 bg-gray-100 rounded-full" />
+                      <div className="w-12 h-12 bg-gray-100 rounded-2xl" />
+                      <div className="flex-1"><div className="h-3 w-1/2 bg-gray-100 rounded-full" /></div>
+                    </div>
+                  ))}
+                </div>
+              )
             ) : sorted.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(108,99,255,0.08)' }}>
@@ -490,6 +505,55 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
                     첫 번째 AI 툴을 추가해보세요
                   </button>
                 )}
+              </div>
+            ) : layout === 'gallery' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 p-5">
+                {sorted.map(tool => {
+                  const hasRecommended = tool.recommendedBy.includes(appUser.uid);
+                  return (
+                    <div key={tool.id}
+                      onClick={() => setView({ type: 'read', toolId: tool.id })}
+                      className="flex flex-col rounded-2xl border border-gray-100 bg-white overflow-hidden hover:border-[#6C63FF]/40 hover:shadow-md transition-all cursor-pointer group">
+                      <div className="relative aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
+                        {tool.iconUrl ? (
+                          <img src={tool.iconUrl} alt={tool.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Sparkles size={40} className="text-gray-200" />
+                        )}
+                        <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
+                          <RecommendButton
+                            count={tool.recommendedBy.length}
+                            active={hasRecommended}
+                            onClick={e => { e.stopPropagation(); handleToggleRecommend(tool); }}
+                          />
+                        </div>
+                        {canManage && (
+                          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => setView({ type: 'edit', toolId: tool.id })} className="p-1.5 bg-white/90 text-gray-500 hover:text-[#6C63FF] rounded-lg shadow-sm transition-colors">
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={() => setDeleteTarget(tool)} className="p-1.5 bg-white/90 text-gray-500 hover:text-red-400 rounded-lg shadow-sm transition-colors">
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col">
+                        {tool.category && <p className="text-xs font-medium text-gray-400 mb-1">{tool.category}</p>}
+                        <h3 className="text-base font-bold text-gray-900 leading-snug">{tool.name}</h3>
+                        {tool.subtitle && <p className="text-xs text-gray-400 mt-0.5">{tool.subtitle}</p>}
+                        <p className="text-sm text-gray-600 mt-2 line-clamp-2">{stripHtml(tool.description)}</p>
+                        {tool.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {tool.tags.map((t, ti) => (
+                              <span key={ti} className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">#{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div>

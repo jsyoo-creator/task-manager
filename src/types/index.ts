@@ -605,7 +605,6 @@ export interface AiTool {
   subtitle?: string;     // 서브 제목 — 목록에서 메인 제목 옆에 한 줄로 표시
   description: string;   // 상세 설명 (길게 작성 가능, 줄바꿈 유지)
   category: string;      // 강조 배지 텍스트, 예: 'AI · LLM'
-  level?: string;        // 난이도 배지 (게시판별 levelOptions 중 선택), 예: '입문'
   tags: string[];        // 추가 태그 목록, 예: ['대화형 AI', '글쓰기']
   siteUrl?: string;      // 공식 사이트 링크 (있으면 클릭 시 새 탭으로 이동)
   iconUrl?: string;      // 아이콘 이미지 URL (없으면 기본 아이콘 표시)

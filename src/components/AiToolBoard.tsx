@@ -3,10 +3,12 @@ import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 import RichTextEditor from './RichTextEditor';
-import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc, stripHtml } from '../lib/sanitizeRichText';
+import { sanitizeRichText, isRichTextEmpty, toDisplayHtml, extractToc } from '../lib/sanitizeRichText';
 
 type SortMode = 'recommend' | 'name';
 export type ToolView = { type: 'list' } | { type: 'write' } | { type: 'read'; toolId: string } | { type: 'edit'; toolId: string };
+
+const CATEGORY_OPTIONS = ['AI · LLM', 'Workspace', '디자인·웹', '자동화'];
 
 const SORT_OPTIONS: { key: SortMode; label: string }[] = [
   { key: 'recommend', label: '추천순' },
@@ -67,12 +69,9 @@ function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfir
 }
 
 // ─── 글쓰기 / 수정 뷰 — 일반 게시판 글쓰기와 동일한 형태 ────────────────
-function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layout, onBack, onSubmit }: {
+function ToolWriteView({ initial, allTools, onBack, onSubmit }: {
   initial: AiTool | null;
   allTools: AiTool[];
-  categoryOptions: string[];
-  levelOptions: string[];
-  layout: 'list' | 'gallery';
   onBack: () => void;
   onSubmit: (data: Omit<AiTool, 'id' | 'authorUid' | 'authorName' | 'createdAt' | 'updatedAt' | 'recommendedBy'>) => Promise<void>;
 }) {
@@ -80,7 +79,6 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
   const [subtitle, setSubtitle] = useState(initial?.subtitle ?? '');
   const [description, setDescription] = useState(() => (initial ? toDisplayHtml(initial.description) : ''));
   const [category, setCategory] = useState(initial?.category ?? '');
-  const [level, setLevel] = useState(initial?.level ?? '');
   const [tagsInput, setTagsInput] = useState((initial?.tags ?? []).join(', '));
   const [siteUrl, setSiteUrl] = useState(initial?.siteUrl ?? '');
   const [iconUrl, setIconUrl] = useState(initial?.iconUrl ?? '');
@@ -104,7 +102,6 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
         subtitle: subtitle.trim() || undefined,
         description: sanitizeRichText(description),
         category: category.trim(),
-        level: level || undefined,
         tags: tagsInput.split(',').map(t => t.trim()).filter(Boolean),
         siteUrl: siteUrl.trim() || undefined,
         iconUrl: iconUrl.trim() || undefined,
@@ -158,7 +155,7 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
         <div>
           <label className={lCls}>카테고리 (선택)</label>
           <div className="flex flex-wrap gap-1.5">
-            {categoryOptions.map(opt => (
+            {CATEGORY_OPTIONS.map(opt => (
               <button
                 key={opt}
                 type="button"
@@ -175,45 +172,21 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
           </div>
         </div>
 
-        {levelOptions.length > 0 && (
-          <div>
-            <label className={lCls}>난이도 배지 (선택)</label>
-            <div className="flex flex-wrap gap-1.5">
-              {levelOptions.map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setLevel(l => l === opt ? '' : opt)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    level === opt
-                      ? 'bg-green-500 text-white border-green-500'
-                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div>
           <label className={lCls}>태그 (쉼표로 구분, 선택)</label>
           <input value={tagsInput} onChange={e => setTagsInput(e.target.value)} placeholder="대화형 AI, 글쓰기" className={iCls} />
         </div>
 
-        {layout !== 'gallery' && (
-          <div>
-            <label className={lCls}>공식 사이트 URL (선택)</label>
-            <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)} placeholder="https://..." className={iCls} />
-          </div>
-        )}
+        <div>
+          <label className={lCls}>공식 사이트 URL (선택)</label>
+          <input value={siteUrl} onChange={e => setSiteUrl(e.target.value)} placeholder="https://..." className={iCls} />
+        </div>
 
         <div>
-          <label className={lCls}>{layout === 'gallery' ? '이미지 URL (선택, 카드 상단에 크게 표시)' : '아이콘 이미지 URL (선택)'}</label>
+          <label className={lCls}>아이콘 이미지 URL (선택)</label>
           <div className="flex items-center gap-3">
-            {layout !== 'gallery' && <ToolIcon iconUrl={iconUrl || undefined} name={name} size={40} />}
-            <input value={iconUrl} onChange={e => setIconUrl(e.target.value)} placeholder="https://.../image.png" className={iCls} />
+            <ToolIcon iconUrl={iconUrl || undefined} name={name} size={40} />
+            <input value={iconUrl} onChange={e => setIconUrl(e.target.value)} placeholder="https://.../icon.png" className={iCls} />
           </div>
         </div>
 
@@ -230,7 +203,7 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
                     relatedToolIds.includes(t.id) ? 'bg-[#6C63FF]/10' : 'hover:bg-gray-50'
                   }`}
                 >
-                  {layout !== 'gallery' && <ToolIcon iconUrl={t.iconUrl} name={t.name} size={26} />}
+                  <ToolIcon iconUrl={t.iconUrl} name={t.name} size={26} />
                   <span className={`text-sm truncate ${relatedToolIds.includes(t.id) ? 'font-semibold text-[#6C63FF]' : 'text-gray-700'}`}>{t.name}</span>
                 </button>
               ))}
@@ -254,10 +227,9 @@ function ToolWriteView({ initial, allTools, categoryOptions, levelOptions, layou
 }
 
 // ─── 상세 보기 뷰 ─────────────────────────────────────────────────────
-function ToolReadView({ tool, allTools, layout, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
+function ToolReadView({ tool, allTools, canManage, hasRecommended, onBack, onToggleRecommend, onEdit, onDelete, onNavigateToTool }: {
   tool: AiTool;
   allTools: AiTool[];
-  layout: 'list' | 'gallery';
   canManage: boolean;
   hasRecommended: boolean;
   onBack: () => void;
@@ -304,16 +276,13 @@ function ToolReadView({ tool, allTools, layout, canManage, hasRecommended, onBac
 
         <div className="px-6 pt-6 pb-6">
           {/* 제목 영역 — 전체 너비 */}
-          <div className={`flex items-start ${layout === 'gallery' ? '' : 'gap-11'}`}>
-            {layout !== 'gallery' && <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={112} />}
+          <div className="flex items-start gap-11">
+            <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={112} />
             <div className="flex-1 min-w-0">
-              {(tool.category || tool.level || tool.tags.length > 0) && (
+              {(tool.category || tool.tags.length > 0) && (
                 <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                   {tool.category && (
                     <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[#6C63FF]/10 text-[#6C63FF]">{tool.category}</span>
-                  )}
-                  {tool.level && (
-                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600">{tool.level}</span>
                   )}
                   {tool.tags.map((t, i) => (
                     <span key={i} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{t}</span>
@@ -384,7 +353,7 @@ function ToolReadView({ tool, allTools, layout, canManage, hasRecommended, onBac
                     onClick={() => onNavigateToTool(rt.id)}
                     className="flex items-center gap-3 p-4 rounded-2xl border border-gray-100 bg-white hover:border-[#6C63FF]/40 hover:shadow-sm transition-all text-left"
                   >
-                    {layout !== 'gallery' && <ToolIcon iconUrl={rt.iconUrl} name={rt.name} size={48} />}
+                    <ToolIcon iconUrl={rt.iconUrl} name={rt.name} size={48} />
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-gray-900 truncate">{rt.name}</p>
                       {rt.subtitle && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{rt.subtitle}</p>}
@@ -408,17 +377,13 @@ function ToolReadView({ tool, allTools, layout, canManage, hasRecommended, onBac
   );
 }
 
-export default function AiToolBoard({ appUser, canManage, view, onViewChange, collectionName, categoryOptions, levelOptions = [], layout = 'list' }: {
+export default function AiToolBoard({ appUser, canManage, view, onViewChange }: {
   appUser: AppUser;
   canManage: boolean;
   view: ToolView;
   onViewChange: (v: ToolView) => void;
-  collectionName: string;
-  categoryOptions: string[];
-  levelOptions?: string[];
-  layout?: 'list' | 'gallery';
 }) {
-  const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools(collectionName);
+  const { tools, loading, addTool, updateTool, deleteTool, toggleRecommend } = useAiTools();
   const [sortMode, setSortMode] = useState<SortMode>('recommend');
   const [categoryFilter, setCategoryFilter] = useState<'all' | string>('all');
   const setView = onViewChange;
@@ -433,8 +398,8 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
 
   const categoryCounts = useMemo(() => [
     { key: 'all', label: '전체', count: tools.length },
-    ...categoryOptions.map(c => ({ key: c, label: c, count: tools.filter(t => t.category === c).length })),
-  ], [tools, categoryOptions]);
+    ...CATEGORY_OPTIONS.map(c => ({ key: c, label: c, count: tools.filter(t => t.category === c).length })),
+  ], [tools]);
 
   const selectedTool = (view.type === 'read' || view.type === 'edit') ? (tools.find(t => t.id === view.toolId) ?? null) : null;
 
@@ -461,17 +426,16 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
   };
 
   if (view.type === 'write') {
-    return <ToolWriteView initial={null} allTools={tools} categoryOptions={categoryOptions} levelOptions={levelOptions} layout={layout} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
+    return <ToolWriteView initial={null} allTools={tools} onBack={() => setView({ type: 'list' })} onSubmit={handleCreate} />;
   }
   if (view.type === 'edit' && selectedTool) {
-    return <ToolWriteView initial={selectedTool} allTools={tools} categoryOptions={categoryOptions} levelOptions={levelOptions} layout={layout} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
+    return <ToolWriteView initial={selectedTool} allTools={tools} onBack={() => setView({ type: 'read', toolId: selectedTool.id })} onSubmit={handleEdit} />;
   }
   if (view.type === 'read' && selectedTool) {
     return (
       <ToolReadView
         tool={selectedTool}
         allTools={tools}
-        layout={layout}
         canManage={canManage}
         hasRecommended={selectedTool.recommendedBy.includes(appUser.uid)}
         onBack={() => setView({ type: 'list' })}
@@ -503,29 +467,15 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
         <div className="flex items-start">
           <div className="flex-1 min-w-0">
             {loading ? (
-              layout === 'gallery' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 p-5">
-                  {[1, 2, 3, 4, 5, 6].map(i => (
-                    <div key={i} className="rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
-                      <div className="aspect-[4/3] bg-gray-100" />
-                      <div className="p-4 space-y-2">
-                        <div className="h-3 w-1/3 bg-gray-100 rounded-full" />
-                        <div className="h-4 w-2/3 bg-gray-100 rounded-full" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-50">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
-                      <div className="w-8 h-4 bg-gray-100 rounded-full" />
-                      <div className="w-12 h-12 bg-gray-100 rounded-2xl" />
-                      <div className="flex-1"><div className="h-3 w-1/2 bg-gray-100 rounded-full" /></div>
-                    </div>
-                  ))}
-                </div>
-              )
+              <div className="divide-y divide-gray-50">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center gap-4 px-5 py-4 animate-pulse">
+                    <div className="w-8 h-4 bg-gray-100 rounded-full" />
+                    <div className="w-12 h-12 bg-gray-100 rounded-2xl" />
+                    <div className="flex-1"><div className="h-3 w-1/2 bg-gray-100 rounded-full" /></div>
+                  </div>
+                ))}
+              </div>
             ) : sorted.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(108,99,255,0.08)' }}>
@@ -539,60 +489,6 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
                     첫 번째 AI 툴을 추가해보세요
                   </button>
                 )}
-              </div>
-            ) : layout === 'gallery' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 p-5">
-                {sorted.map(tool => {
-                  const hasRecommended = tool.recommendedBy.includes(appUser.uid);
-                  return (
-                    <div key={tool.id}
-                      onClick={() => setView({ type: 'read', toolId: tool.id })}
-                      className="flex flex-col rounded-2xl border border-gray-100 bg-white overflow-hidden hover:border-[#6C63FF]/40 hover:shadow-md transition-all cursor-pointer group">
-                      <div className="relative aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
-                        {tool.iconUrl ? (
-                          <img src={tool.iconUrl} alt={tool.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Sparkles size={40} className="text-gray-200" />
-                        )}
-                        <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
-                          <RecommendButton
-                            count={tool.recommendedBy.length}
-                            active={hasRecommended}
-                            onClick={e => { e.stopPropagation(); handleToggleRecommend(tool); }}
-                          />
-                        </div>
-                        {canManage && (
-                          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setView({ type: 'edit', toolId: tool.id })} className="p-1.5 bg-white/90 text-gray-500 hover:text-[#6C63FF] rounded-lg shadow-sm transition-colors">
-                              <Pencil size={13} />
-                            </button>
-                            <button onClick={() => setDeleteTarget(tool)} className="p-1.5 bg-white/90 text-gray-500 hover:text-red-400 rounded-lg shadow-sm transition-colors">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-4 flex-1 flex flex-col">
-                        {(tool.category || tool.level) && (
-                          <div className="flex items-center justify-between mb-1">
-                            {tool.category && <p className="text-xs font-medium text-gray-400">{tool.category}</p>}
-                            {tool.level && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600">{tool.level}</span>}
-                          </div>
-                        )}
-                        <h3 className="text-base font-bold text-gray-900 leading-snug">{tool.name}</h3>
-                        {tool.subtitle && <p className="text-xs text-gray-400 mt-0.5">{tool.subtitle}</p>}
-                        <p className="text-sm text-gray-600 mt-2 line-clamp-2">{stripHtml(tool.description)}</p>
-                        {tool.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-3">
-                            {tool.tags.map((t, ti) => (
-                              <span key={ti} className="text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">#{t}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             ) : (
               <div>
@@ -612,9 +508,6 @@ export default function AiToolBoard({ appUser, canManage, view, onViewChange, co
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           {tool.category && (
                             <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF]/10 text-[#6C63FF] flex-shrink-0">{tool.category}</span>
-                          )}
-                          {tool.level && (
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-50 text-green-600 flex-shrink-0">{tool.level}</span>
                           )}
                           {tool.tags.map((t, ti) => (
                             <span key={ti} className="text-[12px] text-gray-400">· {t}</span>

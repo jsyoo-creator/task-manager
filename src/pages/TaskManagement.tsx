@@ -62,9 +62,35 @@ const now = new Date();
 const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-function buildCols(tableFields: BuiltinFieldConfig[], cfCount: number = 0): string {
+// 기본필드(builtin)와 커스텀필드를 fieldOrder대로 하나의 순서로 합친 컬럼 목록.
+// 목록 테이블은 헤더/행/너비 계산이 모두 이 순서를 따라야 "폼 설정"에서 기본필드
+// 사이로 옮긴 커스텀필드가 실제로도 그 위치에 표시됨.
+type TableCol = { kind: 'builtin'; key: string; fc: BuiltinFieldConfig } | { kind: 'custom'; key: string; cf: CustomFormField };
+
+function buildTableCols(tableFields: BuiltinFieldConfig[], tableCfs: CustomFormField[], fieldOrder?: string[]): TableCol[] {
+  if (!fieldOrder?.length) {
+    return [
+      ...tableFields.map(fc => ({ kind: 'builtin' as const, key: fc.key, fc })),
+      ...tableCfs.map(cf => ({ kind: 'custom' as const, key: cf.id, cf })),
+    ];
+  }
+  const bMap = new Map<string, BuiltinFieldConfig>(tableFields.map(fc => [fc.key, fc]));
+  const cMap = new Map<string, CustomFormField>(tableCfs.map(cf => [cf.id, cf]));
+  const result: TableCol[] = [];
+  for (const k of fieldOrder) {
+    if (bMap.has(k)) { result.push({ kind: 'builtin', key: k, fc: bMap.get(k)! }); bMap.delete(k); }
+    else if (cMap.has(k)) { result.push({ kind: 'custom', key: k, cf: cMap.get(k)! }); cMap.delete(k); }
+  }
+  bMap.forEach(fc => result.push({ kind: 'builtin', key: fc.key, fc }));
+  cMap.forEach(cf => result.push({ kind: 'custom', key: cf.id, cf }));
+  return result;
+}
+
+function buildCols(tableCols: TableCol[]): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
-  for (const fc of tableFields) {
+  for (const col of tableCols) {
+    if (col.kind === 'custom') { cols.push('100px'); continue; }
+    const fc = col.fc;
     if (fc.key === 'title') {
       cols.push('minmax(120px, 1fr)');
     } else if (fc.key === 'weeklyHours') {
@@ -73,22 +99,20 @@ function buildCols(tableFields: BuiltinFieldConfig[], cfCount: number = 0): stri
       cols.push(`${fc.width}px`);
     }
   }
-  for (let i = 0; i < cfCount; i++) {
-    cols.push('100px');
-  }
   cols.push('110px'); // expand + copy + delete
   return cols.join(' ');
 }
 
-function buildMinWidth(tableFields: BuiltinFieldConfig[], cfCount: number = 0): number {
+function buildMinWidth(tableCols: TableCol[]): number {
   let w = 46; // checkbox(28) + drag handle(18)
   let colCount = 2;
-  for (const fc of tableFields) {
+  for (const col of tableCols) {
+    if (col.kind === 'custom') { w += 100; colCount++; continue; }
+    const fc = col.fc;
     if (fc.key === 'title') { w += 120; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }
-  w += cfCount * 100; colCount += cfCount;
   w += 110; colCount++; // expand + copy + delete
   w += (colCount - 1) * 12; // gap-x-3
   w += 24; // px-3 양쪽
@@ -588,9 +612,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const tableFields = builtinFields.filter(fc => fc.enabled && TABLE_FIELD_KEYS.includes(fc.key) && fc.showIn !== 'detail');
   const tableCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
+  const tableCols = buildTableCols(tableFields, tableCfs, formConfig?.fieldOrder);
   const statusConfigs = resolveStatusConfigs(formConfig);
-  const colTemplate = buildCols(tableFields, tableCfs.length);
-  const colMinWidth = buildMinWidth(tableFields, tableCfs.length);
+  const colTemplate = buildCols(tableCols);
+  const colMinWidth = buildMinWidth(tableCols);
 
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
@@ -821,6 +846,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         teamMembers={teamMembers}
         tableFields={tableFields}
         tableCfs={tableCfs}
+        tableCols={tableCols}
         statusConfigs={statusConfigs}
         colTemplate={colTemplate}
         colMinWidth={colMinWidth}
@@ -1163,7 +1189,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           </div>
           {/* 드래그핸들 열 헤더 */}
           <span />
-          {tableFields.flatMap(fc => {
+          {tableCols.flatMap(col => {
+            if (col.kind === 'custom') {
+              return [
+                <div key={col.cf.id} className="flex items-center select-none pl-2">
+                  <span>{col.cf.label}</span>
+                </div>,
+              ];
+            }
+            const fc = col.fc;
             const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
             if (fc.key === 'title') return [
               <span key="title" className="pl-3.5 text-gray-500">{hLabel}</span>,
@@ -1177,11 +1211,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </div>,
             ];
           })}
-          {tableCfs.map(cf => (
-            <div key={cf.id} className="flex items-center select-none pl-2">
-              <span>{cf.label}</span>
-            </div>
-          ))}
           <span />
         </div>
 
@@ -1531,7 +1560,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1545,6 +1574,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   teamMembers?: { name: string; department?: Department }[];
   tableFields: BuiltinFieldConfig[];
   tableCfs: CustomFormField[];
+  tableCols: TableCol[];
   statusConfigs: StatusConfig[];
   colTemplate: string;
   colMinWidth: number;
@@ -1680,7 +1710,40 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           <GripVertical size={13} />
         </div>
 
-        {tableFields.flatMap(fc => {
+        {tableCols.flatMap(col => {
+          if (col.kind === 'custom') {
+            const cf = col.cf;
+            const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+            const cfType = cf.type as string;
+            const opts = (cfType === 'name' || cfType === '이름') ? assignees : (cf.options ?? []);
+            const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
+            return [
+              <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+                {isSelectable ? (
+                  <div className="relative">
+                    <span className="text-xs text-gray-700 truncate block pr-3">{val || '-'}</span>
+                    {canManage && (
+                      <select value={val}
+                        onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                        <option value="">-</option>
+                        {opts.map(o => <option key={o}>{o}</option>)}
+                      </select>
+                    )}
+                  </div>
+                ) : cfType === 'link' ? (
+                  val
+                    ? <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full">{val}</a>
+                    : <span className="text-xs text-gray-400">-</span>
+                ) : (
+                  <span className="text-xs text-gray-700 truncate block">{val || '-'}</span>
+                )}
+              </div>
+            ];
+          }
+          const fc = col.fc;
           if (fc.key === 'title') return [
             <button key="title" onClick={onOpenDetail}
               className="flex items-center gap-1.5 min-w-0 pr-2 group/title text-left w-full">
@@ -1913,38 +1976,6 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <span key="total" className="text-center text-xs font-semibold text-gray-700">{totalH > 0 ? `${totalH}h` : '-'}</span>
           ];
           return [];
-        })}
-
-        {tableCfs.map(cf => {
-          const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
-          const cfType = cf.type as string;
-          const opts = (cfType === 'name' || cfType === '이름') ? assignees : (cf.options ?? []);
-          const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
-          return (
-            <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-              {isSelectable ? (
-                <div className="relative">
-                  <span className="text-xs text-gray-700 truncate block pr-3">{val || '-'}</span>
-                  {canManage && (
-                    <select value={val}
-                      onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
-                      <option value="">-</option>
-                      {opts.map(o => <option key={o}>{o}</option>)}
-                    </select>
-                  )}
-                </div>
-              ) : cfType === 'link' ? (
-                val
-                  ? <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full">{val}</a>
-                  : <span className="text-xs text-gray-400">-</span>
-              ) : (
-                <span className="text-xs text-gray-700 truncate block">{val || '-'}</span>
-              )}
-            </div>
-          );
         })}
 
         <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">

@@ -1763,6 +1763,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                         onClick={e => e.stopPropagation()}
                         className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full">{val}</a>
                     : <span className="text-xs text-gray-400">-</span>
+                ) : cfType === 'date' ? (
+                  <DatePicker compact value={val}
+                    onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
+                    disabled={!canManage} />
                 ) : (
                   <span className="text-xs text-gray-700 truncate block">{val || '-'}</span>
                 )}
@@ -2127,6 +2131,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                               </button>
                             </div>
                           : <span className="text-xs text-gray-400">-</span>
+                      ) : cfType === 'date' ? (
+                        <DatePicker compact value={val}
+                          onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
+                          disabled={!canManage} />
                       ) : (
                         <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val || '-'}</span>
                       )}

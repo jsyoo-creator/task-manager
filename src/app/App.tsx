@@ -552,6 +552,30 @@ function App() {
     [filteredTasks, selectedTeam, tasks]
   );
 
+  // 위클리 전용: 담당자/대무자가 "이 팀이 아닌 다른 지원팀"을 우선선택해둔 경우, 그 시간은
+  // 우선선택한 지원팀 위클리에만 나오게 하고 실제 업무가 속한 이 팀의 위클리에서는 빼야 함
+  // (지원팀 위클리에 중복으로 보이지 않고 오직 우선선택 지원팀 쪽에만 표시되길 원함).
+  // Dashboard/업무관리/캘린더 등 다른 화면은 원본 데이터를 그대로 써야 하므로 건드리지 않고
+  // 위클리에 넘기는 배열만 별도로 필터링한다.
+  const weeklyOwnSubtasks = useMemo(() => {
+    const redirectsToOtherSupportTeam = (name: string) => {
+      if (!name) return false;
+      const person = allUsers.find(u => u.displayName === name);
+      if (!person) return false;
+      const d = getDefaultTeamId(person);
+      if (!d || d === activeTeamId) return false;
+      return !!teams.find(t => t.id === d)?.isSupportTeam;
+    };
+    return subtasks.filter(s => {
+      if (redirectsToOtherSupportTeam(s.assignee)) return false;
+      const [, subKey] = s.id.split('__');
+      const substitute = filteredTasks.find(t => t.id === s.taskId)?.subTaskData?.[subKey]?.substitute;
+      if (substitute && redirectsToOtherSupportTeam(substitute)) return false;
+      return true;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtasks, filteredTasks, allUsers, activeTeamId, activeWorkplaceId, teams]);
+
   // 지원팀 위클리: 지원팀 인원이 "다른 팀"의 세부업무에서 담당자/대무자로 시간을 입력한 경우,
   // 그 시간이 원본(다른) 팀 위클리에만 보이던 것을 지원팀 자신의 위클리에도 보이게 함.
   // 같은 근무지(프로젝트 1개)의 모든 팀 tasks를 조건부로 불러와, 원본 팀 설정 기준으로 이름을
@@ -844,7 +868,7 @@ function App() {
               <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} mainTaskEndDateShow={selectedTeam?.mainTaskEndDateShow} mainTaskEndDateColor={selectedTeam?.mainTaskEndDateColor} plShowInCalendar={selectedTeam?.plShowInCalendar} />
             )} />
             <Route path="/weekly" element={!menuEnabled('/weekly') ? <Navigate to="/" replace /> : (
-              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...subtasks, ...supportCrossTeamData.subtasks]} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} />
+              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} />
             )} />
             <Route path="/vacation" element={!menuEnabled('/vacation') ? <Navigate to="/" replace /> : (
               <VacationPage

@@ -170,6 +170,14 @@ const HEADER_LABEL: Partial<Record<string, string>> = {
   taskMonth: '월', title: '업무', category: '파트', type: '유형', status: '상태', receiver: '접수자', assignee: '담당자', startDate: '시작', endDate: '종료',
 };
 
+// 컬럼의 헤더 라벨 — 2줄 모드에서 2번째 줄 필드는 공용 헤더가 없으므로 각 행 안에서
+// 값 위에 이 라벨을 함께 보여줌(renderHeaderCols와 동일한 라벨 규칙 재사용)
+function getColLabel(col: TableCol): string {
+  if (col.kind === 'custom') return col.cf.label;
+  const fc = col.fc;
+  return fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key] ?? fc.key;
+}
+
 export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, canFilterByPerson = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState(() => {
@@ -927,6 +935,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         twoLineMode={twoLineMode}
         rowFieldsTemplate1={rowFieldsTemplate1}
         rowFieldsTemplate2={rowFieldsTemplate2}
+        line2Cols={line2Cols}
         monthColWidth={monthColWidth}
         rowMinWidth={rowMinWidth}
         metaFields={resolvedMetaFields}
@@ -1300,8 +1309,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 <span />
               </div>
             );
-            // 2줄 모드: 체크박스/드래그/월은 좌측 레일에 둬서 전체 행 높이 기준 세로 중앙에
-            // 오게 하고, 업무명 헤더만 1번째 줄, 나머지는 2번째 줄(자체 스크롤)에 배치
+            // 2줄 모드: 헤더는 항상 1줄(체크박스/드래그/월 레일 + 업무명)만 표시 — 2번째 줄
+            // 필드들의 이름은 헤더에 두지 않고 각 업무 행 안에서 값과 함께 라벨로 보여줌
+            // (헤더 자체는 2줄/가로 스크롤이 필요 없게 함)
             return (
               <div className="flex items-center gap-3 px-3 py-2.5">
                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -1313,17 +1323,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                     </div>
                   )}
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
-                    {renderHeaderCols(line1Cols)}
-                  </div>
-                  {line2Cols.length > 0 && (
-                    <div className="overflow-x-auto py-1.5">
-                      <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
-                        {renderHeaderCols(line2Cols)}
-                      </div>
-                    </div>
-                  )}
+                <div className="flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
+                  {renderHeaderCols(line1Cols)}
                 </div>
                 <span className="flex-shrink-0" style={{ width: 110 }} />
               </div>
@@ -1671,7 +1672,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, line2Cols, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1690,6 +1691,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   twoLineMode: boolean;
   rowFieldsTemplate1: string;
   rowFieldsTemplate2: string;
+  line2Cols: TableCol[];
   monthColWidth: number;
   rowMinWidth: number;
   metaFields?: MetaField[];
@@ -2154,10 +2156,24 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         const monthElement = twoLineMode ? allFieldElements.find(el => el.key === 'taskMonth') : undefined;
         const titleElements = twoLineMode ? allFieldElements.filter(el => el.key === 'title') : allFieldElements;
         const restElements = twoLineMode ? allFieldElements.filter(el => el.key !== 'taskMonth' && el.key !== 'title') : [];
+        // 헤더에는 2번째 줄 필드용 공용 라벨이 없으므로, 각 값 위에 그 필드 이름을 함께 보여줌
+        const line2LabelByKey = new Map<string, string>(
+          line2Cols.map(col => [col.kind === 'custom' ? col.cf.id : col.fc.key, getColLabel(col)])
+        );
+        const restElementsWithLabels = restElements.map(el => (
+          <div key={el.key} className="flex flex-col items-center gap-0.5 min-w-0">
+            <span className="text-[9px] text-gray-400 leading-none truncate max-w-full">
+              {el.key === 'total' ? '합계' : line2LabelByKey.get(String(el.key)) ?? ''}
+            </span>
+            <div className="w-full">{el}</div>
+          </div>
+        ));
 
         // 2줄 모드: 체크박스/드래그/월은 그리드 밖(좌측 레일)에 둬서 전체 행 높이 기준
         // 세로 중앙에 오게 함. 업무명만 1번째 줄, 나머지는 2번째 줄(자체 스크롤)에 배치 —
         // 필드 영역이 레일과 분리돼 있어 2번째 줄이 업무명 시작 위치와 항상 자동으로 맞음.
+        // 헤더에는 2번째 줄용 공용 라벨 행이 없으므로(헤더는 항상 1줄) 각 값 위에 라벨을
+        // 함께 표시함(restElementsWithLabels).
         return (
           <div className={`flex items-center gap-3 px-3 ${twoLineMode ? 'py-2.5' : 'py-3.5'} text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
             style={{ minWidth: rowMinWidth }}>
@@ -2175,8 +2191,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 </div>
                 {restElements.length > 0 && (
                   <div className="min-w-0 overflow-x-auto py-2">
-                    <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
-                      {restElements}
+                    <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
+                      {restElementsWithLabels}
                     </div>
                   </div>
                 )}

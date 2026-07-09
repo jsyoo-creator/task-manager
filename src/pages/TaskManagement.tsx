@@ -987,13 +987,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setDragOverId(null);
   };
 
-  const renderTaskRow = (task: Task) => {
+  const renderTaskRow = (task: Task, idx: number) => {
     const taskPart = parts?.find(p => p.name === task.category);
     const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS;
     const resolvedFormConfig = taskPart?.formConfig ? mergeFormConfig(taskPart.formConfig, formConfig) : formConfig;
     return (
       <TaskRow
         key={task.id}
+        zebra={idx % 2 === 1}
         task={task}
         onUpdate={onUpdateTask}
         onDelete={onDeleteTask}
@@ -1765,7 +1766,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, line2Cols, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, line2Cols, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect, zebra }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1802,6 +1803,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   partColor: (cat: string) => string;
   selected?: boolean;
   onSelect?: () => void;
+  zebra?: boolean;
 }) {
   const [metaCopied, setMetaCopied] = useState(false);
   const [copiedUrlKey, setCopiedUrlKey] = useState<string | null>(null);
@@ -1884,7 +1886,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
 
   return (
     <div
-      className={`border-b border-black/4 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`}
+      className={`border-b-2 border-black/8 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
       onDragEnd={onDragEnd}
@@ -2268,7 +2270,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         // (들여쓰기 없음)하고, 옅은 배경색으로 1번째 줄과 구분되게 함.
         const hasLine2Bg = twoLineMode && restElements.length > 0;
         return (
-          <div className={`flex flex-col ${twoLineMode ? 'gap-2.5' : ''} pt-3.5 ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+          <div className={`flex flex-col ${twoLineMode ? 'gap-2.5' : ''} pt-3.5 ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${
+              isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : zebra ? 'bg-black/[0.02] hover:bg-gray-100' : 'hover:bg-gray-50'
+            }`}
             style={{ minWidth: rowMinWidth }}>
             <div className="flex items-center gap-3 px-3 text-sm">
               <div className="flex items-center gap-3 flex-shrink-0">

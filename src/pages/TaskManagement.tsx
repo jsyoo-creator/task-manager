@@ -88,7 +88,7 @@ function buildTableCols(tableFields: BuiltinFieldConfig[], tableCfs: CustomFormF
 
 // 업무명 컬럼은 커스텀필드가 많아져 다른 컬럼이 늘어나도 이 너비 밑으로는
 // 줄어들지 않게 함(넓어지는 건 1fr로 자유롭게 허용)
-const TITLE_MIN_WIDTH = 200;
+const TITLE_MIN_WIDTH = 300;
 
 function buildCols(tableCols: TableCol[]): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle

@@ -2192,9 +2192,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             </div>
             {hasLine2Bg && (
               <div className="px-3 pb-3.5 text-sm bg-[#6C63FF]/[0.02]">
-                <div className="min-w-0 overflow-x-auto">
-                  <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
-                    {restElementsWithLabels}
+                <div className="flex pt-2">
+                  {/* 드래그핸들 시작 위치와 맞춤(체크박스 폭+간격만큼 들여쓰기) */}
+                  <div className="flex-shrink-0" style={{ width: 28 + 12 }} />
+                  <div className="flex-1 min-w-0 overflow-x-auto">
+                    <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
+                      {restElementsWithLabels}
+                    </div>
                   </div>
                 </div>
               </div>

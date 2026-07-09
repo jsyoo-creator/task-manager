@@ -130,9 +130,56 @@ function buildMinWidth(tableCols: TableCol[]): number {
   return w;
 }
 
-// 2줄 구성(월+업무명 1줄 / 나머지 필드 2줄)에서 2번째 줄이 1번째 줄의 "업무명" 시작 위치
-// (제목 앞 파트색 점)와 정확히 맞도록, 체크박스·드래그·업무명 앞에 오는 필드(월 등)의
-// 너비+간격(gap-x-3=12px)을 그대로 합산해 앞쪽 빈 칸 크기를 계산
+// 필드(월/업무명/유형/... /커스텀) 각 트랙의 픽셀 폭(체크박스/드래그/액션 제외)
+function fieldTrackWidth(col: TableCol): number {
+  if (col.kind === 'custom') return 100;
+  const fc = col.fc;
+  if (fc.key === 'title') return TITLE_MIN_WIDTH;
+  if (fc.key === 'weeklyHours') return 52;
+  if (fc.key === 'startDate' || fc.key === 'endDate') return DATE_COL_WIDTH;
+  return fc.width;
+}
+function fieldTrackCss(col: TableCol): string {
+  if (col.kind === 'custom') return '100px';
+  const fc = col.fc;
+  if (fc.key === 'title') return `minmax(${TITLE_MIN_WIDTH}px, 1fr)`;
+  if (fc.key === 'weeklyHours') return '52px';
+  if (fc.key === 'startDate' || fc.key === 'endDate') return `${DATE_COL_WIDTH}px`;
+  return `${fc.width}px`;
+}
+function sumFieldTracks(cols: TableCol[]): number {
+  if (cols.length === 0) return 0;
+  return cols.reduce((s, c) => s + fieldTrackWidth(c), 0) + (cols.length - 1) * 12;
+}
+
+// 업무 행(TaskRow): 체크박스/드래그/액션버튼을 그리드 밖(좌우 flex)으로 빼서 2줄 전체 높이
+// 기준으로 세로 중앙 정렬되게 함 — 그 안쪽 "필드 영역"만 그리드로 구성(체크박스/드래그/액션 제외)
+function buildRowFieldsCols(cols: TableCol[]): string {
+  return cols.map(fieldTrackCss).join(' ');
+}
+// 필드 영역 안에서 2번째 줄이 1번째 줄의 "업무명" 시작 위치와 맞도록(체크박스/드래그는
+// 이제 필드 영역 밖에 있으므로 제외), 업무명 앞에 오는 필드(월 등)의 너비+간격만 합산
+function buildRowLine2Indent(line1Cols: TableCol[]): number {
+  const before: TableCol[] = [];
+  for (const col of line1Cols) {
+    if (col.kind === 'builtin' && col.fc.key === 'title') break;
+    before.push(col);
+  }
+  return before.length === 0 ? 0 : sumFieldTracks(before) + 12;
+}
+function buildRowLine2Cols(line2Cols: TableCol[], line1Cols: TableCol[]): string {
+  return [`${buildRowLine2Indent(line1Cols)}px`, ...line2Cols.map(fieldTrackCss)].join(' ');
+}
+// 행 전체(체크박스+드래그+필드영역+액션) 최소 폭 — 2줄 모드면 두 줄 중 더 넓은 필드영역 기준
+function buildRowMinWidth(line1Cols: TableCol[], line2Cols: TableCol[], twoLine: boolean): number {
+  const fieldsW1 = sumFieldTracks(line1Cols);
+  const fieldsW2 = twoLine && line2Cols.length > 0 ? buildRowLine2Indent(line1Cols) + sumFieldTracks(line2Cols) : 0;
+  const fieldsColWidth = Math.max(fieldsW1, fieldsW2);
+  return 28 + 12 + 18 + 12 + fieldsColWidth + 12 + 110 + 24; // 체크박스+간격+드래그+간격+필드+간격+액션+좌우padding
+}
+
+// 헤더: 2줄 구성에서 2번째 줄이 1번째 줄의 "업무명" 시작 위치(제목 앞 파트색 점)와 맞도록,
+// 체크박스·드래그·업무명 앞에 오는 필드(월 등)의 너비+간격(gap-x-3=12px)을 합산
 function buildLine2Indent(line1Cols: TableCol[]): number {
   let w = 28 + 18; // checkbox + drag handle
   let gapCount = 2; // checkbox 뒤, drag handle 뒤 간격
@@ -682,6 +729,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const colMinWidth = buildMinWidth(line1Cols);
   const line2Template = twoLineMode ? buildLine2Cols(line2Cols, line1Cols) : '';
   const line2MinWidth = twoLineMode ? buildLine2MinWidth(line2Cols, line1Cols) : 0;
+  // 행(TaskRow) 전용 — 체크박스/드래그/액션을 그리드 밖으로 뺀 필드 영역 템플릿
+  const rowFieldsTemplate1 = buildRowFieldsCols(line1Cols);
+  const rowFieldsTemplate2 = twoLineMode ? buildRowLine2Cols(line2Cols, line1Cols) : '';
+  const rowMinWidth = buildRowMinWidth(line1Cols, line2Cols, twoLineMode);
 
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
@@ -926,13 +977,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         tableCfs={tableCfs}
         tableCols={tableCols}
         statusConfigs={statusConfigs}
-        colTemplate={colTemplate}
-        colMinWidth={colMinWidth}
         twoLineMode={twoLineMode}
-        line1Cols={line1Cols}
-        line2Cols={line2Cols}
-        line2Template={line2Template}
-        line2MinWidth={line2MinWidth}
+        rowFieldsTemplate1={rowFieldsTemplate1}
+        rowFieldsTemplate2={rowFieldsTemplate2}
+        rowMinWidth={rowMinWidth}
         metaFields={resolvedMetaFields}
         formConfig={resolvedFormConfig}
         isDragging={dragId === task.id}
@@ -1316,7 +1364,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <div key={key}>
             <div
               className="flex items-center gap-2 px-3 py-2 bg-gray-50/70 border-b border-black/5"
-              style={{ minWidth: twoLineMode ? Math.max(colMinWidth, line2MinWidth) : colMinWidth }}
+              style={{ minWidth: rowMinWidth }}
             >
               {isPerson ? (
                 <>
@@ -1648,7 +1696,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, colTemplate, colMinWidth, twoLineMode, line1Cols, line2Cols, line2Template, line2MinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1664,13 +1712,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   tableCfs: CustomFormField[];
   tableCols: TableCol[];
   statusConfigs: StatusConfig[];
-  colTemplate: string;
-  colMinWidth: number;
   twoLineMode: boolean;
-  line1Cols: TableCol[];
-  line2Cols: TableCol[];
-  line2Template: string;
-  line2MinWidth: number;
+  rowFieldsTemplate1: string;
+  rowFieldsTemplate2: string;
+  rowMinWidth: number;
   metaFields?: MetaField[];
   formConfig?: TeamFormConfig;
   isDragging: boolean;
@@ -2133,40 +2178,32 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         const line1Elements = allFieldElements.filter(el => line1Keys.has(String(el.key)));
         const line2Elements = allFieldElements.filter(el => !line1Keys.has(String(el.key)));
 
-        if (!twoLineMode) {
-          return (
-            <div className={`group/row grid gap-x-3 items-center px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
-              style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
-              {checkboxCell}
-              {dragHandleCell}
-              {allFieldElements}
-              {actionButtonsCell}
-            </div>
-          );
-        }
-
+        // 체크박스/드래그/액션버튼은 그리드 밖(좌우 flex)에 둬서 2줄일 때도 전체 행 높이
+        // 기준으로 세로 중앙에 오게 함 — 안쪽 필드 영역만 1~2줄 그리드로 쌓음
         return (
-          <div className={`flex flex-col py-2.5 transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}>
-            <div className="group/row grid gap-x-3 items-center px-3 text-sm"
-              style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+          <div className={`flex items-center gap-3 px-3 ${twoLineMode ? 'py-2.5' : 'py-3.5'} text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+            style={{ minWidth: rowMinWidth }}>
+            <div className="flex items-center gap-3 flex-shrink-0">
               {checkboxCell}
               {dragHandleCell}
-              {line1Elements}
-              {actionButtonsCell}
             </div>
-            {line2Elements.length > 0 && (
-              <div className="grid gap-x-3 items-center px-3 pt-1.5 text-sm"
-                style={{ gridTemplateColumns: line2Template, minWidth: line2MinWidth }}>
-                <span />
-                {line2Elements}
+            <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+              <div className="group/row grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
+                {twoLineMode ? line1Elements : allFieldElements}
               </div>
-            )}
+              {twoLineMode && line2Elements.length > 0 && (
+                <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2 }}>
+                  {line2Elements}
+                </div>
+              )}
+            </div>
+            {actionButtonsCell}
           </div>
         );
       })()}
 
       {expanded && (
-        <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: twoLineMode ? Math.max(colMinWidth, line2MinWidth) : colMinWidth }}>
+        <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: rowMinWidth }}>
           {(filledMeta.length > 0 || enabledCfs.length > 0) ? (
             <div className="overflow-x-auto relative">
               <button

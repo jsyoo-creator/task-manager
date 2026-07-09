@@ -43,13 +43,14 @@ function DeleteModal({ label, onConfirm, onCancel }: {
 const PAGE_SIZE = 10;
 
 // ─── 목록 뷰 ──────────────────────────────────────────────────────────
-function ListView({ posts, loading, page, onPageChange, onSelect, onWrite }: {
+function ListView({ posts, loading, page, onPageChange, onSelect, onWrite, readNoticeIds }: {
   posts: Post[];
   loading: boolean;
   page: number;
   onPageChange: (p: number) => void;
   onSelect: (postId: string) => void;
   onWrite: () => void;
+  readNoticeIds?: Set<string>;
 }) {
   const noticePosts = posts
     .filter(p => p.isNotice)
@@ -60,7 +61,9 @@ function ListView({ posts, loading, page, onPageChange, onSelect, onWrite }: {
   const safePage = Math.min(page, totalPages);
   const pagedRegular = regularPosts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const PostRow = ({ post, index, isNotice }: { post: Post; index?: number; isNotice?: boolean }) => (
+  const PostRow = ({ post, index, isNotice }: { post: Post; index?: number; isNotice?: boolean }) => {
+    const isUnreadNotice = isNotice && !readNoticeIds?.has(post.id);
+    return (
     <div
       onClick={() => onSelect(post.id)}
       className={`flex items-center px-5 py-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0 group ${
@@ -70,15 +73,18 @@ function ListView({ posts, loading, page, onPageChange, onSelect, onWrite }: {
       {/* 구분 */}
       <div className="w-14 flex-shrink-0 flex justify-center">
         {isNotice ? (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#6C63FF] text-white tracking-wide">공지</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md text-white tracking-wide ${isUnreadNotice ? 'bg-[#6C63FF]' : 'bg-gray-300'}`}>공지</span>
         ) : (
           <span className="text-xs text-gray-300 tabular-nums">{index}</span>
         )}
       </div>
       {/* 제목 */}
       <div className="flex-1 min-w-0 flex items-center gap-1.5">
+        {isUnreadNotice && <span className="w-1.5 h-1.5 rounded-full bg-[#6C63FF] flex-shrink-0" />}
         <span className={`text-sm truncate group-hover:text-[#6C63FF] transition-colors ${
-          isNotice ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'
+          isNotice
+            ? (isUnreadNotice ? 'font-semibold text-gray-900' : 'font-medium text-gray-400')
+            : 'font-medium text-gray-700'
         }`}>
           {post.title}
         </span>
@@ -96,7 +102,8 @@ function ListView({ posts, loading, page, onPageChange, onSelect, onWrite }: {
         <span className="text-xs text-gray-400">{formatDate(post.createdAt)}</span>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="glass-card">
@@ -481,12 +488,13 @@ interface Props {
   teams: Team[];
   onReadNotice?: (postId: string) => void;
   unreadNoticeCountByTeam?: Record<string, number>;
+  readNoticeIds?: Set<string>;
   canSetNotice: boolean;
   canManageBoard: boolean;
   canManageAiTools: boolean;
 }
 
-export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCountByTeam, canSetNotice, canManageBoard, canManageAiTools }: Props) {
+export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCountByTeam, readNoticeIds, canSetNotice, canManageBoard, canManageAiTools }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
   // 팀 탭 순서: 우선 표시 팀(defaultTeamIdByWorkplace)으로 지정된 팀을 맨 앞으로
@@ -647,6 +655,7 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
               onPageChange={setListPage}
               onSelect={postId => setView({ type: 'read', postId })}
               onWrite={() => setView({ type: 'write' })}
+              readNoticeIds={readNoticeIds}
             />
           )}
 

@@ -911,7 +911,7 @@ function App() {
                 onPermanentDeleteSubtask={permanentlyDeleteSubtask}
               />
             )} />
-            <Route path="/board" element={!menuEnabled('/board') ? <Navigate to="/" replace /> : (appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} unreadNoticeCountByTeam={unreadNoticeCountByTeam} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} canManageAiTools={permissions.canManageAiTools} /> : null)} />
+            <Route path="/board" element={!menuEnabled('/board') ? <Navigate to="/" replace /> : (appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} unreadNoticeCountByTeam={unreadNoticeCountByTeam} readNoticeIds={readNoticeIds} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} canManageAiTools={permissions.canManageAiTools} /> : null)} />
             <Route path="/accounts" element={
               permissions.canViewAccounts && menuEnabled('/accounts')
                 ? <AccountInfoPage allUsers={allUsers} teams={teams} profileFields={profileFields} />

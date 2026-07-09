@@ -836,7 +836,7 @@ function App() {
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamFormConfig={selectedTeam?.formConfig} teamMembers={teamMembers} revisionSteps={effectiveRevisionSteps} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} teamName={selectedTeam?.name} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamFormConfig={selectedTeam?.formConfig} teamMembers={teamMembers} revisionSteps={effectiveRevisionSteps} />
             } />
             <Route path="/tasks" element={!menuEnabled('/tasks') ? <Navigate to="/" replace /> : (
               <TaskManagement

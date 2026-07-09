@@ -7,6 +7,7 @@ interface Props {
   tasks: Task[];
   subtasks: SubTask[];
   project: Project | null;
+  teamName?: string;
   parts?: TeamPart[];
   assignees?: string[];
   formConfig?: TeamFormConfig;
@@ -247,7 +248,7 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, parts, assignees = [], formConfig, teamFormConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS }: Props) {
+export default function Dashboard({ tasks, subtasks, project, teamName, parts, assignees = [], formConfig, teamFormConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
 
   const statusConfigs = resolveStatusConfigs(formConfig);
@@ -482,7 +483,7 @@ export default function Dashboard({ tasks, subtasks, project, parts, assignees =
       <div className="flex items-end justify-between">
         <div>
           <h1 className="page-title">대시보드</h1>
-          <p className="page-subtitle">{project?.name ?? ''} · 전체 업무 현황</p>
+          <p className="page-subtitle">{teamName ?? project?.name ?? ''} · 전체 업무 현황</p>
         </div>
         <span className="text-xs text-gray-400 font-medium">
           {now.getFullYear()}년 {now.getMonth() + 1}월

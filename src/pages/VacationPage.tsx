@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import DatePicker from '../components/DatePicker';
 import { useHolidayMap } from '../contexts/HolidaysContext';
+import { DEPARTMENTS } from '../types';
 import type { Vacation, VacationType, AppUser } from '../types';
 
 interface Props {
@@ -110,6 +111,18 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     }),
     [teamMembers, vacations, yearPrefix]
   );
+
+  // 직군별 그룹 — 기획/디자인/퍼블 순서, 직군 미지정자는 마지막
+  const memberStatsByDept = useMemo(() => {
+    const groups: { department: string; items: typeof memberStats }[] = [];
+    DEPARTMENTS.forEach(dept => {
+      const items = memberStats.filter(m => m.user.department === dept);
+      if (items.length) groups.push({ department: dept, items });
+    });
+    const rest = memberStats.filter(m => !m.user.department);
+    if (rest.length) groups.push({ department: '미지정', items: rest });
+    return groups;
+  }, [memberStats]);
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -339,23 +352,31 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
             </div>
             {memberStats.length === 0
               ? <p className="text-xs text-gray-300 text-center py-8">팀원이 없습니다</p>
-              : memberStats.map(({ user, used, remaining, annualTotal }) => (
-                <div key={user.uid} className={`grid grid-cols-[1fr_56px_56px_80px] items-center px-3 py-2.5 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/40' : ''}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
-                    <span className="text-xs text-gray-700 truncate">{user.displayName || user.email || '—'}</span>
-                    {user.displayName === currentUserName && <span className="text-[9px] text-blue-400 font-semibold shrink-0">나</span>}
-                    <span className="text-[9px] text-gray-400 shrink-0">{annualTotal}일</span>
+              : memberStatsByDept.map(({ department, items }) => (
+                <div key={department}>
+                  <div className="px-3 py-1 bg-black/[0.025] border-b border-black/4 flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-gray-400">{department}</span>
+                    <span className="text-[9px] text-gray-300">{items.length}명</span>
                   </div>
-                  <span className="text-center text-xs text-amber-600 font-semibold">{used}일</span>
-                  <span className={`text-center text-xs font-bold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
-                  <div className="flex flex-col items-center gap-0.5 px-2">
-                    <div className="w-full h-1.5 bg-gray-100 rounded-full">
-                      <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
-                        style={{ width: `${annualTotal > 0 ? Math.min(100, Math.max(0, Math.round((used / annualTotal) * 100))) : 100}%` }} />
+                  {items.map(({ user, used, remaining, annualTotal }) => (
+                    <div key={user.uid} className={`grid grid-cols-[1fr_56px_56px_80px] items-center px-3 py-2.5 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/40' : ''}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
+                        <span className="text-xs text-gray-700 truncate">{user.displayName || user.email || '—'}</span>
+                        {user.displayName === currentUserName && <span className="text-[9px] text-blue-400 font-semibold shrink-0">나</span>}
+                        <span className="text-[9px] text-gray-400 shrink-0">{annualTotal}일</span>
+                      </div>
+                      <span className="text-center text-xs text-amber-600 font-semibold">{used}일</span>
+                      <span className={`text-center text-xs font-bold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
+                      <div className="flex flex-col items-center gap-0.5 px-2">
+                        <div className="w-full h-1.5 bg-gray-100 rounded-full">
+                          <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}
+                            style={{ width: `${annualTotal > 0 ? Math.min(100, Math.max(0, Math.round((used / annualTotal) * 100))) : 100}%` }} />
+                        </div>
+                        <span className="text-[9px] text-gray-400">{annualTotal > 0 ? `${Math.round((used / annualTotal) * 100)}%` : '—'}</span>
+                      </div>
                     </div>
-                    <span className="text-[9px] text-gray-400">{annualTotal > 0 ? `${Math.round((used / annualTotal) * 100)}%` : '—'}</span>
-                  </div>
+                  ))}
                 </div>
               ))
             }

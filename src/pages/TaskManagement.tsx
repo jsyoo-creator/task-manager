@@ -86,13 +86,17 @@ function buildTableCols(tableFields: BuiltinFieldConfig[], tableCfs: CustomFormF
   return result;
 }
 
+// 업무명 컬럼은 커스텀필드가 많아져 다른 컬럼이 늘어나도 이 너비 밑으로는
+// 줄어들지 않게 함(넓어지는 건 1fr로 자유롭게 허용)
+const TITLE_MIN_WIDTH = 200;
+
 function buildCols(tableCols: TableCol[]): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
   for (const col of tableCols) {
     if (col.kind === 'custom') { cols.push('100px'); continue; }
     const fc = col.fc;
     if (fc.key === 'title') {
-      cols.push('minmax(120px, 1fr)');
+      cols.push(`minmax(${TITLE_MIN_WIDTH}px, 1fr)`);
     } else if (fc.key === 'weeklyHours') {
       cols.push('52px');
     } else {
@@ -109,7 +113,7 @@ function buildMinWidth(tableCols: TableCol[]): number {
   for (const col of tableCols) {
     if (col.kind === 'custom') { w += 100; colCount++; continue; }
     const fc = col.fc;
-    if (fc.key === 'title') { w += 120; colCount++; }
+    if (fc.key === 'title') { w += TITLE_MIN_WIDTH; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
     else { w += fc.width; colCount++; }
   }

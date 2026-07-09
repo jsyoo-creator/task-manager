@@ -1715,11 +1715,37 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const cf = col.cf;
             const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
             const cfType = cf.type as string;
-            const opts = (cfType === 'name' || cfType === '이름') ? assignees : (cf.options ?? []);
+            const opts = (() => {
+              if (cfType === 'name' || cfType === '이름') return assignees;
+              const base = cf.options ?? [];
+              if (!cf.dependsOn || cfType !== 'select') return base;
+              const { fieldId, valueMap } = cf.dependsOn;
+              const pVal = ['taskMonth','title','category','type','status','receiver','assignee','startDate','endDate'].includes(fieldId)
+                ? String((task as Record<string, unknown>)[fieldId] ?? '')
+                : (task.customFields?.[fieldId] ?? '');
+              return (pVal && valueMap[pVal]) ? valueMap[pVal] : base;
+            })();
             const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
             return [
               <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-                {isSelectable ? (
+                {cfType === 'select' ? (() => {
+                  const custColor = cf.optionColors?.[val];
+                  return (
+                    <div className={`relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
+                      style={custColor ? { backgroundColor: custColor.bg, color: custColor.text } : undefined}>
+                      <span className={`text-xs font-medium truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
+                      {canManage && <ChevronDown size={10} className={`flex-shrink-0 ${custColor ? 'opacity-70' : 'text-gray-400'}`} />}
+                      {canManage && (
+                        <select value={val}
+                          onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                          <option value="">-</option>
+                          {opts.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })() : isSelectable ? (
                   <div className="relative">
                     <span className="text-xs text-gray-700 truncate block pr-3">{val || '-'}</span>
                     {canManage && (
@@ -2043,14 +2069,42 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 {enabledCfs.map(cf => {
                   const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
                   const cfType = cf.type as string;
-                  const opts = (cfType === 'name' || cfType === '이름')
-                    ? assignees
-                    : (cf.options ?? []);
+                  const opts = (() => {
+                    if (cfType === 'name' || cfType === '이름') return assignees;
+                    const base = cf.options ?? [];
+                    if (!cf.dependsOn || cfType !== 'select') return base;
+                    const { fieldId, valueMap } = cf.dependsOn;
+                    const pVal = ['taskMonth','title','category','type','status','receiver','assignee','startDate','endDate'].includes(fieldId)
+                      ? String((task as Record<string, unknown>)[fieldId] ?? '')
+                      : (task.customFields?.[fieldId] ?? '');
+                    return (pVal && valueMap[pVal]) ? valueMap[pVal] : base;
+                  })();
                   const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
                   return (
                     <div key={cf.id} className="flex flex-col px-5 py-3 shrink-0">
                       <span className="text-[10px] text-gray-400 font-medium mb-1">{cf.label}</span>
-                      {isSelectable ? (
+                      {cfType === 'select' ? (() => {
+                        const custColor = cf.optionColors?.[val];
+                        return (
+                          <div className="relative">
+                            <div className={`flex items-center justify-between max-w-[180px] px-2.5 py-1 rounded-lg text-xs font-medium ${custColor ? '' : 'bg-black/[0.07] text-gray-800'}`}
+                              style={custColor ? { backgroundColor: custColor.bg, color: custColor.text } : undefined}>
+                              <span className="truncate">{val || '-'}</span>
+                              <ChevronDown size={11} className={`flex-shrink-0 ml-1.5 ${custColor ? 'opacity-60' : 'text-gray-400'}`} />
+                            </div>
+                            {canManage && (
+                              <select
+                                value={val}
+                                onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                              >
+                                <option value="">-</option>
+                                {opts.map(o => <option key={o}>{o}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })() : isSelectable ? (
                         <div className="relative">
                           <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate block pr-4">{val || '-'}</span>
                           {canManage && (

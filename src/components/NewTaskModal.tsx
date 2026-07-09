@@ -73,7 +73,7 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
   const formItems: FormItem[] = (() => {
     const bItems: FormItem[] = enabledBuiltins.map(fc => ({ kind: 'builtin', key: fc.key }));
     const cItems: FormItem[] = enabledCustoms.map(cf => ({ kind: 'custom', cf }));
-    const fo = formConfig?.fieldOrder;
+    const fo = activeFormConfig?.fieldOrder;
     if (!fo?.length) return [...bItems, ...cItems];
     const bMap = Object.fromEntries(enabledBuiltins.map(fc => [fc.key, fc]));
     const cMap = Object.fromEntries(enabledCustoms.map(cf => [cf.id, cf]));
@@ -510,7 +510,15 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
               const req = fc?.required ?? false;
               const reqMark = req ? <span className="text-red-400 ml-0.5">*</span> : null;
               if (k === 'type') {
-                const typeOpts = (fc?.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+                const typeOptsBase = (fc?.customType === 'select' && fc.options?.length) ? fc.options : TYPES as string[];
+                const typeOpts = (() => {
+                  if (!fc?.dependsOn?.fieldId) return typeOptsBase;
+                  const { fieldId, valueMap } = fc.dependsOn;
+                  const pVal = (builtinFormKeys as readonly string[]).includes(fieldId)
+                    ? String((form as Record<string, unknown>)[fieldId] ?? '')
+                    : (custom[fieldId] ?? '');
+                  return (pVal && valueMap[pVal]) ? valueMap[pVal] : typeOptsBase;
+                })();
                 return (
                   <div>
                     <label className={lbl}>{fieldLabel}{reqMark}</label>

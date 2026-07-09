@@ -89,6 +89,10 @@ function buildTableCols(tableFields: BuiltinFieldConfig[], tableCfs: CustomFormF
 // 업무명 컬럼은 커스텀필드가 많아져 다른 컬럼이 늘어나도 이 너비 밑으로는
 // 줄어들지 않게 함(넓어지는 건 1fr로 자유롭게 허용)
 const TITLE_MIN_WIDTH = 300;
+// 날짜 컬럼(YY.MM.DD, 8자)은 팀별 설정값(fc.width)과 무관하게 항상 이 너비로
+// 고정 — 실제 텍스트보다 컬럼이 넓어서 좌우 여백이 커 보이는 문제를 모든
+// 팀에 공통으로 줄이기 위함 (팀 설정에 너비 편집 UI 자체가 없어 안전함)
+const DATE_COL_WIDTH = 60;
 
 function buildCols(tableCols: TableCol[]): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
@@ -99,6 +103,8 @@ function buildCols(tableCols: TableCol[]): string {
       cols.push(`minmax(${TITLE_MIN_WIDTH}px, 1fr)`);
     } else if (fc.key === 'weeklyHours') {
       cols.push('52px');
+    } else if (fc.key === 'startDate' || fc.key === 'endDate') {
+      cols.push(`${DATE_COL_WIDTH}px`);
     } else {
       cols.push(`${fc.width}px`);
     }
@@ -115,6 +121,7 @@ function buildMinWidth(tableCols: TableCol[]): number {
     const fc = col.fc;
     if (fc.key === 'title') { w += TITLE_MIN_WIDTH; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
+    else if (fc.key === 'startDate' || fc.key === 'endDate') { w += DATE_COL_WIDTH; colCount++; }
     else { w += fc.width; colCount++; }
   }
   w += 110; colCount++; // expand + copy + delete

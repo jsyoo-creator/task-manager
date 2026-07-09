@@ -1758,7 +1758,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   );
                 })() : isSelectable ? (
                   <div className="relative">
-                    <span className="text-xs text-gray-700 truncate block pr-3">{val || '-'}</span>
+                    <span className="text-xs text-gray-700 truncate block pl-2 pr-3">{val || '-'}</span>
                     {canManage && (
                       <select value={val}
                         onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
@@ -1772,14 +1772,16 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   val
                     ? <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
-                        className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full">{val}</a>
-                    : <span className="text-xs text-gray-400">-</span>
+                        className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full pl-2">{val}</a>
+                    : <span className="text-xs text-gray-400 pl-2">-</span>
                 ) : cfType === 'date' ? (
-                  <DatePicker compact value={val}
-                    onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
-                    disabled={!canManage} />
+                  <div className="pl-2">
+                    <DatePicker compact value={val}
+                      onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
+                      disabled={!canManage} />
+                  </div>
                 ) : (
-                  <span className="text-xs text-gray-700 truncate block">{val || '-'}</span>
+                  <span className="text-xs text-gray-700 truncate block pl-2">{val || '-'}</span>
                 )}
               </div>
             ];
@@ -2004,12 +2006,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             </div>
           ];
           if (fc.key === 'startDate') return [
-            <div key="startDate" onClick={e => e.stopPropagation()}>
+            <div key="startDate" className="pl-2" onClick={e => e.stopPropagation()}>
               <DatePicker compact value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage} />
             </div>
           ];
           if (fc.key === 'endDate') return [
-            <div key="endDate" onClick={e => e.stopPropagation()}>
+            <div key="endDate" className="pl-2" onClick={e => e.stopPropagation()}>
               <DatePicker compact value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />
             </div>
           ];

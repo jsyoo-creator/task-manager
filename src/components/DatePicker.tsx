@@ -92,7 +92,7 @@ export default function DatePicker({ value, onChange, compact, disabled, btnClas
     : '';
 
   const btnClass = compact
-    ? 'flex items-center gap-1 text-xs text-gray-600 hover:text-blue-500 transition-colors cursor-pointer'
+    ? 'w-full h-full flex items-center gap-1 text-xs text-gray-600 hover:text-blue-500 transition-colors cursor-pointer text-left'
     : btnClassName
       ? `${btnClassName} flex items-center justify-between cursor-pointer`
       : `${cls} flex items-center justify-between cursor-pointer`;

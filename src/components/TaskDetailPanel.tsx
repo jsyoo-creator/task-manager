@@ -1533,7 +1533,7 @@ export default function TaskDetailPanel({
                             </select>
                           </div>
                         ) : cfType === 'date' ? (
-                          <DatePicker value={val} onChange={handleBlur} disabled={!canManage} />
+                          <DatePicker value={val} onChange={handleBlur} disabled={!canManage} btnClassName={cls} />
                         ) : cfType === 'number' ? (
                           <input type="number" readOnly={!canManage} value={val}
                             onChange={e => handleBlur(e.target.value)}

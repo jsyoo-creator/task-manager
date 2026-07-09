@@ -42,11 +42,6 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.18); border-radius: 9999px; }
 
-/* 업무관리 2줄 구성의 2번째 줄 가로 스크롤 영역 — 기본 스크롤바(4px)가 너무 얇아
-   마우스로 잡기 어려우므로 이 영역만 더 두껍게 오버라이드 */
-.tm-line2-scroll::-webkit-scrollbar { height: 10px; }
-.tm-line2-scroll::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.32); border-radius: 9999px; }
-
 /* ─────────────────────────────────────
    Card
 ───────────────────────────────────── */

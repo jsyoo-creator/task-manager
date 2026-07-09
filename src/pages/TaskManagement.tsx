@@ -1228,6 +1228,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             컬럼을 앞으로 옮겨도 필터 바만 반대 순서로 나왔음 */}
         {activeCategory !== 'all' && canFilterByPerson && personFilterOrder.map(key => {
           if (key === 'receiver' && receiverFieldLabel === assigneeFieldLabel) return null;
+          // 폼 설정에서 꺼둔(enabled=false) 필드는 목록에 컬럼 자체가 없으므로 필터도 숨김 —
+          // 안 그러면 실제 데이터에 남은 옛 값 때문에 컬럼 없는 필터만 남는 경우가 생김
+          if (!tableFields.some(f => f.key === key)) return null;
           const label = key === 'receiver' ? receiverFieldLabel : assigneeFieldLabel;
           const options = key === 'receiver' ? receiverOptions : assigneeOptions;
           const value = key === 'receiver' ? receiverFilter : assigneeFilter;
@@ -1242,6 +1245,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         })}
         {activeCategory !== 'all' && canFilterByPerson && personFilterOrder.map(key => {
           if (key === 'receiver' && receiverFieldLabel === assigneeFieldLabel) return null;
+          if (!tableFields.some(f => f.key === key)) return null;
           const label = key === 'receiver' ? receiverFieldLabel : assigneeFieldLabel;
           const options = key === 'receiver' ? receiverOptions : assigneeOptions;
           if (options.length === 0) return null;

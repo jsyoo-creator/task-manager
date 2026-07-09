@@ -2169,40 +2169,36 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           </div>
         ));
 
-        // 2줄 모드: 체크박스/드래그/월은 그리드 밖(좌측 레일)에 둬서 전체 행 높이 기준
-        // 세로 중앙에 오게 함. 업무명만 1번째 줄, 나머지는 2번째 줄(자체 스크롤)에 배치 —
-        // 필드 영역이 레일과 분리돼 있어 2번째 줄이 업무명 시작 위치와 항상 자동으로 맞음.
-        // 헤더에는 2번째 줄용 공용 라벨 행이 없으므로(헤더는 항상 1줄) 각 값 위에 라벨을
-        // 함께 표시함(restElementsWithLabels).
+        // 체크박스/드래그/월/액션버튼은 1번째 줄(업무명)과 같은 줄에 둬서 그 줄 높이만큼만
+        // 차지하게 하고, 2번째 줄은 완전히 별도 줄로 내려서 그만큼 생기는 세로 공간을
+        // 2번째 줄이 자유롭게 쓰게 함(레일 폭만큼만 앞에 빈 칸을 둬 들여쓰기를 맞춤).
+        const railSpacerWidth = 28 + 12 + 18 + (monthElement ? 12 + monthColWidth : 0);
         return (
-          <div className={`flex items-center gap-3 px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+          <div className={`flex flex-col ${twoLineMode ? 'gap-2.5' : ''} py-3.5 transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
             style={{ minWidth: rowMinWidth }}>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {checkboxCell}
-              {dragHandleCell}
-              {monthElement && (
-                <div style={{ width: monthColWidth }}>{monthElement}</div>
-              )}
-            </div>
-            {twoLineMode ? (
-              <div className="flex-1 min-w-0 flex flex-col gap-2.5">
-                <div className="group/row grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
-                  {titleElements}
-                </div>
-                {restElements.length > 0 && (
-                  <div className="min-w-0 overflow-x-auto py-3">
-                    <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
-                      {restElementsWithLabels}
-                    </div>
-                  </div>
+            <div className="flex items-center gap-3 px-3 text-sm">
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {checkboxCell}
+                {dragHandleCell}
+                {monthElement && (
+                  <div style={{ width: monthColWidth }}>{monthElement}</div>
                 )}
               </div>
-            ) : (
               <div className="group/row flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
                 {titleElements}
               </div>
+              {actionButtonsCell}
+            </div>
+            {twoLineMode && restElements.length > 0 && (
+              <div className="flex items-start gap-3 px-3 text-sm">
+                <div className="flex-shrink-0" style={{ width: railSpacerWidth }} />
+                <div className="flex-1 min-w-0 overflow-x-auto py-3.5">
+                  <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
+                    {restElementsWithLabels}
+                  </div>
+                </div>
+              </div>
             )}
-            {actionButtonsCell}
           </div>
         );
       })()}

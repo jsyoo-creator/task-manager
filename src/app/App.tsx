@@ -413,18 +413,25 @@ function App() {
   // 없으면 selectedTeamIds로 판단
   const getDefaultTeamId = (u: { defaultTeamIdByWorkplace?: Record<string, string> }) =>
     activeWorkplaceId ? u.defaultTeamIdByWorkplace?.[activeWorkplaceId] : undefined;
+  // 우선선택(별표) 팀이 "지원팀"인 사람은 지원팀 전용이 아니라 여러 팀을 넘나들며 지원하는
+  // 역할이므로, 우선선택 팀 외에 실제 소속된(selectedTeamIds) 다른 팀에서도 노출되게 예외 처리
+  const isMemberOfTeam = (
+    u: { defaultTeamIdByWorkplace?: Record<string, string>; selectedTeamIds?: string[] },
+    teamId: string
+  ) => {
+    const d = getDefaultTeamId(u);
+    if (!d) return u.selectedTeamIds?.includes(teamId) ?? false;
+    if (d === teamId) return true;
+    const isDefaultSupportTeam = teams.find(t => t.id === d)?.isSupportTeam;
+    return !!isDefaultSupportTeam && !!u.selectedTeamIds?.includes(teamId);
+  };
   const teamMembers = selectedTeam
-    ? allUsers.filter(u => {
-        const d = getDefaultTeamId(u);
-        return d ? d === selectedTeam.id : u.selectedTeamIds?.includes(selectedTeam.id);
-      }).map(u => ({ name: u.displayName, department: u.department }))
+    ? allUsers.filter(u => isMemberOfTeam(u, selectedTeam.id))
+        .map(u => ({ name: u.displayName, department: u.department }))
     : [];
 
   // 휴가 표시용: 위와 동일한 기준
-  const vacTeamMembers = selectedTeam ? allUsers.filter(u => {
-    const d = getDefaultTeamId(u);
-    return d ? d === selectedTeam.id : u.selectedTeamIds?.includes(selectedTeam.id);
-  }) : [];
+  const vacTeamMembers = selectedTeam ? allUsers.filter(u => isMemberOfTeam(u, selectedTeam.id)) : [];
   const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
   const teamVacations = vacations.filter(v => vacMemberNames.has(v.memberName));
 

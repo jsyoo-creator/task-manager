@@ -12,6 +12,8 @@ import DatePicker from '../components/DatePicker';
 interface Props {
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartCopyIncludeDetails: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartTaskListTwoLine: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartTaskListTwoLine: (teamId: string, partId: string) => Promise<void>;
   appUser: AppUser;
   onUpdateName: (name: string) => Promise<void>;
   onUpdateDepartment: (dept: Department) => Promise<void>;
@@ -1390,13 +1392,16 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   );
 }
 
-function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig }: {
+function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateTeam, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine }: {
   team: Team;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdateAllFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onClearAllFormConfig: (teamId: string) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
   onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
+  onUpdatePartTaskListTwoLine: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartTaskListTwoLine: (teamId: string, partId: string) => Promise<void>;
 }) {
   // 선택된 편집 대상: 'team' | 'all' | 파트 ID
   const [selectedTarget, setSelectedTarget] = useState<'team' | 'all' | string>('team');
@@ -1596,6 +1601,42 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
             className="text-xs bg-orange-500 text-white px-2.5 py-0.5 rounded-lg font-medium hover:bg-orange-600 flex-shrink-0">덮어쓰기</button>
         </div>
       )}
+
+      {/* 업무관리 목록 2줄 구성 */}
+      {(() => {
+        const isTeamOrAll = selectedTarget === 'team' || isAllTarget;
+        const twoLineInherited = !isTeamOrAll && currentPart?.taskListTwoLine === undefined;
+        const twoLineEffective = isTeamOrAll
+          ? (team.taskListTwoLine ?? false)
+          : (currentPart?.taskListTwoLine ?? team.taskListTwoLine ?? false);
+        return (
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+            <div>
+              <p className="text-xs font-semibold text-gray-700">업무관리 목록 2줄 구성</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                켜면 목록에서 월+업무명만 1줄, 나머지 필드(순서는 위 설정 그대로)는 2줄에 배치됩니다
+                {!isTeamOrAll && (twoLineInherited ? ' — 팀 기본값 상속 중' : ' — 이 파트에 별도로 지정된 값')}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {!isTeamOrAll && !twoLineInherited && (
+                <button
+                  onClick={() => currentPart && onClearPartTaskListTwoLine(team.id, currentPart.id)}
+                  className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium">
+                  <RotateCcw size={10} />팀 기본으로
+                </button>
+              )}
+              <PermToggle
+                checked={twoLineEffective}
+                onChange={() => {
+                  if (isTeamOrAll) onUpdateTeam(team.id, { taskListTwoLine: !twoLineEffective });
+                  else if (currentPart) onUpdatePartTaskListTwoLine(team.id, currentPart.id, !twoLineEffective);
+                }}
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       <FieldConfigEditor
         fields={fields}
@@ -3659,7 +3700,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3684,6 +3725,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartPLShowInCalendar: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartCopyIncludeDetails: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartTaskListTwoLine: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartTaskListTwoLine: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateLabel: (teamId: string, partId: string, label: string) => Promise<void>;
   onClearPartMainTaskEndDateLabel: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateShow: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -4064,6 +4107,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onClearAllFormConfig={onClearAllFormConfig}
                         onUpdatePartFormConfig={onUpdatePartFormConfig}
                         onClearPartFormConfig={onClearPartFormConfig}
+                        onUpdateTeam={onUpdateTeam}
+                        onUpdatePartTaskListTwoLine={onUpdatePartTaskListTwoLine}
+                        onClearPartTaskListTwoLine={onClearPartTaskListTwoLine}
                       />
                     </div>
                   )}
@@ -4726,7 +4772,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -5123,6 +5169,8 @@ export default function SettingsPage({
           onClearPartPLShowInCalendar={onClearPartPLShowInCalendar}
           onUpdatePartCopyIncludeDetails={onUpdatePartCopyIncludeDetails}
           onClearPartCopyIncludeDetails={onClearPartCopyIncludeDetails}
+          onUpdatePartTaskListTwoLine={onUpdatePartTaskListTwoLine}
+          onClearPartTaskListTwoLine={onClearPartTaskListTwoLine}
           onUpdatePartMainTaskEndDateLabel={onUpdatePartMainTaskEndDateLabel}
           onClearPartMainTaskEndDateLabel={onClearPartMainTaskEndDateLabel}
           onUpdatePartMainTaskEndDateShow={onUpdatePartMainTaskEndDateShow}

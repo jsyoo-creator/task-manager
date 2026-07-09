@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -125,6 +125,36 @@ function buildMinWidth(tableCols: TableCol[]): number {
     else { w += fc.width; colCount++; }
   }
   w += 110; colCount++; // expand + copy + delete
+  w += (colCount - 1) * 12; // gap-x-3
+  w += 24; // px-3 양쪽
+  return w;
+}
+
+// 2줄 구성(월+업무명 1줄 / 나머지 필드 2줄)에서 2번째 줄 전용 컬럼 폭 계산.
+// 체크박스+드래그(46px) 만큼 앞에 빈 칸을 둬 1번째 줄의 업무명 시작 위치와 맞추고,
+// 액션 버튼 칸(110px)은 1번째 줄에만 있으므로 여기선 넣지 않음
+function buildLine2Cols(tableCols: TableCol[]): string {
+  const cols: string[] = ['46px'];
+  for (const col of tableCols) {
+    if (col.kind === 'custom') { cols.push('100px'); continue; }
+    const fc = col.fc;
+    if (fc.key === 'weeklyHours') cols.push('52px');
+    else if (fc.key === 'startDate' || fc.key === 'endDate') cols.push(`${DATE_COL_WIDTH}px`);
+    else cols.push(`${fc.width}px`);
+  }
+  return cols.join(' ');
+}
+
+function buildLine2MinWidth(tableCols: TableCol[]): number {
+  let w = 46;
+  let colCount = 1;
+  for (const col of tableCols) {
+    if (col.kind === 'custom') { w += 100; colCount++; continue; }
+    const fc = col.fc;
+    if (fc.key === 'weeklyHours') { w += 52; colCount++; }
+    else if (fc.key === 'startDate' || fc.key === 'endDate') { w += DATE_COL_WIDTH; colCount++; }
+    else { w += fc.width; colCount++; }
+  }
   w += (colCount - 1) * 12; // gap-x-3
   w += 24; // px-3 양쪽
   return w;
@@ -625,13 +655,22 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const tableCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
   const tableCols = buildTableCols(tableFields, tableCfs, formConfig?.fieldOrder);
   const statusConfigs = resolveStatusConfigs(formConfig);
-  const colTemplate = buildCols(tableCols);
-  const colMinWidth = buildMinWidth(tableCols);
+
+  const currentTeam = teams.find(t => t.id === currentTeamId);
+  // 2줄 구성(월+업무명 1줄 / 나머지 필드 2줄) 사용 여부 — 파트 탭이면 그 파트 오버라이드,
+  // "전체" 탭이면 팀 기본값만 (팀 설정 > 폼 설정에서 팀/파트별로 개별 설정 가능)
+  const activePartForLayout = activeCategory !== 'all' ? parts?.find(p => p.name === activeCategory) : undefined;
+  const twoLineMode = resolveTaskListTwoLine(currentTeam, activePartForLayout);
+  // 2줄 모드: 월/업무명만 1번째 줄, 나머지 전부 2번째 줄
+  const line1Cols = twoLineMode ? tableCols.filter(c => c.kind === 'builtin' && (c.fc.key === 'taskMonth' || c.fc.key === 'title')) : tableCols;
+  const line2Cols = twoLineMode ? tableCols.filter(c => !(c.kind === 'builtin' && (c.fc.key === 'taskMonth' || c.fc.key === 'title'))) : [];
+  const colTemplate = buildCols(line1Cols);
+  const colMinWidth = buildMinWidth(line1Cols);
+  const line2Template = twoLineMode ? buildLine2Cols(line2Cols) : '';
+  const line2MinWidth = twoLineMode ? buildLine2MinWidth(line2Cols) : 0;
 
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
-
-  const currentTeam = teams.find(t => t.id === currentTeamId);
 
   // 업무 복사 시 세부업무/커스텀필드 등 세부사항까지 포함할지 — 파트 오버라이드 → 팀 기본값
   // (팀 설정 > 파트 관리에서 팀/파트별로 개별 설정 가능). 기본은 false(기존 동작: 기본 정보만 복사)
@@ -875,6 +914,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         statusConfigs={statusConfigs}
         colTemplate={colTemplate}
         colMinWidth={colMinWidth}
+        twoLineMode={twoLineMode}
+        line1Cols={line1Cols}
+        line2Cols={line2Cols}
+        line2Template={line2Template}
+        line2MinWidth={line2MinWidth}
         metaFields={resolvedMetaFields}
         formConfig={resolvedFormConfig}
         isDragging={dragId === task.id}
@@ -898,6 +942,30 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       />
     );
   };
+
+  // 헤더 셀 렌더링 — 1줄 모드에서는 tableCols 전체, 2줄 모드에서는 line1Cols/line2Cols로 나눠 호출
+  const renderHeaderCols = (cols: TableCol[]) => cols.flatMap(col => {
+    if (col.kind === 'custom') {
+      return [
+        <div key={col.cf.id} className="flex items-center justify-center select-none">
+          <span>{col.cf.label}</span>
+        </div>,
+      ];
+    }
+    const fc = col.fc;
+    const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
+    if (fc.key === 'title') return [
+      <span key="title" className="pl-3.5 text-gray-500">{hLabel}</span>,
+    ];
+    if (fc.key === 'weeklyHours') {
+      return [<span key="h-total" className="text-center">합계</span>];
+    }
+    return [
+      <div key={fc.key} className="flex items-center justify-center select-none">
+        <span>{hLabel}</span>
+      </div>,
+    ];
+  });
 
   return (
     <div>
@@ -1189,54 +1257,41 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
       <div className="glass-card-noclip overflow-x-auto">
         {/* 헤더 */}
-        <div className="grid gap-x-3 text-[11px] text-gray-500 font-semibold bg-black/3 border-b border-black/5 px-3 py-2.5"
-          style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
-          {/* 전체선택 체크박스 */}
-          <div className="flex items-center justify-center cursor-pointer"
-            onClick={() => {
-              if (selectedIds.size > 0) setSelectedIds(new Set());
-              else setSelectedIds(new Set(filtered.map(t => t.id)));
-            }}>
-            <div className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center transition-all ${
-              selectedIds.size > 0 && selectedIds.size >= filtered.length
-                ? 'bg-indigo-600 border-indigo-600'
-                : selectedIds.size > 0
-                  ? 'border-indigo-400 bg-white'
-                  : 'border-gray-300 bg-white hover:border-indigo-400'
-            }`}>
-              {selectedIds.size > 0 && selectedIds.size >= filtered.length && (
-                <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              )}
-              {selectedIds.size > 0 && selectedIds.size < filtered.length && (
-                <div className="w-2 h-0.5 bg-indigo-500 rounded" />
-              )}
+        <div className="text-[11px] text-gray-500 font-semibold bg-black/3 border-b border-black/5">
+          <div className={`grid gap-x-3 px-3 ${twoLineMode ? 'pt-2.5 pb-1' : 'py-2.5'}`}
+            style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+            {/* 전체선택 체크박스 */}
+            <div className="flex items-center justify-center cursor-pointer"
+              onClick={() => {
+                if (selectedIds.size > 0) setSelectedIds(new Set());
+                else setSelectedIds(new Set(filtered.map(t => t.id)));
+              }}>
+              <div className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center transition-all ${
+                selectedIds.size > 0 && selectedIds.size >= filtered.length
+                  ? 'bg-indigo-600 border-indigo-600'
+                  : selectedIds.size > 0
+                    ? 'border-indigo-400 bg-white'
+                    : 'border-gray-300 bg-white hover:border-indigo-400'
+              }`}>
+                {selectedIds.size > 0 && selectedIds.size >= filtered.length && (
+                  <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+                {selectedIds.size > 0 && selectedIds.size < filtered.length && (
+                  <div className="w-2 h-0.5 bg-indigo-500 rounded" />
+                )}
+              </div>
             </div>
+            {/* 드래그핸들 열 헤더 */}
+            <span />
+            {renderHeaderCols(line1Cols)}
+            <span />
           </div>
-          {/* 드래그핸들 열 헤더 */}
-          <span />
-          {tableCols.flatMap(col => {
-            if (col.kind === 'custom') {
-              return [
-                <div key={col.cf.id} className="flex items-center justify-center select-none">
-                  <span>{col.cf.label}</span>
-                </div>,
-              ];
-            }
-            const fc = col.fc;
-            const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
-            if (fc.key === 'title') return [
-              <span key="title" className="pl-3.5 text-gray-500">{hLabel}</span>,
-            ];
-            if (fc.key === 'weeklyHours') {
-              return [<span key="h-total" className="text-center">합계</span>];
-            }
-            return [
-              <div key={fc.key} className="flex items-center justify-center select-none">
-                <span>{hLabel}</span>
-              </div>,
-            ];
-          })}
-          <span />
+          {twoLineMode && line2Cols.length > 0 && (
+            <div className="grid gap-x-3 px-3 pb-2.5" style={{ gridTemplateColumns: line2Template, minWidth: line2MinWidth }}>
+              <span />
+              {renderHeaderCols(line2Cols)}
+            </div>
+          )}
         </div>
 
         {displayFlat.length === 0 && (
@@ -1247,7 +1302,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <div key={key}>
             <div
               className="flex items-center gap-2 px-3 py-2 bg-gray-50/70 border-b border-black/5"
-              style={{ minWidth: colMinWidth }}
+              style={{ minWidth: twoLineMode ? Math.max(colMinWidth, line2MinWidth) : colMinWidth }}
             >
               {isPerson ? (
                 <>
@@ -1579,7 +1634,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, colTemplate, colMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, colTemplate, colMinWidth, twoLineMode, line1Cols, line2Cols, line2Template, line2MinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1597,6 +1652,11 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   statusConfigs: StatusConfig[];
   colTemplate: string;
   colMinWidth: number;
+  twoLineMode: boolean;
+  line1Cols: TableCol[];
+  line2Cols: TableCol[];
+  line2Template: string;
+  line2MinWidth: number;
   metaFields?: MetaField[];
   formConfig?: TeamFormConfig;
   isDragging: boolean;
@@ -1699,37 +1759,65 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       onDrop={e => { e.preventDefault(); onDrop(); }}
       onDragEnd={onDragEnd}
     >
-      <div className={`group/row grid gap-x-3 items-center px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
-        style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
-
-        {/* 체크박스 열 (독립) */}
-        <div className="flex items-center justify-center">
+      {(() => {
+        const checkboxCell = (
+          <div className="flex items-center justify-center">
+            <div
+              onClick={e => { e.stopPropagation(); onSelect?.(); }}
+              className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+                selected
+                  ? 'bg-indigo-600 border-indigo-600'
+                  : 'border-gray-300 bg-white hover:border-indigo-400'
+              }`}
+            >
+              {selected && (
+                <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                  <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+          </div>
+        );
+        const dragHandleCell = (
           <div
-            onClick={e => { e.stopPropagation(); onSelect?.(); }}
-            className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
-              selected
-                ? 'bg-indigo-600 border-indigo-600'
-                : 'border-gray-300 bg-white hover:border-indigo-400'
-            }`}
+            draggable
+            onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+            className="flex items-center justify-center text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing"
           >
-            {selected && (
-              <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+            <GripVertical size={13} />
+          </div>
+        );
+        const actionButtonsCell = (
+          <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
+            {!task.plTask && (
+              <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
+                title="업무 정보"
+                className={`flex items-center justify-center px-2 py-1 rounded-md transition-all border ${
+                  expanded
+                    ? 'bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/30'
+                    : 'bg-white text-gray-400 border-gray-200 hover:border-[#6C63FF]/40 hover:text-[#6C63FF]'
+                }`}>
+                <Info size={11} />
+              </button>
+            )}
+            {canManage && (
+              <button onClick={e => { e.stopPropagation(); onCopy(); }}
+                title="복사"
+                className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
+                <Copy size={11} />
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={e => { e.stopPropagation(); onDeleteRequest(task.id, task.title); }}
+                title="삭제"
+                className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
+                <Trash2 size={11} />
+              </button>
             )}
           </div>
-        </div>
+        );
 
-        {/* 드래그 핸들 열 (독립) */}
-        <div
-          draggable
-          onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-          className="flex items-center justify-center text-gray-300 hover:text-gray-400 cursor-grab active:cursor-grabbing"
-        >
-          <GripVertical size={13} />
-        </div>
-
-        {tableCols.flatMap(col => {
+        const allFieldElements = tableCols.flatMap(col => {
           if (col.kind === 'custom') {
             const cf = col.cf;
             const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
@@ -2025,39 +2113,46 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <span key="total" className="text-center text-xs font-semibold text-gray-700">{totalH > 0 ? `${totalH}h` : '-'}</span>
           ];
           return [];
-        })}
+        });
 
-        <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
-          {!task.plTask && (
-            <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
-              title="업무 정보"
-              className={`flex items-center justify-center px-2 py-1 rounded-md transition-all border ${
-                expanded
-                  ? 'bg-[#6C63FF]/10 text-[#6C63FF] border-[#6C63FF]/30'
-                  : 'bg-white text-gray-400 border-gray-200 hover:border-[#6C63FF]/40 hover:text-[#6C63FF]'
-              }`}>
-              <Info size={11} />
-            </button>
-          )}
-          {canManage && (
-            <button onClick={e => { e.stopPropagation(); onCopy(); }}
-              title="복사"
-              className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
-              <Copy size={11} />
-            </button>
-          )}
-          {canDelete && (
-            <button onClick={e => { e.stopPropagation(); onDeleteRequest(task.id, task.title); }}
-              title="삭제"
-              className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200 transition-all">
-              <Trash2 size={11} />
-            </button>
-          )}
-        </div>
-      </div>
+        const line1Keys = new Set(['title', 'taskMonth']);
+        const line1Elements = allFieldElements.filter(el => line1Keys.has(String(el.key)));
+        const line2Elements = allFieldElements.filter(el => !line1Keys.has(String(el.key)));
+
+        if (!twoLineMode) {
+          return (
+            <div className={`group/row grid gap-x-3 items-center px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+              style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+              {checkboxCell}
+              {dragHandleCell}
+              {allFieldElements}
+              {actionButtonsCell}
+            </div>
+          );
+        }
+
+        return (
+          <div className={`flex flex-col py-2.5 transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}>
+            <div className="group/row grid gap-x-3 items-center px-3 text-sm"
+              style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+              {checkboxCell}
+              {dragHandleCell}
+              {line1Elements}
+              {actionButtonsCell}
+            </div>
+            {line2Elements.length > 0 && (
+              <div className="grid gap-x-3 items-center px-3 pt-1.5 text-sm"
+                style={{ gridTemplateColumns: line2Template, minWidth: line2MinWidth }}>
+                <span />
+                {line2Elements}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {expanded && (
-        <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: colMinWidth }}>
+        <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: twoLineMode ? Math.max(colMinWidth, line2MinWidth) : colMinWidth }}>
           {(filledMeta.length > 0 || enabledCfs.length > 0) ? (
             <div className="overflow-x-auto relative">
               <button

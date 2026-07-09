@@ -297,7 +297,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations(activeWorkplaceId ?? undefined);
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
   const { customHolidays, updateHolidays } = useHolidays(activeWorkplaceId ?? undefined);
   const { profileFields, updateProfileFields } = useProfileFields(activeWorkplaceId ?? undefined);
   const { workplaces } = useWorkplaces();
@@ -929,6 +929,8 @@ function App() {
                     onClearPartPLShowInCalendar={clearPartPLShowInCalendar}
                     onUpdatePartCopyIncludeDetails={updatePartCopyIncludeDetails}
                     onClearPartCopyIncludeDetails={clearPartCopyIncludeDetails}
+                    onUpdatePartTaskListTwoLine={updatePartTaskListTwoLine}
+                    onClearPartTaskListTwoLine={clearPartTaskListTwoLine}
                     onUpdatePartMainTaskEndDateLabel={updatePartMainTaskEndDateLabel}
                     onClearPartMainTaskEndDateLabel={clearPartMainTaskEndDateLabel}
                     onUpdatePartMainTaskEndDateShow={updatePartMainTaskEndDateShow}

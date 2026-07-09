@@ -2171,8 +2171,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
 
         // 체크박스/드래그/월/액션버튼은 1번째 줄(업무명)과 같은 줄에 둬서 그 줄 높이만큼만
         // 차지하게 하고, 2번째 줄은 완전히 별도 줄로 내려서 그만큼 생기는 세로 공간을
-        // 2번째 줄이 자유롭게 쓰게 함(레일 폭만큼만 앞에 빈 칸을 둬 들여쓰기를 맞춤).
-        const railSpacerWidth = 28 + 12 + 18 + (monthElement ? 12 + monthColWidth : 0);
+        // 2번째 줄이 자유롭게 쓰게 함. 2번째 줄 시작은 체크박스와 같은 좌측 끝에서 시작
+        // (들여쓰기 없음)하고, 옅은 배경색으로 1번째 줄과 구분되게 함.
         return (
           <div className={`flex flex-col ${twoLineMode ? 'gap-2.5' : ''} py-3.5 transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
             style={{ minWidth: rowMinWidth }}>
@@ -2190,9 +2190,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               {actionButtonsCell}
             </div>
             {twoLineMode && restElements.length > 0 && (
-              <div className="flex items-start gap-3 px-3 text-sm">
-                <div className="flex-shrink-0" style={{ width: railSpacerWidth }} />
-                <div className="flex-1 min-w-0 overflow-x-auto py-3.5">
+              <div className="px-3 py-3.5 text-sm bg-[#6C63FF]/[0.02]">
+                <div className="min-w-0 overflow-x-auto">
                   <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                     {restElementsWithLabels}
                   </div>

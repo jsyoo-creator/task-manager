@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -10,6 +10,8 @@ import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
 
 interface Props {
+  onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartCopyIncludeDetails: (teamId: string, partId: string) => Promise<void>;
   appUser: AppUser;
   onUpdateName: (name: string) => Promise<void>;
   onUpdateDepartment: (dept: Department) => Promise<void>;
@@ -3657,7 +3659,7 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3680,6 +3682,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartPLShowInCalendar: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
+  onClearPartCopyIncludeDetails: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateLabel: (teamId: string, partId: string, label: string) => Promise<void>;
   onClearPartMainTaskEndDateLabel: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartMainTaskEndDateShow: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -3997,6 +4001,55 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
                           <Plus size={11} />추가
                         </button>
+                      </div>
+
+                      {/* 업무 복사 설정 */}
+                      <div className="pt-3 mt-1 border-t border-gray-100 space-y-2">
+                        <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">업무 복사 시 세부사항 포함 (팀 기본값)</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              켜면 세부업무/커스텀필드/메모 등 입력된 모든 값을 그대로 복사합니다. 끄면 기본 정보(월/파트/제목/담당자 등)만 복사하고 나머지는 초기화합니다.
+                            </p>
+                          </div>
+                          <PermToggle
+                            checked={team.copyIncludeDetails ?? false}
+                            onChange={() => onUpdateTeam(team.id, { copyIncludeDetails: !(team.copyIncludeDetails ?? false) })}
+                          />
+                        </div>
+                        {team.parts.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 px-0.5">파트별로 다르게 설정하려면 아래에서 개별 지정하세요 (기본은 팀 설정 상속)</p>
+                            {team.parts.map(p => {
+                              const inherited = p.copyIncludeDetails === undefined;
+                              const effective = resolveCopyIncludeDetails(team, p);
+                              return (
+                                <div key={p.id} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-gray-50">
+                                  <span className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${p.color}`} />
+                                    {p.name}
+                                    <span className={`text-[9px] ${inherited ? 'text-gray-400' : 'text-blue-500'}`}>
+                                      {inherited ? '(팀 기본 상속)' : '(별도 설정)'}
+                                    </span>
+                                  </span>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {!inherited && (
+                                      <button
+                                        onClick={() => onClearPartCopyIncludeDetails(team.id, p.id)}
+                                        className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700 font-medium">
+                                        <RotateCcw size={10} />팀 기본으로
+                                      </button>
+                                    )}
+                                    <PermToggle
+                                      checked={effective}
+                                      onChange={() => onUpdatePartCopyIncludeDetails(team.id, p.id, !effective)}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -4673,7 +4726,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -5068,6 +5121,8 @@ export default function SettingsPage({
           onClearPartCalendarOrder={onClearPartCalendarOrder}
           onUpdatePartPLShowInCalendar={onUpdatePartPLShowInCalendar}
           onClearPartPLShowInCalendar={onClearPartPLShowInCalendar}
+          onUpdatePartCopyIncludeDetails={onUpdatePartCopyIncludeDetails}
+          onClearPartCopyIncludeDetails={onClearPartCopyIncludeDetails}
           onUpdatePartMainTaskEndDateLabel={onUpdatePartMainTaskEndDateLabel}
           onClearPartMainTaskEndDateLabel={onClearPartMainTaskEndDateLabel}
           onUpdatePartMainTaskEndDateShow={onUpdatePartMainTaskEndDateShow}

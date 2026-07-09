@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -631,10 +631,18 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
 
-  const handleCopyTask = (task: Task) => {
-    const idx = tasks.findIndex(t => t.id === task.id);
-    tasks.forEach((t, i) => { if (t.sortOrder !== i) onUpdateTask(t.id, { sortOrder: i }); });
-    onAddTask({
+  const currentTeam = teams.find(t => t.id === currentTeamId);
+
+  // 업무 복사 시 세부업무/커스텀필드 등 세부사항까지 포함할지 — 파트 오버라이드 → 팀 기본값
+  // (팀 설정 > 파트 관리에서 팀/파트별로 개별 설정 가능). 기본은 false(기존 동작: 기본 정보만 복사)
+  const buildCopyPayload = (task: Task, sortOrder: number): Omit<Task, 'id' | 'createdAt' | 'updatedAt'> => {
+    const taskPart = parts?.find(p => p.name === task.category);
+    const includeDetails = resolveCopyIncludeDetails(currentTeam, taskPart);
+    if (includeDetails) {
+      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = task;
+      return { ...rest, sortOrder };
+    }
+    return {
       projectId: task.projectId,
       teamId: task.teamId,
       taskMonth: task.taskMonth,
@@ -649,8 +657,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       weeklyHours: {},
       totalHours: 0,
       revisionLevel: 0,
-      sortOrder: idx + 0.5,
-    });
+      sortOrder,
+    };
+  };
+
+  const handleCopyTask = (task: Task) => {
+    const idx = tasks.findIndex(t => t.id === task.id);
+    tasks.forEach((t, i) => { if (t.sortOrder !== i) onUpdateTask(t.id, { sortOrder: i }); });
+    onAddTask(buildCopyPayload(task, idx + 0.5));
   };
 
   const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -1289,13 +1303,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 .filter(t => selectedIds.has(t.id))
                 .forEach((t, i) => {
                   const idx = tasks.findIndex(x => x.id === t.id);
-                  onAddTask({
-                    projectId: t.projectId, teamId: t.teamId, taskMonth: t.taskMonth,
-                    category: t.category, title: t.title, type: '신규', status: '진행 전',
-                    receiver: t.receiver, assignee: t.assignee,
-                    startDate: '', endDate: '', weeklyHours: {}, totalHours: 0,
-                    revisionLevel: 0, sortOrder: idx + 0.5 + i * 0.01,
-                  });
+                  onAddTask(buildCopyPayload(t, idx + 0.5 + i * 0.01));
                 });
               setSelectedIds(new Set());
             }}

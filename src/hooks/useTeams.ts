@@ -151,6 +151,24 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
+  const updatePartCopyIncludeDetails = async (teamId: string, partId: string, value: boolean) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => p.id === partId ? { ...p, copyIncludeDetails: value } : p);
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  const clearPartCopyIncludeDetails = async (teamId: string, partId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => {
+      if (p.id !== partId) return p;
+      const { copyIncludeDetails: _, ...rest } = p;
+      return rest;
+    });
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
   const updatePartPLShowInCalendar = async (teamId: string, partId: string, value: boolean) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
@@ -308,5 +326,5 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await batch.commit();
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams };
 }

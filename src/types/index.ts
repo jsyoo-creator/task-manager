@@ -225,6 +225,7 @@ export interface TeamPart {
   mainTaskEndDateLabel?: string; // 메인업무 종료일 캘린더 표시 명칭 (예: '방송일', 없으면 팀 기본 상속)
   mainTaskEndDateColor?: string; // 메인업무 종료일 배지 색상 (hex, 없으면 팀 기본 상속, 빈 값이면 파트색 자동 사용)
   revisionSteps?: RevisionStep[]; // 파트별 수정단계 목록 (없으면 팀 기본 상속)
+  copyIncludeDetails?: boolean; // 업무 복사 시 세부업무/커스텀필드 등 세부사항까지 포함할지 (없으면 팀 기본 상속)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────
@@ -596,6 +597,12 @@ export interface Team {
   isSupportTeam?: boolean; // 지원팀 여부 — 직접 업무를 등록하기보다 다른 팀에서 업무 요청을 받는 팀
   supportSourceTeamIds?: string[]; // 지원팀일 때, 이 팀들만 업무 요청을 보낼 수 있음 (화이트리스트)
   revisionSteps?: RevisionStep[]; // 수정단계 목록 팀 기본값 (없으면 DEFAULT_REVISION_STEPS)
+  copyIncludeDetails?: boolean; // 업무 복사 시 세부업무/커스텀필드 등 세부사항까지 포함할지 팀 기본값 (undefined = false, 기존 동작)
+}
+
+// 업무 복사 시 세부사항(세부업무/커스텀필드/메모 등) 포함 여부 — 파트 오버라이드 → 팀 기본값 순
+export function resolveCopyIncludeDetails(team?: Team | null, part?: TeamPart | null): boolean {
+  return part?.copyIncludeDetails ?? team?.copyIncludeDetails ?? false;
 }
 
 // 커뮤니티 > AI 툴 리스트 — 팀 구분 없이 전체 공용으로 노출되는 추천 리스트

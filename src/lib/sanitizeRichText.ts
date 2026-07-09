@@ -90,12 +90,38 @@ function linkifyPlainUrls(root: HTMLElement) {
   });
 }
 
-// 리치 에디터 도입 이전에 일반 텍스트(줄바꿈 포함)로 저장된 설명과 호환 — 태그가 전혀 없으면
-// 평문으로 간주해 이스케이프 후 줄바꿈만 <br>로 변환, 이미 HTML이면 그대로 정제
+// 붙여넣기 등의 과정에서 이미 이스케이프된 엔티티(&lt; &amp; 등)가 한 번 더 이스케이프되면
+// (&amp;lt; &amp;amp; 등) 화면에 "&lt;"나 "&amp;" 같은 글자가 그대로 노출됨 — 반복 적용해
+// 한 겹만 남도록 정규화(윈도우 클립보드 등 환경에서 이런 중복 이스케이프가 특히 잘 발생함)
+function collapseDoubleEscaped(s: string): string {
+  let cur = s;
+  for (let i = 0; i < 5; i++) {
+    const next = cur.replace(/&amp;(amp|lt|gt|quot|#39|nbsp);/gi, '&$1;');
+    if (next === cur) break;
+    cur = next;
+  }
+  return cur;
+}
+
+// 서식 없는 붙여넣기(클립보드에 HTML이 없어 평문만 들어온 경우) 등으로 <b> <div> 같은
+// 태그 문자 자체가 통째로 이스케이프되어 저장되면(&lt;b&gt;...&lt;/b&gt;) 화면에 굵게가 아니라
+// "<b>" 글자 그대로 노출됨. 속성이 없는 단순 서식 태그는 실제 태그로 되돌려 서식이 살아나게
+// 함 — 이후 sanitizeRichText(DOMPurify)가 다시 한 번 안전하게 걸러내므로 보안상 문제 없음
+const SIMPLE_HEALABLE_TAGS = ['b', 'strong', 'i', 'em', 'u', 's', 'div', 'p', 'ul', 'ol', 'li', 'blockquote', 'br'];
+function healEscapedSimpleTags(s: string): string {
+  const pattern = new RegExp(`&lt;(\\/?)(${SIMPLE_HEALABLE_TAGS.join('|')})\\s*&gt;`, 'gi');
+  return s.replace(pattern, '<$1$2>');
+}
+
+// 리치 에디터 도입 이전에 일반 텍스트(줄바꿈 포함)로 저장된 설명과 호환 — 태그나 엔티티가
+// 전혀 없으면 순수 평문으로 간주해 이스케이프 후 줄바꿈만 <br>로 변환, 하나라도 있으면(태그든
+// 엔티티든) 이미 처리된 HTML로 보고 다시 이스케이프하지 않고 그대로 정제
 export function toDisplayHtml(raw: string): string {
-  const html = !/<[a-z][\s\S]*>/i.test(raw)
-    ? raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
-    : sanitizeRichText(raw);
+  const normalized = healEscapedSimpleTags(collapseDoubleEscaped(raw));
+  const looksLikeHtml = /<[a-z][\s\S]*>/i.test(normalized) || /&(amp|lt|gt|quot|#39|nbsp);/i.test(normalized);
+  const html = !looksLikeHtml
+    ? normalized.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+    : sanitizeRichText(normalized);
   const wrap = document.createElement('div');
   wrap.innerHTML = html;
   linkifyPlainUrls(wrap);

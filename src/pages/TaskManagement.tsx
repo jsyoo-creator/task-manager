@@ -1202,8 +1202,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <span />
           {tableCols.flatMap(col => {
             if (col.kind === 'custom') {
+              // select 타입은 값이 폭 전체를 채우는 뱃지로 나오므로 라벨도 가운데 정렬해 맞춤
+              const isBadge = col.cf.type === 'select';
               return [
-                <div key={col.cf.id} className="flex items-center select-none pl-2">
+                <div key={col.cf.id} className={`flex items-center select-none ${isBadge ? 'justify-center' : 'pl-2'}`}>
                   <span>{col.cf.label}</span>
                 </div>,
               ];
@@ -1216,8 +1218,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             if (fc.key === 'weeklyHours') {
               return [<span key="h-total" className="text-center">합계</span>];
             }
+            // 유형/상태/파트는 값이 폭 전체를 채우는 뱃지로 나오므로 라벨도 가운데 정렬해 맞춤
+            const isBadge = fc.key === 'type' || fc.key === 'status' || fc.key === 'category';
             return [
-              <div key={fc.key} className="flex items-center select-none pl-2">
+              <div key={fc.key} className={`flex items-center select-none ${isBadge ? 'justify-center' : 'pl-2'}`}>
                 <span>{hLabel}</span>
               </div>,
             ];

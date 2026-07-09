@@ -193,7 +193,7 @@ export default function TaskDetailPanel({
   const builtinFields = resolveBuiltinFields(formConfig);
   const bfVisible = (key: BuiltinFieldKey) => {
     const fc = builtinFields.find(f => f.key === key);
-    return !fc || fc.showIn !== 'list';
+    return !fc || (fc.enabled && fc.showIn !== 'list');
   };
   const statusConfigs = resolveStatusConfigs(formConfig);
   const typeField = builtinFields.find(f => f.key === 'type');

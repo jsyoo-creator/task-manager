@@ -1202,10 +1202,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <span />
           {tableCols.flatMap(col => {
             if (col.kind === 'custom') {
-              // select 타입은 값이 폭 전체를 채우는 뱃지로 나오므로 라벨도 가운데 정렬해 맞춤
-              const isBadge = col.cf.type === 'select';
               return [
-                <div key={col.cf.id} className={`flex items-center select-none ${isBadge ? 'justify-center' : 'pl-2'}`}>
+                <div key={col.cf.id} className="flex items-center justify-center select-none">
                   <span>{col.cf.label}</span>
                 </div>,
               ];
@@ -1218,10 +1216,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             if (fc.key === 'weeklyHours') {
               return [<span key="h-total" className="text-center">합계</span>];
             }
-            // 유형/상태/파트는 값이 폭 전체를 채우는 뱃지로 나오므로 라벨도 가운데 정렬해 맞춤
-            const isBadge = fc.key === 'type' || fc.key === 'status' || fc.key === 'category';
             return [
-              <div key={fc.key} className={`flex items-center select-none ${isBadge ? 'justify-center' : 'pl-2'}`}>
+              <div key={fc.key} className="flex items-center justify-center select-none">
                 <span>{hLabel}</span>
               </div>,
             ];
@@ -1762,7 +1758,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   );
                 })() : isSelectable ? (
                   <div className="relative">
-                    <span className="text-xs text-gray-700 truncate block pl-2 pr-3">{val || '-'}</span>
+                    <span className="text-xs text-gray-700 truncate block text-center">{val || '-'}</span>
                     {canManage && (
                       <select value={val}
                         onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
@@ -1776,16 +1772,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   val
                     ? <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
-                        className="text-xs text-blue-500 hover:text-blue-700 truncate block max-w-full pl-2">{val}</a>
-                    : <span className="text-xs text-gray-400 pl-2">-</span>
+                        className="text-xs text-blue-500 hover:text-blue-700 truncate block text-center">{val}</a>
+                    : <span className="text-xs text-gray-400 block text-center">-</span>
                 ) : cfType === 'date' ? (
-                  <div className="pl-2">
-                    <DatePicker compact value={val}
-                      onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
-                      disabled={!canManage} />
-                  </div>
+                  <DatePicker compact value={val}
+                    onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
+                    disabled={!canManage} />
                 ) : (
-                  <span className="text-xs text-gray-700 truncate block pl-2">{val || '-'}</span>
+                  <span className="text-xs text-gray-700 truncate block text-center">{val || '-'}</span>
                 )}
               </div>
             ];
@@ -1915,8 +1909,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'receiver') {
             if (fc.customType === 'select' && fc.options?.length) {
               return [
-                <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                  <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.receiver || '-'}</span>
+                <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-gray-700 truncate">{task.receiver || '-'}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                   {canManage && (
                     <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
@@ -1938,7 +1932,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const ropts = rbase.includes(rcvrVal) ? rbase : (rcvrVal ? [rcvrVal, ...rbase] : rbase);
             return [
-              <div key="receiver" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+              <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
                 <span className="text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
                 {canManage && (
@@ -1954,8 +1948,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'assignee') {
             if (fc.customType === 'select' && fc.options?.length) {
               return [
-                <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                  <span className="text-xs text-gray-700 truncate flex-1 min-w-0">{task.assignee || '-'}</span>
+                <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-gray-700 truncate">{task.assignee || '-'}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                   {canManage && (
                     <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
@@ -1976,7 +1970,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const aopts = abase.includes(asgnVal) ? abase : (asgnVal ? [asgnVal, ...abase] : abase);
             return [
-              <div key="assignee" className="relative flex items-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+              <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
                 <span className="text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
                 {canManage && (
@@ -1992,7 +1986,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'taskMonth') return [
             <div key="taskMonth" onClick={e => e.stopPropagation()}>
               {canManage ? (
-                <select className="bg-transparent border-none focus:outline-none cursor-pointer text-xs text-gray-600 w-full"
+                <select className="bg-transparent border-none focus:outline-none cursor-pointer text-xs text-gray-600 w-full text-center"
                   value={task.taskMonth ?? ''}
                   onChange={e => onUpdate(task.id, { taskMonth: e.target.value })}>
                   <option value="">-</option>
@@ -2003,19 +1997,19 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   })}
                 </select>
               ) : (
-                <span className="text-xs text-gray-600">
+                <span className="text-xs text-gray-600 block text-center">
                   {task.taskMonth ? `${parseInt(task.taskMonth.slice(5))}월` : '-'}
                 </span>
               )}
             </div>
           ];
           if (fc.key === 'startDate') return [
-            <div key="startDate" className="pl-2" onClick={e => e.stopPropagation()}>
+            <div key="startDate" onClick={e => e.stopPropagation()}>
               <DatePicker compact value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage} />
             </div>
           ];
           if (fc.key === 'endDate') return [
-            <div key="endDate" className="pl-2" onClick={e => e.stopPropagation()}>
+            <div key="endDate" onClick={e => e.stopPropagation()}>
               <DatePicker compact value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />
             </div>
           ];

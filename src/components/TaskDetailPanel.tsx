@@ -647,9 +647,10 @@ export default function TaskDetailPanel({
             };
             const row1Count = (showTaskMonth ? 1 : 0) + row1Fields.length;
             if (row1Count === 0) return null;
-            const row1Cols = row1Count === 1 ? 'grid-cols-1' : row1Count === 2 ? 'grid-cols-2' : 'grid-cols-3';
+            // 컬럼 수를 항상 3으로 고정 — 활성화된 필드 수에 따라 grid-cols를 바꾸면
+            // 필드가 1~2개뿐인 팀에서 값이 줄 전체로 늘어나 보여 팀마다 다르게 보임
             return (
-              <div className={`grid ${row1Cols} gap-x-3 py-2.5 border-b border-gray-100`}>
+              <div className="grid grid-cols-3 gap-x-3 py-2.5 border-b border-gray-100">
                 {showTaskMonth && (
                   <div>
                     <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">월</p>
@@ -681,9 +682,9 @@ export default function TaskDetailPanel({
             const showAssigneeCol = bfVisible('assignee');
             const row2Count = (showCategory ? 1 : 0) + (showReceiverCol ? 1 : 0) + (showAssigneeCol ? 1 : 0);
             if (row2Count === 0) return null;
-            const row2Cols = row2Count === 1 ? 'grid-cols-1' : row2Count === 2 ? 'grid-cols-2' : 'grid-cols-3';
+            // 컬럼 수를 항상 3으로 고정 — 위 행1과 동일한 이유
             return (
-          <div className={`grid ${row2Cols} gap-x-3 py-2.5 border-b border-gray-100`}>
+          <div className="grid grid-cols-3 gap-x-3 py-2.5 border-b border-gray-100">
             {showCategory && (
               <div>
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('category')}</p>

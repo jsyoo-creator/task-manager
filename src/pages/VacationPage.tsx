@@ -112,14 +112,24 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     [teamMembers, vacations, yearPrefix]
   );
 
+  // 이름에 "PL"이 붙은 사람이 각 직군에서 1번, 나머지는 가나다순
+  const isPLName = (name?: string) => !!name && /(?:^|\s)PL$/.test(name.trim());
+  const sortByNameWithPLFirst = (items: typeof memberStats) =>
+    [...items].sort((a, b) => {
+      const aPL = isPLName(a.user.displayName);
+      const bPL = isPLName(b.user.displayName);
+      if (aPL !== bPL) return aPL ? -1 : 1;
+      return (a.user.displayName || '').localeCompare(b.user.displayName || '', 'ko');
+    });
+
   // 직군별 그룹 — 기획/디자인/퍼블 순서, 직군 미지정자는 마지막
   const memberStatsByDept = useMemo(() => {
     const groups: { department: string; items: typeof memberStats }[] = [];
     DEPARTMENTS.forEach(dept => {
-      const items = memberStats.filter(m => m.user.department === dept);
+      const items = sortByNameWithPLFirst(memberStats.filter(m => m.user.department === dept));
       if (items.length) groups.push({ department: dept, items });
     });
-    const rest = memberStats.filter(m => !m.user.department);
+    const rest = sortByNameWithPLFirst(memberStats.filter(m => !m.user.department));
     if (rest.length) groups.push({ department: '미지정', items: rest });
     return groups;
   }, [memberStats]);

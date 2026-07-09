@@ -559,7 +559,13 @@ function App() {
   const { tasks: allProjectTasksForSupport } = useAllTasks(selectedTeam?.isSupportTeam ? projectId : '');
   const supportCrossTeamData = useMemo(() => {
     if (!selectedTeam?.isSupportTeam) return { tasks: [] as Task[], subtasks: [] as SubTask[] };
-    const memberNames = new Set(teamMembers.map(m => m.name));
+    // teamMembers(선택적 소속까지 포함하는 넓은 판정)를 쓰면, 우선선택 팀이 없는 사람이
+    // selectedTeamIds에 지원팀을 여러 개 걸어둔 경우 그 지원팀들 전부에 중복 노출됨.
+    // 이 기능은 "내가 우선선택(priority)한 지원팀"에서만 보여야 하므로 딱 이 팀을
+    // 우선선택한 사람만 포함하도록 엄격하게 판정.
+    const memberNames = new Set(
+      allUsers.filter(u => getDefaultTeamId(u) === activeTeamId).map(u => u.displayName)
+    );
     if (memberNames.size === 0) return { tasks: [] as Task[], subtasks: [] as SubTask[] };
     const resultTasks: Task[] = [];
     const resultSubtasks: SubTask[] = [];
@@ -578,7 +584,8 @@ function App() {
       });
     });
     return { tasks: resultTasks, subtasks: resultSubtasks };
-  }, [selectedTeam, teams, activeTeamId, teamMembers, allProjectTasksForSupport]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeam, teams, activeTeamId, allUsers, activeWorkplaceId, allProjectTasksForSupport]);
 
   // 캘린더 전용 서브태스크: task 파트의 별도 설정 우선, 없으면 팀 기본, 타입 없으면 fallback
   const calendarSubtasks = useMemo(

@@ -349,6 +349,15 @@ function App() {
 
   const unreadNoticeCount = teamNotices.filter(n => !readNoticeIds.has(n.id)).length + totalUnreadDiscussions;
 
+  // 팀별 안 읽은 공지 수 — 커뮤니티 페이지 내 팀 탭에 배지로 표시
+  const unreadNoticeCountByTeam = useMemo(() => {
+    const map: Record<string, number> = {};
+    teamNotices.forEach(n => {
+      if (!readNoticeIds.has(n.id)) map[n.teamId] = (map[n.teamId] ?? 0) + 1;
+    });
+    return map;
+  }, [teamNotices, readNoticeIds]);
+
   // activeTeamId 유효성 검사 — 선택 팀 목록이나 현재 근무지의 팀 목록이 바뀔 때 보정.
   // teams는 activeWorkplaceId 기준으로 로드되므로, 근무지를 전환해 teams가 새로 로드될 때도
   // 이 effect가 다시 실행되어 그 근무지의 기본(★) 팀으로 이동한다.
@@ -902,7 +911,7 @@ function App() {
                 onPermanentDeleteSubtask={permanentlyDeleteSubtask}
               />
             )} />
-            <Route path="/board" element={!menuEnabled('/board') ? <Navigate to="/" replace /> : (appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} canManageAiTools={permissions.canManageAiTools} /> : null)} />
+            <Route path="/board" element={!menuEnabled('/board') ? <Navigate to="/" replace /> : (appUser ? <BoardPage appUser={appUser} teams={teams} onReadNotice={markNoticeRead} unreadNoticeCountByTeam={unreadNoticeCountByTeam} canSetNotice={permissions.canSetNotice} canManageBoard={permissions.canManageBoard} canManageAiTools={permissions.canManageAiTools} /> : null)} />
             <Route path="/accounts" element={
               permissions.canViewAccounts && menuEnabled('/accounts')
                 ? <AccountInfoPage allUsers={allUsers} teams={teams} profileFields={profileFields} />

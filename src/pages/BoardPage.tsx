@@ -480,12 +480,13 @@ interface Props {
   appUser: AppUser;
   teams: Team[];
   onReadNotice?: (postId: string) => void;
+  unreadNoticeCountByTeam?: Record<string, number>;
   canSetNotice: boolean;
   canManageBoard: boolean;
   canManageAiTools: boolean;
 }
 
-export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, canManageBoard, canManageAiTools }: Props) {
+export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCountByTeam, canSetNotice, canManageBoard, canManageAiTools }: Props) {
   const userTeams = teams.filter(t => appUser.selectedTeamIds?.includes(t.id));
 
   // 팀 탭 순서: 우선 표시 팀(defaultTeamIdByWorkplace)으로 지정된 팀을 맨 앞으로
@@ -579,20 +580,28 @@ export default function BoardPage({ appUser, teams, onReadNotice, canSetNotice, 
               <Sparkles size={13} />
               <span>AI 툴 리스트</span>
             </button>
-            {orderedUserTeams.map(t => (
-              <button
-                key={t.id}
-                onClick={() => handleTeamChange(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
-                  t.id === activeView
-                    ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
-                }`}
-              >
-                <span>{t.emoji}</span>
-                <span>{t.name}</span>
-              </button>
-            ))}
+            {orderedUserTeams.map(t => {
+              const unread = unreadNoticeCountByTeam?.[t.id] ?? 0;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleTeamChange(t.id)}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all ${
+                    t.id === activeView
+                      ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                  }`}
+                >
+                  <span>{t.emoji}</span>
+                  <span>{t.name}</span>
+                  {unread > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                      {unread > 9 ? '9+' : unread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

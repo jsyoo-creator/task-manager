@@ -69,6 +69,25 @@ export function useTasks(projectId: string, teamId: string | null) {
   return { tasks, loading, addTask, updateTask, deleteTask, cleanupOrphanTasks };
 }
 
+// 지원팀 위클리에서 "다른 팀 업무에 기록된 지원팀 인원의 시간"을 찾아오려면
+// 근무지당 1개인 프로젝트 전체(모든 팀)의 tasks가 필요함 — teamId 필터 없이 projectId로만 조회.
+// 지원팀 화면일 때만 조건부로 구독(projectId를 빈 문자열로 넘기면 비활성화)해 평소엔 비용이 없게 함.
+export function useAllTasks(projectId: string) {
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    if (!projectId) { setTasks([]); return; }
+    const q = query(collection(db, 'tasks'), where('projectId', '==', projectId));
+    const unsub = onSnapshot(q,
+      snap => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task))),
+      err => console.error('allTasks:', err)
+    );
+    return unsub;
+  }, [projectId]);
+
+  return { tasks };
+}
+
 export function useSubTasks(taskId: string) {
   const [subtasks, setSubtasks] = useState<SubTask[]>([]);
 

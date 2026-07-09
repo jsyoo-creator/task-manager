@@ -24,7 +24,7 @@ import { useAiTools } from '../hooks/useAiTools';
 import { useDiscussionUnreadCounts } from '../hooks/useDiscussionRead';
 import SettingsPage from '../pages/SettingsPage';
 import { useProjects } from '../hooks/useProjects';
-import { useTasks } from '../hooks/useTasks';
+import { useTasks, useAllTasks } from '../hooks/useTasks';
 import { useMembers } from '../hooks/useMembers';
 import { useVacations } from '../hooks/useVacations';
 import { useProfileFields } from '../hooks/useProfileFields';
@@ -37,7 +37,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import { db } from '../lib/firebase';
@@ -527,22 +527,6 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeam?.subTaskTypes, activeParts, teamMembers, teamAssignees]);
 
-  // SubTaskType ID → 이름 맵 (팀 + 파트 전체)
-  const subTaskTypeMap = useMemo(() => {
-    const map = new Map<string, string>();
-    selectedTeam?.subTaskTypes?.forEach(t => map.set(t.id, t.name));
-    activeParts.forEach(p => p.subTaskTypes?.forEach(t => map.set(t.id, t.name)));
-    return map;
-  }, [selectedTeam, activeParts]);
-
-  // SubTaskType ID → 순서 인덱스 (subTaskTypes 정의 순서 유지용)
-  const subTaskTypeOrder = useMemo(() => {
-    const map = new Map<string, number>();
-    let idx = 0;
-    selectedTeam?.subTaskTypes?.forEach(t => map.set(t.id, idx++));
-    activeParts.forEach(p => p.subTaskTypes?.forEach(t => { if (!map.has(t.id)) map.set(t.id, idx++); }));
-    return map;
-  }, [selectedTeam?.subTaskTypes, activeParts]);
 
   // 캘린더 표시 여부 맵 (showInCalendar !== false 인 SubTaskType ID)
   // 파트에 별도 subTaskTypes가 있으면 파트 설정 우선, 없으면 팀 기본 (SettingsPage 로직과 동일)
@@ -563,94 +547,38 @@ function App() {
 
   // task.subTaskData 내장 데이터 → SubTask 배열로 변환 (Firestore subtasks 컬렉션 미사용)
   // 파트별 별도 타입 우선, 없으면 팀 기본 타입 사용 (설정 페이지 로직과 동일)
-  const subtasks = useMemo<SubTask[]>(() => {
-    const reviewStatusToTaskStatus = (rs: string): SubTask['status'] => {
-      if (rs === '검수 완료') return '완료';
-      if (rs === '검수 중') return '진행 중';
-      return '진행 전';
-    };
-    return filteredTasks.flatMap(task => {
-      const taskPartObj = activeParts.find(p => p.name === task.category);
-      const plMainType = task.plTask
-        ? (selectedTeam?.plMainTaskTypes ?? []).find(m => task.plSelectedTypes?.includes(m.id))
-        : undefined;
-      let validTypes: Array<{ id: string; name: string }> | null | undefined;
-      if (task.plTask) {
-        validTypes = plMainType?.subFields ?? [];
-      } else {
-        validTypes = taskPartObj?.subTaskTypes ?? selectedTeam?.subTaskTypes;
-      }
-      const validTypeIds = validTypes ? new Set(validTypes.map(t => t.id)) : null;
+  const subtasks = useMemo<SubTask[]>(
+    () => deriveSubtasksForTeam(filteredTasks, selectedTeam, tasks),
+    [filteredTasks, selectedTeam, tasks]
+  );
 
-      const taskNameMap = new Map<string, string>();
-      if (task.plTask) {
-        plMainType?.subFields?.forEach(f => taskNameMap.set(f.id, f.name));
-      } else {
-        selectedTeam?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
-        taskPartObj?.subTaskTypes?.forEach(t => taskNameMap.set(t.id, t.name));
-      }
-
-      return Object.entries(task.subTaskData ?? {})
-        .filter(([key]) => !validTypeIds || validTypeIds.has(key))
-        .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
-        .flatMap(([key, entry]) => {
-          // PL review 타입: 체크된 항목별로 개별 SubTask 생성
-          const subField = plMainType?.subFields?.find(f => f.id === key);
-          if (subField?.fieldType === 'review') {
-            const checkedItems = (entry.checkedItems ?? []).filter(id =>
-              (entry.reviewDates ?? {})[id]?.startDate
-            );
-            return checkedItems.map(itemId => {
-              const reviewTask = tasks.find(t => t.id === itemId);
-              const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
-              const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
-              const itemTotalHours = Object.values(itemWeeklyHours).reduce((a: number, b: number) => a + b, 0);
-              const rs = (entry.reviewStatus ?? {})[itemId] ?? '검수 전';
-              return {
-                id: `${task.id}__${key}__${itemId}`,
-                taskId: task.id,
-                projectId: task.projectId ?? '',
-                title: reviewTask?.title ?? itemId,
-                category: task.category,
-                type: task.type,
-                status: reviewStatusToTaskStatus(rs),
-                assignee: task.assignee ?? task.receiver ?? '',
-                receiver: '',
-                startDate: itemDates.startDate ?? '',
-                endDate: itemDates.endDate ?? '',
-                weeklyHours: itemWeeklyHours,
-                totalHours: itemTotalHours,
-                substituteWeeklyHours: undefined,
-                substituteTotalHours: undefined,
-                revisionLevel: 0,
-                createdAt: task.createdAt,
-              };
-            });
-          }
-
-          // 일반 엔트리
-          return [{
-            id: `${task.id}__${key}`,
-            taskId: task.id,
-            projectId: task.projectId ?? '',
-            title: taskNameMap.get(key) ?? key,
-            category: task.category,
-            type: task.type,
-            status: (entry.status || '진행 전') as SubTask['status'],
-            assignee:  entry.assignee ?? '',
-            receiver:  '',
-            startDate: entry.startDate ?? '',
-            endDate:   entry.endDate   ?? '',
-            weeklyHours: entry.weeklyHours,
-            totalHours:  entry.totalHours,
-            substituteWeeklyHours: entry.substituteWeeklyHours,
-            substituteTotalHours:  entry.substituteTotalHours,
-            revisionLevel: 0,
-            createdAt: task.createdAt,
-          }];
-        });
+  // 지원팀 위클리: 지원팀 인원이 "다른 팀"의 세부업무에서 담당자/대무자로 시간을 입력한 경우,
+  // 그 시간이 원본(다른) 팀 위클리에만 보이던 것을 지원팀 자신의 위클리에도 보이게 함.
+  // 같은 근무지(프로젝트 1개)의 모든 팀 tasks를 조건부로 불러와, 원본 팀 설정 기준으로 이름을
+  // 올바르게 붙인 뒤 지원팀 멤버가 담당/대무인 항목만 걸러 병합한다.
+  const { tasks: allProjectTasksForSupport } = useAllTasks(selectedTeam?.isSupportTeam ? projectId : '');
+  const supportCrossTeamData = useMemo(() => {
+    if (!selectedTeam?.isSupportTeam) return { tasks: [] as Task[], subtasks: [] as SubTask[] };
+    const memberNames = new Set(teamMembers.map(m => m.name));
+    if (memberNames.size === 0) return { tasks: [] as Task[], subtasks: [] as SubTask[] };
+    const resultTasks: Task[] = [];
+    const resultSubtasks: SubTask[] = [];
+    teams.filter(t => t.id !== activeTeamId).forEach(otherTeam => {
+      const otherTeamTasks = allProjectTasksForSupport.filter(t => t.teamId === otherTeam.id && !t.deletedAt);
+      if (otherTeamTasks.length === 0) return;
+      const otherTeamTaskMap = new Map(otherTeamTasks.map(t => [t.id, t]));
+      const derived = deriveSubtasksForTeam(otherTeamTasks, otherTeam, allProjectTasksForSupport, `[${otherTeam.name}]`);
+      derived.forEach(s => {
+        const [, subKey] = s.id.split('__');
+        const substitute = otherTeamTaskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
+        if (!memberNames.has(s.assignee) && !(substitute && memberNames.has(substitute))) return;
+        resultSubtasks.push(s);
+        const parentTask = otherTeamTaskMap.get(s.taskId);
+        if (parentTask && !resultTasks.some(t => t.id === parentTask.id)) resultTasks.push(parentTask);
+      });
     });
-  }, [filteredTasks, subTaskTypeOrder, subTaskTypeMap, activeParts, selectedTeam, tasks]);
+    return { tasks: resultTasks, subtasks: resultSubtasks };
+  }, [selectedTeam, teams, activeTeamId, teamMembers, allProjectTasksForSupport]);
 
   // 캘린더 전용 서브태스크: task 파트의 별도 설정 우선, 없으면 팀 기본, 타입 없으면 fallback
   const calendarSubtasks = useMemo(
@@ -909,7 +837,7 @@ function App() {
               <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} mainTaskEndDateShow={selectedTeam?.mainTaskEndDateShow} mainTaskEndDateColor={selectedTeam?.mainTaskEndDateColor} plShowInCalendar={selectedTeam?.plShowInCalendar} />
             )} />
             <Route path="/weekly" element={!menuEnabled('/weekly') ? <Navigate to="/" replace /> : (
-              <WeeklyPage tasks={filteredTasks} subtasks={subtasks} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} />
+              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...subtasks, ...supportCrossTeamData.subtasks]} members={members} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} />
             )} />
             <Route path="/vacation" element={!menuEnabled('/vacation') ? <Navigate to="/" replace /> : (
               <VacationPage

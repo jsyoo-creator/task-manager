@@ -1318,7 +1318,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                     {renderHeaderCols(line1Cols)}
                   </div>
                   {line2Cols.length > 0 && (
-                    <div className="overflow-x-auto">
+                    <div className="tm-line2-scroll overflow-x-auto pb-1.5">
                       <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                         {renderHeaderCols(line2Cols)}
                       </div>
@@ -2174,7 +2174,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   {titleElements}
                 </div>
                 {restElements.length > 0 && (
-                  <div className="min-w-0 overflow-x-auto">
+                  <div className="tm-line2-scroll min-w-0 overflow-x-auto pb-1.5">
                     <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                       {restElements}
                     </div>

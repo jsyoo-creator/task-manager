@@ -429,13 +429,21 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   }, [parts, formConfig]);
 
   const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  // '-' 같은 미입력 표시나 파싱 불가능한 값은 대상에서 제외 — 실제로 변환 가능한
+  // (엑셀 시리얼 숫자 등) 값만 "고장난" 것으로 취급해야 버튼이 0건이 될 때까지 사라진다.
+  const isFixableDateValue = (v: string) => {
+    if (!v || ISO_DATE_RE.test(v)) return false;
+    const converted = parseExcelDateValue(v, yearFilter);
+    return !!converted && converted !== v;
+  };
   const brokenDateTasks = useMemo(() => {
     return tasks.filter(t => {
       const ids = partDateFieldIds.get(t.category ?? '');
       if (!ids || ids.size === 0 || !t.customFields) return false;
-      return Object.entries(t.customFields).some(([k, v]) => ids.has(k) && v && !ISO_DATE_RE.test(String(v)));
+      return Object.entries(t.customFields).some(([k, v]) => ids.has(k) && isFixableDateValue(String(v ?? '')));
     });
-  }, [tasks, partDateFieldIds]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, partDateFieldIds, yearFilter]);
 
   const [fixingDateFields, setFixingDateFields] = useState(false);
   const [dateFixMsg, setDateFixMsg] = useState('');
@@ -452,9 +460,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         if (!ids || !t.customFields) continue;
         const patch: Record<string, string> = {};
         Object.entries(t.customFields).forEach(([k, v]) => {
-          if (ids.has(k) && v && !ISO_DATE_RE.test(String(v))) {
-            const converted = parseExcelDateValue(v, yearFilter);
-            if (converted) patch[k] = converted;
+          if (ids.has(k) && isFixableDateValue(String(v ?? ''))) {
+            patch[k] = parseExcelDateValue(v, yearFilter);
           }
         });
         if (Object.keys(patch).length > 0) {

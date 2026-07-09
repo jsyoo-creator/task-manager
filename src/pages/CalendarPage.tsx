@@ -158,6 +158,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const [editState, setEditState] = useState<EditState | null>(null);
   const [hoursRaw, setHoursRaw] = useState<Record<string, string>>({});
   const [newMemoText, setNewMemoText] = useState('');
+  const [onlyMe, setOnlyMe] = useState(false);
+  const effectiveSeeAll = canSeeAll && !onlyMe;
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
@@ -199,13 +201,13 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     subtasks.filter(s => {
       if (!s.endDate) return false;
       if (activeCategory !== 'all' && s.category !== activeCategory) return false;
-      if (canSeeAll) return true;
+      if (effectiveSeeAll) return true;
       if (s.assignee === currentUserName) return true;
       const [, subKey] = s.id.split('__');
       const substitute = taskMap.get(s.taskId)?.subTaskData?.[subKey]?.substitute;
       return substitute === currentUserName;
     }),
-    [subtasks, activeCategory, canSeeAll, currentUserName, taskMap]
+    [subtasks, activeCategory, effectiveSeeAll, currentUserName, taskMap]
   );
 
   const itemsForDay = (day: number) => {
@@ -448,6 +450,26 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
               <ChevronRight size={15} />
             </button>
           </div>
+          {canSeeAll && (
+            <div className="flex items-center gap-1 p-1 rounded-[12px] bg-gray-100 border border-black/6 backdrop-blur-sm">
+              <button
+                onClick={() => setOnlyMe(false)}
+                className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold whitespace-nowrap transition-all ${
+                  !onlyMe
+                    ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >전체보기</button>
+              <button
+                onClick={() => setOnlyMe(true)}
+                className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold whitespace-nowrap transition-all ${
+                  onlyMe
+                    ? 'bg-white text-gray-800 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)]'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >내 것만</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -501,7 +523,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                       const badges = tasks
                         .filter(t => t.endDate === dateStr)
                         .filter(t => activeCategory === 'all' || t.category === activeCategory)
-                        .filter(t => canSeeAll || t.assignee === currentUserName || t.receiver === currentUserName)
+                        .filter(t => effectiveSeeAll || t.assignee === currentUserName || t.receiver === currentUserName)
                         .filter(t => !t.plTask || resolvePLShowInCalendar(t.category))
                         .map(t => {
                           const label = resolveEndDateLabel(t.category);

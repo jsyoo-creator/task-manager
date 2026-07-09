@@ -1826,7 +1826,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           </div>
         );
         const actionButtonsCell = (
-          <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3">
+          <div className="flex items-center justify-end gap-2 border-l border-gray-100 pl-3 flex-shrink-0" style={{ width: 110 }}>
             {!task.plTask && (
               <button onClick={e => { e.stopPropagation(); onToggleExpand(); }}
                 title="업무 정보"

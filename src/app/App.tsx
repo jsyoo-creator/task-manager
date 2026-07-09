@@ -430,8 +430,18 @@ function App() {
         .map(u => ({ name: u.displayName, department: u.department }))
     : [];
 
-  // 휴가 표시용: 위와 동일한 기준
-  const vacTeamMembers = selectedTeam ? allUsers.filter(u => isMemberOfTeam(u, selectedTeam.id)) : [];
+  // 휴가 표시용: 지원팀의 "여러 팀 지원" 예외는 적용하지 않고 기본(우선선택) 팀 소속만 인정
+  // (업무 배정용 크로스팀 노출 로직을 휴가 현황에 그대로 적용하면 지원팀 인원이 다른 팀
+  // 휴가 페이지에도 섞여 나오는 문제가 있었음)
+  const isBaseMemberOfTeam = (
+    u: { defaultTeamIdByWorkplace?: Record<string, string>; selectedTeamIds?: string[] },
+    teamId: string
+  ) => {
+    const d = getDefaultTeamId(u);
+    if (!d) return u.selectedTeamIds?.includes(teamId) ?? false;
+    return d === teamId;
+  };
+  const vacTeamMembers = selectedTeam ? allUsers.filter(u => isBaseMemberOfTeam(u, selectedTeam.id)) : [];
   const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
   const teamVacations = vacations.filter(v => vacMemberNames.has(v.memberName));
 

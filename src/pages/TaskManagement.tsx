@@ -152,35 +152,18 @@ function sumFieldTracks(cols: TableCol[]): number {
   return cols.reduce((s, c) => s + fieldTrackWidth(c), 0) + (cols.length - 1) * 12;
 }
 
-// 업무 행(TaskRow): 체크박스/드래그/액션버튼을 그리드 밖(좌우 flex)으로 빼서 2줄 전체 높이
-// 기준으로 세로 중앙 정렬되게 함 — 그 안쪽 "필드 영역"만 그리드로 구성(체크박스/드래그/액션 제외)
+// 업무 행(TaskRow)/헤더: 체크박스/드래그(2줄 모드에서는 월도 함께)를 그리드 밖(좌측 레일)으로
+// 빼서 2줄 전체 높이 기준으로 항상 세로 중앙에 오게 함 — 필드 영역(업무명/나머지)은 그 레일과
+// 무관하게 항상 같은 x 위치에서 시작하므로 줄 사이 들여쓰기를 따로 계산할 필요가 없음
 function buildRowFieldsCols(cols: TableCol[]): string {
   return cols.map(fieldTrackCss).join(' ');
 }
-// line1Cols 중 "업무명" 앞에 오는 필드들(보통 월 하나) — 2번째 줄 맨 앞에 이 필드들과 동일한
-// 폭의 빈 칸을 그대로 끼워 넣어(숫자를 직접 계산하지 않고 같은 트랙 정의를 재사용해) 2번째 줄이
-// 1번째 줄의 "업무명" 시작 위치(제목 앞 파트색 점)와 항상 정확히 맞도록 함
-function line1ColsBeforeTitle(line1Cols: TableCol[]): TableCol[] {
-  const before: TableCol[] = [];
-  for (const col of line1Cols) {
-    if (col.kind === 'builtin' && col.fc.key === 'title') break;
-    before.push(col);
-  }
-  return before;
-}
-function buildRowLine2Cols(line2Cols: TableCol[], line1Cols: TableCol[]): string {
-  const placeholders = line1ColsBeforeTitle(line1Cols).map(fieldTrackCss);
-  return [...placeholders, ...line2Cols.map(fieldTrackCss)].join(' ');
-}
-// 행 전체(체크박스+드래그+필드영역+액션) 최소 폭 — 2줄 모드면 두 줄 중 더 넓은 필드영역 기준
-function buildRowMinWidth(line1Cols: TableCol[], line2Cols: TableCol[], twoLine: boolean): number {
-  const fieldsW1 = sumFieldTracks(line1Cols);
-  const placeholders = line1ColsBeforeTitle(line1Cols);
-  const fieldsW2 = twoLine && line2Cols.length > 0
-    ? sumFieldTracks([...placeholders, ...line2Cols])
-    : 0;
-  const fieldsColWidth = Math.max(fieldsW1, fieldsW2);
-  return 28 + 12 + 18 + 12 + fieldsColWidth + 12 + 110 + 24; // 체크박스+간격+드래그+간격+필드+간격+액션+좌우padding
+// 행/헤더 전체(좌측 레일+필드영역+액션) 최소 폭. 2줄 모드에선 필드영역이 업무명 1개뿐이라
+// (나머지는 2번째 줄에서 자체 스크롤) railWidth만 정확하면 되고, 1줄 모드에선 레일=체크박스+
+// 드래그(46px)로 고정
+function buildRowMinWidth(fieldsCols: TableCol[], railWidth: number): number {
+  const fieldsW = sumFieldTracks(fieldsCols);
+  return railWidth + 12 + fieldsW + 12 + 110 + 24; // 레일+간격+필드영역+간격+액션+좌우padding
 }
 
 const HEADER_LABEL: Partial<Record<string, string>> = {
@@ -680,20 +663,23 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const statusConfigs = resolveStatusConfigs(formConfig);
 
   const currentTeam = teams.find(t => t.id === currentTeamId);
-  // 2줄 구성(월+업무명 1줄 / 나머지 필드 2줄) 사용 여부 — 파트 탭이면 그 파트 오버라이드,
+  // 2줄 구성(업무명만 1번째 줄 / 나머지 필드 2번째 줄) 사용 여부 — 파트 탭이면 그 파트 오버라이드,
   // "전체" 탭이면 팀 기본값만 (팀 설정 > 폼 설정에서 팀/파트별로 개별 설정 가능)
   const activePartForLayout = activeCategory !== 'all' ? parts?.find(p => p.name === activeCategory) : undefined;
   const twoLineMode = resolveTaskListTwoLine(currentTeam, activePartForLayout);
-  // 2줄 모드: 월/업무명만 1번째 줄, 나머지 전부 2번째 줄
-  const line1Cols = twoLineMode ? tableCols.filter(c => c.kind === 'builtin' && (c.fc.key === 'taskMonth' || c.fc.key === 'title')) : tableCols;
+  // 2줄 모드: 체크박스/드래그와 함께 월도 좌측 레일로 빼서 항상 세로 중앙에 오게 하고,
+  // 업무명만 1번째 줄, 나머지 전부 2번째 줄(가로 스크롤은 이 줄에만 걸림)에 배치
+  const monthCol = twoLineMode ? tableCols.find(c => c.kind === 'builtin' && c.fc.key === 'taskMonth') : undefined;
+  const monthColWidth = monthCol ? fieldTrackWidth(monthCol) : 0;
+  const railWidth = 28 + 12 + 18 + (monthCol ? 12 + monthColWidth : 0); // 체크박스+간격+드래그(+간격+월)
+  const line1Cols = twoLineMode ? tableCols.filter(c => c.kind === 'builtin' && c.fc.key === 'title') : tableCols;
   const line2Cols = twoLineMode ? tableCols.filter(c => !(c.kind === 'builtin' && (c.fc.key === 'taskMonth' || c.fc.key === 'title'))) : [];
-  const colTemplate = buildCols(line1Cols);
-  const colMinWidth = buildMinWidth(line1Cols);
-  // 행(TaskRow) 전용 — 체크박스/드래그/액션을 그리드 밖으로 뺀 필드 영역 템플릿
+  const colTemplate = buildCols(tableCols);
+  const colMinWidth = buildMinWidth(tableCols);
+  // 행(TaskRow)/헤더 공용 — 체크박스/드래그(+월)를 그리드 밖으로 뺀 필드 영역 템플릿
   const rowFieldsTemplate1 = buildRowFieldsCols(line1Cols);
-  const rowFieldsTemplate2 = twoLineMode ? buildRowLine2Cols(line2Cols, line1Cols) : '';
-  const rowLine2PlaceholderCount = twoLineMode ? line1ColsBeforeTitle(line1Cols).length : 0;
-  const rowMinWidth = buildRowMinWidth(line1Cols, line2Cols, twoLineMode);
+  const rowFieldsTemplate2 = buildRowFieldsCols(line2Cols);
+  const rowMinWidth = buildRowMinWidth(twoLineMode ? line1Cols : tableCols, twoLineMode ? railWidth : 46);
 
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;
@@ -941,7 +927,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         twoLineMode={twoLineMode}
         rowFieldsTemplate1={rowFieldsTemplate1}
         rowFieldsTemplate2={rowFieldsTemplate2}
-        rowLine2PlaceholderCount={rowLine2PlaceholderCount}
+        monthColWidth={monthColWidth}
         rowMinWidth={rowMinWidth}
         metaFields={resolvedMetaFields}
         formConfig={resolvedFormConfig}
@@ -1282,45 +1268,67 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       <div className="glass-card-noclip overflow-x-auto">
         {/* 헤더 */}
         <div className="text-[11px] text-gray-500 font-semibold bg-black/3 border-b border-black/5">
-          <div className={`grid gap-x-3 px-3 ${twoLineMode ? 'pt-2.5 pb-1' : 'py-2.5'}`}
-            style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
-            {/* 전체선택 체크박스 */}
-            <div className="flex items-center justify-center cursor-pointer"
-              onClick={() => {
-                if (selectedIds.size > 0) setSelectedIds(new Set());
-                else setSelectedIds(new Set(filtered.map(t => t.id)));
-              }}>
-              <div className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center transition-all ${
-                selectedIds.size > 0 && selectedIds.size >= filtered.length
-                  ? 'bg-indigo-600 border-indigo-600'
-                  : selectedIds.size > 0
-                    ? 'border-indigo-400 bg-white'
-                    : 'border-gray-300 bg-white hover:border-indigo-400'
-              }`}>
-                {selectedIds.size > 0 && selectedIds.size >= filtered.length && (
-                  <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                )}
-                {selectedIds.size > 0 && selectedIds.size < filtered.length && (
-                  <div className="w-2 h-0.5 bg-indigo-500 rounded" />
-                )}
-              </div>
-            </div>
-            {/* 드래그핸들 열 헤더 */}
-            <span />
-            {renderHeaderCols(line1Cols)}
-            <span />
-          </div>
-          {twoLineMode && line2Cols.length > 0 && (
-            <div className="flex items-center gap-3 px-3 pb-2.5">
-              <div className="flex-shrink-0" style={{ width: 28 + 12 + 18 }} />
-              <div className="flex-1 min-w-0 overflow-x-auto">
-                <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
-                  {Array.from({ length: rowLine2PlaceholderCount }, (_, i) => <span key={`ph-${i}`} />)}
-                  {renderHeaderCols(line2Cols)}
+          {(() => {
+            const selectAllCheckbox = (
+              <div className="flex items-center justify-center cursor-pointer"
+                onClick={() => {
+                  if (selectedIds.size > 0) setSelectedIds(new Set());
+                  else setSelectedIds(new Set(filtered.map(t => t.id)));
+                }}>
+                <div className={`w-[15px] h-[15px] rounded border-2 flex items-center justify-center transition-all ${
+                  selectedIds.size > 0 && selectedIds.size >= filtered.length
+                    ? 'bg-indigo-600 border-indigo-600'
+                    : selectedIds.size > 0
+                      ? 'border-indigo-400 bg-white'
+                      : 'border-gray-300 bg-white hover:border-indigo-400'
+                }`}>
+                  {selectedIds.size > 0 && selectedIds.size >= filtered.length && (
+                    <svg width="9" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  )}
+                  {selectedIds.size > 0 && selectedIds.size < filtered.length && (
+                    <div className="w-2 h-0.5 bg-indigo-500 rounded" />
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            );
+            if (!twoLineMode) return (
+              <div className="grid gap-x-3 px-3 py-2.5" style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}>
+                {selectAllCheckbox}
+                {/* 드래그핸들 열 헤더 */}
+                <span />
+                {renderHeaderCols(line1Cols)}
+                <span />
+              </div>
+            );
+            // 2줄 모드: 체크박스/드래그/월은 좌측 레일에 둬서 전체 행 높이 기준 세로 중앙에
+            // 오게 하고, 업무명 헤더만 1번째 줄, 나머지는 2번째 줄(자체 스크롤)에 배치
+            return (
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {selectAllCheckbox}
+                  <span style={{ width: 18 }} />
+                  {monthCol && (
+                    <div className="flex items-center justify-center select-none" style={{ width: monthColWidth }}>
+                      <span>{HEADER_LABEL.taskMonth}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
+                    {renderHeaderCols(line1Cols)}
+                  </div>
+                  {line2Cols.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
+                        {renderHeaderCols(line2Cols)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <span className="flex-shrink-0" style={{ width: 110 }} />
+              </div>
+            );
+          })()}
         </div>
 
         {displayFlat.length === 0 && (
@@ -1663,7 +1671,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, rowLine2PlaceholderCount, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1682,7 +1690,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   twoLineMode: boolean;
   rowFieldsTemplate1: string;
   rowFieldsTemplate2: string;
-  rowLine2PlaceholderCount: number;
+  monthColWidth: number;
   rowMinWidth: number;
   metaFields?: MetaField[];
   formConfig?: TeamFormConfig;
@@ -2143,37 +2151,42 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           return [];
         });
 
-        const line1Keys = new Set(['title', 'taskMonth']);
-        const line1Elements = allFieldElements.filter(el => line1Keys.has(String(el.key)));
-        const line2Elements = allFieldElements.filter(el => !line1Keys.has(String(el.key)));
+        const monthElement = twoLineMode ? allFieldElements.find(el => el.key === 'taskMonth') : undefined;
+        const titleElements = twoLineMode ? allFieldElements.filter(el => el.key === 'title') : allFieldElements;
+        const restElements = twoLineMode ? allFieldElements.filter(el => el.key !== 'taskMonth' && el.key !== 'title') : [];
 
-        // 체크박스/드래그/액션버튼은 1번째 줄(월/업무명)과 같은 줄에 둬서 정확히 같은 높이로
-        // 정렬되게 함. 2번째 줄은 별도 줄로, 체크박스+드래그 폭만큼 들여쓰기만 맞춰서 그
-        // 밑에 놓음 — 가로 스크롤은 2번째 줄의 필드 영역에만 걸어서 1번째 줄은 항상 고정.
-        const checkboxDragWidth = 28 + 12 + 18; // checkbox(28) + gap(12) + drag(18)
+        // 2줄 모드: 체크박스/드래그/월은 그리드 밖(좌측 레일)에 둬서 전체 행 높이 기준
+        // 세로 중앙에 오게 함. 업무명만 1번째 줄, 나머지는 2번째 줄(자체 스크롤)에 배치 —
+        // 필드 영역이 레일과 분리돼 있어 2번째 줄이 업무명 시작 위치와 항상 자동으로 맞음.
         return (
-          <div className={`flex flex-col ${twoLineMode ? 'py-2.5 gap-1.5' : 'py-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}>
-            <div className="flex items-center gap-3 px-3 text-sm">
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {checkboxCell}
-                {dragHandleCell}
-              </div>
-              <div className="group/row flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
-                {twoLineMode ? line1Elements : allFieldElements}
-              </div>
-              {actionButtonsCell}
+          <div className={`flex items-center gap-3 px-3 ${twoLineMode ? 'py-2.5' : 'py-3.5'} text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+            style={{ minWidth: rowMinWidth }}>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {checkboxCell}
+              {dragHandleCell}
+              {monthElement && (
+                <div style={{ width: monthColWidth }}>{monthElement}</div>
+              )}
             </div>
-            {twoLineMode && line2Elements.length > 0 && (
-              <div className="flex items-center gap-3 px-3 text-sm">
-                <div className="flex-shrink-0" style={{ width: checkboxDragWidth }} />
-                <div className="flex-1 min-w-0 overflow-x-auto">
-                  <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
-                    {Array.from({ length: rowLine2PlaceholderCount }, (_, i) => <span key={`ph-${i}`} />)}
-                    {line2Elements}
-                  </div>
+            {twoLineMode ? (
+              <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                <div className="group/row grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
+                  {titleElements}
                 </div>
+                {restElements.length > 0 && (
+                  <div className="min-w-0 overflow-x-auto">
+                    <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
+                      {restElements}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="group/row flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
+                {titleElements}
               </div>
             )}
+            {actionButtonsCell}
           </div>
         );
       })()}

@@ -1742,7 +1742,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 {cfType === 'select' ? (() => {
                   const custColor = cf.optionColors?.[val];
                   return (
-                    <div className={`relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
+                    <div className={`relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
                       style={custColor ? { backgroundColor: custColor.bg, color: custColor.text } : undefined}>
                       <span className={`text-xs font-medium truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
                       {canManage && <ChevronDown size={10} className={`flex-shrink-0 ${custColor ? 'opacity-70' : 'text-gray-400'}`} />}
@@ -1806,7 +1806,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       <ChevronDown size={10} className="flex-shrink-0 ml-1" />
                     </div>
                   ) : (
-                    <div className={`flex w-full items-center justify-between px-2 py-0.5 rounded-full text-xs font-medium ${partBadgeCls(partColor(task.category))}`}>
+                    <div className={`flex w-full items-center justify-between pl-2.5 pr-2 py-0.5 rounded-full text-xs font-medium ${partBadgeCls(partColor(task.category))}`}>
                       <span className="truncate">{task.category || '-'}</span>
                       <ChevronDown size={10} className="flex-shrink-0 ml-1" />
                     </div>
@@ -1852,7 +1852,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const typeColor = fc.optionColors?.[task.type];
             if (typeColor) return [
               <div key="type" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer"
+                className="relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer"
                 style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
                 <span className="text-xs font-medium whitespace-nowrap">{task.type}</span>
                 {canManage && <ChevronDown size={10} />}
@@ -1866,7 +1866,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
             return [
               <div key="type" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full rounded-full pl-2 pr-1.5 py-0.5 cursor-pointer bg-gray-100">
+                className="relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer bg-gray-100">
                 <span className="text-xs font-medium text-gray-600 whitespace-nowrap">{task.type || '-'}</span>
                 {canManage && <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />}
                 {canManage && (
@@ -1892,7 +1892,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const text = custColor?.text ?? sc?.text;
             return [
               <div key="status" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full rounded-full pl-2 pr-2 py-0.5 cursor-pointer"
+                className="relative flex items-center justify-between w-full rounded-full pl-2.5 pr-2 py-0.5 cursor-pointer"
                 style={{ backgroundColor: bg, color: text }}>
                 <span className="text-xs font-medium whitespace-nowrap">{effectiveStatus}</span>
                 {canManage && <ChevronDown size={10} />}

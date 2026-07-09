@@ -2175,7 +2175,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         // 헤더에는 2번째 줄용 공용 라벨 행이 없으므로(헤더는 항상 1줄) 각 값 위에 라벨을
         // 함께 표시함(restElementsWithLabels).
         return (
-          <div className={`flex items-center gap-3 px-3 ${twoLineMode ? 'py-2.5' : 'py-3.5'} text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+          <div className={`flex items-center gap-3 px-3 py-3.5 text-sm transition-colors ${isDragging ? 'opacity-40' : ''} ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
             style={{ minWidth: rowMinWidth }}>
             <div className="flex items-center gap-3 flex-shrink-0">
               {checkboxCell}
@@ -2185,12 +2185,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               )}
             </div>
             {twoLineMode ? (
-              <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+              <div className="flex-1 min-w-0 flex flex-col gap-2.5">
                 <div className="group/row grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
                   {titleElements}
                 </div>
                 {restElements.length > 0 && (
-                  <div className="min-w-0 overflow-x-auto py-2">
+                  <div className="min-w-0 overflow-x-auto py-3">
                     <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                       {restElementsWithLabels}
                     </div>

@@ -157,23 +157,28 @@ function sumFieldTracks(cols: TableCol[]): number {
 function buildRowFieldsCols(cols: TableCol[]): string {
   return cols.map(fieldTrackCss).join(' ');
 }
-// 필드 영역 안에서 2번째 줄이 1번째 줄의 "업무명" 시작 위치와 맞도록(체크박스/드래그는
-// 이제 필드 영역 밖에 있으므로 제외), 업무명 앞에 오는 필드(월 등)의 너비+간격만 합산
-function buildRowLine2Indent(line1Cols: TableCol[]): number {
+// line1Cols 중 "업무명" 앞에 오는 필드들(보통 월 하나) — 2번째 줄 맨 앞에 이 필드들과 동일한
+// 폭의 빈 칸을 그대로 끼워 넣어(숫자를 직접 계산하지 않고 같은 트랙 정의를 재사용해) 2번째 줄이
+// 1번째 줄의 "업무명" 시작 위치(제목 앞 파트색 점)와 항상 정확히 맞도록 함
+function line1ColsBeforeTitle(line1Cols: TableCol[]): TableCol[] {
   const before: TableCol[] = [];
   for (const col of line1Cols) {
     if (col.kind === 'builtin' && col.fc.key === 'title') break;
     before.push(col);
   }
-  return before.length === 0 ? 0 : sumFieldTracks(before) + 12;
+  return before;
 }
 function buildRowLine2Cols(line2Cols: TableCol[], line1Cols: TableCol[]): string {
-  return [`${buildRowLine2Indent(line1Cols)}px`, ...line2Cols.map(fieldTrackCss)].join(' ');
+  const placeholders = line1ColsBeforeTitle(line1Cols).map(fieldTrackCss);
+  return [...placeholders, ...line2Cols.map(fieldTrackCss)].join(' ');
 }
 // 행 전체(체크박스+드래그+필드영역+액션) 최소 폭 — 2줄 모드면 두 줄 중 더 넓은 필드영역 기준
 function buildRowMinWidth(line1Cols: TableCol[], line2Cols: TableCol[], twoLine: boolean): number {
   const fieldsW1 = sumFieldTracks(line1Cols);
-  const fieldsW2 = twoLine && line2Cols.length > 0 ? buildRowLine2Indent(line1Cols) + sumFieldTracks(line2Cols) : 0;
+  const placeholders = line1ColsBeforeTitle(line1Cols);
+  const fieldsW2 = twoLine && line2Cols.length > 0
+    ? sumFieldTracks([...placeholders, ...line2Cols])
+    : 0;
   const fieldsColWidth = Math.max(fieldsW1, fieldsW2);
   return 28 + 12 + 18 + 12 + fieldsColWidth + 12 + 110 + 24; // 체크박스+간격+드래그+간격+필드+간격+액션+좌우padding
 }
@@ -732,6 +737,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   // 행(TaskRow) 전용 — 체크박스/드래그/액션을 그리드 밖으로 뺀 필드 영역 템플릿
   const rowFieldsTemplate1 = buildRowFieldsCols(line1Cols);
   const rowFieldsTemplate2 = twoLineMode ? buildRowLine2Cols(line2Cols, line1Cols) : '';
+  const rowLine2PlaceholderCount = twoLineMode ? line1ColsBeforeTitle(line1Cols).length : 0;
   const rowMinWidth = buildRowMinWidth(line1Cols, line2Cols, twoLineMode);
 
   const bottomSortOrder = () =>
@@ -980,6 +986,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         twoLineMode={twoLineMode}
         rowFieldsTemplate1={rowFieldsTemplate1}
         rowFieldsTemplate2={rowFieldsTemplate2}
+        rowLine2PlaceholderCount={rowLine2PlaceholderCount}
         rowMinWidth={rowMinWidth}
         metaFields={resolvedMetaFields}
         formConfig={resolvedFormConfig}
@@ -1696,7 +1703,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, rowLine2PlaceholderCount, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -1715,6 +1722,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   twoLineMode: boolean;
   rowFieldsTemplate1: string;
   rowFieldsTemplate2: string;
+  rowLine2PlaceholderCount: number;
   rowMinWidth: number;
   metaFields?: MetaField[];
   formConfig?: TeamFormConfig;
@@ -2193,6 +2201,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               </div>
               {twoLineMode && line2Elements.length > 0 && (
                 <div className="grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate2 }}>
+                  {Array.from({ length: rowLine2PlaceholderCount }, (_, i) => <span key={`ph-${i}`} />)}
                   {line2Elements}
                 </div>
               )}

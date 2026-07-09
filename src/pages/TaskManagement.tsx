@@ -2191,11 +2191,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               {actionButtonsCell}
             </div>
             {hasLine2Bg && (
-              <div className="px-3 pb-3.5 text-sm bg-[#6C63FF]/[0.02]">
+              <div className="px-3 pb-1 text-sm bg-[#6C63FF]/[0.02]">
                 <div className="flex pt-2">
                   {/* 드래그핸들 시작 위치와 맞춤(체크박스 폭+간격만큼 들여쓰기) */}
                   <div className="flex-shrink-0" style={{ width: 28 + 12 }} />
-                  <div className="flex-1 min-w-0 overflow-x-auto">
+                  {/* 값과 가로 스크롤바 사이 여백을 둬서 스크롤바가 2번째 줄 맨 아래에 오게 함 */}
+                  <div className="flex-1 min-w-0 overflow-x-auto pb-3">
                     <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                       {restElementsWithLabels}
                     </div>

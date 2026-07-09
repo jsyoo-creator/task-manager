@@ -130,11 +130,25 @@ function buildMinWidth(tableCols: TableCol[]): number {
   return w;
 }
 
-// 2줄 구성(월+업무명 1줄 / 나머지 필드 2줄)에서 2번째 줄 전용 컬럼 폭 계산.
-// 체크박스+드래그(46px) 만큼 앞에 빈 칸을 둬 1번째 줄의 업무명 시작 위치와 맞추고,
-// 액션 버튼 칸(110px)은 1번째 줄에만 있으므로 여기선 넣지 않음
-function buildLine2Cols(tableCols: TableCol[]): string {
-  const cols: string[] = ['46px'];
+// 2줄 구성(월+업무명 1줄 / 나머지 필드 2줄)에서 2번째 줄이 1번째 줄의 "업무명" 시작 위치
+// (제목 앞 파트색 점)와 정확히 맞도록, 체크박스·드래그·업무명 앞에 오는 필드(월 등)의
+// 너비+간격(gap-x-3=12px)을 그대로 합산해 앞쪽 빈 칸 크기를 계산
+function buildLine2Indent(line1Cols: TableCol[]): number {
+  let w = 28 + 18; // checkbox + drag handle
+  let gapCount = 2; // checkbox 뒤, drag handle 뒤 간격
+  for (const col of line1Cols) {
+    if (col.kind === 'builtin' && col.fc.key === 'title') break; // 업무명 앞까지만 합산
+    if (col.kind === 'custom') { w += 100; gapCount++; continue; }
+    w += col.fc.width;
+    gapCount++;
+  }
+  return w + gapCount * 12;
+}
+
+// 2줄 구성에서 2번째 줄 전용 컬럼 폭 계산. 액취 버튼 칸(110px)은 1번째 줄에만
+// 있으므로 여기선 넣지 않음
+function buildLine2Cols(tableCols: TableCol[], line1Cols: TableCol[]): string {
+  const cols: string[] = [`${buildLine2Indent(line1Cols)}px`];
   for (const col of tableCols) {
     if (col.kind === 'custom') { cols.push('100px'); continue; }
     const fc = col.fc;
@@ -145,8 +159,8 @@ function buildLine2Cols(tableCols: TableCol[]): string {
   return cols.join(' ');
 }
 
-function buildLine2MinWidth(tableCols: TableCol[]): number {
-  let w = 46;
+function buildLine2MinWidth(tableCols: TableCol[], line1Cols: TableCol[]): number {
+  let w = buildLine2Indent(line1Cols);
   let colCount = 1;
   for (const col of tableCols) {
     if (col.kind === 'custom') { w += 100; colCount++; continue; }
@@ -666,8 +680,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const line2Cols = twoLineMode ? tableCols.filter(c => !(c.kind === 'builtin' && (c.fc.key === 'taskMonth' || c.fc.key === 'title'))) : [];
   const colTemplate = buildCols(line1Cols);
   const colMinWidth = buildMinWidth(line1Cols);
-  const line2Template = twoLineMode ? buildLine2Cols(line2Cols) : '';
-  const line2MinWidth = twoLineMode ? buildLine2MinWidth(line2Cols) : 0;
+  const line2Template = twoLineMode ? buildLine2Cols(line2Cols, line1Cols) : '';
+  const line2MinWidth = twoLineMode ? buildLine2MinWidth(line2Cols, line1Cols) : 0;
 
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;

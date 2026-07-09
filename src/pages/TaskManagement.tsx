@@ -62,6 +62,50 @@ const now = new Date();
 const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
+// 다양한 날짜 형식(엑셀 직렬 숫자 포함) → YYYY-MM-DD 정규화. 엑셀 가져오기와
+// 이미 잘못 저장된 데이터 일괄 복구 양쪽에서 공용으로 사용.
+function parseExcelDateValue(raw: unknown, fallbackYear: number): string {
+  if (raw === null || raw === undefined || raw === '') return '';
+  // Excel 직렬 날짜 (숫자)
+  if (typeof raw === 'number') {
+    const adj = raw > 59 ? raw - 1 : raw; // Excel의 1900년 윤년 버그 보정
+    const d = new Date(Date.UTC(1900, 0, 1) + (adj - 1) * 86400000);
+    if (isNaN(d.getTime()) || d.getFullYear() < 1900) return '';
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  }
+  const s = String(raw).trim();
+  if (!s) return '';
+  // YYYY-MM-DD (정상)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // 순수 숫자 문자열(엑셀 직렬 날짜가 문자열로 저장된 경우)
+  if (/^\d{1,6}(\.\d+)?$/.test(s)) return parseExcelDateValue(Number(s), fallbackYear);
+  // YYYY.MM.DD 또는 YYYY/MM/DD
+  const m1 = s.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})$/);
+  if (m1) return `${m1[1]}-${String(parseInt(m1[2])).padStart(2, '0')}-${String(parseInt(m1[3])).padStart(2, '0')}`;
+  // DD.MM.YYYY (유럽식 점 구분자)
+  const m2 = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (m2) return `${m2[3]}-${String(parseInt(m2[2])).padStart(2, '0')}-${String(parseInt(m2[1])).padStart(2, '0')}`;
+  // DD/MM/YYYY 또는 MM/DD/YYYY (슬래시 구분자)
+  const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m3) {
+    const [a, b, yr] = [parseInt(m3[1]), parseInt(m3[2]), m3[3]];
+    // 앞자리가 12 초과면 확실히 일(day)
+    if (a > 12) return `${yr}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+    return `${yr}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+  }
+  // 한국어: 2024년 1월 18일 또는 1월 18일
+  const m4 = s.match(/(?:(\d{4})년\s*)?(\d{1,2})월\s*(\d{1,2})일/);
+  if (m4) return `${m4[1] ?? fallbackYear}-${String(parseInt(m4[2])).padStart(2, '0')}-${String(parseInt(m4[3])).padStart(2, '0')}`;
+  // 네이티브 Date 파싱 (ISO 등 나머지 형식 폴백)
+  if (s.length >= 8) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1900) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+  return '';
+}
+
 // 기본필드(builtin)와 커스텀필드를 fieldOrder대로 하나의 순서로 합친 컬럼 목록.
 // 목록 테이블은 헤더/행/너비 계산이 모두 이 순서를 따라야 "폼 설정"에서 기본필드
 // 사이로 옮긴 커스텀필드가 실제로도 그 위치에 표시됨.
@@ -373,6 +417,59 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const excelFields = importFields.filter(f => !f.exportExcluded);
   const labelToKey = Object.fromEntries(importFields.map(f => [f.label, f.key]));
 
+  // 파트별 'date' 타입 커스텀 필드 id 집합 — 과거 엑셀 가져오기로 잘못 저장된
+  // 날짜(시리얼 숫자 등) 값을 찾아 일괄 복구하는 데 사용
+  const partDateFieldIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    (parts ?? []).forEach(part => {
+      const merged = part.formConfig ? mergeFormConfig(part.formConfig, formConfig) : formConfig;
+      map.set(part.name, new Set((merged?.customFields ?? []).filter(cf => cf.type === 'date').map(cf => cf.id)));
+    });
+    return map;
+  }, [parts, formConfig]);
+
+  const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const brokenDateTasks = useMemo(() => {
+    return tasks.filter(t => {
+      const ids = partDateFieldIds.get(t.category ?? '');
+      if (!ids || ids.size === 0 || !t.customFields) return false;
+      return Object.entries(t.customFields).some(([k, v]) => ids.has(k) && v && !ISO_DATE_RE.test(String(v)));
+    });
+  }, [tasks, partDateFieldIds]);
+
+  const [fixingDateFields, setFixingDateFields] = useState(false);
+  const [dateFixMsg, setDateFixMsg] = useState('');
+
+  const runDateFieldFix = async () => {
+    if (brokenDateTasks.length === 0 || fixingDateFields) return;
+    if (!window.confirm(`날짜 값이 잘못 저장된 업무 ${brokenDateTasks.length}건을 복구합니다. 계속할까요?`)) return;
+    setFixingDateFields(true);
+    setDateFixMsg('');
+    let fixed = 0;
+    try {
+      for (const t of brokenDateTasks) {
+        const ids = partDateFieldIds.get(t.category ?? '');
+        if (!ids || !t.customFields) continue;
+        const patch: Record<string, string> = {};
+        Object.entries(t.customFields).forEach(([k, v]) => {
+          if (ids.has(k) && v && !ISO_DATE_RE.test(String(v))) {
+            const converted = parseExcelDateValue(v, yearFilter);
+            if (converted) patch[k] = converted;
+          }
+        });
+        if (Object.keys(patch).length > 0) {
+          await onUpdateTask(t.id, { customFields: { ...t.customFields, ...patch } });
+          fixed++;
+        }
+      }
+      setDateFixMsg(`✅ ${fixed}건 복구 완료`);
+    } catch (e) {
+      setDateFixMsg(`❌ 오류: ${String(e)}`);
+    } finally {
+      setFixingDateFields(false);
+    }
+  };
+
   const getExcelHeaders = () =>
     excelFields.length > 0
       ? excelFields.map(f => f.label)
@@ -494,45 +591,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         };
 
         // 다양한 날짜 형식 → YYYY-MM-DD 정규화
-        const parseDate = (raw: unknown): string => {
-          if (raw === null || raw === undefined || raw === '') return '';
-          // Excel 직렬 날짜 (숫자)
-          if (typeof raw === 'number') {
-            const adj = raw > 59 ? raw - 1 : raw; // Excel의 1900년 윤년 버그 보정
-            const d = new Date(Date.UTC(1900, 0, 1) + (adj - 1) * 86400000);
-            if (isNaN(d.getTime()) || d.getFullYear() < 1900) return '';
-            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-          }
-          const s = String(raw).trim();
-          if (!s) return '';
-          // YYYY-MM-DD (정상)
-          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-          // YYYY.MM.DD 또는 YYYY/MM/DD
-          const m1 = s.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})$/);
-          if (m1) return `${m1[1]}-${String(parseInt(m1[2])).padStart(2, '0')}-${String(parseInt(m1[3])).padStart(2, '0')}`;
-          // DD.MM.YYYY (유럽식 점 구분자)
-          const m2 = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-          if (m2) return `${m2[3]}-${String(parseInt(m2[2])).padStart(2, '0')}-${String(parseInt(m2[1])).padStart(2, '0')}`;
-          // DD/MM/YYYY 또는 MM/DD/YYYY (슬래시 구분자)
-          const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-          if (m3) {
-            const [a, b, yr] = [parseInt(m3[1]), parseInt(m3[2]), m3[3]];
-            // 앞자리가 12 초과면 확실히 일(day)
-            if (a > 12) return `${yr}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
-            return `${yr}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
-          }
-          // 한국어: 2024년 1월 18일 또는 1월 18일
-          const m4 = s.match(/(?:(\d{4})년\s*)?(\d{1,2})월\s*(\d{1,2})일/);
-          if (m4) return `${m4[1] ?? yearFilter}-${String(parseInt(m4[2])).padStart(2, '0')}-${String(parseInt(m4[3])).padStart(2, '0')}`;
-          // 네이티브 Date 파싱 (ISO 등 나머지 형식 폴백)
-          if (s.length >= 8) {
-            const d = new Date(s);
-            if (!isNaN(d.getTime()) && d.getFullYear() > 1900) {
-              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            }
-          }
-          return '';
-        };
+        const parseDate = (raw: unknown): string => parseExcelDateValue(raw, yearFilter);
 
         const customFields: Record<string, string> = {};
         if (importFields.length > 0) {
@@ -1005,6 +1064,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         </div>
         <div className="flex items-center gap-2">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
+          {canManage && brokenDateTasks.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={runDateFieldFix}
+                disabled={fixingDateFields}
+                title="엑셀 가져오기로 날짜 필드에 시리얼 숫자 등 잘못된 값이 들어간 업무를 정상 날짜로 복구합니다."
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg,#f59e0b 0%,#d97706 100%)', boxShadow: '0 4px 14px rgba(217,119,6,0.3)' }}>
+                <Info size={14} /> {fixingDateFields ? '복구 중...' : `날짜 필드 복구 (${brokenDateTasks.length})`}
+              </button>
+              {dateFixMsg && <span className="text-xs text-gray-500">{dateFixMsg}</span>}
+            </div>
+          )}
           {parts && parts.length > 0 ? (
             <div className="relative" ref={templateDropRef}>
               <button

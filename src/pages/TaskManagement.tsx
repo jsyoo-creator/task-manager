@@ -362,6 +362,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   })();
   const importFields = (effectiveImportConfig?.filter(f => f.enabled && validExcelKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [])
     .map(f => ({ ...f, label: importBuiltinLabels[f.key] ?? f.label }));
+  // 선택된 파트의 커스텀 필드 중 'date' 타입인 필드 id 집합 — 엑셀 가져오기 시 날짜 정규화 대상 판별용
+  const importDateFieldIds = (() => {
+    const selected = parts?.filter(p => importParts.has(p.name)) ?? [];
+    const partWithConfig = selected.find(p => p.formConfig);
+    const merged = partWithConfig?.formConfig ? mergeFormConfig(partWithConfig.formConfig, formConfig) : formConfig;
+    return new Set((merged?.customFields ?? []).filter(cf => cf.type === 'date').map(cf => cf.id));
+  })();
   // 내보내기용 필드 (enabled + exportExcluded 제외)
   const excelFields = importFields.filter(f => !f.exportExcluded);
   const labelToKey = Object.fromEntries(importFields.map(f => [f.label, f.key]));
@@ -475,13 +482,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           ? Object.fromEntries(importFields.map(f => [f.key, row[f.label] ?? '']))
           : Object.fromEntries(Object.entries(builtinLabels).map(([key, label]) => [key, row[label] ?? '']));
 
-        const customFields: Record<string, string> = {};
-        if (importFields.length > 0) {
-          importFields.forEach(f => {
-            if (!builtinLabels[f.key]) customFields[f.key] = row[f.label] ?? '';
-          });
-        }
-
         const parseMonth = (raw: string): string => {
           const s = raw.trim();
           if (!s) return '';
@@ -533,6 +533,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           }
           return '';
         };
+
+        const customFields: Record<string, string> = {};
+        if (importFields.length > 0) {
+          importFields.forEach(f => {
+            if (!builtinLabels[f.key]) {
+              const raw = row[f.label] ?? '';
+              customFields[f.key] = importDateFieldIds.has(f.key) ? parseDate(raw) : raw;
+            }
+          });
+        }
 
         const statusFc = builtinFields.find(f => f.key === 'status');
         const availableStatuses: string[] = (statusFc?.customType === 'select' && statusFc.options?.length)

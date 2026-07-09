@@ -441,15 +441,6 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
         </div>
         <div className="flex items-center gap-3">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
-          <div className="flex items-center gap-1">
-            <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
-              <ChevronLeft size={15} />
-            </button>
-            <span className="text-sm font-semibold text-gray-700 w-14 text-center">{month + 1}월</span>
-            <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
-              <ChevronRight size={15} />
-            </button>
-          </div>
           {canSeeAll && (
             <div className="flex items-center gap-1 p-1 rounded-[12px] bg-gray-100 border border-black/6 backdrop-blur-sm">
               <button
@@ -470,6 +461,15 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
               >내 것만</button>
             </div>
           )}
+          <div className="flex items-center gap-1">
+            <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
+              <ChevronLeft size={15} />
+            </button>
+            <span className="text-sm font-semibold text-gray-700 w-14 text-center">{month + 1}월</span>
+            <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
+              <ChevronRight size={15} />
+            </button>
+          </div>
         </div>
       </div>
 

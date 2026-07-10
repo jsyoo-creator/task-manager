@@ -3702,6 +3702,10 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
+// 메일 유형(탭)에서 안내 문구를 따로 설정하지 않았을 때 쓰는 기본값
+// (TaskDetailPanel.tsx의 동일 상수와 문구를 맞춰야 함)
+const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
+
 // 받는사람/참조 입력 — 체크박스 목록 대신 칩 입력창 하나로: "@"로 시작하면
 // (근무지 전체) 팀원 검색 드롭다운이 뜨고 이름을 치면 좁혀짐, 쉼표(,)를 누르면
 // 현재 입력을 칩으로 추가. "@"로 시작하지 않은 텍스트(외부 이메일 주소 등)는
@@ -3849,9 +3853,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const currentPreset = presets.find(p => p.id === selectedPresetId) ?? presets[0];
   const [flash, setFlash] = useState(false);
   const doFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1200); };
-  // 탭 이름 입력 — 매 키 입력마다 바로 저장(re-render)하면 한글 조합 중인 입력이
-  // 끊겨 자모가 분리되어 보이는 문제가 있어, 로컬 draft로만 편집하고 blur 시 저장
+  // 탭 이름/안내 문구 입력 — 매 키 입력마다 바로 저장(re-render)하면 한글 조합 중인
+  // 입력이 끊겨 자모가 분리되어 보이는 문제가 있어, 로컬 draft로만 편집하고 blur 시 저장
   const [nameDraft, setNameDraft] = useState('');
+  const [messageDraft, setMessageDraft] = useState('');
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -3860,6 +3865,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
   useEffect(() => {
     setNameDraft(currentPreset?.name ?? '');
+    setMessageDraft(currentPreset?.message ?? DEFAULT_MAIL_MESSAGE);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -3876,6 +3882,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
       name: `탭 ${presets.length + 1}`,
       color: TEAM_COLOR_PRESETS[presets.length % TEAM_COLOR_PRESETS.length],
       to: [], cc: [],
+      message: DEFAULT_MAIL_MESSAGE,
     };
     savePresets([...presets, preset]);
     setSelectedPresetId(preset.id);
@@ -3889,6 +3896,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleRecolorPreset = (color: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, color } : p));
+  };
+
+  const handleSetMessage = (message: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, message } : p));
   };
 
   const handleDeletePreset = () => {
@@ -3969,8 +3981,22 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               />
             ))}
           </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-700 mb-1.5">본문 안내 문구</p>
+            <input
+              value={messageDraft}
+              onChange={e => setMessageDraft(e.target.value)}
+              onBlur={() => { if (messageDraft.trim() && messageDraft !== currentPreset.message) handleSetMessage(messageDraft.trim()); }}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              placeholder={DEFAULT_MAIL_MESSAGE}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              업무 상세 메일 양식 본문의 "안녕하세요, (작성자)입니다." 인사말 다음에 들어가는 문구입니다.
+            </p>
+          </div>
           <p className="text-[11px] text-gray-400">
-            업무 상세의 메일 양식에서 이 탭을 선택하면, 아래 지정한 인원이 받는사람/참조로 채워집니다.
+            아래 지정한 인원이 이 탭의 받는사람/참조로 채워집니다.
             "@"로 팀원을 검색해 선택하거나, 외부 이메일 주소를 직접 입력할 수 있습니다. 쉼표(,)로 구분해 여러 명 추가하세요.
           </p>
           <div className="space-y-3">

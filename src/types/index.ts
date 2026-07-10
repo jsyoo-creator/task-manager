@@ -238,6 +238,7 @@ export interface MailFormPreset {
   color: string; // hex
   to: string[];
   cc: string[];
+  message?: string; // 본문 인사말 다음에 들어가는 안내 문구(탭별로 다르게 설정 가능, 없으면 기본 문구 사용)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

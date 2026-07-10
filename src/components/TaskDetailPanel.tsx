@@ -9,13 +9,18 @@ import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHou
 const PANEL_W = 540;
 const MAIL_PANEL_W = 420;
 
+// 메일 유형(탭)에서 안내 문구를 따로 설정하지 않았을 때 쓰는 기본값
+const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
+
 // 메일 양식 초안 — 업무 핵심 정보를 자동으로 채워 넣은 텍스트. 사용자가 그대로
 // 복사해 Outlook/Gmail 등에 붙여넣어 쓸 수 있도록 발송 기능 없이 텍스트만 생성한다.
-function buildMailTemplate(task: Task, statusLabel: string): { subject: string; body: string } {
+// 인사말에는 선택된 작성자 이름이, 안내 문구에는 선택된 메일 유형(탭)의 문구가 들어간다.
+function buildMailTemplate(task: Task, statusLabel: string, author: string, message: string): { subject: string; body: string } {
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
   const subject = `[${task.title}] 업무 안내`;
+  const greeting = author ? `안녕하세요, ${author} 입니다.` : '안녕하세요,';
   const body =
-    `안녕하세요,\n\n아래 업무 관련하여 안내드립니다.\n\n` +
+    `${greeting}\n\n${message || DEFAULT_MAIL_MESSAGE}\n\n` +
     `- 업무명: ${task.title}\n` +
     `- 파트/구분: ${task.category || '-'}\n` +
     `- 유형: ${task.type || '-'}\n` +
@@ -287,12 +292,21 @@ export default function TaskDetailPanel({
   // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음
   const regenerateMail = (t: Task) => {
     const sc = statusConfigs.find(s => s.key === t.status);
-    const { subject, body } = buildMailTemplate(t, sc?.label ?? t.status ?? '');
+    const author = getDefaultMailAuthor(t, teamMembers);
+    const taskPart = parts.find(p => p.name === t.category);
+    const preset = taskPart?.mailFormConfig?.[0];
+    const { subject, body } = buildMailTemplate(t, sc?.label ?? t.status ?? '', author, preset?.message ?? '');
     setMailSubject(subject);
     setMailBody(body);
-    setMailAuthor(getDefaultMailAuthor(t, teamMembers));
-    const taskPart = parts.find(p => p.name === t.category);
-    setMailPresetId(taskPart?.mailFormConfig?.[0]?.id ?? '');
+    setMailAuthor(author);
+    setMailPresetId(preset?.id ?? '');
+  };
+
+  // 작성자/메일 유형(탭)을 바꾸면 인사말·안내 문구가 그 즉시 반영되도록 본문을 다시 생성
+  const regenerateBody = (author: string, message: string) => {
+    const sc = statusConfigs.find(s => s.key === task.status);
+    const { body } = buildMailTemplate(task, sc?.label ?? task.status ?? '', author, message);
+    setMailBody(body);
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -1719,7 +1733,13 @@ export default function TaskDetailPanel({
             <div className="relative">
               <select
                 value={mailAuthor}
-                onChange={e => setMailAuthor(e.target.value)}
+                onChange={e => {
+                  const author = e.target.value;
+                  setMailAuthor(author);
+                  const currentPart = parts.find(p => p.name === task.category);
+                  const preset = currentPart?.mailFormConfig?.find(p => p.id === mailPresetId);
+                  regenerateBody(author, preset?.message ?? '');
+                }}
                 className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 appearance-none"
               >
                 <option value="">-</option>
@@ -1751,7 +1771,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => setMailPresetId(p.id)}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); regenerateBody(mailAuthor, p.message ?? ''); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}

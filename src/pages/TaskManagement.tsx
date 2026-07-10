@@ -2292,8 +2292,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 <div className="flex pt-2">
                   {/* 드래그핸들 시작 위치와 맞춤(체크박스 폭+간격만큼 들여쓰기) */}
                   <div className="flex-shrink-0" style={{ width: 28 + 12 }} />
-                  {/* 값과 가로 스크롤바 사이 여백을 둬서 스크롤바가 2번째 줄 맨 아래에 오게 함 */}
-                  <div className="flex-1 min-w-0 overflow-x-auto pb-3">
+                  {/* 값과 가로 스크롤바 사이 여백을 둬서 스크롤바가 2번째 줄 맨 아래에 오게 함.
+                      스크롤바 색은 전역 보라색 대신 은은한 회색으로 낮춰 업무 구분(지그재그 배경/경계선)과
+                      시각적으로 부딪히지 않게 함 */}
+                  <div className="flex-1 min-w-0 overflow-x-auto pb-3 [&::-webkit-scrollbar-thumb]:bg-black/10">
                     <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                       {restElementsWithLabels}
                     </div>

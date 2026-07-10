@@ -250,6 +250,8 @@ export interface MailTableCellStyle {
   valueBold?: boolean;
   hideRow?: boolean; // true면 이 항목을 표에서 완전히 숨김(항목명+내용 모두)
   hideLabel?: boolean; // true면 이 항목의 항목명 칸만 숨기고 내용은 그대로 표시
+  valuePrefix?: string; // 내용 값 앞에 붙는 고정 텍스트
+  valueSuffix?: string; // 내용 값 뒤에 붙는 고정 텍스트
 }
 
 // 업무 상세 "메일 양식"의 받는사람/참조 프리셋 하나 — 받는사람/참조 조합이 매번 다를 수 있어

@@ -3844,6 +3844,28 @@ function RecipientChipInput({ label, value, onChange, members }: {
 // 표 배경색 프리셋 — 너무 진하지 않게 연한 파스텔 톤(Tailwind 50 계열)만 사용
 const MAIL_TABLE_BG_PRESETS = ['#ffffff', '#f9fafb', '#f3f4f6', '#eef2ff', '#fffbeb', '#fef2f2', '#f0fdf4', '#f0f9ff', '#fdf2f8', '#f5f3ff'];
 
+// 한 줄짜리 텍스트 입력을 blur 시에만 커밋 — onChange마다 바로 저장하면 한글 조합 중
+// 리렌더로 자모가 분리되는 문제가 있어, 로컬 draft로 편집하고 값이 바뀔 때만 동기화
+function InlineTextField({ value, onCommit, placeholder, className }: {
+  value: string;
+  onCommit: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  return (
+    <input
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => { if (draft !== value) onCommit(draft); }}
+      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;
   members: { name: string; department?: Department }[];
@@ -4025,7 +4047,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     if (!currentPreset) return;
     const cur = currentPreset.tableFieldStyles ?? {};
     const next = { ...cur[key], ...patch };
-    const isEmpty = !next.labelBg && next.labelBold === undefined && !next.valueBg && next.valueBold === undefined && !next.hideRow && !next.hideLabel;
+    const isEmpty = !next.labelBg && next.labelBold === undefined && !next.valueBg && next.valueBold === undefined && !next.hideRow && !next.hideLabel && !next.valuePrefix && !next.valueSuffix;
     const nextStyles = { ...cur };
     if (isEmpty) delete nextStyles[key]; else nextStyles[key] = next;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableFieldStyles: nextStyles } : p));
@@ -4375,6 +4397,24 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                               className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 font-bold ${effValueBold ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
                               B
                             </button>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">값 앞</span>
+                            <InlineTextField
+                              value={override?.valuePrefix ?? ''}
+                              onCommit={v => setFieldStyleOverride(row.key, { valuePrefix: v })}
+                              placeholder="예: 예정 "
+                              className="flex-1 min-w-0 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">값 뒤</span>
+                            <InlineTextField
+                              value={override?.valueSuffix ?? ''}
+                              onCommit={v => setFieldStyleOverride(row.key, { valueSuffix: v })}
+                              placeholder="예:  완료"
+                              className="flex-1 min-w-0 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                            />
                           </div>
                         </div>
                       </div>

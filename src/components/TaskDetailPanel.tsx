@@ -49,6 +49,8 @@ interface MailTableRow {
   valueBg: string;
   valueBold: boolean;
   hideLabel: boolean; // 이 항목만 항목명 칸을 비워 표시 (표 전체 항목명 칸 표시 여부와 별개)
+  valuePrefix: string; // 내용 값 앞에 붙는 고정 텍스트 (없으면 '')
+  valueSuffix: string; // 내용 값 뒤에 붙는 고정 텍스트 (없으면 '')
   // sourceKey 없는(=사용자 입력) 커스텀 항목이면 값을 표 안에서 바로 입력할 수 있어야 하므로
   // 입력 타입/필드 id를 함께 넘김 (미리보기에서만 사용, 복사되는 값은 이미 value에 반영됨)
   manualFieldId?: string;
@@ -88,6 +90,8 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
       valueBold: o?.valueBold ?? preset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
       hideRow: o?.hideRow ?? false,
       hideLabel: o?.hideLabel ?? false,
+      valuePrefix: o?.valuePrefix ?? '',
+      valueSuffix: o?.valueSuffix ?? '',
     };
   };
   const keys = preset?.tableFields?.length ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
@@ -115,9 +119,12 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// 값 앞뒤에 항목별로 지정한 고정 텍스트를 붙임
+const composeRowValue = (r: MailTableRow) => `${r.valuePrefix}${r.value}${r.valueSuffix}`;
+
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
 function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string): string {
-  const bulletBlock = rows.map(r => r.hideLabel ? `- ${r.value}` : `- ${r.label}: ${r.value}`).join('\n');
+  const bulletBlock = rows.map(r => r.hideLabel ? `- ${composeRowValue(r)}` : `- ${r.label}: ${composeRowValue(r)}`).join('\n');
   return `${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
 }
 
@@ -139,7 +146,7 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
       return (
         `<tr>` +
         labelCell +
-        `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+        `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(composeRowValue(r))}</td>` +
         `</tr>`
       );
     }).join('')
@@ -1991,21 +1998,25 @@ export default function TaskDetailPanel({
                                 )}
                                 <td colSpan={showLabelColumn && !labelVisible ? 2 : 1} className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>
                                   {r.manualFieldId ? (
-                                    r.manualFieldType === 'date' ? (
-                                      <DatePicker
-                                        compact
-                                        value={mailManualValues[r.manualFieldId] ?? ''}
-                                        onChange={v => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
-                                      />
-                                    ) : (
-                                      <input
-                                        value={mailManualValues[r.manualFieldId] ?? ''}
-                                        onChange={e => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
-                                        placeholder="입력"
-                                        className="w-full bg-transparent text-[13px] text-gray-800 focus:outline-none"
-                                      />
-                                    )
-                                  ) : r.value}
+                                    <span className="inline-flex items-center gap-1 w-full">
+                                      {r.valuePrefix && <span className="flex-shrink-0">{r.valuePrefix}</span>}
+                                      {r.manualFieldType === 'date' ? (
+                                        <DatePicker
+                                          compact
+                                          value={mailManualValues[r.manualFieldId] ?? ''}
+                                          onChange={v => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
+                                        />
+                                      ) : (
+                                        <input
+                                          value={mailManualValues[r.manualFieldId] ?? ''}
+                                          onChange={e => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
+                                          placeholder="입력"
+                                          className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                                        />
+                                      )}
+                                      {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
+                                    </span>
+                                  ) : `${r.valuePrefix}${r.value}${r.valueSuffix}`}
                                 </td>
                               </tr>
                             );

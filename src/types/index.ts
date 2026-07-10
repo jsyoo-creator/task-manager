@@ -230,6 +230,16 @@ export interface TeamPart {
   mailFormConfig?: MailFormPreset[]; // 파트별 메일 양식 탭 목록 (받는사람/참조 조합이 서로 다른 여러 프리셋, 없으면 미설정)
 }
 
+// 메일 양식 표에 추가로 넣는 항목 — 기본 8개 항목에 없는 값을 팀의 업무 정보
+// 필드(metaFields)나 커스텀 필드에서 끌어와 표시. type에 따라 값 서식(날짜는
+// YYYY-MM-DD)만 다르게 적용됨
+export interface MailTableCustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'date';
+  sourceKey: string; // task.customFields[sourceKey] 참조
+}
+
 // 업무 상세 "메일 양식"의 받는사람/참조 프리셋 하나 — 받는사람/참조 조합이 매번 다를 수 있어
 // 파트별로 이름/색이 다른 탭을 여러 개 만들어두고 상황에 맞게 골라 쓸 수 있게 함
 export interface MailFormPreset {
@@ -240,6 +250,13 @@ export interface MailFormPreset {
   cc: string[];
   message?: string; // 본문 인사말 다음에 들어가는 안내 문구(탭별로 다르게 설정 가능, 없으면 기본 문구 사용)
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
+  tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
+  tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)
+  tableCustomFields?: MailTableCustomField[]; // 표에 추가로 표시할 항목
+  tableLabelBg?: string; // 표 항목명 칸 배경색 (hex, 없으면 기본값)
+  tableLabelBold?: boolean; // 표 항목명 칸 볼드 여부 (없으면 true)
+  tableValueBg?: string; // 표 내용 칸 배경색 (hex, 없으면 기본값)
+  tableValueBold?: boolean; // 표 내용 칸 볼드 여부 (없으면 false)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
+import { MAIL_TABLE_BUILTIN_FIELDS } from '../components/TaskDetailPanel';
 
 interface Props {
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -3840,6 +3841,8 @@ function RecipientChipInput({ label, value, onChange, members }: {
 // 사용. 팀 레벨 상속 없이 파트별로만 설정(요청사항). 받는사람/참조 조합이 매번
 // 다를 수 있어, 파트마다 이름/색이 다른 "메일 양식 탭"을 여러 개 만들어두고
 // 업무 상세에서 상황에 맞는 탭을 골라 쓸 수 있게 함
+const MAIL_TABLE_BG_PRESETS = ['#ffffff', '#f9fafb', '#f3f4f6', '#eef2ff', '#fef3c7', '#fee2e2', '#dcfce7', '#e0f2fe', '#fce7f3', '#ede9fe'];
+
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;
   members: { name: string; department?: Department }[];
@@ -3853,10 +3856,13 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const currentPreset = presets.find(p => p.id === selectedPresetId) ?? presets[0];
   const [flash, setFlash] = useState(false);
   const doFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1200); };
-  // 탭 이름/안내 문구 입력 — 매 키 입력마다 바로 저장(re-render)하면 한글 조합 중인
-  // 입력이 끊겨 자모가 분리되어 보이는 문제가 있어, 로컬 draft로만 편집하고 blur 시 저장
+  // 탭 이름/안내 문구/표 제목 입력 — 매 키 입력마다 바로 저장(re-render)하면 한글 조합
+  // 중인 입력이 끊겨 자모가 분리되어 보이는 문제가 있어, 로컬 draft로만 편집하고 blur 시 저장
   const [nameDraft, setNameDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
+  const [tableTitleDraft, setTableTitleDraft] = useState('');
+  const [customSourceKey, setCustomSourceKey] = useState('');
+  const [customType, setCustomType] = useState<'text' | 'date'>('text');
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -3866,6 +3872,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   useEffect(() => {
     setNameDraft(currentPreset?.name ?? '');
     setMessageDraft(currentPreset?.message ?? DEFAULT_MAIL_MESSAGE);
+    setTableTitleDraft(currentPreset?.tableTitle ?? '');
+    setCustomSourceKey('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -3919,6 +3927,71 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const setList = (list: 'to' | 'cc', next: string[]) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, [list]: next } : p));
+  };
+
+  const activeTableFields = currentPreset?.tableFields?.length
+    ? currentPreset.tableFields
+    : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
+
+  const toggleTableField = (key: string) => {
+    if (!currentPreset) return;
+    const allKeys = MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
+    const next = activeTableFields.includes(key)
+      ? activeTableFields.filter(k => k !== key)
+      : allKeys.filter(k => activeTableFields.includes(k) || k === key);
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableFields: next } : p));
+  };
+
+  const handleSetTableTitle = (title: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableTitle: title } : p));
+  };
+
+  const mergedFormConfig = mergeFormConfig(currentPart?.formConfig, team.formConfig);
+  const candidateCustomFields = mergedFormConfig?.customFields ?? [];
+  const partMetaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
+  const candidateFields: { key: string; label: string }[] = [
+    ...partMetaFields.map(f => ({ key: f.key, label: f.label })),
+    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label })),
+  ];
+
+  const handleAddCustomField = () => {
+    if (!currentPreset || !customSourceKey) return;
+    const source = candidateFields.find(f => f.key === customSourceKey);
+    if (!source) return;
+    const field: MailTableCustomField = {
+      id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      label: source.label,
+      type: customType,
+      sourceKey: source.key,
+    };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: [...(p.tableCustomFields ?? []), field] } : p));
+    setCustomSourceKey('');
+  };
+
+  const handleRemoveCustomField = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).filter(f => f.id !== id) } : p));
+  };
+
+  const handleSetLabelBg = (bg: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableLabelBg: bg } : p));
+  };
+
+  const handleToggleLabelBold = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableLabelBold: !(p.tableLabelBold ?? true) } : p));
+  };
+
+  const handleSetValueBg = (bg: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableValueBg: bg } : p));
+  };
+
+  const handleToggleValueBold = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableValueBold: !(p.tableValueBold ?? false) } : p));
   };
 
   if (team.parts.length === 0) {
@@ -4014,6 +4087,113 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
           <div className="space-y-3">
             <RecipientChipInput label="받는사람" value={currentPreset.to} onChange={next => setList('to', next)} members={members} />
             <RecipientChipInput label="참조" value={currentPreset.cc} onChange={next => setList('cc', next)} members={members} />
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-700">표 설정</p>
+
+            <div>
+              <label className="text-[11px] text-gray-500 mb-1 block">표 제목 (선택)</label>
+              <input
+                value={tableTitleDraft}
+                onChange={e => setTableTitleDraft(e.target.value)}
+                onBlur={() => { if (tableTitleDraft !== (currentPreset.tableTitle ?? '')) handleSetTableTitle(tableTitleDraft.trim()); }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                placeholder="예: 업무 정보"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">입력하면 표 위에 "[{tableTitleDraft || '제목'}]" 형태로 볼드 표시됩니다. 비워두면 표시되지 않습니다.</p>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-gray-500 mb-1.5">표시할 기본 항목</p>
+              <div className="flex flex-wrap gap-1.5">
+                {MAIL_TABLE_BUILTIN_FIELDS.map(f => {
+                  const checked = activeTableFields.includes(f.key);
+                  return (
+                    <button key={f.key} onClick={() => toggleTableField(f.key)}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                        checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                      }`}>
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] text-gray-500 mb-1.5">추가 항목</p>
+              {(currentPreset.tableCustomFields ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {currentPreset.tableCustomFields!.map(f => (
+                    <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                      {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'})</span>
+                      <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {candidateFields.length === 0 ? (
+                <p className="text-[11px] text-gray-400">추가할 수 있는 항목이 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
+                    className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                    <option value="">필드 선택</option>
+                    {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                  <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                    <option value="text">텍스트</option>
+                    <option value="date">날짜</option>
+                  </select>
+                  <button onClick={handleAddCustomField} disabled={!customSourceKey}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                    추가
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1.5">항목명 칸</p>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {MAIL_TABLE_BG_PRESETS.map(c => (
+                    <button key={c} onClick={() => handleSetLabelBg(c)}
+                      className={`w-5 h-5 rounded-full flex-shrink-0 border border-gray-200 ${(currentPreset.tableLabelBg ?? '#f9fafb') === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(currentPreset.tableLabelBold ?? true) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                    {(currentPreset.tableLabelBold ?? true) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                  <input type="checkbox" checked={currentPreset.tableLabelBold ?? true} onChange={handleToggleLabelBold} className="hidden" />
+                  <span className="text-[11px] text-gray-600">볼드</span>
+                </label>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1.5">내용 칸</p>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {MAIL_TABLE_BG_PRESETS.map(c => (
+                    <button key={c} onClick={() => handleSetValueBg(c)}
+                      className={`w-5 h-5 rounded-full flex-shrink-0 border border-gray-200 ${(currentPreset.tableValueBg ?? '#ffffff') === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(currentPreset.tableValueBold ?? false) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                    {(currentPreset.tableValueBold ?? false) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                  <input type="checkbox" checked={currentPreset.tableValueBold ?? false} onChange={handleToggleValueBold} className="hidden" />
+                  <span className="text-[11px] text-gray-600">볼드</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailTableCustomField } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -24,18 +24,47 @@ function buildMailMessage(task: Task, message: string, showTaskName: boolean): s
   return showTaskName ? `${task.title} ${base}` : base;
 }
 
-function buildTaskInfoRows(task: Task, statusLabel: string): { label: string; value: string }[] {
+// 메일 표의 기본 제공 항목 — 설정에서 이 중 어떤 걸 보여줄지 탭별로 고를 수 있음
+export const MAIL_TABLE_BUILTIN_FIELDS: { key: string; label: string }[] = [
+  { key: 'title', label: '업무명' },
+  { key: 'category', label: '파트/구분' },
+  { key: 'type', label: '유형' },
+  { key: 'receiver', label: '접수자' },
+  { key: 'assignee', label: '담당자' },
+  { key: 'status', label: '진행상황' },
+  { key: 'startDate', label: '시작일' },
+  { key: 'endDate', label: '종료일' },
+];
+
+// selectedKeys가 없으면(설정 전) 기본 8개 전체, 있으면 그 순서대로만 표시.
+// customFields는 팀의 업무 정보 필드/커스텀 필드 중 탭 설정에서 추가로 고른 항목.
+function buildTaskInfoRows(
+  task: Task,
+  statusLabel: string,
+  selectedKeys: string[] | undefined,
+  customFields: MailTableCustomField[] | undefined
+): { label: string; value: string }[] {
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
-  return [
-    { label: '업무명', value: task.title },
-    { label: '파트/구분', value: task.category || '-' },
-    { label: '유형', value: task.type || '-' },
-    { label: '접수자', value: task.receiver || '-' },
-    { label: '담당자', value: task.assignee || '-' },
-    { label: '진행상황', value: statusLabel || '-' },
-    { label: '시작일', value: fmt(task.startDate) },
-    { label: '종료일', value: fmt(task.endDate) },
-  ];
+  const builtinValues: Record<string, string> = {
+    title: task.title,
+    category: task.category || '-',
+    type: task.type || '-',
+    receiver: task.receiver || '-',
+    assignee: task.assignee || '-',
+    status: statusLabel || '-',
+    startDate: fmt(task.startDate),
+    endDate: fmt(task.endDate),
+  };
+  const keys = selectedKeys?.length ? selectedKeys : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
+  const builtinRows = keys
+    .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
+    .filter((f): f is { key: string; label: string } => !!f)
+    .map(f => ({ label: f.label, value: builtinValues[f.key] }));
+  const customRows = (customFields ?? []).map(cf => {
+    const raw = task.customFields?.[cf.sourceKey] ?? '';
+    return { label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-') };
+  });
+  return [...builtinRows, ...customRows];
 }
 
 function escapeHtml(s: string): string {
@@ -48,25 +77,37 @@ function buildMailPlainText(greeting: string, message: string, rows: { label: st
   return `${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
 }
 
+export interface MailTableStyle {
+  title?: string;
+  labelBg: string;
+  labelBold: boolean;
+  valueBg: string;
+  valueBold: boolean;
+}
+export const DEFAULT_MAIL_TABLE_STYLE: MailTableStyle = { labelBg: '#f9fafb', labelBold: true, valueBg: '#ffffff', valueBold: false };
+
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
+function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string, tableStyle: MailTableStyle): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';
+  const { title, labelBg, labelBold, valueBg, valueBold } = tableStyle;
   const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:4px 12px;background:#f9fafb;color:#555;font-weight:500;${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:4px 12px;background:#ffffff;${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:4px 12px;background:${labelBg};color:#555;${labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:4px 12px;background:${valueBg};${valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
+  const titleHtml = title ? `<div style="${FS}font-weight:700;">[${escapeHtml(title)}]</div>` : '';
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
+    `${titleHtml}` +
     `${tableHtml}<br>` +
     `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '') +
@@ -1879,18 +1920,34 @@ export default function TaskDetailPanel({
                 style={{ fieldSizing: 'content' } as any}
                 className="w-full mt-2 text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
               />
-              <div className="mt-3 overflow-x-auto">
-                <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
-                  <tbody>
-                    {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
-                      <tr key={r.label}>
-                        <td className="py-1 px-3 bg-gray-50 text-gray-600 font-medium whitespace-nowrap align-top border border-gray-300">{r.label}</td>
-                        <td className="py-1 px-3 text-gray-800 border border-gray-300">{r.value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {(() => {
+                const currentPart = parts.find(p => p.name === task.category);
+                const presets = currentPart?.mailFormConfig ?? [];
+                const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
+                const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
+                const rows = buildTaskInfoRows(task, statusLabel, currentPreset?.tableFields, currentPreset?.tableCustomFields);
+                const labelBg = currentPreset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg;
+                const labelBold = currentPreset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold;
+                const valueBg = currentPreset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg;
+                const valueBold = currentPreset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold;
+                return (
+                  <div className="mt-3">
+                    {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
+                    <div className="overflow-x-auto">
+                      <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
+                        <tbody>
+                          {rows.map(r => (
+                            <tr key={r.label}>
+                              <td className={`py-1 px-3 text-gray-600 ${labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: labelBg }}>{r.label}</td>
+                              <td className={`py-1 px-3 text-gray-800 ${valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: valueBg }}>{r.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
               <p className="mt-3">감사합니다.</p>
               {mailAuthor && <p className="mt-1">{mailAuthor} 드림</p>}
             </div>
@@ -1901,11 +1958,21 @@ export default function TaskDetailPanel({
             onClick={async () => {
               const greeting = buildMailGreeting(mailAuthor);
               const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
-              const rows = buildTaskInfoRows(task, statusLabel);
+              const currentPart = parts.find(p => p.name === task.category);
+              const presets = currentPart?.mailFormConfig ?? [];
+              const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
+              const rows = buildTaskInfoRows(task, statusLabel, currentPreset?.tableFields, currentPreset?.tableCustomFields);
+              const tableStyle: MailTableStyle = {
+                title: currentPreset?.tableTitle,
+                labelBg: currentPreset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg,
+                labelBold: currentPreset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
+                valueBg: currentPreset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg,
+                valueBold: currentPreset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
+              };
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, mailMessage, rows, signature);
               try {
-                const html = buildMailHtml(greeting, mailMessage, rows, signature);
+                const html = buildMailHtml(greeting, mailMessage, rows, signature, tableStyle);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

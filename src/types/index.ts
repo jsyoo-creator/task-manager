@@ -239,6 +239,7 @@ export interface MailFormPreset {
   to: string[];
   cc: string[];
   message?: string; // 본문 인사말 다음에 들어가는 안내 문구(탭별로 다르게 설정 가능, 없으면 기본 문구 사용)
+  showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

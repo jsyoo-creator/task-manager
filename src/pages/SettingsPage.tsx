@@ -3903,6 +3903,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, message } : p));
   };
 
+  const handleToggleShowTaskName = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, showTaskName: !p.showTaskName } : p));
+  };
+
   const handleDeletePreset = () => {
     if (!currentPreset) return;
     if (!window.confirm(`"${currentPreset.name}" 탭을 삭제할까요?`)) return;
@@ -3994,6 +3999,13 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             <p className="text-[11px] text-gray-400 mt-1">
               업무 상세 메일 양식 본문의 "안녕하세요, (작성자)입니다." 인사말 다음에 들어가는 문구입니다.
             </p>
+            <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${currentPreset.showTaskName ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {currentPreset.showTaskName && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={!!currentPreset.showTaskName} onChange={handleToggleShowTaskName} className="hidden" />
+              <span className="text-[11px] text-gray-600">안내 문구 앞에 업무명 노출</span>
+            </label>
           </div>
           <p className="text-[11px] text-gray-400">
             아래 지정한 인원이 이 탭의 받는사람/참조로 채워집니다.

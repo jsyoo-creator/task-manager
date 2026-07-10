@@ -1757,7 +1757,6 @@ export default function TaskDetailPanel({
                           }`}
                           style={currentPreset?.id === p.id ? { background: p.color } : undefined}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
                           {p.name}
                         </button>
                       ))}

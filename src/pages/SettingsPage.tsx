@@ -3886,7 +3886,6 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             }`}
             style={currentPreset?.id === p.id ? { background: p.color } : undefined}
           >
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
             {p.name}
           </button>
         ))}

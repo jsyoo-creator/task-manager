@@ -4650,7 +4650,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
               {expandedTeam === team.id && (
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
-                  <div className="flex border-b border-black/5 px-5 overflow-x-auto">
+                  <div className="flex border-b border-black/5 px-5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                     {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}

@@ -1082,11 +1082,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   return (
     <div>
-      {/* 컨테이너 폭 기준(@container)으로 판단 — 넓을 때는 원래대로 제목|필터탭+버튼이 한
-          줄에 같이 표시되고, 패널이 열려 본문이 좁아질 때만 필터탭과 버튼 사이를 강제로
-          줄바꿈해 서로 뒤섞이지 않고 깔끔하게 분리되게 함(중간의 basis-full 스페이서) */}
+      {/* 제목은 항상 필터탭+버튼 블록과 같은 줄(가장 왼쪽)에 고정 — 제목 자체는 절대
+          줄바꿈되지 않고, 그 오른쪽 블록만 내부적으로 필요한 만큼 여러 줄로 나뉨.
+          블록 안에서는 컨테이너 폭(@container) 기준으로 넓을 때 필터탭+버튼이 한 줄에
+          같이 표시되고, 좁아지면(주로 메일 양식까지 열렸을 때) 그 사이만 줄바꿈됨 */}
       <div className="@container mb-4">
-        <div className="flex items-center justify-between flex-wrap gap-y-2">
+        <div className="flex items-center justify-between gap-y-2">
           <div className="flex-shrink-0 whitespace-nowrap">
             <h1 className="page-title whitespace-nowrap">업무 관리</h1>
             <p className="page-subtitle whitespace-nowrap">업무 목록 · {filtered.length}건</p>

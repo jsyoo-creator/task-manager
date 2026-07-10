@@ -51,11 +51,11 @@ function buildMailPlainText(greeting: string, message: string, rows: { label: st
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
 function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
-  const tableHtml = `<table style="border-collapse:collapse;font-size:14px;width:auto;max-width:480px;border:1px solid #d1d5db;">${
+  const tableHtml = `<table style="border-collapse:collapse;font-size:12px;line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:14px;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:8px 12px;background:#ffffff;font-size:14px;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:12px;line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:8px 12px;background:#ffffff;font-size:12px;line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;
@@ -1877,7 +1877,7 @@ export default function TaskDetailPanel({
                 className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
               />
               <div className="mt-3 overflow-x-auto">
-                <table className="text-sm border-collapse w-full border border-gray-300">
+                <table className="text-xs leading-relaxed border-collapse w-full border border-gray-300">
                   <tbody>
                     {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
                       <tr key={r.label}>

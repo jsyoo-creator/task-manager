@@ -1886,7 +1886,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
 
   return (
     <div
-      className={`border-b-2 border-black/8 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`}
+      className={`${twoLineMode ? 'border-b-2 border-black/8' : 'border-b border-black/4'} last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
       onDragEnd={onDragEnd}
@@ -2271,7 +2271,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         const hasLine2Bg = twoLineMode && restElements.length > 0;
         return (
           <div className={`flex flex-col ${twoLineMode ? 'gap-2.5' : ''} pt-3.5 ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${
-              isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : zebra ? 'bg-black/[0.02] hover:bg-gray-100' : 'hover:bg-gray-50'
+              isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : (zebra && twoLineMode) ? 'bg-black/[0.02] hover:bg-gray-100' : 'hover:bg-gray-50'
             }`}
             style={{ minWidth: rowMinWidth }}>
             <div className="flex items-center gap-3 px-3 text-sm">
@@ -2295,7 +2295,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   {/* 값과 가로 스크롤바 사이 여백을 둬서 스크롤바가 2번째 줄 맨 아래에 오게 함.
                       스크롤바 색은 전역 보라색 대신 은은한 회색으로 낮춰 업무 구분(지그재그 배경/경계선)과
                       시각적으로 부딪히지 않게 함 */}
-                  <div className="flex-1 min-w-0 overflow-x-auto pb-3 [&::-webkit-scrollbar-thumb]:bg-black/10">
+                  <div className="flex-1 min-w-0 overflow-x-auto pb-3 [&::-webkit-scrollbar-thumb]:bg-black/5">
                     <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                       {restElementsWithLabels}
                     </div>

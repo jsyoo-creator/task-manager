@@ -34,9 +34,12 @@ export function sanitizeRichText(html: string): string {
     el.style.removeProperty('background-image');
   });
   // 원본에 SVG·캔버스 등 허용되지 않는 요소(이미지가 아닌 미리보기 등)만 들어있던 칸은
-  // 내용이 통째로 사라져 빈 상자·이상한 여백만 남으므로, 완전히 빈 div/p는 제거
+  // 내용이 통째로 사라져 빈 상자·이상한 여백만 남으므로, 완전히 빈 div/p는 제거.
+  // 단, <br>이 있는 <p>/<div>(예: <p><br></p>)는 사용자가 Enter로 만든 의도적인
+  // 빈 줄이므로 제거 대상에서 제외 — 그렇지 않으면 문단 사이 공백이 저장/렌더링
+  // 시마다 사라짐
   wrap.querySelectorAll('div, p').forEach(el => {
-    const hasContent = (el.textContent ?? '').trim().length > 0 || el.querySelector('img, table');
+    const hasContent = (el.textContent ?? '').trim().length > 0 || el.querySelector('img, table, br');
     if (!hasContent) el.remove();
   });
   return wrap.innerHTML;

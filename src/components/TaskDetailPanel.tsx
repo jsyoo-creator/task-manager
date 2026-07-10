@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -19,9 +19,19 @@ function buildMailGreeting(author: string): string {
 // 메일 유형(탭)에서 안내 문구를 따로 설정하지 않았을 때 쓰는 기본값
 const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
 
-function buildMailMessage(task: Task, message: string, showTaskName: boolean): string {
-  const base = message || DEFAULT_MAIL_MESSAGE;
-  return showTaskName ? `${task.title} ${base}` : base;
+// 인사말 다음 줄 — (업무명 노출 시) 업무명, (설정된) 삽입 항목 값들, 안내 문구 순으로
+// 한 줄에 이어 붙임. 업무명/삽입 항목은 항상 최신 값으로 다시 만들어지는 고정 표시라
+// mailMessage(자유 편집 텍스트)에는 포함하지 않고 렌더링/복사 시점에 합쳐서 씀
+function composeMessageLine(task: Task, preset: MailFormPreset | undefined, message: string, insertValues: Record<string, string>): string {
+  const parts: string[] = [];
+  if (preset?.showTaskName) parts.push(task.title);
+  (preset?.messageInserts ?? []).forEach(ins => {
+    const raw = insertValues[ins.id] ?? '';
+    if (!raw) return;
+    parts.push(ins.type === 'date' ? fmtDateWithWeekday(raw) : ins.type === 'count' ? `${raw}건` : raw);
+  });
+  parts.push(message || DEFAULT_MAIL_MESSAGE);
+  return parts.join(' ');
 }
 
 // 메일 표의 기본 제공 항목 — 설정에서 이 중 어떤 걸 보여줄지 탭별로 고를 수 있음
@@ -719,6 +729,8 @@ export default function TaskDetailPanel({
   const [mailManualValues, setMailManualValues] = useState<Record<string, string>>({});
   // 표 밖 본문에 추가한 텍스트/날짜 입력 항목의 값 — 위와 마찬가지로 메일 작성할 때마다 직접 입력
   const [mailBodyManualValues, setMailBodyManualValues] = useState<Record<string, string>>({});
+  // 업무명과 안내 문구 사이에 끼워 넣은 삽입 항목(텍스트/날짜/건수)의 값 — 위와 동일하게 매번 직접 입력
+  const [mailMessageInsertValues, setMailMessageInsertValues] = useState<Record<string, string>>({});
   const [mailCopied, setMailCopied] = useState(false);
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
@@ -732,11 +744,12 @@ export default function TaskDetailPanel({
     const author = getDefaultMailAuthor(t, teamMembers);
     const taskPart = parts.find(p => p.name === t.category);
     const preset = taskPart?.mailFormConfig?.[0];
-    setMailMessage(buildMailMessage(t, preset?.message ?? '', preset?.showTaskName ?? false));
+    setMailMessage(preset?.message ?? '');
     setMailAuthor(author);
     setMailPresetId(preset?.id ?? '');
     setMailManualValues({});
     setMailBodyManualValues({});
+    setMailMessageInsertValues({});
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -2195,7 +2208,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(buildMailMessage(task, p.message ?? '', p.showTaskName ?? false)); setMailManualValues({}); setMailBodyManualValues({}); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -2268,6 +2281,43 @@ export default function TaskDetailPanel({
                 안내 문구만 자유 편집 가능한 textarea로 그 사이에 끼워 넣음 */}
             <div className="flex-1 min-h-[240px] overflow-y-auto text-[13px] px-3 py-3 rounded-lg border border-gray-200 bg-white text-gray-800 leading-relaxed">
               <p>{buildMailGreeting(mailAuthor)}</p>
+              {(() => {
+                const currentPart = parts.find(p => p.name === task.category);
+                const presets = currentPart?.mailFormConfig ?? [];
+                const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
+                const inserts = currentPreset?.messageInserts ?? [];
+                if (!currentPreset?.showTaskName && inserts.length === 0) return null;
+                return (
+                  <div className="mt-1 space-y-1.5">
+                    {currentPreset?.showTaskName && <p>{task.title}</p>}
+                    {inserts.map(ins => {
+                      const val = mailMessageInsertValues[ins.id] ?? '';
+                      return (
+                        <div key={ins.id} className="flex items-center gap-1.5">
+                          {ins.type === 'date' ? (
+                            <>
+                              <DatePicker
+                                value={val}
+                                onChange={v => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: v }))}
+                                btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                              />
+                              {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
+                            </>
+                          ) : (
+                            <input
+                              value={val}
+                              onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
+                              placeholder={ins.label || (ins.type === 'count' ? '건수 입력' : '입력')}
+                              className="flex-1 min-w-0 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                            />
+                          )}
+                          {ins.type === 'count' && <span className="text-xs text-gray-400 flex-shrink-0">건</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               <textarea
                 value={mailMessage}
                 onChange={e => setMailMessage(e.target.value)}
@@ -2347,10 +2397,11 @@ export default function TaskDetailPanel({
                 value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
               }));
               const listGroups = (currentPreset?.listGroups ?? []).map(g => buildRenderableListGroup(task, g, mailManualValues));
+              const messageLine = composeMessageLine(task, currentPreset, mailMessage, mailMessageInsertValues);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, mailMessage, allTables, signature, bodyExtra, listGroups);
+              const plainText = buildMailPlainText(greeting, messageLine, allTables, signature, bodyExtra, listGroups);
               try {
-                const html = buildMailHtml(greeting, mailMessage, allTables, signature, bodyExtra, listGroups);
+                const html = buildMailHtml(greeting, messageLine, allTables, signature, bodyExtra, listGroups);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

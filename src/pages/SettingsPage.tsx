@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -4388,6 +4388,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
   const [selectedExtraTableId, setSelectedExtraTableId] = useState<string>('');
   const [selectedListGroupId, setSelectedListGroupId] = useState<string>('');
+  const [msgInsertLabelDraft, setMsgInsertLabelDraft] = useState('');
+  const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count'>('text');
+  const msgInsertDragIdxRef = useRef<number | null>(null);
+  const [msgInsertDragOverIdx, setMsgInsertDragOverIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -4403,6 +4407,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setBodyTitleDraft('');
     setSelectedExtraTableId('');
     setSelectedListGroupId('');
+    setMsgInsertLabelDraft('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4443,6 +4448,35 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleToggleShowTaskName = () => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, showTaskName: !p.showTaskName } : p));
+  };
+
+  // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목(텍스트/날짜/건수) 관리
+  const handleAddMessageInsert = () => {
+    if (!currentPreset || !msgInsertLabelDraft.trim()) return;
+    const insert: MailMessageInsert = {
+      id: `mmi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      type: msgInsertType,
+      label: msgInsertLabelDraft.trim(),
+    };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: [...(p.messageInserts ?? []), insert] } : p));
+    setMsgInsertLabelDraft('');
+  };
+
+  const handleRemoveMessageInsert = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).filter(m => m.id !== id) } : p));
+  };
+
+  const handleReorderMessageInsert = (toIdx: number) => {
+    if (!currentPreset) return;
+    const from = msgInsertDragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...(currentPreset.messageInserts ?? [])];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: arr } : p));
+    msgInsertDragIdxRef.current = null;
+    setMsgInsertDragOverIdx(null);
   };
 
   const handleDeletePreset = () => {
@@ -4761,6 +4795,44 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               <input type="checkbox" checked={!!currentPreset.showTaskName} onChange={handleToggleShowTaskName} className="hidden" />
               <span className="text-[11px] text-gray-600">안내 문구 앞에 업무명 노출</span>
             </label>
+
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-[11px] font-semibold text-gray-700 mb-1">삽입 항목</p>
+              <p className="text-[11px] text-gray-400 mb-1.5">업무명과 안내 문구 사이에 끼워 넣을 텍스트/날짜/건수 입력 항목을 추가합니다. 값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
+              {(currentPreset.messageInserts ?? []).length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {currentPreset.messageInserts!.map((ins, i) => (
+                    <div key={ins.id}
+                      draggable
+                      onDragStart={() => { msgInsertDragIdxRef.current = i; }}
+                      onDragOver={e => { e.preventDefault(); setMsgInsertDragOverIdx(i); }}
+                      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setMsgInsertDragOverIdx(null); }}
+                      onDrop={() => handleReorderMessageInsert(i)}
+                      onDragEnd={() => { msgInsertDragIdxRef.current = null; setMsgInsertDragOverIdx(null); }}
+                      className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${msgInsertDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                      <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                      <span className="flex-1">{ins.label} <span className="text-gray-400">({ins.type === 'date' ? '날짜' : ins.type === 'count' ? '건수' : '텍스트'})</span></span>
+                      <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <input value={msgInsertLabelDraft} onChange={e => setMsgInsertLabelDraft(e.target.value)}
+                  placeholder="항목 이름 (예: 이벤트 대상)"
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+                <select value={msgInsertType} onChange={e => setMsgInsertType(e.target.value as 'text' | 'date' | 'count')}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                  <option value="text">텍스트</option>
+                  <option value="date">날짜</option>
+                  <option value="count">건수</option>
+                </select>
+                <button onClick={handleAddMessageInsert} disabled={!msgInsertLabelDraft.trim()}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                  추가
+                </button>
+              </div>
+            </div>
           </div>
           <p className="text-[11px] text-gray-400">
             아래 지정한 인원이 이 탭의 받는사람/참조로 채워집니다.

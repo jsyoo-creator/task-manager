@@ -1818,37 +1818,40 @@ export default function TaskDetailPanel({
                   const names = currentPreset?.[key] ?? [];
                   const emails = names.map(emailOf).filter((e): e is string => !!e);
                   return (
-                    <div key={key} className="relative">
+                    <div key={key}>
                       <label className="text-[11px] font-medium text-gray-500 mb-1 block">{label}</label>
-                      {emails.length > 0 && (
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(emails.join(', '));
-                            setCopied(true);
-                            setTimeout(() => setCopied(false), 1500);
-                          }}
-                          className="absolute right-0 top-1/2 -translate-y-1/2 text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-[#6C63FF]/10 hover:bg-[#6C63FF]/15 border border-[#6C63FF]/20 transition-colors"
-                        >
-                          {copied ? <><Check size={10} /> 복사됨</> : <><Copy size={10} /> 이메일 복사</>}
-                        </button>
-                      )}
                       {names.length === 0 ? (
                         <p className="text-xs text-gray-400 px-3 py-2 rounded-lg border border-dashed border-gray-200">
                           이 탭에 설정된 인원이 없습니다.
                         </p>
                       ) : (() => {
                         // 목록을 다 펼쳐 보일 필요 없이 복사만 되면 되므로, 한 줄 분량만
-                        // 보여주고 나머지는 "외 N명"으로 축약
+                        // 보여주고 나머지는 "외 N명"으로 축약. 복사 버튼은 이메일과 같은
+                        // 줄 우측 끝에 위치
                         const first = names[0];
                         const hasEmail = !!emailOf(first);
                         const restCount = names.length - 1;
                         return (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-xs px-2 py-1 rounded-full ${hasEmail ? 'bg-white border border-gray-200 text-gray-700' : 'bg-red-50 border border-red-100 text-red-400'}`}>
-                              {first}{!hasEmail && ' (이메일 없음)'}
-                            </span>
-                            {restCount > 0 && (
-                              <span className="text-xs text-gray-400">외 {restCount}명</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                              <span className={`text-xs px-2 py-1 rounded-full flex-shrink-0 ${hasEmail ? 'bg-white border border-gray-200 text-gray-700' : 'bg-red-50 border border-red-100 text-red-400'}`}>
+                                {first}{!hasEmail && ' (이메일 없음)'}
+                              </span>
+                              {restCount > 0 && (
+                                <span className="text-xs text-gray-400 flex-shrink-0">외 {restCount}명</span>
+                              )}
+                            </div>
+                            {emails.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(emails.join(', '));
+                                  setCopied(true);
+                                  setTimeout(() => setCopied(false), 1500);
+                                }}
+                                className="flex-shrink-0 text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-[#6C63FF]/10 hover:bg-[#6C63FF]/15 border border-[#6C63FF]/20 transition-colors"
+                              >
+                                {copied ? <><Check size={10} /> 복사됨</> : <><Copy size={10} /> 이메일 복사</>}
+                              </button>
                             )}
                           </div>
                         );

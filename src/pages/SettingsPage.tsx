@@ -3925,6 +3925,17 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   // 링크(URL) 속성이 생기기 전에 "텍스트"로 추가해둔 필드를 링크로 전환
   const handleFixFieldToUrl = (id: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, type: 'url' } : f) });
 
+  // 이미 추가해둔 "사용자 입력" 항목을 세부 업무의 시작일/종료일과 연결(이름은 그대로 유지)
+  const handleConnectSubTask = (id: string, subTaskKey: string) => {
+    if (!subTaskKey) return;
+    patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, sourceKey: subTaskKey, source: 'subtask' as const } : f) });
+  };
+
+  // 연결을 해제해 다시 "사용자 입력" 항목으로 되돌림
+  const handleDisconnectField = (id: string) => {
+    patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, sourceKey: undefined, source: undefined } : f) });
+  };
+
   const rows = resolveMailTableRowOrder((table.customFields ?? []).map(f => f.id), table.rowOrder)
     .map(id => (table.customFields ?? []).find(f => f.id === id))
     .filter((f): f is MailTableCustomField => !!f);
@@ -4001,6 +4012,19 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                       <button onClick={() => handleFixFieldToUrl(f.id)}
                         className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
                         🔗 링크로 전환
+                      </button>
+                    )}
+                    {!f.sourceKey && f.type === 'date' && candidateFields.some(cf => cf.source === 'subtask') && (
+                      <select value="" onChange={e => handleConnectSubTask(f.id, e.target.value)}
+                        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                        <option value="">세부 업무 연결</option>
+                        {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                      </select>
+                    )}
+                    {f.source === 'subtask' && (
+                      <button onClick={() => handleDisconnectField(f.id)}
+                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                        연결 해제
                       </button>
                     )}
                     {f.type === 'url' && (
@@ -4605,6 +4629,18 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, label: label.trim() } : f) } : p));
   };
 
+  // 이미 추가해둔 "사용자 입력" 항목을 세부 업무의 시작일/종료일과 연결(이름은 그대로 유지)
+  const handleConnectSubTask = (id: string, subTaskKey: string) => {
+    if (!currentPreset || !subTaskKey) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: subTaskKey, source: 'subtask' as const } : f) } : p));
+  };
+
+  // 연결을 해제해 다시 "사용자 입력" 항목으로 되돌림
+  const handleDisconnectField = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: undefined, source: undefined } : f) } : p));
+  };
+
   // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 값이 미리 채워지지 않고, 업무 상세의
   // 메일 양식에서 메일 작성할 때마다 직접 입력함
   const handleAddBodyField = () => {
@@ -4939,6 +4975,19 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                           <button onClick={() => handleFixFieldToUrl(f.id)}
                             className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
                             🔗 링크로 전환
+                          </button>
+                        )}
+                        {!f.sourceKey && f.type === 'date' && candidateFields.some(cf => cf.source === 'subtask') && (
+                          <select value="" onChange={e => handleConnectSubTask(f.id, e.target.value)}
+                            className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                            <option value="">세부 업무 연결</option>
+                            {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                          </select>
+                        )}
+                        {f.source === 'subtask' && (
+                          <button onClick={() => handleDisconnectField(f.id)}
+                            className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                            연결 해제
                           </button>
                         )}
                         {f.type === 'url' && (

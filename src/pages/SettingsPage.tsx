@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -4190,6 +4190,148 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   );
 }
 
+// "[제목]" 아래 번호가 매겨진 항목을 나열하는 목록 하나를 편집 — 표와 달리 배경색/볼드
+// 등 스타일 없이, 항목 이름과 값(필드에서 가져오거나 사용자 입력)만으로 구성
+function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
+  group: MailListGroup;
+  candidateFields: { key: string; label: string; type: 'text' | 'date' }[];
+  onSave: (next: MailListGroup) => void;
+  onRemove: () => void;
+}) {
+  const [titleDraft, setTitleDraft] = useState(group.title ?? '');
+  const [customSourceKey, setCustomSourceKey] = useState('');
+  const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
+  const [manualLabelDraft, setManualLabelDraft] = useState('');
+  const dragIdxRef = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setTitleDraft(group.title ?? '');
+    setCustomSourceKey('');
+    setManualLabelDraft('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group.id]);
+
+  const patch = (p: Partial<MailListGroup>) => onSave({ ...group, ...p });
+
+  const handleAddField = () => {
+    if (!customSourceKey) return;
+    const source = candidateFields.find(f => f.key === customSourceKey);
+    if (!source) return;
+    const item: MailListItem = { id: `mli_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: source.label, type: source.type, sourceKey: source.key };
+    patch({ items: [...(group.items ?? []), item] });
+    setCustomSourceKey('');
+  };
+
+  const handleAddManual = () => {
+    if (!manualLabelDraft.trim()) return;
+    const item: MailListItem = { id: `mli_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: manualLabelDraft.trim(), type: customType };
+    patch({ items: [...(group.items ?? []), item] });
+    setManualLabelDraft('');
+  };
+
+  const handleRemoveItem = (id: string) => patch({ items: (group.items ?? []).filter(it => it.id !== id) });
+
+  const handleReorder = (toIdx: number) => {
+    const from = dragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...(group.items ?? [])];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    patch({ items: arr });
+    dragIdxRef.current = null;
+    setDragOverIdx(null);
+  };
+
+  const items = group.items ?? [];
+
+  return (
+    <div className="space-y-3 rounded-xl border border-gray-100 p-4">
+      <div className="flex items-center gap-3">
+        <input
+          value={titleDraft}
+          onChange={e => setTitleDraft(e.target.value)}
+          onBlur={() => { if (titleDraft !== (group.title ?? '')) patch({ title: titleDraft.trim() }); }}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder="목록 제목 (선택, 예: SNS 공유 이미지)"
+          className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        />
+        <button onClick={onRemove} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+          목록 삭제
+        </button>
+      </div>
+
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1.5">항목 (번호가 자동으로 매겨집니다)</p>
+        {items.length > 0 && (
+          <div className="space-y-1 mb-2">
+            {items.map((it, i) => (
+              <div key={it.id}
+                draggable
+                onDragStart={() => { dragIdxRef.current = i; }}
+                onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                onDrop={() => handleReorder(i)}
+                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${dragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                <span className="flex-1">{i + 1}. {it.label} <span className="text-gray-400">({it.type === 'date' ? '날짜' : '텍스트'}{!it.sourceKey ? ' · 사용자 입력' : ''})</span></span>
+                <button onClick={() => handleRemoveItem(it.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-1 mb-1.5">
+          <button onClick={() => setAddMode('field')}
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${addMode === 'field' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+            필드에서 추가
+          </button>
+          <button onClick={() => setAddMode('manual')}
+            className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${addMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+            사용자 입력 항목
+          </button>
+        </div>
+        {addMode === 'field' ? (
+          candidateFields.length === 0 ? (
+            <p className="text-[11px] text-gray-400">추가할 수 있는 필드가 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
+                className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                <option value="">필드 선택</option>
+                {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </select>
+              <button onClick={handleAddField} disabled={!customSourceKey}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                추가
+              </button>
+            </div>
+          )
+        ) : (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <input value={manualLabelDraft} onChange={e => setManualLabelDraft(e.target.value)}
+                placeholder="항목 이름 (예: 방송 안내 페이지)"
+                className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+              <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+                className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                <option value="text">텍스트</option>
+                <option value="date">날짜</option>
+              </select>
+              <button onClick={handleAddManual} disabled={!manualLabelDraft.trim()}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                추가
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;
   members: { name: string; department?: Department }[];
@@ -4219,6 +4361,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const rowDragIdxRef = useRef<number | null>(null);
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
   const [selectedExtraTableId, setSelectedExtraTableId] = useState<string>('');
+  const [selectedListGroupId, setSelectedListGroupId] = useState<string>('');
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -4233,6 +4376,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setManualLabelDraft('');
     setBodyTitleDraft('');
     setSelectedExtraTableId('');
+    setSelectedListGroupId('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4400,6 +4544,25 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleSaveExtraTable = (next: MailTableConfig) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, extraTables: (p.extraTables ?? []).map(t => t.id === next.id ? next : t) } : p));
+  };
+
+  // "[제목]" 아래 번호가 매겨진 항목을 나열하는 목록 관리
+  const handleAddListGroup = () => {
+    if (!currentPreset) return;
+    const group: MailListGroup = { id: `mlg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, items: [] };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, listGroups: [...(p.listGroups ?? []), group] } : p));
+    setSelectedListGroupId(group.id);
+  };
+
+  const handleRemoveListGroup = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, listGroups: (p.listGroups ?? []).filter(g => g.id !== id) } : p));
+    if (selectedListGroupId === id) setSelectedListGroupId('');
+  };
+
+  const handleSaveListGroup = (next: MailListGroup) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, listGroups: (p.listGroups ?? []).map(g => g.id === next.id ? next : g) } : p));
   };
 
   const handleSetLabelBg = (bg: string) => {
@@ -4860,6 +5023,37 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                   candidateFields={candidateFields}
                   onSave={handleSaveExtraTable}
                   onRemove={() => handleRemoveExtraTable(selectedExtraTable.id)}
+                />
+              );
+            })()}
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-700">번호 목록 추가</p>
+            <p className="text-[11px] text-gray-400">"[제목]" 아래 "1. 항목명" 형태로 번호가 매겨진 항목을 나열하는 목록을 추가합니다. 예: [SNS 공유 이미지] / 1. 방송 안내 페이지 / 2. 방송 페이지</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(currentPreset.listGroups ?? []).map((g, i) => (
+                <button key={g.id} onClick={() => setSelectedListGroupId(g.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    selectedListGroupId === g.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {g.title || `목록 ${i + 1}`}
+                </button>
+              ))}
+              <button onClick={handleAddListGroup}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-gray-300 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                + 목록 추가
+              </button>
+            </div>
+            {(() => {
+              const selectedListGroup = (currentPreset.listGroups ?? []).find(g => g.id === selectedListGroupId);
+              if (!selectedListGroup) return null;
+              return (
+                <MailListGroupEditor
+                  group={selectedListGroup}
+                  candidateFields={candidateFields}
+                  onSave={handleSaveListGroup}
+                  onRemove={() => handleRemoveListGroup(selectedListGroup.id)}
                 />
               );
             })()}

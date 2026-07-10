@@ -249,6 +249,23 @@ export interface MailBodyCustomField {
   type: 'text' | 'date';
 }
 
+// 번호 목록 항목 하나 — "N. 항목명" 다음 줄에 값이 오는 형태. sourceKey가 있으면 필드
+// 값을 그대로 가져오고, 없으면(사용자 입력) 메일 작성할 때마다 직접 입력한다
+export interface MailListItem {
+  id: string;
+  label: string;
+  type: 'text' | 'date';
+  sourceKey?: string;
+}
+
+// 표와 별개로, "[제목]" 아래 번호가 매겨진 항목들을 나열하는 목록 —
+// 예: [SNS 공유 이미지] / 1. 방송 안내 페이지 (값) / 2. 방송 페이지 (값)
+export interface MailListGroup {
+  id: string;
+  title?: string; // "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
+  items: MailListItem[];
+}
+
 // 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의
 // tableLabelBg/tableValueBg 등 공통 기본값을 사용
 export interface MailTableCellStyle {
@@ -303,6 +320,7 @@ export interface MailFormPreset {
   tableFieldStyles?: Record<string, MailTableCellStyle>; // 항목(빌트인 key 또는 커스텀 필드 id)별 배경색/볼드 개별 오버라이드
   extraTables?: MailTableConfig[]; // 기존 표에 합치지 않고 별도로 구성하는 추가 표 목록
   bodyCustomFields?: MailBodyCustomField[]; // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목
+  listGroups?: MailListGroup[]; // 제목 아래 번호 매긴 항목을 나열하는 목록들
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -212,6 +212,38 @@ function buildExtraRenderableTable(task: Task, cfg: MailTableConfig, manualValue
   return { rows, title: cfg.title, showLabelColumn, showValueColumn, visible: !cfg.hidden && (showLabelColumn || showValueColumn) };
 }
 
+// 번호 매긴 목록 항목 하나("N. 라벨" 다음 줄에 값) — sourceKey 없는(=사용자 입력) 항목이면
+// 값을 그 자리에서 바로 입력할 수 있어야 하므로 입력 타입/필드 id를 함께 넘김
+interface MailListItemResolved {
+  id: string;
+  index: number;
+  label: string;
+  value: string;
+  manualFieldId?: string;
+  manualFieldType?: 'text' | 'date';
+}
+
+interface RenderableListGroup {
+  title?: string;
+  items: MailListItemResolved[];
+  visible: boolean;
+}
+
+function buildRenderableListGroup(task: Task, group: MailListGroup, manualValues?: Record<string, string>): RenderableListGroup {
+  const items: MailListItemResolved[] = (group.items ?? []).map((it, i) => {
+    const raw = it.sourceKey ? (task.customFields?.[it.sourceKey] ?? '') : (manualValues?.[it.id] ?? '');
+    const value = it.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-');
+    return {
+      id: it.id,
+      index: i + 1,
+      label: it.label,
+      value,
+      ...(it.sourceKey ? {} : { manualFieldId: it.id, manualFieldType: it.type }),
+    };
+  });
+  return { title: group.title, items, visible: items.length > 0 };
+}
+
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
 function tableToPlainText(t: RenderableTable): string | null {
   if (!t.visible) return null;
@@ -228,11 +260,19 @@ function tableToPlainText(t: RenderableTable): string | null {
   return t.title ? `[${t.title}]\n${bullets}` : bullets;
 }
 
-function buildMailPlainText(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[]): string {
+function listGroupToPlainText(g: RenderableListGroup): string | null {
+  if (!g.visible) return null;
+  const body = g.items.map(it => `${it.index}. ${it.label}\n${it.value}`).join('\n\n');
+  return g.title ? `[${g.title}]\n${body}` : body;
+}
+
+function buildMailPlainText(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[], listGroups: RenderableListGroup[]): string {
   const tableBlocks = tables.map(tableToPlainText).filter((b): b is string => !!b);
   const extraText = bodyExtra.length ? bodyExtra.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : '';
+  const listBlocks = listGroups.map(listGroupToPlainText).filter((b): b is string => !!b);
   const blocks = [greeting, message, ...tableBlocks];
   if (extraText) blocks.push(extraText);
+  blocks.push(...listBlocks);
   blocks.push('감사합니다.');
   if (signature) blocks.push(signature);
   return blocks.join('\n\n');
@@ -262,7 +302,17 @@ function tableToHtml(t: RenderableTable, FS: string): string {
   return `${titleHtml}${tableHtml}<br>`;
 }
 
-function buildMailHtml(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[]): string {
+function listGroupToHtml(g: RenderableListGroup, FS: string): string {
+  if (!g.visible) return '';
+  const titleHtml = g.title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(g.title)}]</div>` : '';
+  const itemsHtml = g.items.map(it =>
+    `<div style="${FS}">${it.index}. ${escapeHtml(it.label)}</div>` +
+    `<div style="${FS}margin-bottom:8px;">${escapeHtml(it.value)}</div>`
+  ).join('');
+  return `${titleHtml}${itemsHtml}<br>`;
+}
+
+function buildMailHtml(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[], listGroups: RenderableListGroup[]): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';
@@ -274,12 +324,14 @@ function buildMailHtml(greeting: string, message: string, tables: RenderableTabl
         `<div style="${FS}margin-bottom:8px;">${escapeHtml(f.value)}</div>`
       ).join('') + '<br>'
     : '';
+  const listGroupsHtml = listGroups.map(g => listGroupToHtml(g, FS)).join('');
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
     `${tablesHtml}` +
     `${extraHtml}` +
+    `${listGroupsHtml}` +
     `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '') +
     `</div>`
@@ -338,6 +390,48 @@ function MailTablePreview({ table, manualValues, setManualValues }: {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// 번호 목록 미리보기 — "N. 라벨" 다음 줄에 값(또는 사용자 입력창)이 오는 형태
+function MailListGroupPreview({ group, manualValues, setManualValues }: {
+  group: RenderableListGroup;
+  manualValues: Record<string, string>;
+  setManualValues: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+}) {
+  if (!group.visible) return null;
+  return (
+    <div className="mt-3 space-y-3">
+      {group.title && <p className="font-bold mb-1">[{group.title}]</p>}
+      {group.items.map(it => (
+        <div key={it.id}>
+          <p className="text-gray-700">{it.index}. {it.label}</p>
+          {it.manualFieldId ? (
+            it.manualFieldType === 'date' ? (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <DatePicker
+                  value={manualValues[it.manualFieldId] ?? ''}
+                  onChange={v => setManualValues(prev => ({ ...prev, [it.manualFieldId!]: v }))}
+                  btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                />
+                {weekdayOf(manualValues[it.manualFieldId] ?? '') && (
+                  <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(manualValues[it.manualFieldId] ?? '')})</span>
+                )}
+              </div>
+            ) : (
+              <input
+                value={manualValues[it.manualFieldId] ?? ''}
+                onChange={e => setManualValues(prev => ({ ...prev, [it.manualFieldId!]: e.target.value }))}
+                placeholder="입력"
+                className="w-full mt-0.5 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+              />
+            )
+          ) : (
+            <p className="text-gray-800">{it.value}</p>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -2161,6 +2255,7 @@ export default function TaskDetailPanel({
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
                 const mainTable = buildMainRenderableTable(task, statusLabel, currentPreset, mailManualValues);
                 const extraTables = (currentPreset?.extraTables ?? []).map(cfg => ({ cfg, table: buildExtraRenderableTable(task, cfg, mailManualValues) }));
+                const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ group: g, resolved: buildRenderableListGroup(task, g, mailManualValues) }));
                 return (
                   <div>
                     <MailTablePreview table={mainTable} manualValues={mailManualValues} setManualValues={setMailManualValues} />
@@ -2196,6 +2291,9 @@ export default function TaskDetailPanel({
                         })}
                       </div>
                     )}
+                    {listGroups.map(({ group, resolved }) => (
+                      <MailListGroupPreview key={group.id} group={resolved} manualValues={mailManualValues} setManualValues={setMailManualValues} />
+                    ))}
                   </div>
                 );
               })()}
@@ -2219,10 +2317,11 @@ export default function TaskDetailPanel({
                 title: f.title,
                 value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
               }));
+              const listGroups = (currentPreset?.listGroups ?? []).map(g => buildRenderableListGroup(task, g, mailManualValues));
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, mailMessage, allTables, signature, bodyExtra);
+              const plainText = buildMailPlainText(greeting, mailMessage, allTables, signature, bodyExtra, listGroups);
               try {
-                const html = buildMailHtml(greeting, mailMessage, allTables, signature, bodyExtra);
+                const html = buildMailHtml(greeting, mailMessage, allTables, signature, bodyExtra, listGroups);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

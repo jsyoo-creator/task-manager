@@ -106,6 +106,24 @@ function parseExcelDateValue(raw: unknown, fallbackYear: number): string {
   return '';
 }
 
+// 가로 스크롤 영역(업무 카드 2/3번째 줄)을 스크롤바 없이 좌우 토글 버튼으로 조작하기
+// 위한 공용 훅. 매 렌더 후 측정하되, 값이 실제로 바뀔 때만 상태를 갱신해 무한
+// 리렌더 없이 내용/폭 변경 시 버튼 표시 여부가 항상 최신으로 유지됨.
+function useHScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scroll, setScroll] = useState({ canLeft: false, canRight: false });
+  const update = () => {
+    const el = ref.current;
+    if (!el) return;
+    const canLeft = el.scrollLeft > 2;
+    const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 2;
+    setScroll(prev => (prev.canLeft === canLeft && prev.canRight === canRight) ? prev : { canLeft, canRight });
+  };
+  useEffect(() => { update(); });
+  const scrollBy = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
+  return { ref, scroll, update, scrollBy };
+}
+
 // 기본필드(builtin)와 커스텀필드를 fieldOrder대로 하나의 순서로 합친 컬럼 목록.
 // 목록 테이블은 헤더/행/너비 계산이 모두 이 순서를 따라야 "폼 설정"에서 기본필드
 // 사이로 옮긴 커스텀필드가 실제로도 그 위치에 표시됨.
@@ -1815,23 +1833,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
     setCopiedUrlKey(key);
     setTimeout(() => setCopiedUrlKey(null), 1500);
   };
-  // 2번째 줄(필드 영역) 가로 스크롤을 화살표 버튼으로도 조작할 수 있게 함 —
-  // 눈에 띄는 스크롤바 대신 명확한 클릭 UI 제공
-  const line2ScrollRef = useRef<HTMLDivElement>(null);
-  const [line2Scroll, setLine2Scroll] = useState({ canLeft: false, canRight: false });
-  const updateLine2Scroll = () => {
-    const el = line2ScrollRef.current;
-    if (!el) return;
-    const canLeft = el.scrollLeft > 2;
-    const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 2;
-    setLine2Scroll(prev => (prev.canLeft === canLeft && prev.canRight === canRight) ? prev : { canLeft, canRight });
-  };
-  // 매 렌더 후 측정 — 값이 실제로 바뀔 때만 상태를 갱신하므로(updateLine2Scroll 내부 가드)
-  // 무한 리렌더 없이 내용/폭 변경 시 화살표 표시 여부가 항상 최신으로 유지됨
-  useEffect(() => { updateLine2Scroll(); });
-  const scrollLine2 = (dir: 1 | -1) => {
-    line2ScrollRef.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
-  };
+  // 2번째 줄(필드 영역)과 3번째 줄(업무 정보 확장)의 가로 스크롤을 각각 스크롤바 없이
+  // 좌우 토글 버튼으로 조작할 수 있게 함
+  const line2H = useHScroll();
+  const line3H = useHScroll();
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const tableCfIds = new Set(tableCfs.map(cf => cf.id));
   // task.category 파트의 receiver/assignee 순서가 전체 탭(tableFields)과 반대이면 swap
@@ -2322,8 +2327,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   <div className="flex-shrink-0" style={{ width: 28 + 12 }} />
                   {/* 스크롤바 대신 좌우 화살표 버튼으로 가로 스크롤 — 스크롤바 자체는 숨김 */}
                   <div
-                    ref={line2ScrollRef}
-                    onScroll={updateLine2Scroll}
+                    ref={line2H.ref}
+                    onScroll={line2H.update}
                     className="flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden"
                     style={{ scrollbarWidth: 'none' }}
                   >
@@ -2334,13 +2339,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   {/* 좌/우 버튼을 한 자리(우측 끝)에만 두고, 더 스크롤할 방향에 따라
                       화살표 방향만 바뀜 — 버튼 위치가 매번 달라지면 계속 마우스를
                       옮겨야 해서 불편하다는 피드백 반영 */}
-                  {(line2Scroll.canRight || line2Scroll.canLeft) && (
+                  {(line2H.scroll.canRight || line2H.scroll.canLeft) && (
                     <button
                       type="button"
-                      onClick={e => { e.stopPropagation(); scrollLine2(line2Scroll.canRight ? 1 : -1); }}
+                      onClick={e => { e.stopPropagation(); line2H.scrollBy(line2H.scroll.canRight ? 1 : -1); }}
                       className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
                     >
-                      {line2Scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+                      {line2H.scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
                     </button>
                   )}
                 </div>
@@ -2353,13 +2358,29 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       {expanded && (
         <div className="bg-[#6C63FF]/[0.03] border-t border-black/5" style={{ minWidth: rowMinWidth }}>
           {(filledMeta.length > 0 || enabledCfs.length > 0) ? (
-            <div className="overflow-x-auto relative">
+            <div className="relative">
               <button
                 onClick={copyMetaFields}
-                className="absolute top-1/2 -translate-y-1/2 right-3 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:text-gray-700 hover:border-gray-300 shadow-sm transition-colors z-10"
+                className="absolute top-2 right-3 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:text-gray-700 hover:border-gray-300 shadow-sm transition-colors z-10"
               >
                 {metaCopied ? <><Check size={11} className="text-green-500" /><span className="text-green-500">복사됨</span></> : <><Copy size={11} /><span>복사</span></>}
               </button>
+              {/* 2번째 줄과 동일하게 스크롤바 대신 좌우 토글 버튼으로 가로 스크롤 조작 */}
+              {(line3H.scroll.canRight || line3H.scroll.canLeft) && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); line3H.scrollBy(line3H.scroll.canRight ? 1 : -1); }}
+                  className="absolute bottom-2 right-3 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
+                >
+                  {line3H.scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+                </button>
+              )}
+              <div
+                ref={line3H.ref}
+                onScroll={line3H.update}
+                className="overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: 'none' }}
+              >
               <div className="flex divide-x divide-gray-100 min-w-max pl-8">
                 {filledMeta.map(f => {
                   const val = task.customFields![f.key];
@@ -2454,6 +2475,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     </div>
                   );
                 })}
+              </div>
               </div>
             </div>
           ) : (

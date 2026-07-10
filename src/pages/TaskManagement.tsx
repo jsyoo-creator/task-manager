@@ -1087,15 +1087,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           <h1 className="page-title">업무 관리</h1>
           <p className="page-subtitle">업무 목록 · {filtered.length}건</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
           {canManage && brokenDateTasks.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={runDateFieldFix}
                 disabled={fixingDateFields}
                 title="엑셀 가져오기로 날짜 필드에 시리얼 숫자 등 잘못된 값이 들어간 업무를 정상 날짜로 복구합니다."
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all disabled:opacity-50 whitespace-nowrap"
                 style={{ background: 'linear-gradient(135deg,#f59e0b 0%,#d97706 100%)', boxShadow: '0 4px 14px rgba(217,119,6,0.3)' }}>
                 <Info size={14} /> {fixingDateFields ? '복구 중...' : `날짜 필드 복구 (${brokenDateTasks.length})`}
               </button>
@@ -1103,10 +1103,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             </div>
           )}
           {parts && parts.length > 0 ? (
-            <div className="relative" ref={templateDropRef}>
+            <div className="relative flex-shrink-0" ref={templateDropRef}>
               <button
                 onClick={() => setTemplateDropOpen(o => !o)}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all flex-shrink-0 whitespace-nowrap"
                 style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
                 <FileDown size={14} /> 템플릿
               </button>
@@ -1126,12 +1126,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             </div>
           ) : (
             <button onClick={() => downloadTemplate()}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all flex-shrink-0 whitespace-nowrap"
               style={{ background: 'linear-gradient(135deg,#94a3b8 0%,#64748b 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.25)' }}>
               <FileDown size={14} /> 템플릿
             </button>
           )}
-          <div className="relative" ref={exportDropRef}>
+          <div className="relative flex-shrink-0" ref={exportDropRef}>
             <button
               onClick={() => {
                 if (!exportDropOpen) {
@@ -1140,7 +1140,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 }
                 setExportDropOpen(o => !o);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all whitespace-nowrap"
               style={{ background: 'linear-gradient(135deg,#64748b 0%,#475569 100%)', boxShadow: '0 4px 14px rgba(100,116,139,0.35)' }}>
               <Download size={14} /> 내보내기
             </button>
@@ -1235,13 +1235,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           {canCreate && (
             <>
               {parts && parts.length > 0 ? (
-                <div className="relative" ref={importDropRef}>
+                <div className="relative flex-shrink-0" ref={importDropRef}>
                   <button
                     onClick={() => {
                       if (!importDropOpen) setImportParts(new Set(parts.map(p => p.name)));
                       setImportDropOpen(o => !o);
                     }}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all whitespace-nowrap"
                     style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
                     <Upload size={14} /> 엑셀 등록
                   </button>
@@ -1295,14 +1295,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 </div>
               ) : (
                 <button onClick={() => importRef.current?.click()}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-all flex-shrink-0 whitespace-nowrap"
                   style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
                   <Upload size={14} /> 엑셀 등록
                 </button>
               )}
               <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelImport} />
               <button onClick={() => setModalOpen(true)}
-                className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold">
+                className="btn-shiny-primary flex items-center gap-1.5 px-4 py-2 text-sm font-semibold flex-shrink-0 whitespace-nowrap">
                 <Plus size={14} /> 새 업무
               </button>
             </>

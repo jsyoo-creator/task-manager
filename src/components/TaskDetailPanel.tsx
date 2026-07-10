@@ -270,13 +270,13 @@ export default function TaskDetailPanel({
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
 
-  // 본문(업무 목록 등) 레이아웃의 padding-left는 항상 기본 패널 폭(PANEL_W) 기준으로만
-  // 잡는다 — 메일 양식 영역까지 포함해 밀어버리면 본문이 좁아지며 툴바가 깨짐(버튼 글자가
-  // 세로로 쌓임). 메일 양식은 본문 폭에 영향을 주지 않고 그 위에 겹쳐서(오버레이) 뜨게 함.
+  // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
+  // 계속 클릭할 수 있음 — padding-left를 메일 양식 폭까지 포함해서 늘림.
+  // (툴바가 좁아져 깨지는 문제는 패널 폭이 아니라 툴바 자체의 반응형 처리로 해결)
   useEffect(() => {
     if (!visible) return;
-    document.documentElement.style.setProperty('--detail-panel-w', `${PANEL_W}px`);
-  }, [visible]);
+    document.documentElement.style.setProperty('--detail-panel-w', `${panelW}px`);
+  }, [visible, panelW]);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -530,8 +530,7 @@ export default function TaskDetailPanel({
         zIndex: 30,
         borderRadius: '28px 0 0 28px',
         overflow: 'hidden',
-        // 본문 폭은 그대로 두고 패널만 그 위에 겹쳐서 뜨는 형태라, 아래 목록과 확실히
-        // 구분되도록 그림자 대신 테두리 색으로 "떠 있는 패널"임을 분명하게 함
+        // 아래 본문과 확실히 구분되도록 그림자 대신 테두리 색으로 표시
         border: '1px solid rgba(108,99,255,0.28)',
       }}
     >

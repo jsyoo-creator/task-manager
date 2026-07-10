@@ -43,14 +43,14 @@ function escapeHtml(s: string): string {
 }
 
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
-function buildMailPlainText(subject: string, greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
+function buildMailPlainText(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
   const bulletBlock = rows.map(r => `- ${r.label}: ${r.value}`).join('\n');
-  return `${subject}\n\n${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
+  return `${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
 }
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(subject: string, greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
+function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
   const tableHtml = `<table style="border-collapse:collapse;font-size:14px;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
@@ -61,7 +61,6 @@ function buildMailHtml(subject: string, greeting: string, message: string, rows:
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div>${escapeHtml(l)}</div>`).join('');
   return (
-    `${textBlock(subject)}<br>` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
     `${tableHtml}<br>` +
@@ -316,7 +315,6 @@ export default function TaskDetailPanel({
   const [activeDeptTab, setActiveDeptTab] = useState<Department | null>(null);
   const [visible, setVisible] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
-  const [mailSubject, setMailSubject] = useState('');
   const [mailMessage, setMailMessage] = useState('');
   const [mailAuthor, setMailAuthor] = useState('');
   const [mailPresetId, setMailPresetId] = useState('');
@@ -333,7 +331,6 @@ export default function TaskDetailPanel({
     const author = getDefaultMailAuthor(t, teamMembers);
     const taskPart = parts.find(p => p.name === t.category);
     const preset = taskPart?.mailFormConfig?.[0];
-    setMailSubject(`[${t.title}] 업무 안내`);
     setMailMessage(buildMailMessage(t, preset?.message ?? '', preset?.showTaskName ?? false));
     setMailAuthor(author);
     setMailPresetId(preset?.id ?? '');
@@ -1901,9 +1898,9 @@ export default function TaskDetailPanel({
               const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
               const rows = buildTaskInfoRows(task, statusLabel);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(mailSubject, greeting, mailMessage, rows, signature);
+              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature);
               try {
-                const html = buildMailHtml(mailSubject, greeting, mailMessage, rows, signature);
+                const html = buildMailHtml(greeting, mailMessage, rows, signature);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

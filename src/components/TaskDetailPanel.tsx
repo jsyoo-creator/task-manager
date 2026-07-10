@@ -51,17 +51,17 @@ function buildMailPlainText(greeting: string, message: string, rows: { label: st
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
 function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
-  const tableHtml = `<table style="border-collapse:collapse;font-size:12px;line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
+  const tableHtml = `<table style="border-collapse:collapse;font-size:13px;line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:12px;line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:8px 12px;background:#ffffff;font-size:12px;line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:13px;line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:8px 12px;background:#ffffff;font-size:13px;line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;
   // 붙여넣는 곳(Outlook 등)의 기본 글자 크기에 좌우되지 않도록, 표와 나머지 텍스트에
   // 동일한 font-size를 명시해 크기가 서로 달라 보이지 않게 함
-  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="font-size:14px;">${escapeHtml(l)}</div>`).join('');
+  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="font-size:13px;">${escapeHtml(l)}</div>`).join('');
   return (
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
@@ -1865,7 +1865,7 @@ export default function TaskDetailPanel({
             <label className="text-[11px] font-medium text-gray-500 mb-1 block">본문</label>
             {/* 인사말/업무 정보 표/맺음말은 항상 업무 데이터로 다시 생성되는 미리보기(수정 불가),
                 안내 문구만 자유 편집 가능한 textarea로 그 사이에 끼워 넣음 */}
-            <div className="flex-1 min-h-[240px] overflow-y-auto text-sm px-3 py-3 rounded-lg border border-gray-200 bg-white text-gray-800 leading-relaxed">
+            <div className="flex-1 min-h-[240px] overflow-y-auto text-[13px] px-3 py-3 rounded-lg border border-gray-200 bg-white text-gray-800 leading-relaxed">
               <p>{buildMailGreeting(mailAuthor)}</p>
               <textarea
                 value={mailMessage}
@@ -1874,10 +1874,10 @@ export default function TaskDetailPanel({
                 // 줄바꿈 문자 수가 아니라 실제 줄바꿈되어 보이는 만큼만 딱 맞게 높이가
                 // 늘어나도록(불필요한 빈 줄 없이) field-sizing 사용, 미지원 브라우저는 rows=2로 대체
                 style={{ fieldSizing: 'content' } as any}
-                className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
+                className="w-full mt-2 text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
               />
               <div className="mt-3 overflow-x-auto">
-                <table className="text-sm leading-relaxed border-collapse w-full border border-gray-300">
+                <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
                   <tbody>
                     {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
                       <tr key={r.label}>

@@ -262,6 +262,23 @@ export interface MailTableCellStyle {
   valueSuffix?: string; // 내용 값 뒤에 붙는 고정 텍스트
 }
 
+// 기존(첫 번째) 표와 별도로 추가하는 독립된 표 — 업무의 기본 8개 항목과 무관하게
+// 항목을 직접 구성(필드에서 가져오거나 사용자 입력)하는, 완전히 분리된 표 구성
+export interface MailTableConfig {
+  id: string;
+  title?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
+  customFields?: MailTableCustomField[]; // 이 표에 표시할 항목
+  rowOrder?: string[]; // 항목 순서, 드래그로 재정렬 (없으면 추가한 순서)
+  showLabelColumn?: boolean; // 표 항목명 칸 자체를 표시할지 (없으면 true = 표시)
+  showValueColumn?: boolean; // 표 내용 칸 자체를 표시할지 (없으면 true = 표시)
+  labelBg?: string; // 표 항목명 칸 공통 배경색 (hex, 없으면 기본값)
+  labelBold?: boolean; // 표 항목명 칸 공통 볼드 여부 (없으면 true)
+  valueBg?: string; // 표 내용 칸 공통 배경색 (hex, 없으면 기본값)
+  valueBold?: boolean; // 표 내용 칸 공통 볼드 여부 (없으면 false)
+  fieldStyles?: Record<string, MailTableCellStyle>; // 항목별 배경색/볼드/숨김/접두·접미 개별 오버라이드
+  hidden?: boolean; // true면 이 표 전체(제목 포함)를 표시하지 않음
+}
+
 // 업무 상세 "메일 양식"의 받는사람/참조 프리셋 하나 — 받는사람/참조 조합이 매번 다를 수 있어
 // 파트별로 이름/색이 다른 탭을 여러 개 만들어두고 상황에 맞게 골라 쓸 수 있게 함
 export interface MailFormPreset {
@@ -284,6 +301,7 @@ export interface MailFormPreset {
   tableValueBg?: string; // 표 내용 칸 공통 배경색 (hex, 없으면 기본값)
   tableValueBold?: boolean; // 표 내용 칸 공통 볼드 여부 (없으면 false)
   tableFieldStyles?: Record<string, MailTableCellStyle>; // 항목(빌트인 key 또는 커스텀 필드 id)별 배경색/볼드 개별 오버라이드
+  extraTables?: MailTableConfig[]; // 기존 표에 합치지 않고 별도로 구성하는 추가 표 목록
   bodyCustomFields?: MailBodyCustomField[]; // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목
 }
 

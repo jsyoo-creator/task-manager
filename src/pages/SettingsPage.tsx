@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -3866,6 +3866,330 @@ function InlineTextField({ value, onCommit, placeholder, className }: {
   );
 }
 
+// 기존(첫 번째) 표에 합치지 않고 별도로 구성하는 추가 표 하나를 편집. 기본 8개
+// 업무 항목 개념이 없고, 필드에서 가져오거나 사용자가 직접 입력하는 항목만으로 구성
+function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
+  table: MailTableConfig;
+  candidateFields: { key: string; label: string; type: 'text' | 'date' }[];
+  onSave: (next: MailTableConfig) => void;
+  onRemove: () => void;
+}) {
+  const [titleDraft, setTitleDraft] = useState(table.title ?? '');
+  const [customSourceKey, setCustomSourceKey] = useState('');
+  const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
+  const [manualLabelDraft, setManualLabelDraft] = useState('');
+  const rowDragIdxRef = useRef<number | null>(null);
+  const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setTitleDraft(table.title ?? '');
+    setCustomSourceKey('');
+    setManualLabelDraft('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.id]);
+
+  const patch = (p: Partial<MailTableConfig>) => onSave({ ...table, ...p });
+
+  const handleAddField = () => {
+    if (!customSourceKey) return;
+    const source = candidateFields.find(f => f.key === customSourceKey);
+    if (!source) return;
+    const field: MailTableCustomField = { id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: source.label, type: source.type, sourceKey: source.key };
+    patch({ customFields: [...(table.customFields ?? []), field] });
+    setCustomSourceKey('');
+  };
+
+  const handleAddManual = () => {
+    if (!manualLabelDraft.trim()) return;
+    const field: MailTableCustomField = { id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: manualLabelDraft.trim(), type: customType };
+    patch({ customFields: [...(table.customFields ?? []), field] });
+    setManualLabelDraft('');
+  };
+
+  const handleRemoveField = (id: string) => patch({ customFields: (table.customFields ?? []).filter(f => f.id !== id) });
+
+  const rows = resolveMailTableRowOrder((table.customFields ?? []).map(f => f.id), table.rowOrder)
+    .map(id => (table.customFields ?? []).find(f => f.id === id))
+    .filter((f): f is MailTableCustomField => !!f);
+
+  const handleReorderRow = (toIdx: number) => {
+    const from = rowDragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...rows];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    patch({ rowOrder: arr.map(f => f.id) });
+    rowDragIdxRef.current = null;
+    setRowDragOverIdx(null);
+  };
+
+  const setFieldStyleOverride = (key: string, p: Partial<MailTableCellStyle>) => {
+    const cur = table.fieldStyles ?? {};
+    const next = { ...cur[key], ...p };
+    const isEmpty = !next.labelBg && next.labelBold === undefined && !next.valueBg && next.valueBold === undefined && !next.hideRow && !next.hideLabel && !next.valuePrefix && !next.valueSuffix;
+    const nextStyles = { ...cur };
+    if (isEmpty) delete nextStyles[key]; else nextStyles[key] = next;
+    patch({ fieldStyles: nextStyles });
+  };
+  const clearFieldStyleOverride = (key: string) => {
+    const nextStyles = { ...(table.fieldStyles ?? {}) };
+    delete nextStyles[key];
+    patch({ fieldStyles: nextStyles });
+  };
+
+  const showLabelColumn = table.showLabelColumn ?? true;
+  const showValueColumn = table.showValueColumn ?? true;
+
+  return (
+    <div className="space-y-3 rounded-xl border border-gray-100 p-4">
+      <div className="flex items-center gap-3">
+        <input
+          value={titleDraft}
+          onChange={e => setTitleDraft(e.target.value)}
+          onBlur={() => { if (titleDraft !== (table.title ?? '')) patch({ title: titleDraft.trim() }); }}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder="표 제목 (선택, 예: 예상 일정표)"
+          className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        />
+        <button onClick={onRemove} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+          표 삭제
+        </button>
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${table.hidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+          {table.hidden && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        </div>
+        <input type="checkbox" checked={!!table.hidden} onChange={() => patch({ hidden: !table.hidden })} className="hidden" />
+        <span className="text-[11px] text-gray-600">표 전체 숨김</span>
+      </label>
+
+      <div className={table.hidden ? 'opacity-40 pointer-events-none space-y-3' : 'space-y-3'}>
+        <div>
+          <p className="text-[11px] text-gray-500 mb-1.5">표시할 항목</p>
+          {(table.customFields ?? []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {table.customFields!.map(f => (
+                <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                  {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                  <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-1 mb-1.5">
+            <button onClick={() => setAddMode('field')}
+              className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${addMode === 'field' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              필드에서 추가
+            </button>
+            <button onClick={() => setAddMode('manual')}
+              className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${addMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              사용자 입력 항목
+            </button>
+          </div>
+          {addMode === 'field' ? (
+            candidateFields.length === 0 ? (
+              <p className="text-[11px] text-gray-400">추가할 수 있는 필드가 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                  <option value="">필드 선택</option>
+                  {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </select>
+                <button onClick={handleAddField} disabled={!customSourceKey}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                  추가
+                </button>
+              </div>
+            )
+          ) : (
+            <div>
+              <div className="flex items-center gap-1.5">
+                <input value={manualLabelDraft} onChange={e => setManualLabelDraft(e.target.value)}
+                  placeholder="항목 이름 (예: 특이사항)"
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+                <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                  <option value="text">텍스트</option>
+                  <option value="date">날짜</option>
+                </select>
+                <button onClick={handleAddManual} disabled={!manualLabelDraft.trim()}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                  추가
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
+            </div>
+          )}
+        </div>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${showLabelColumn ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+            {showLabelColumn && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+          <input type="checkbox" checked={showLabelColumn} onChange={() => patch({ showLabelColumn: !showLabelColumn })} className="hidden" />
+          <span className="text-[11px] text-gray-600">항목명 칸 표시 (끄면 내용 칸만 표시)</span>
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${showValueColumn ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+            {showValueColumn && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+          <input type="checkbox" checked={showValueColumn} onChange={() => patch({ showValueColumn: !showValueColumn })} className="hidden" />
+          <span className="text-[11px] text-gray-600">내용 칸 표시 (끄면 항목명 칸만 표시)</span>
+        </label>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className={showLabelColumn ? '' : 'opacity-40 pointer-events-none'}>
+            <p className="text-[11px] text-gray-500 mb-1.5">항목명 칸 기본값</p>
+            <div className="flex flex-wrap gap-1 mb-2">
+              {MAIL_TABLE_BG_PRESETS.map(c => (
+                <button key={c} onClick={() => patch({ labelBg: c })}
+                  className={`w-5 h-5 rounded-full flex-shrink-0 border border-gray-200 ${(table.labelBg ?? '#f9fafb') === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(table.labelBold ?? true) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {(table.labelBold ?? true) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={table.labelBold ?? true} onChange={() => patch({ labelBold: !(table.labelBold ?? true) })} className="hidden" />
+              <span className="text-[11px] text-gray-600">볼드</span>
+            </label>
+          </div>
+          <div className={showValueColumn ? '' : 'opacity-40 pointer-events-none'}>
+            <p className="text-[11px] text-gray-500 mb-1.5">내용 칸 기본값</p>
+            <div className="flex flex-wrap gap-1 mb-2">
+              {MAIL_TABLE_BG_PRESETS.map(c => (
+                <button key={c} onClick={() => patch({ valueBg: c })}
+                  className={`w-5 h-5 rounded-full flex-shrink-0 border border-gray-200 ${(table.valueBg ?? '#ffffff') === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(table.valueBold ?? false) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {(table.valueBold ?? false) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={table.valueBold ?? false} onChange={() => patch({ valueBold: !(table.valueBold ?? false) })} className="hidden" />
+              <span className="text-[11px] text-gray-600">볼드</span>
+            </label>
+          </div>
+        </div>
+
+        {rows.length > 0 && (
+          <div>
+            <p className="text-[11px] text-gray-500 mb-1.5">
+              항목별 스타일 재정의 (선택 — 지정하지 않으면 위 기본값 사용)
+              <span className="text-gray-300 font-normal ml-1">드래그로 표에 표시될 순서 변경</span>
+            </p>
+            <div className="space-y-2">
+              {rows.map((f, i) => {
+                const override = table.fieldStyles?.[f.id];
+                const effLabelBg = override?.labelBg || table.labelBg || '#f9fafb';
+                const effLabelBold = override?.labelBold ?? table.labelBold ?? true;
+                const effValueBg = override?.valueBg || table.valueBg || '#ffffff';
+                const effValueBold = override?.valueBold ?? table.valueBold ?? false;
+                const hasOverride = !!override && Object.keys(override).length > 0;
+                const isRowHidden = override?.hideRow ?? false;
+                const isLabelHidden = override?.hideLabel ?? false;
+                return (
+                  <div key={f.id}
+                    draggable
+                    onDragStart={() => { rowDragIdxRef.current = i; }}
+                    onDragOver={e => { e.preventDefault(); setRowDragOverIdx(i); }}
+                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setRowDragOverIdx(null); }}
+                    onDrop={() => handleReorderRow(i)}
+                    onDragEnd={() => { rowDragIdxRef.current = null; setRowDragOverIdx(null); }}
+                    className={`rounded-lg border border-gray-100 p-2.5 space-y-1.5 ${rowDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                    <div className="flex items-center justify-between flex-wrap gap-y-1">
+                      <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${isRowHidden ? 'text-gray-300' : 'text-gray-700'}`}>
+                        <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                        {f.label}
+                        {isRowHidden && <span className="text-[10px] font-normal text-gray-400">(숨김)</span>}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                          <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isRowHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                            {isRowHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          </div>
+                          <input type="checkbox" checked={isRowHidden} onChange={() => setFieldStyleOverride(f.id, { hideRow: !isRowHidden })} className="hidden" />
+                          <span className="text-[10px] text-gray-500">전체 숨김</span>
+                        </label>
+                        <label className={`flex items-center gap-1.5 cursor-pointer select-none ${showLabelColumn && !isRowHidden ? '' : 'opacity-40 pointer-events-none'}`}>
+                          <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isLabelHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                            {isLabelHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          </div>
+                          <input type="checkbox" checked={isLabelHidden} onChange={() => setFieldStyleOverride(f.id, { hideLabel: !isLabelHidden })} className="hidden" />
+                          <span className="text-[10px] text-gray-500">항목명 숨김</span>
+                        </label>
+                        {hasOverride && (
+                          <button onClick={() => clearFieldStyleOverride(f.id)} className="text-[10px] text-gray-400 hover:text-red-500">
+                            기본값으로
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`grid grid-cols-2 gap-3 ${isRowHidden ? 'opacity-30 pointer-events-none' : ''}`}>
+                      <div className={`flex items-center gap-1 flex-wrap ${showLabelColumn && !isLabelHidden ? '' : 'opacity-40 pointer-events-none'}`}>
+                        <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">항목명</span>
+                        {MAIL_TABLE_BG_PRESETS.map(c => (
+                          <button key={c} onClick={() => setFieldStyleOverride(f.id, { labelBg: c })}
+                            className={`w-3.5 h-3.5 rounded-full flex-shrink-0 border border-gray-200 ${effLabelBg === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                            style={{ background: c }}
+                          />
+                        ))}
+                        <button onClick={() => setFieldStyleOverride(f.id, { labelBold: !effLabelBold })}
+                          className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 font-bold ${effLabelBold ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
+                          B
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">내용</span>
+                        {MAIL_TABLE_BG_PRESETS.map(c => (
+                          <button key={c} onClick={() => setFieldStyleOverride(f.id, { valueBg: c })}
+                            className={`w-3.5 h-3.5 rounded-full flex-shrink-0 border border-gray-200 ${effValueBg === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                            style={{ background: c }}
+                          />
+                        ))}
+                        <button onClick={() => setFieldStyleOverride(f.id, { valueBold: !effValueBold })}
+                          className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 font-bold ${effValueBold ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
+                          B
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">값 앞</span>
+                        <InlineTextField
+                          value={override?.valuePrefix ?? ''}
+                          onCommit={v => setFieldStyleOverride(f.id, { valuePrefix: v })}
+                          placeholder="예: 예정 "
+                          className="flex-1 min-w-0 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">값 뒤</span>
+                        <InlineTextField
+                          value={override?.valueSuffix ?? ''}
+                          onCommit={v => setFieldStyleOverride(f.id, { valueSuffix: v })}
+                          placeholder="예:  완료"
+                          className="flex-1 min-w-0 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;
   members: { name: string; department?: Department }[];
@@ -3894,6 +4218,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [bodyDragOverIdx, setBodyDragOverIdx] = useState<number | null>(null);
   const rowDragIdxRef = useRef<number | null>(null);
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
+  const [selectedExtraTableId, setSelectedExtraTableId] = useState<string>('');
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -3907,6 +4232,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setCustomSourceKey('');
     setManualLabelDraft('');
     setBodyTitleDraft('');
+    setSelectedExtraTableId('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4055,6 +4381,25 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: arr } : p));
     bodyDragIdxRef.current = null;
     setBodyDragOverIdx(null);
+  };
+
+  // 기존 표에 합치지 않는, 별도로 구성하는 추가 표 관리
+  const handleAddExtraTable = () => {
+    if (!currentPreset) return;
+    const table: MailTableConfig = { id: `mtb_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, customFields: [] };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, extraTables: [...(p.extraTables ?? []), table] } : p));
+    setSelectedExtraTableId(table.id);
+  };
+
+  const handleRemoveExtraTable = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, extraTables: (p.extraTables ?? []).filter(t => t.id !== id) } : p));
+    if (selectedExtraTableId === id) setSelectedExtraTableId('');
+  };
+
+  const handleSaveExtraTable = (next: MailTableConfig) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, extraTables: (p.extraTables ?? []).map(t => t.id === next.id ? next : t) } : p));
   };
 
   const handleSetLabelBg = (bg: string) => {
@@ -4487,6 +4832,37 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               </div>
             )}
             </div>
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-700">별도 표 추가</p>
+            <p className="text-[11px] text-gray-400">위 표에 합쳐지지 않는, 완전히 독립된 표를 추가로 구성합니다. 항목은 필드에서 가져오거나 메일 작성할 때마다 직접 입력하는 것으로 만들 수 있습니다.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(currentPreset.extraTables ?? []).map((t, i) => (
+                <button key={t.id} onClick={() => setSelectedExtraTableId(t.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    selectedExtraTableId === t.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {t.title || `표 ${i + 2}`}
+                </button>
+              ))}
+              <button onClick={handleAddExtraTable}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-gray-300 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                + 표 추가
+              </button>
+            </div>
+            {(() => {
+              const selectedExtraTable = (currentPreset.extraTables ?? []).find(t => t.id === selectedExtraTableId);
+              if (!selectedExtraTable) return null;
+              return (
+                <ExtraTableEditor
+                  table={selectedExtraTable}
+                  candidateFields={candidateFields}
+                  onSave={handleSaveExtraTable}
+                  onRemove={() => handleRemoveExtraTable(selectedExtraTable.id)}
+                />
+              );
+            })()}
           </div>
 
           <div className="pt-3 border-t border-gray-100 space-y-3">

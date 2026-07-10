@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -96,6 +96,25 @@ export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: stri
   return [...known, ...extra];
 }
 
+// 항목별 배경색/볼드/숨김/접두·접미 오버라이드 해석 — 공통 로직을 메인 표/추가 표가 함께 씀
+function resolveRowStyle(
+  key: string,
+  fieldStyles: Record<string, { labelBg?: string; labelBold?: boolean; valueBg?: string; valueBold?: boolean; hideRow?: boolean; hideLabel?: boolean; valuePrefix?: string; valueSuffix?: string }> | undefined,
+  labelBg: string | undefined, labelBold: boolean | undefined, valueBg: string | undefined, valueBold: boolean | undefined
+) {
+  const o = fieldStyles?.[key];
+  return {
+    labelBg: lightenHex(o?.labelBg || labelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg, 0.4),
+    labelBold: o?.labelBold ?? labelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
+    valueBg: lightenHex(o?.valueBg || valueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg, 0.4),
+    valueBold: o?.valueBold ?? valueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
+    hideRow: o?.hideRow ?? false,
+    hideLabel: o?.hideLabel ?? false,
+    valuePrefix: o?.valuePrefix ?? '',
+    valueSuffix: o?.valueSuffix ?? '',
+  };
+}
+
 // preset의 tableFields/tableCustomFields/tableFieldStyles/tableRowOrder를 반영해
 // 표에 표시할 행 목록을 만든다. tableFields가 없으면(설정 전) 기본 8개 전체를 표시.
 // manualValues는 sourceKey가 없는(=사용자 입력) 커스텀 항목의 값을, 메일 작성 중 입력한 값에서 채움
@@ -110,19 +129,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     startDate: fmtDateWithWeekday(task.startDate),
     endDate: fmtDateWithWeekday(task.endDate),
   };
-  const resolveStyle = (key: string) => {
-    const o = preset?.tableFieldStyles?.[key];
-    return {
-      labelBg: lightenHex(o?.labelBg || preset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg, 0.4),
-      labelBold: o?.labelBold ?? preset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
-      valueBg: lightenHex(o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg, 0.4),
-      valueBold: o?.valueBold ?? preset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
-      hideRow: o?.hideRow ?? false,
-      hideLabel: o?.hideLabel ?? false,
-      valuePrefix: o?.valuePrefix ?? '',
-      valueSuffix: o?.valueSuffix ?? '',
-    };
-  };
+  const resolveStyle = (key: string) => resolveRowStyle(key, preset?.tableFieldStyles, preset?.tableLabelBg, preset?.tableLabelBold, preset?.tableValueBg, preset?.tableValueBold);
   const keys = preset?.tableFields?.length ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
   const rowsByKey: Record<string, MailTableRow & { hideRow: boolean }> = {};
   keys
@@ -144,6 +151,26 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
   return order.map(k => rowsByKey[k]).filter((r): r is MailTableRow & { hideRow: boolean } => !!r && !r.hideRow);
 }
 
+// 기존 표에 합치지 않는, 완전히 별도로 구성한 추가 표의 행 목록을 만든다.
+// 기본 8개 항목 개념 없이 그 표에 추가한 커스텀 항목만으로 구성됨
+function buildExtraTableRows(task: Task, cfg: MailTableConfig, manualValues?: Record<string, string>): MailTableRow[] {
+  const resolveStyle = (key: string) => resolveRowStyle(key, cfg.fieldStyles, cfg.labelBg, cfg.labelBold, cfg.valueBg, cfg.valueBold);
+  const rowsByKey: Record<string, MailTableRow & { hideRow: boolean }> = {};
+  (cfg.customFields ?? []).forEach(cf => {
+    const raw = cf.sourceKey ? (task.customFields?.[cf.sourceKey] ?? '') : (manualValues?.[cf.id] ?? '');
+    rowsByKey[cf.id] = {
+      key: cf.id,
+      label: cf.label,
+      value: cf.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-'),
+      ...resolveStyle(cf.id),
+      ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
+    };
+  });
+  const naturalKeys = [...Object.keys(rowsByKey)];
+  const order = resolveMailTableRowOrder(naturalKeys, cfg.rowOrder);
+  return order.map(k => rowsByKey[k]).filter((r): r is MailTableRow & { hideRow: boolean } => !!r && !r.hideRow);
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -161,21 +188,50 @@ interface MailBodyExtraItem {
   value: string;
 }
 
+// 미리보기/복사에 쓰이는, 화면에 그려질 표 하나의 최종 형태(메인 표 1개 + 별도로 구성한
+// 추가 표 여러 개가 모두 이 형태로 만들어져 순서대로 렌더링됨)
+interface RenderableTable {
+  rows: MailTableRow[];
+  title?: string;
+  showLabelColumn: boolean;
+  showValueColumn: boolean;
+  visible: boolean;
+}
+
+function buildMainRenderableTable(task: Task, statusLabel: string, preset: MailFormPreset | undefined, manualValues?: Record<string, string>): RenderableTable {
+  const rows = buildTaskInfoRows(task, statusLabel, preset, manualValues);
+  const showLabelColumn = preset?.tableShowLabelColumn ?? true;
+  const showValueColumn = preset?.tableShowValueColumn ?? true;
+  return { rows, title: preset?.tableTitle, showLabelColumn, showValueColumn, visible: !preset?.tableHidden && (showLabelColumn || showValueColumn) };
+}
+
+function buildExtraRenderableTable(task: Task, cfg: MailTableConfig, manualValues?: Record<string, string>): RenderableTable {
+  const rows = buildExtraTableRows(task, cfg, manualValues);
+  const showLabelColumn = cfg.showLabelColumn ?? true;
+  const showValueColumn = cfg.showValueColumn ?? true;
+  return { rows, title: cfg.title, showLabelColumn, showValueColumn, visible: !cfg.hidden && (showLabelColumn || showValueColumn) };
+}
+
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
-function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string, bodyExtra: MailBodyExtraItem[], showTable: boolean, showLabelColumn: boolean, showValueColumn: boolean): string {
-  const bulletBlock = rows
+function tableToPlainText(t: RenderableTable): string | null {
+  if (!t.visible) return null;
+  const bullets = t.rows
     .map(r => {
-      const labelVisible = showLabelColumn && !r.hideLabel;
-      if (labelVisible && showValueColumn) return `- ${r.label}: ${composeRowValue(r)}`;
+      const labelVisible = t.showLabelColumn && !r.hideLabel;
+      if (labelVisible && t.showValueColumn) return `- ${r.label}: ${composeRowValue(r)}`;
       if (labelVisible) return `- ${r.label}`;
-      if (showValueColumn) return `- ${composeRowValue(r)}`;
+      if (t.showValueColumn) return `- ${composeRowValue(r)}`;
       return null; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
     })
     .filter((l): l is string => !!l)
     .join('\n');
+  return t.title ? `[${t.title}]\n${bullets}` : bullets;
+}
+
+function buildMailPlainText(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[]): string {
+  const tableBlocks = tables.map(tableToPlainText).filter((b): b is string => !!b);
   const extraText = bodyExtra.length ? bodyExtra.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : '';
-  const blocks = [greeting, message];
-  if (showTable) blocks.push(bulletBlock);
+  const blocks = [greeting, message, ...tableBlocks];
   if (extraText) blocks.push(extraText);
   blocks.push('감사합니다.');
   if (signature) blocks.push(signature);
@@ -184,29 +240,34 @@ function buildMailPlainText(greeting: string, message: string, rows: MailTableRo
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean, showValueColumn: boolean, bodyExtra: MailBodyExtraItem[], showTable: boolean): string {
-  // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
-  // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
-  const FS = 'font-size:13px!important;';
+function tableToHtml(t: RenderableTable, FS: string): string {
+  if (!t.visible) return '';
   const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
-    rows.map(r => {
+    t.rows.map(r => {
       // 이 행만 항목명을 숨기면(hideLabel) 항목명 칸 자체를 아예 안 만들고, 내용 칸이
       // 그 자리까지 넓게 채우도록 colspan="2"를 준다 (항목명 칸이 빈 채로 남지 않게)
-      const labelVisible = showLabelColumn && !r.hideLabel;
-      if (!labelVisible && !showValueColumn) return ''; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
+      const labelVisible = t.showLabelColumn && !r.hideLabel;
+      if (!labelVisible && !t.showValueColumn) return ''; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
       const labelCell = labelVisible
         ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>`
         : '';
-      const valueColspan = showLabelColumn && !labelVisible ? ' colspan="2"' : '';
-      const valueCell = showValueColumn
+      const valueColspan = t.showLabelColumn && !labelVisible ? ' colspan="2"' : '';
+      const valueCell = t.showValueColumn
         ? `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(composeRowValue(r))}</td>`
         : '';
       return `<tr>${labelCell}${valueCell}</tr>`;
     }).join('')
   }</table>`;
+  const titleHtml = t.title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(t.title)}]</div>` : '';
+  return `${titleHtml}${tableHtml}<br>`;
+}
+
+function buildMailHtml(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[]): string {
+  // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
+  // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
+  const FS = 'font-size:13px!important;';
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
-  const titleHtml = title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(title)}]</div>` : '';
-  const tableBlockHtml = showTable ? `${titleHtml}${tableHtml}<br>` : '';
+  const tablesHtml = tables.map(t => tableToHtml(t, FS)).join('');
   const extraHtml = bodyExtra.length
     ? bodyExtra.map(f =>
         `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
@@ -217,11 +278,67 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
-    `${tableBlockHtml}` +
+    `${tablesHtml}` +
     `${extraHtml}` +
     `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '') +
     `</div>`
+  );
+}
+
+// 표 미리보기 — 메인 표/추가로 구성한 표 모두 이 컴포넌트로 렌더링. 사용자 입력(값이
+// 미리 채워지지 않는) 항목은 입력창을 그대로 셀 안에 보여줘 바로 작성할 수 있게 함
+function MailTablePreview({ table, manualValues, setManualValues }: {
+  table: RenderableTable;
+  manualValues: Record<string, string>;
+  setManualValues: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+}) {
+  if (!table.visible) return null;
+  return (
+    <div className="mt-3">
+      {table.title && <p className="font-bold mb-1">[{table.title}]</p>}
+      <div className="overflow-x-auto">
+        <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
+          <tbody>
+            {table.rows.map(r => {
+              const labelVisible = table.showLabelColumn && !r.hideLabel;
+              if (!labelVisible && !table.showValueColumn) return null;
+              return (
+                <tr key={r.key}>
+                  {labelVisible && (
+                    <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.label}</td>
+                  )}
+                  {table.showValueColumn && (
+                    <td colSpan={table.showLabelColumn && !labelVisible ? 2 : 1} className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>
+                      {r.manualFieldId ? (
+                        <span className="inline-flex items-center gap-1 w-full">
+                          {r.valuePrefix && <span className="flex-shrink-0">{r.valuePrefix}</span>}
+                          {r.manualFieldType === 'date' ? (
+                            <DatePicker
+                              compact
+                              value={manualValues[r.manualFieldId] ?? ''}
+                              onChange={v => setManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
+                            />
+                          ) : (
+                            <input
+                              value={manualValues[r.manualFieldId] ?? ''}
+                              onChange={e => setManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
+                              placeholder="입력"
+                              className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                            />
+                          )}
+                          {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
+                        </span>
+                      ) : composeRowValue(r)}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -2042,60 +2159,14 @@ export default function TaskDetailPanel({
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
-                const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
-                const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
-                const showValueColumn = currentPreset?.tableShowValueColumn ?? true;
-                const tableVisible = !currentPreset?.tableHidden && (showLabelColumn || showValueColumn);
+                const mainTable = buildMainRenderableTable(task, statusLabel, currentPreset, mailManualValues);
+                const extraTables = (currentPreset?.extraTables ?? []).map(cfg => ({ cfg, table: buildExtraRenderableTable(task, cfg, mailManualValues) }));
                 return (
-                  <div className="mt-3">
-                    {tableVisible && (
-                    <>
-                    {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
-                    <div className="overflow-x-auto">
-                      <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
-                        <tbody>
-                          {rows.map(r => {
-                            // 이 행만 항목명을 숨기면(hideLabel) 항목명 칸을 아예 만들지 않고,
-                            // 내용 칸이 그 자리까지 colspan으로 넓게 채우게 함
-                            const labelVisible = showLabelColumn && !r.hideLabel;
-                            if (!labelVisible && !showValueColumn) return null; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
-                            return (
-                              <tr key={r.key}>
-                                {labelVisible && (
-                                  <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.label}</td>
-                                )}
-                                {showValueColumn && (
-                                  <td colSpan={showLabelColumn && !labelVisible ? 2 : 1} className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>
-                                    {r.manualFieldId ? (
-                                      <span className="inline-flex items-center gap-1 w-full">
-                                        {r.valuePrefix && <span className="flex-shrink-0">{r.valuePrefix}</span>}
-                                        {r.manualFieldType === 'date' ? (
-                                          <DatePicker
-                                            compact
-                                            value={mailManualValues[r.manualFieldId] ?? ''}
-                                            onChange={v => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
-                                          />
-                                        ) : (
-                                          <input
-                                            value={mailManualValues[r.manualFieldId] ?? ''}
-                                            onChange={e => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
-                                            placeholder="입력"
-                                            className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-800 focus:outline-none"
-                                          />
-                                        )}
-                                        {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
-                                      </span>
-                                    ) : composeRowValue(r)}
-                                  </td>
-                                )}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    </>
-                    )}
+                  <div>
+                    <MailTablePreview table={mainTable} manualValues={mailManualValues} setManualValues={setMailManualValues} />
+                    {extraTables.map(({ cfg, table }) => (
+                      <MailTablePreview key={cfg.id} table={table} manualValues={mailManualValues} setManualValues={setMailManualValues} />
+                    ))}
                     {(currentPreset?.bodyCustomFields ?? []).length > 0 && (
                       <div className="mt-3 space-y-3">
                         {currentPreset!.bodyCustomFields!.map(f => {
@@ -2141,18 +2212,17 @@ export default function TaskDetailPanel({
               const currentPart = parts.find(p => p.name === task.category);
               const presets = currentPart?.mailFormConfig ?? [];
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
-              const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
-              const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
-              const showValueColumn = currentPreset?.tableShowValueColumn ?? true;
-              const showTable = !currentPreset?.tableHidden && (showLabelColumn || showValueColumn);
+              const mainTable = buildMainRenderableTable(task, statusLabel, currentPreset, mailManualValues);
+              const extraTables = (currentPreset?.extraTables ?? []).map(cfg => buildExtraRenderableTable(task, cfg, mailManualValues));
+              const allTables = [mainTable, ...extraTables];
               const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
                 title: f.title,
                 value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
               }));
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature, bodyExtra, showTable, showLabelColumn, showValueColumn);
+              const plainText = buildMailPlainText(greeting, mailMessage, allTables, signature, bodyExtra);
               try {
-                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn, showValueColumn, bodyExtra, showTable);
+                const html = buildMailHtml(greeting, mailMessage, allTables, signature, bodyExtra);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

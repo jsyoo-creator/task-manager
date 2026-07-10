@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -108,6 +108,19 @@ export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: stri
   return [...known, ...extra];
 }
 
+// 커스텀 항목의 실제 값을 가져옴 — source가 'subtask'면 sourceKey를
+// "세부업무타입id:startDate|endDate" 형식으로 보고 task.subTaskData에서, 그 외
+// sourceKey가 있으면 task.customFields에서, 없으면(사용자 입력) manualValues에서 가져옴
+function resolveCustomFieldRawValue(task: Task, cf: MailTableCustomField, manualValues?: Record<string, string>): string {
+  if (cf.source === 'subtask' && cf.sourceKey) {
+    const [subTaskTypeId, dateField] = cf.sourceKey.split(':');
+    const entry = task.subTaskData?.[subTaskTypeId];
+    return (dateField === 'startDate' ? entry?.startDate : entry?.endDate) ?? '';
+  }
+  if (cf.sourceKey) return task.customFields?.[cf.sourceKey] ?? '';
+  return manualValues?.[cf.id] ?? '';
+}
+
 // 항목별 배경색/볼드/숨김/접두·접미 오버라이드 해석 — 공통 로직을 메인 표/추가 표가 함께 씀
 function resolveRowStyle(
   key: string,
@@ -151,7 +164,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     .filter((f): f is { key: string; label: string } => !!f)
     .forEach(f => { rowsByKey[f.key] = { key: f.key, label: f.label, value: builtinValues[f.key], ...resolveStyle(f.key) }; });
   (preset?.tableCustomFields ?? []).forEach(cf => {
-    const raw = cf.sourceKey ? (task.customFields?.[cf.sourceKey] ?? '') : (manualValues?.[cf.id] ?? '');
+    const raw = resolveCustomFieldRawValue(task, cf, manualValues);
     rowsByKey[cf.id] = {
       key: cf.id,
       label: cf.label,
@@ -172,7 +185,7 @@ function buildExtraTableRows(task: Task, cfg: MailTableConfig, manualValues?: Re
   const resolveStyle = (key: string) => resolveRowStyle(key, cfg.fieldStyles, cfg.labelBg, cfg.labelBold, cfg.valueBg, cfg.valueBold);
   const rowsByKey: Record<string, MailTableRow & { hideRow: boolean }> = {};
   (cfg.customFields ?? []).forEach(cf => {
-    const raw = cf.sourceKey ? (task.customFields?.[cf.sourceKey] ?? '') : (manualValues?.[cf.id] ?? '');
+    const raw = resolveCustomFieldRawValue(task, cf, manualValues);
     rowsByKey[cf.id] = {
       key: cf.id,
       label: cf.label,

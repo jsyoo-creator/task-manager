@@ -3870,7 +3870,7 @@ function InlineTextField({ value, onCommit, placeholder, className }: {
 // 업무 항목 개념이 없고, 필드에서 가져오거나 사용자가 직접 입력하는 항목만으로 구성
 function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   table: MailTableConfig;
-  candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url' }[];
+  candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url'; source: 'field' | 'subtask' }[];
   onSave: (next: MailTableConfig) => void;
   onRemove: () => void;
 }) {
@@ -3895,7 +3895,13 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
     if (!customSourceKey) return;
     const source = candidateFields.find(f => f.key === customSourceKey);
     if (!source) return;
-    const field: MailTableCustomField = { id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: source.label, type: source.type, sourceKey: source.key };
+    const field: MailTableCustomField = {
+      id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      label: source.label,
+      type: source.type,
+      sourceKey: source.key,
+      ...(source.source === 'subtask' ? { source: 'subtask' as const } : {}),
+    };
     patch({ customFields: [...(table.customFields ?? []), field] });
     setCustomSourceKey('');
   };
@@ -3910,6 +3916,11 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   const handleRemoveField = (id: string) => patch({ customFields: (table.customFields ?? []).filter(f => f.id !== id) });
 
   const handleSetFieldLinkText = (id: string, linkText: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) });
+
+  const handleSetFieldLabel = (id: string, label: string) => {
+    if (!label.trim()) return;
+    patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, label: label.trim() } : f) });
+  };
 
   // 링크(URL) 속성이 생기기 전에 "텍스트"로 추가해둔 필드를 링크로 전환
   const handleFixFieldToUrl = (id: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, type: 'url' } : f) });
@@ -3980,9 +3991,12 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                 const needsFix = sourceIsUrl && f.type !== 'url';
                 return (
                   <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
-                    <span className="flex-1">
-                      {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                    </span>
+                    <InlineTextField
+                      value={f.label}
+                      onCommit={v => handleSetFieldLabel(f.id, v)}
+                      className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                    />
+                    <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
                     {needsFix && (
                       <button onClick={() => handleFixFieldToUrl(f.id)}
                         className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
@@ -3994,7 +4008,7 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                         value={f.linkText ?? ''}
                         onCommit={v => handleSetFieldLinkText(f.id, v)}
                         placeholder="링크 텍스트 (예: 자세히 보기)"
-                        className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                        className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0"
                       />
                     )}
                     <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
@@ -4021,7 +4035,14 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                 <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
                   className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                   <option value="">필드 선택</option>
-                  {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  <optgroup label="필드">
+                    {candidateFields.filter(f => f.source === 'field').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </optgroup>
+                  {candidateFields.some(f => f.source === 'subtask') && (
+                    <optgroup label="세부 업무">
+                      {candidateFields.filter(f => f.source === 'subtask').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </optgroup>
+                  )}
                 </select>
                 <button onClick={handleAddField} disabled={!customSourceKey}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -4520,11 +4541,18 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const mergedFormConfig = mergeFormConfig(currentPart?.formConfig, team.formConfig);
   const candidateCustomFields = mergedFormConfig?.customFields ?? [];
   const partMetaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
+  const partSubTaskTypes = currentPart?.subTaskTypes ?? team.subTaskTypes ?? [];
   // 필드에서 추가할 때는 타입을 따로 고를 필요 없이, 원래 필드의 속성(날짜 타입이면
-  // '날짜', URL 필드면 '링크', 그 외에는 '텍스트')을 그대로 이어받아 바로 추가되게 함
-  const candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url' }[] = [
-    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: (f.isUrl ? 'url' : 'text') as const })),
-    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label, type: (f.type === 'date' ? 'date' : f.type === 'link' ? 'url' : 'text') as const })),
+  // '날짜', URL 필드면 '링크', 그 외에는 '텍스트')을 그대로 이어받아 바로 추가되게 함.
+  // 세부 업무는 일반 필드가 아니라 업무별 시작일/종료일을 값으로 가져오는 항목이라
+  // 별도로 구분(source: 'subtask')해 관리
+  const candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url'; source: 'field' | 'subtask' }[] = [
+    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: (f.isUrl ? 'url' : 'text') as const, source: 'field' as const })),
+    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label, type: (f.type === 'date' ? 'date' : f.type === 'link' ? 'url' : 'text') as const, source: 'field' as const })),
+    ...partSubTaskTypes.flatMap(st => [
+      { key: `${st.id}:startDate`, label: `${st.name} (시작일)`, type: 'date' as const, source: 'subtask' as const },
+      { key: `${st.id}:endDate`, label: `${st.name} (종료일)`, type: 'date' as const, source: 'subtask' as const },
+    ]),
   ];
 
   const handleAddCustomField = () => {
@@ -4536,6 +4564,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
       label: source.label,
       type: source.type,
       sourceKey: source.key,
+      ...(source.source === 'subtask' ? { source: 'subtask' as const } : {}),
     };
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: [...(p.tableCustomFields ?? []), field] } : p));
     setCustomSourceKey('');
@@ -4569,6 +4598,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleFixFieldToUrl = (id: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, type: 'url' } : f) } : p));
+  };
+
+  const handleSetCustomFieldLabel = (id: string, label: string) => {
+    if (!currentPreset || !label.trim()) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, label: label.trim() } : f) } : p));
   };
 
   // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 값이 미리 채워지지 않고, 업무 상세의
@@ -4895,9 +4929,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     const needsFix = sourceIsUrl && f.type !== 'url';
                     return (
                       <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
-                        <span className="flex-1">
-                          {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                        </span>
+                        <InlineTextField
+                          value={f.label}
+                          onCommit={v => handleSetCustomFieldLabel(f.id, v)}
+                          className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                        />
+                        <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
                         {needsFix && (
                           <button onClick={() => handleFixFieldToUrl(f.id)}
                             className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
@@ -4909,7 +4946,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                             value={f.linkText ?? ''}
                             onCommit={v => handleSetCustomFieldLinkText(f.id, v)}
                             placeholder="링크 텍스트 (예: 자세히 보기)"
-                            className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                            className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0"
                           />
                         )}
                         <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
@@ -4936,7 +4973,14 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
                       className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                       <option value="">필드 선택</option>
-                      {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      <optgroup label="필드">
+                        {candidateFields.filter(f => f.source === 'field').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      </optgroup>
+                      {candidateFields.some(f => f.source === 'subtask') && (
+                        <optgroup label="세부 업무">
+                          {candidateFields.filter(f => f.source === 'subtask').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                        </optgroup>
+                      )}
                     </select>
                     <button onClick={handleAddCustomField} disabled={!customSourceKey}
                       className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -5184,7 +5228,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               return (
                 <MailListGroupEditor
                   group={selectedListGroup}
-                  candidateFields={candidateFields.filter((f): f is { key: string; label: string; type: 'text' | 'date' } => f.type !== 'url')}
+                  candidateFields={candidateFields.filter((f): f is { key: string; label: string; type: 'text' | 'date'; source: 'field' } => f.type !== 'url' && f.source !== 'subtask')}
                   onSave={handleSaveListGroup}
                   onRemove={() => handleRemoveListGroup(selectedListGroup.id)}
                 />

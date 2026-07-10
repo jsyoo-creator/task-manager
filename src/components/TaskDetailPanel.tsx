@@ -162,8 +162,17 @@ interface MailBodyExtraItem {
 }
 
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
-function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string, bodyExtra: MailBodyExtraItem[], showTable: boolean): string {
-  const bulletBlock = rows.map(r => r.hideLabel ? `- ${composeRowValue(r)}` : `- ${r.label}: ${composeRowValue(r)}`).join('\n');
+function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string, bodyExtra: MailBodyExtraItem[], showTable: boolean, showLabelColumn: boolean, showValueColumn: boolean): string {
+  const bulletBlock = rows
+    .map(r => {
+      const labelVisible = showLabelColumn && !r.hideLabel;
+      if (labelVisible && showValueColumn) return `- ${r.label}: ${composeRowValue(r)}`;
+      if (labelVisible) return `- ${r.label}`;
+      if (showValueColumn) return `- ${composeRowValue(r)}`;
+      return null; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
+    })
+    .filter((l): l is string => !!l)
+    .join('\n');
   const extraText = bodyExtra.length ? bodyExtra.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : '';
   const blocks = [greeting, message];
   if (showTable) blocks.push(bulletBlock);
@@ -175,7 +184,7 @@ function buildMailPlainText(greeting: string, message: string, rows: MailTableRo
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean, bodyExtra: MailBodyExtraItem[], showTable: boolean): string {
+function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean, showValueColumn: boolean, bodyExtra: MailBodyExtraItem[], showTable: boolean): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';
@@ -184,16 +193,15 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
       // 이 행만 항목명을 숨기면(hideLabel) 항목명 칸 자체를 아예 안 만들고, 내용 칸이
       // 그 자리까지 넓게 채우도록 colspan="2"를 준다 (항목명 칸이 빈 채로 남지 않게)
       const labelVisible = showLabelColumn && !r.hideLabel;
+      if (!labelVisible && !showValueColumn) return ''; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
       const labelCell = labelVisible
         ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>`
         : '';
       const valueColspan = showLabelColumn && !labelVisible ? ' colspan="2"' : '';
-      return (
-        `<tr>` +
-        labelCell +
-        `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(composeRowValue(r))}</td>` +
-        `</tr>`
-      );
+      const valueCell = showValueColumn
+        ? `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(composeRowValue(r))}</td>`
+        : '';
+      return `<tr>${labelCell}${valueCell}</tr>`;
     }).join('')
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
@@ -2036,9 +2044,11 @@ export default function TaskDetailPanel({
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
                 const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
                 const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
+                const showValueColumn = currentPreset?.tableShowValueColumn ?? true;
+                const tableVisible = !currentPreset?.tableHidden && (showLabelColumn || showValueColumn);
                 return (
                   <div className="mt-3">
-                    {!currentPreset?.tableHidden && (
+                    {tableVisible && (
                     <>
                     {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
                     <div className="overflow-x-auto">
@@ -2048,33 +2058,36 @@ export default function TaskDetailPanel({
                             // 이 행만 항목명을 숨기면(hideLabel) 항목명 칸을 아예 만들지 않고,
                             // 내용 칸이 그 자리까지 colspan으로 넓게 채우게 함
                             const labelVisible = showLabelColumn && !r.hideLabel;
+                            if (!labelVisible && !showValueColumn) return null; // 항목명/내용 칸이 둘 다 안 보이면 이 행은 생략
                             return (
                               <tr key={r.key}>
                                 {labelVisible && (
                                   <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.label}</td>
                                 )}
-                                <td colSpan={showLabelColumn && !labelVisible ? 2 : 1} className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>
-                                  {r.manualFieldId ? (
-                                    <span className="inline-flex items-center gap-1 w-full">
-                                      {r.valuePrefix && <span className="flex-shrink-0">{r.valuePrefix}</span>}
-                                      {r.manualFieldType === 'date' ? (
-                                        <DatePicker
-                                          compact
-                                          value={mailManualValues[r.manualFieldId] ?? ''}
-                                          onChange={v => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
-                                        />
-                                      ) : (
-                                        <input
-                                          value={mailManualValues[r.manualFieldId] ?? ''}
-                                          onChange={e => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
-                                          placeholder="입력"
-                                          className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-800 focus:outline-none"
-                                        />
-                                      )}
-                                      {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
-                                    </span>
-                                  ) : composeRowValue(r)}
-                                </td>
+                                {showValueColumn && (
+                                  <td colSpan={showLabelColumn && !labelVisible ? 2 : 1} className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>
+                                    {r.manualFieldId ? (
+                                      <span className="inline-flex items-center gap-1 w-full">
+                                        {r.valuePrefix && <span className="flex-shrink-0">{r.valuePrefix}</span>}
+                                        {r.manualFieldType === 'date' ? (
+                                          <DatePicker
+                                            compact
+                                            value={mailManualValues[r.manualFieldId] ?? ''}
+                                            onChange={v => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
+                                          />
+                                        ) : (
+                                          <input
+                                            value={mailManualValues[r.manualFieldId] ?? ''}
+                                            onChange={e => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
+                                            placeholder="입력"
+                                            className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                                          />
+                                        )}
+                                        {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
+                                      </span>
+                                    ) : composeRowValue(r)}
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}
@@ -2130,15 +2143,16 @@ export default function TaskDetailPanel({
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
               const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
               const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
-              const showTable = !currentPreset?.tableHidden;
+              const showValueColumn = currentPreset?.tableShowValueColumn ?? true;
+              const showTable = !currentPreset?.tableHidden && (showLabelColumn || showValueColumn);
               const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
                 title: f.title,
                 value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
               }));
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature, bodyExtra, showTable);
+              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature, bodyExtra, showTable, showLabelColumn, showValueColumn);
               try {
-                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn, bodyExtra, showTable);
+                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn, showValueColumn, bodyExtra, showTable);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

@@ -278,6 +278,7 @@ export interface MailFormPreset {
   tableCustomFields?: MailTableCustomField[]; // 표에 추가로 표시할 항목
   tableRowOrder?: string[]; // 표에 표시되는 행(빌트인 key + 커스텀 필드 id)의 전체 순서, 드래그로 재정렬 (없으면 기본/추가 항목 순서)
   tableShowLabelColumn?: boolean; // 표 항목명 칸 자체를 표시할지 (없으면 true = 표시)
+  tableShowValueColumn?: boolean; // 표 내용 칸 자체를 표시할지 (없으면 true = 표시)
   tableLabelBg?: string; // 표 항목명 칸 공통 배경색 (hex, 없으면 기본값)
   tableLabelBold?: boolean; // 표 항목명 칸 공통 볼드 여부 (없으면 true)
   tableValueBg?: string; // 표 내용 칸 공통 배경색 (hex, 없으면 기본값)

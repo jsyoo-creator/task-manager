@@ -4082,6 +4082,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableShowLabelColumn: !(p.tableShowLabelColumn ?? true) } : p));
   };
 
+  const handleToggleShowValueColumn = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableShowValueColumn: !(p.tableShowValueColumn ?? true) } : p));
+  };
+
   // 항목(행)별 배경색/볼드 오버라이드 — 값이 모두 비면 오버라이드 자체를 지워 정리
   const setFieldStyleOverride = (key: string, patch: Partial<MailTableCellStyle>) => {
     if (!currentPreset) return;
@@ -4328,6 +4333,14 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               <span className="text-[11px] text-gray-600">항목명 칸 표시 (끄면 내용 칸만 표시)</span>
             </label>
 
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(currentPreset.tableShowValueColumn ?? true) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {(currentPreset.tableShowValueColumn ?? true) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={currentPreset.tableShowValueColumn ?? true} onChange={handleToggleShowValueColumn} className="hidden" />
+              <span className="text-[11px] text-gray-600">내용 칸 표시 (끄면 항목명 칸만 표시)</span>
+            </label>
+
             <div className="grid grid-cols-2 gap-4">
               <div className={(currentPreset.tableShowLabelColumn ?? true) ? '' : 'opacity-40 pointer-events-none'}>
                 <p className="text-[11px] text-gray-500 mb-1.5">항목명 칸 기본값</p>
@@ -4347,7 +4360,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                   <span className="text-[11px] text-gray-600">볼드</span>
                 </label>
               </div>
-              <div>
+              <div className={(currentPreset.tableShowValueColumn ?? true) ? '' : 'opacity-40 pointer-events-none'}>
                 <p className="text-[11px] text-gray-500 mb-1.5">내용 칸 기본값</p>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {MAIL_TABLE_BG_PRESETS.map(c => (

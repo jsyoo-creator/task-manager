@@ -162,15 +162,20 @@ interface MailBodyExtraItem {
 }
 
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
-function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string, bodyExtra: MailBodyExtraItem[]): string {
+function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string, bodyExtra: MailBodyExtraItem[], showTable: boolean): string {
   const bulletBlock = rows.map(r => r.hideLabel ? `- ${composeRowValue(r)}` : `- ${r.label}: ${composeRowValue(r)}`).join('\n');
-  const extraBlock = bodyExtra.length ? `\n\n${bodyExtra.map(f => `${f.title}: ${f.value}`).join('\n')}` : '';
-  return `${greeting}\n\n${message}\n\n${bulletBlock}${extraBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
+  const extraText = bodyExtra.length ? bodyExtra.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : '';
+  const blocks = [greeting, message];
+  if (showTable) blocks.push(bulletBlock);
+  if (extraText) blocks.push(extraText);
+  blocks.push('감사합니다.');
+  if (signature) blocks.push(signature);
+  return blocks.join('\n\n');
 }
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean, bodyExtra: MailBodyExtraItem[]): string {
+function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean, bodyExtra: MailBodyExtraItem[], showTable: boolean): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';
@@ -193,15 +198,18 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
   const titleHtml = title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(title)}]</div>` : '';
+  const tableBlockHtml = showTable ? `${titleHtml}${tableHtml}<br>` : '';
   const extraHtml = bodyExtra.length
-    ? bodyExtra.map(f => `<div style="${FS}"><b>${escapeHtml(f.title)}:</b> ${escapeHtml(f.value)}</div>`).join('') + '<br>'
+    ? bodyExtra.map(f =>
+        `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
+        `<div style="${FS}margin-bottom:8px;">${escapeHtml(f.value)}</div>`
+      ).join('') + '<br>'
     : '';
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
-    `${titleHtml}` +
-    `${tableHtml}<br>` +
+    `${tableBlockHtml}` +
     `${extraHtml}` +
     `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '') +
@@ -2030,6 +2038,8 @@ export default function TaskDetailPanel({
                 const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
                 return (
                   <div className="mt-3">
+                    {!currentPreset?.tableHidden && (
+                    <>
                     {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
                     <div className="overflow-x-auto">
                       <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
@@ -2071,13 +2081,15 @@ export default function TaskDetailPanel({
                         </tbody>
                       </table>
                     </div>
+                    </>
+                    )}
                     {(currentPreset?.bodyCustomFields ?? []).length > 0 && (
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-3 space-y-3">
                         {currentPreset!.bodyCustomFields!.map(f => {
                           const val = mailBodyManualValues[f.id] ?? '';
                           return (
-                            <div key={f.id} className="flex items-center gap-2">
-                              <label className="text-[13px] text-gray-700 font-medium flex-shrink-0">{f.title}</label>
+                            <div key={f.id}>
+                              <p className="font-bold mb-1">[{f.title}]</p>
                               {f.type === 'date' ? (
                                 <div className="flex items-center gap-1.5">
                                   <DatePicker
@@ -2092,7 +2104,7 @@ export default function TaskDetailPanel({
                                   value={val}
                                   onChange={e => setMailBodyManualValues(prev => ({ ...prev, [f.id]: e.target.value }))}
                                   placeholder="입력"
-                                  className="flex-1 min-w-0 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                                  className="w-full text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
                                 />
                               )}
                             </div>
@@ -2118,14 +2130,15 @@ export default function TaskDetailPanel({
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
               const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
               const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
+              const showTable = !currentPreset?.tableHidden;
               const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
                 title: f.title,
                 value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
               }));
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature, bodyExtra);
+              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature, bodyExtra, showTable);
               try {
-                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn, bodyExtra);
+                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn, bodyExtra, showTable);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

@@ -272,6 +272,7 @@ export interface MailFormPreset {
   cc: string[];
   message?: string; // 본문 인사말 다음에 들어가는 안내 문구(탭별로 다르게 설정 가능, 없으면 기본 문구 사용)
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
+  tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)
   tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)
   tableCustomFields?: MailTableCustomField[]; // 표에 추가로 표시할 항목

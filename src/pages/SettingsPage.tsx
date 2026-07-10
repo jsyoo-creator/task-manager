@@ -3890,6 +3890,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const [bodyTitleDraft, setBodyTitleDraft] = useState('');
   const [bodyTypeDraft, setBodyTypeDraft] = useState<'text' | 'date'>('text');
+  const bodyDragIdxRef = useRef<number | null>(null);
+  const [bodyDragOverIdx, setBodyDragOverIdx] = useState<number | null>(null);
   const rowDragIdxRef = useRef<number | null>(null);
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
 
@@ -3978,6 +3980,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableTitle: title } : p));
   };
 
+  const handleToggleTableHidden = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableHidden: !p.tableHidden } : p));
+  };
+
   const mergedFormConfig = mergeFormConfig(currentPart?.formConfig, team.formConfig);
   const candidateCustomFields = mergedFormConfig?.customFields ?? [];
   const partMetaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
@@ -4036,6 +4043,18 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleRemoveBodyField = (id: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).filter(f => f.id !== id) } : p));
+  };
+
+  const handleReorderBodyField = (toIdx: number) => {
+    if (!currentPreset) return;
+    const from = bodyDragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...(currentPreset.bodyCustomFields ?? [])];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: arr } : p));
+    bodyDragIdxRef.current = null;
+    setBodyDragOverIdx(null);
   };
 
   const handleSetLabelBg = (bg: string) => {
@@ -4200,8 +4219,18 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
           </div>
 
           <div className="pt-3 border-t border-gray-100 space-y-3">
-            <p className="text-xs font-semibold text-gray-700">표 설정</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-700">표 설정</p>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${currentPreset.tableHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                  {currentPreset.tableHidden && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <input type="checkbox" checked={!!currentPreset.tableHidden} onChange={handleToggleTableHidden} className="hidden" />
+                <span className="text-[11px] text-gray-600">표 전체 숨김</span>
+              </label>
+            </div>
 
+            <div className={currentPreset.tableHidden ? 'opacity-40 pointer-events-none space-y-3' : 'space-y-3'}>
             <div>
               <label className="text-[11px] text-gray-500 mb-1 block">표 제목 (선택)</label>
               <input
@@ -4444,18 +4473,27 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 </div>
               </div>
             )}
+            </div>
           </div>
 
           <div className="pt-3 border-t border-gray-100 space-y-3">
             <p className="text-xs font-semibold text-gray-700">본문 추가 항목</p>
             <p className="text-[11px] text-gray-400">표 밖 본문에 텍스트/날짜를 직접 입력하는 항목을 추가합니다. 값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
             {(currentPreset.bodyCustomFields ?? []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {currentPreset.bodyCustomFields!.map(f => (
-                  <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                    {f.title} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'})</span>
-                    <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100">×</button>
-                  </span>
+              <div className="space-y-1">
+                {currentPreset.bodyCustomFields!.map((f, i) => (
+                  <div key={f.id}
+                    draggable
+                    onDragStart={() => { bodyDragIdxRef.current = i; }}
+                    onDragOver={e => { e.preventDefault(); setBodyDragOverIdx(i); }}
+                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setBodyDragOverIdx(null); }}
+                    onDrop={() => handleReorderBodyField(i)}
+                    onDragEnd={() => { bodyDragIdxRef.current = null; setBodyDragOverIdx(null); }}
+                    className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${bodyDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                    <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                    <span className="flex-1">{f.title} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'})</span></span>
+                    <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                  </div>
                 ))}
               </div>
             )}

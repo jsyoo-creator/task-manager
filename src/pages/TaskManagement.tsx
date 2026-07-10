@@ -1886,7 +1886,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
 
   return (
     <div
-      className={`${twoLineMode ? 'border-b-2 border-black/8' : 'border-b border-black/4'} last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`}
+      className={`${twoLineMode ? 'border-b-2 border-black/8' : 'border-b border-black/4'} last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${
+        isActive ? 'border-l-2 border-l-[#6C63FF]' : twoLineMode ? 'border-l-2 border-l-black/8' : ''
+      }`}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
       onDrop={e => { e.preventDefault(); onDrop(); }}
       onDragEnd={onDragEnd}
@@ -2268,9 +2270,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         // 차지하게 하고, 2번째 줄은 완전히 별도 줄로 내려서 그만큼 생기는 세로 공간을
         // 2번째 줄이 자유롭게 쓰게 함. 2번째 줄 시작은 체크박스와 같은 좌측 끝에서 시작
         // (들여쓰기 없음)하고, 옅은 배경색으로 1번째 줄과 구분되게 함.
+        // 1번째 줄과 2번째 줄 사이는 간격(gap) 없이 붙여서 "2번째 줄이 1번째 줄에 속한
+        // 하위 영역"이라는 느낌을 주고, 업무 좌측의 세로선(spine)이 1~2번째 줄을 관통해
+        // 확장된 3번째 줄(업무 정보)까지 이어지다 그 지점에서 보라색으로 짙어지게 해
+        // "3번째 줄은 2번째 줄에 속한 더 깊은 영역"이라는 위계를 표현함.
         const hasLine2Bg = twoLineMode && restElements.length > 0;
         return (
-          <div className={`flex flex-col ${twoLineMode ? 'gap-2.5' : ''} pt-3.5 ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${
+          <div className={`flex flex-col ${twoLineMode ? (hasLine2Bg ? 'gap-0' : 'gap-2.5') : ''} pt-3.5 ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${
               isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : (zebra && twoLineMode) ? 'bg-black/[0.02] hover:bg-gray-100' : 'hover:bg-gray-50'
             }`}
             style={{ minWidth: rowMinWidth }}>

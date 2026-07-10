@@ -3911,6 +3911,9 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
 
   const handleSetFieldLinkText = (id: string, linkText: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) });
 
+  // 링크(URL) 속성이 생기기 전에 "텍스트"로 추가해둔 필드를 링크로 전환
+  const handleFixFieldToUrl = (id: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, type: 'url' } : f) });
+
   const rows = resolveMailTableRowOrder((table.customFields ?? []).map(f => f.id), table.rowOrder)
     .map(id => (table.customFields ?? []).find(f => f.id === id))
     .filter((f): f is MailTableCustomField => !!f);
@@ -3972,22 +3975,32 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
           <p className="text-[11px] text-gray-500 mb-1.5">표시할 항목</p>
           {(table.customFields ?? []).length > 0 && (
             <div className="space-y-1 mb-2">
-              {table.customFields!.map(f => (
-                <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
-                  <span className="flex-1">
-                    {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                  </span>
-                  {f.type === 'url' && (
-                    <InlineTextField
-                      value={f.linkText ?? ''}
-                      onCommit={v => handleSetFieldLinkText(f.id, v)}
-                      placeholder="링크 텍스트 (예: 자세히 보기)"
-                      className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
-                    />
-                  )}
-                  <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
-                </div>
-              ))}
+              {table.customFields!.map(f => {
+                const sourceIsUrl = f.sourceKey && candidateFields.find(cf => cf.key === f.sourceKey)?.type === 'url';
+                const needsFix = sourceIsUrl && f.type !== 'url';
+                return (
+                  <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
+                    <span className="flex-1">
+                      {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                    </span>
+                    {needsFix && (
+                      <button onClick={() => handleFixFieldToUrl(f.id)}
+                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
+                        🔗 링크로 전환
+                      </button>
+                    )}
+                    {f.type === 'url' && (
+                      <InlineTextField
+                        value={f.linkText ?? ''}
+                        onCommit={v => handleSetFieldLinkText(f.id, v)}
+                        placeholder="링크 텍스트 (예: 자세히 보기)"
+                        className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                      />
+                    )}
+                    <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="flex items-center gap-1 mb-1.5">
@@ -4518,6 +4531,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) } : p));
   };
 
+  // 링크(URL) 속성이 생기기 전에 "텍스트"로 추가해둔 필드를 링크로 전환
+  const handleFixFieldToUrl = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, type: 'url' } : f) } : p));
+  };
+
   // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 값이 미리 채워지지 않고, 업무 상세의
   // 메일 양식에서 메일 작성할 때마다 직접 입력함
   const handleAddBodyField = () => {
@@ -4799,22 +4818,32 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               <p className="text-[11px] text-gray-500 mb-1.5">추가 항목</p>
               {(currentPreset.tableCustomFields ?? []).length > 0 && (
                 <div className="space-y-1 mb-2">
-                  {currentPreset.tableCustomFields!.map(f => (
-                    <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
-                      <span className="flex-1">
-                        {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                      </span>
-                      {f.type === 'url' && (
-                        <InlineTextField
-                          value={f.linkText ?? ''}
-                          onCommit={v => handleSetCustomFieldLinkText(f.id, v)}
-                          placeholder="링크 텍스트 (예: 자세히 보기)"
-                          className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
-                        />
-                      )}
-                      <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
-                    </div>
-                  ))}
+                  {currentPreset.tableCustomFields!.map(f => {
+                    const sourceIsUrl = f.sourceKey && candidateFields.find(cf => cf.key === f.sourceKey)?.type === 'url';
+                    const needsFix = sourceIsUrl && f.type !== 'url';
+                    return (
+                      <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
+                        <span className="flex-1">
+                          {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                        </span>
+                        {needsFix && (
+                          <button onClick={() => handleFixFieldToUrl(f.id)}
+                            className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
+                            🔗 링크로 전환
+                          </button>
+                        )}
+                        {f.type === 'url' && (
+                          <InlineTextField
+                            value={f.linkText ?? ''}
+                            onCommit={v => handleSetCustomFieldLinkText(f.id, v)}
+                            placeholder="링크 텍스트 (예: 자세히 보기)"
+                            className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                          />
+                        )}
+                        <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="flex items-center gap-1 mb-1.5">

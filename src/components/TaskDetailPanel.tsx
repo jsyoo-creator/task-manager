@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Trash2, ChevronDown, ExternalLink, Copy } from 'lucide-react';
+import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
@@ -7,6 +7,26 @@ import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
 const PANEL_W = 540;
+const MAIL_PANEL_W = 420;
+
+// 메일 양식 초안 — 업무 핵심 정보를 자동으로 채워 넣은 텍스트. 사용자가 그대로
+// 복사해 Outlook/Gmail 등에 붙여넣어 쓸 수 있도록 발송 기능 없이 텍스트만 생성한다.
+function buildMailTemplate(task: Task, statusLabel: string): { subject: string; body: string } {
+  const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
+  const subject = `[${task.title}] 업무 안내`;
+  const body =
+    `안녕하세요,\n\n아래 업무 관련하여 안내드립니다.\n\n` +
+    `- 업무명: ${task.title}\n` +
+    `- 파트/구분: ${task.category || '-'}\n` +
+    `- 유형: ${task.type || '-'}\n` +
+    `- 접수자: ${task.receiver || '-'}\n` +
+    `- 담당자: ${task.assignee || '-'}\n` +
+    `- 진행상황: ${statusLabel || '-'}\n` +
+    `- 시작일: ${fmt(task.startDate)}\n` +
+    `- 종료일: ${fmt(task.endDate)}\n\n` +
+    `감사합니다.`;
+  return { subject, body };
+}
 
 // OS에 맞게 경로 변환 (Windows ↔ Mac)
 function convertPath(raw: string): string {
@@ -243,12 +263,22 @@ export default function TaskDetailPanel({
   const [manualSubstituteIds, setManualSubstituteIds] = useState<Set<string>>(new Set());
   const [activeDeptTab, setActiveDeptTab] = useState<Department | null>(null);
   const [visible, setVisible] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [mailSubject, setMailSubject] = useState('');
+  const [mailBody, setMailBody] = useState('');
+  const [mailCopied, setMailCopied] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
+
+  // 메일 양식 패널이 열리고 닫힐 때마다 본문 레이아웃 패딩과 동기화되도록 폭을 갱신
+  useEffect(() => {
+    if (!visible) return;
+    document.documentElement.style.setProperty('--detail-panel-w', `${panelW}px`);
+  }, [visible, panelW]);
 
   useEffect(() => {
     requestAnimationFrame(() => {
       setVisible(true);
-      document.documentElement.style.setProperty('--detail-panel-w', `${PANEL_W}px`);
     });
     return () => {
       document.documentElement.style.setProperty('--detail-panel-w', '0px');
@@ -493,15 +523,16 @@ export default function TaskDetailPanel({
         left: 232,
         top: 12,
         bottom: 12,
-        width: visible ? PANEL_W : 0,
+        width: visible ? panelW : 0,
         transition: 'width 0.26s ease-out',
         zIndex: 30,
         borderRadius: '28px 0 0 28px',
         overflow: 'hidden',
       }}
     >
+    <div style={{ width: panelW, height: '100%', display: 'flex', flexDirection: 'row' }}>
     <div
-      style={{ width: PANEL_W, height: '100%', background: '#FFFFFF' }}
+      style={{ width: PANEL_W, height: '100%', background: '#FFFFFF', flexShrink: 0 }}
       className="flex flex-col border-r border-[#E5E0F5]"
     >
       {/* 헤더 */}
@@ -510,6 +541,22 @@ export default function TaskDetailPanel({
         <span className="text-xs text-gray-600 font-medium truncate flex-1">
           {task.category || '파트 없음'} · {task.type}
         </span>
+        <button
+          onClick={() => {
+            if (!mailOpen) {
+              const sc = statusConfigs.find(s => s.key === task.status);
+              const { subject, body } = buildMailTemplate(task, sc?.label ?? task.status ?? '');
+              setMailSubject(subject);
+              setMailBody(body);
+            }
+            setMailOpen(o => !o);
+          }}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+            mailOpen ? 'bg-[#6C63FF]/10 text-[#6C63FF]' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          메일 양식 설정하기
+        </button>
         <button onClick={handleClose}
           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0">
           <X size={15} />
@@ -1627,6 +1674,52 @@ export default function TaskDetailPanel({
         </div>
       )}
 
+    </div>
+
+    {mailOpen && (
+      <div style={{ width: MAIL_PANEL_W, height: '100%', flexShrink: 0 }} className="flex flex-col bg-[#FAFAFF]">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-black/[0.08] flex-shrink-0">
+          <span className="text-xs font-semibold text-gray-700">메일 양식</span>
+          <button onClick={() => setMailOpen(false)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 min-h-0">
+          <p className="text-[11px] text-gray-400 leading-relaxed">
+            업무 정보가 자동으로 채워진 초안입니다. 자유롭게 수정한 뒤 복사해서 메일 프로그램에 붙여넣으세요.
+          </p>
+          <div>
+            <label className="text-[11px] font-medium text-gray-500 mb-1 block">제목</label>
+            <input
+              value={mailSubject}
+              onChange={e => setMailSubject(e.target.value)}
+              className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+            />
+          </div>
+          <div className="flex-1 flex flex-col min-h-0">
+            <label className="text-[11px] font-medium text-gray-500 mb-1 block">본문</label>
+            <textarea
+              value={mailBody}
+              onChange={e => setMailBody(e.target.value)}
+              className="w-full flex-1 min-h-[240px] text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 resize-none leading-relaxed"
+            />
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t border-black/[0.08] flex-shrink-0">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(`${mailSubject}\n\n${mailBody}`);
+              setMailCopied(true);
+              setTimeout(() => setMailCopied(false), 1500);
+            }}
+            className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors"
+          >
+            {mailCopied ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 제목+본문 복사</>}
+          </button>
+        </div>
+      </div>
+    )}
     </div>
 
     <ConfirmDialog

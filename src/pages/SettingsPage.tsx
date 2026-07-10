@@ -3712,6 +3712,7 @@ function RecipientChipInput({ value, onChange, members }: {
   members: { name: string; department?: Department }[];
 }) {
   const [draft, setDraft] = useState('');
+  const [copied, setCopied] = useState(false);
   const isMention = draft.startsWith('@');
   const query = isMention ? draft.slice(1).trim().toLowerCase() : '';
   const suggestions = isMention
@@ -3721,16 +3722,30 @@ function RecipientChipInput({ value, onChange, members }: {
         .slice(0, 30)
     : [];
 
+  const resolveItem = (raw: string): string => {
+    const item = raw.trim();
+    if (!item.startsWith('@')) return item;
+    const q = item.slice(1).trim();
+    if (!q) return '';
+    const match = members.find(m => m.name === q) ?? members.find(m => m.name.toLowerCase().includes(q.toLowerCase()));
+    return match?.name ?? q;
+  };
+
   const addChip = (raw: string) => {
-    let item = raw.trim();
-    if (!item) return;
-    if (item.startsWith('@')) {
-      const q = item.slice(1).trim();
-      if (!q) return;
-      const match = members.find(m => m.name === q) ?? members.find(m => m.name.toLowerCase().includes(q.toLowerCase()));
-      item = match?.name ?? q;
-    }
-    if (!value.includes(item)) onChange([...value, item]);
+    const item = resolveItem(raw);
+    if (item && !value.includes(item)) onChange([...value, item]);
+  };
+
+  // 쉼표가 여러 개 포함된 텍스트를 한 번에 붙여넣은 경우("a@b.com, c@d.com, ...") 처리.
+  // 각 조각마다 onChange를 따로 호출하면 매번 같은(오래된) value를 기준으로 계산돼
+  // 마지막 조각만 반영되므로, 하나의 배열로 누적한 뒤 한 번만 onChange 호출
+  const addMany = (raws: string[]) => {
+    let next = value;
+    raws.forEach(raw => {
+      const item = resolveItem(raw);
+      if (item && !next.includes(item)) next = [...next, item];
+    });
+    if (next !== value) onChange(next);
   };
 
   const selectMember = (name: string) => {
@@ -3740,8 +3755,23 @@ function RecipientChipInput({ value, onChange, members }: {
 
   const removeChip = (item: string) => onChange(value.filter(v => v !== item));
 
+  const handleCopy = () => {
+    const emails = value.map(item => members.find(m => m.name === item)?.email ?? (item.includes('@') ? item : null)).filter((e): e is string => !!e);
+    if (emails.length === 0) return;
+    navigator.clipboard.writeText(emails.join(', '));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <div className="relative">
+      <div className="flex items-center justify-end mb-1 h-4">
+        {value.length > 0 && (
+          <button onClick={handleCopy} className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1">
+            {copied ? '복사됨' : '이메일 복사'}
+          </button>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500/30 min-h-[38px]">
         {value.map(item => {
           const member = members.find(m => m.name === item);
@@ -3754,7 +3784,20 @@ function RecipientChipInput({ value, onChange, members }: {
         })}
         <input
           value={draft}
-          onChange={e => setDraft(e.target.value)}
+          onChange={e => {
+            const val = e.target.value;
+            if (val.includes(',')) {
+              const parts = val.split(',');
+              const last = parts.pop() ?? '';
+              addMany(parts);
+              setDraft(last);
+            } else {
+              setDraft(val);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) { addChip(draft); setDraft(''); }
+          }}
           onKeyDown={e => {
             if (e.key === ',') {
               e.preventDefault();

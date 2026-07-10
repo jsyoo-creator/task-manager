@@ -1784,7 +1784,7 @@ export default function TaskDetailPanel({
                               setCopied(true);
                               setTimeout(() => setCopied(false), 1500);
                             }}
-                            className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1"
+                            className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-[#6C63FF]/10 hover:bg-[#6C63FF]/15 border border-[#6C63FF]/20 transition-colors"
                           >
                             {copied ? <><Check size={10} /> 복사됨</> : <><Copy size={10} /> 이메일 복사</>}
                           </button>

@@ -3769,7 +3769,7 @@ function RecipientChipInput({ label, value, onChange, members }: {
       <div className="flex items-center justify-between mb-1">
         <p className="text-xs font-semibold text-gray-700">{label}</p>
         {value.length > 0 && (
-          <button onClick={handleCopy} className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1">
+          <button onClick={handleCopy} className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-[#6C63FF]/10 hover:bg-[#6C63FF]/15 border border-[#6C63FF]/20 transition-colors">
             <Copy size={10} /> {copied ? '복사됨' : '이메일 복사'}
           </button>
         )}

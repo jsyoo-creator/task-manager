@@ -1912,7 +1912,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   return (
     <div
       className={twoLineMode
-        ? `rounded-xl border overflow-hidden bg-white mb-2 last:mb-0 transition-all ${isActive ? 'border-[#6C63FF]/50' : 'border-black/8'} ${isDragOver ? 'border-t-2 border-t-[#6C63FF]' : ''}`
+        ? `rounded-xl border overflow-hidden bg-white mb-2 transition-all ${isActive ? 'border-[#6C63FF]/50' : 'border-black/8'} ${isDragOver ? 'border-t-2 border-t-[#6C63FF]' : ''}`
         : `border-b border-black/4 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`
       }
       style={twoLineMode ? { minWidth: rowMinWidth } : undefined}

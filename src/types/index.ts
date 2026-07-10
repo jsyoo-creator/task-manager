@@ -227,11 +227,15 @@ export interface TeamPart {
   revisionSteps?: RevisionStep[]; // 파트별 수정단계 목록 (없으면 팀 기본 상속)
   copyIncludeDetails?: boolean; // 업무 복사 시 세부업무/커스텀필드 등 세부사항까지 포함할지 (없으면 팀 기본 상속)
   taskListTwoLine?: boolean; // 업무관리 목록 2줄 구성 사용 여부 (없으면 팀 기본 상속)
-  mailFormConfig?: MailFormConfig; // 파트별 메일 양식 받는사람/참조 기본값 (없으면 미설정)
+  mailFormConfig?: MailFormPreset[]; // 파트별 메일 양식 탭 목록 (받는사람/참조 조합이 서로 다른 여러 프리셋, 없으면 미설정)
 }
 
-// 업무 상세 "메일 양식"의 받는사람/참조 기본 인원(이름 목록) — 파트별로 설정
-export interface MailFormConfig {
+// 업무 상세 "메일 양식"의 받는사람/참조 프리셋 하나 — 받는사람/참조 조합이 매번 다를 수 있어
+// 파트별로 이름/색이 다른 탭을 여러 개 만들어두고 상황에 맞게 골라 쓸 수 있게 함
+export interface MailFormPreset {
+  id: string;
+  name: string;
+  color: string; // hex
   to: string[];
   cc: string[];
 }

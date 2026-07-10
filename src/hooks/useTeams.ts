@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, PLMainTaskType, CustomHoliday, ExcelFieldConfig, WeeklyExportConfig, RevisionStep, MailFormConfig } from '../types';
+import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, PLMainTaskType, CustomHoliday, ExcelFieldConfig, WeeklyExportConfig, RevisionStep, MailFormPreset } from '../types';
 
 export function useTeams(uid?: string, workplaceId?: string) {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -314,7 +314,7 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
-  const updatePartMailFormConfig = async (teamId: string, partId: string, config: MailFormConfig) => {
+  const updatePartMailFormConfig = async (teamId: string, partId: string, config: MailFormPreset[]) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
     const newParts = team.parts.map(p => p.id === partId ? { ...p, mailFormConfig: config } : p);

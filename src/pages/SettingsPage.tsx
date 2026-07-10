@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormConfig } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -55,7 +55,7 @@ interface Props {
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartWeeklyConfig: (teamId: string, partId: string, config: WeeklyExportConfig) => Promise<void>;
   onClearPartWeeklyConfig: (teamId: string, partId: string) => Promise<void>;
-  onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormConfig) => Promise<void>;
+  onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormPreset[]) => Promise<void>;
   onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
   customHolidays: CustomHoliday[];
   onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
@@ -3703,31 +3703,69 @@ const TEAM_COLOR_PRESETS = [
 ];
 
 // 파트별 메일 양식 받는사람/참조 기본 인원 설정 — 업무 상세의 "메일 양식" 패널에서
-// 사용. 팀 레벨 상속 없이 파트별로만 설정(요청사항)
+// 사용. 팀 레벨 상속 없이 파트별로만 설정(요청사항). 받는사람/참조 조합이 매번
+// 다를 수 있어, 파트마다 이름/색이 다른 "메일 양식 탭"을 여러 개 만들어두고
+// 업무 상세에서 상황에 맞는 탭을 골라 쓸 수 있게 함
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;
   members: { name: string; department?: Department }[];
-  onSavePart: (teamId: string, partId: string, config: MailFormConfig) => Promise<void>;
+  onSavePart: (teamId: string, partId: string, config: MailFormPreset[]) => Promise<void>;
   onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedPartId, setSelectedPartId] = useState<string>(team.parts[0]?.id ?? '');
   const currentPart = team.parts.find(p => p.id === selectedPartId);
-  const saved: MailFormConfig = currentPart?.mailFormConfig ?? { to: [], cc: [] };
+  const presets = currentPart?.mailFormConfig ?? [];
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('');
+  const currentPreset = presets.find(p => p.id === selectedPresetId) ?? presets[0];
   const [flash, setFlash] = useState(false);
   const doFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1200); };
 
-  const toggle = (list: 'to' | 'cc', name: string) => {
+  useEffect(() => {
+    setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPartId]);
+
+  const savePresets = (next: MailFormPreset[]) => {
     if (!currentPart) return;
-    const cur = saved[list];
-    const next = cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name];
-    onSavePart(team.id, currentPart.id, { ...saved, [list]: next });
+    onSavePart(team.id, currentPart.id, next);
     doFlash();
   };
 
-  const handleClear = () => {
+  const handleAddPreset = () => {
     if (!currentPart) return;
-    onClearPart(team.id, currentPart.id);
-    doFlash();
+    const preset: MailFormPreset = {
+      id: `mf_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: `탭 ${presets.length + 1}`,
+      color: TEAM_COLOR_PRESETS[presets.length % TEAM_COLOR_PRESETS.length],
+      to: [], cc: [],
+    };
+    savePresets([...presets, preset]);
+    setSelectedPresetId(preset.id);
+  };
+
+  const handleRenamePreset = (name: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, name } : p));
+  };
+
+  const handleRecolorPreset = (color: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, color } : p));
+  };
+
+  const handleDeletePreset = () => {
+    if (!currentPreset) return;
+    if (!window.confirm(`"${currentPreset.name}" 탭을 삭제할까요?`)) return;
+    const next = presets.filter(p => p.id !== currentPreset.id);
+    savePresets(next);
+    setSelectedPresetId(next[0]?.id ?? '');
+  };
+
+  const toggle = (list: 'to' | 'cc', name: string) => {
+    if (!currentPreset) return;
+    const cur = currentPreset[list];
+    const next = cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name];
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, [list]: next } : p));
   };
 
   if (team.parts.length === 0) {
@@ -3741,7 +3779,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
         {members.length === 0 ? (
           <p className="text-xs text-gray-400 px-3 py-4 text-center">팀원이 없습니다</p>
         ) : members.map(m => {
-          const checked = saved[list].includes(m.name);
+          const checked = currentPreset?.[list].includes(m.name) ?? false;
           return (
             <button key={m.name} onClick={() => toggle(list, m.name)}
               className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left">
@@ -3759,6 +3797,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
   return (
     <div className="space-y-4">
+      {/* 파트 선택 */}
       <div className="flex items-center gap-2 flex-wrap">
         {team.parts.map(p => (
           <button key={p.id} onClick={() => setSelectedPartId(p.id)}
@@ -3768,20 +3807,63 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             {p.name}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2">
-          {flash && <span className="text-[11px] text-green-500 font-medium">저장됨</span>}
-          <button onClick={handleClear} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors">
-            초기화
+      </div>
+
+      {/* 이 파트의 메일 양식 탭 목록 */}
+      <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-gray-100">
+        {presets.map(p => (
+          <button key={p.id} onClick={() => setSelectedPresetId(p.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+              currentPreset?.id === p.id ? 'border-transparent text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+            style={currentPreset?.id === p.id ? { background: p.color } : undefined}
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+            {p.name}
           </button>
+        ))}
+        <button onClick={handleAddPreset}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-gray-300 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+          + 탭 추가
+        </button>
+        {flash && <span className="text-[11px] text-green-500 font-medium ml-1">저장됨</span>}
+      </div>
+
+      {!currentPreset ? (
+        <p className="text-xs text-gray-400 px-1">
+          이 파트에는 아직 메일 양식 탭이 없습니다. "탭 추가"로 만들어보세요.
+        </p>
+      ) : (
+        <div className="space-y-3 rounded-xl border border-gray-100 p-4">
+          <div className="flex items-center gap-3">
+            <input
+              value={currentPreset.name}
+              onChange={e => handleRenamePreset(e.target.value)}
+              className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              placeholder="탭 이름"
+            />
+            <button onClick={handleDeletePreset}
+              className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+              탭 삭제
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {TEAM_COLOR_PRESETS.map(c => (
+              <button key={c} onClick={() => handleRecolorPreset(c)}
+                className={`w-5 h-5 rounded-full flex-shrink-0 ${currentPreset.color === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400">
+            업무 상세의 메일 양식에서 이 탭을 선택하면, 여기서 체크한 인원이 받는사람/참조로 채워집니다.
+          </p>
+          <div className="flex gap-4">
+            <MemberList list="to" label="받는사람" />
+            <MemberList list="cc" label="참조" />
+          </div>
         </div>
-      </div>
-      <p className="text-[11px] text-gray-400">
-        업무 상세의 메일 양식에서 이 파트의 업무를 열면, 여기서 체크한 인원이 받는사람/참조 기본값으로 채워집니다.
-      </p>
-      <div className="flex gap-4">
-        <MemberList list="to" label="받는사람" />
-        <MemberList list="cc" label="참조" />
-      </div>
+      )}
     </div>
   );
 }
@@ -3828,7 +3910,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartWeeklyConfig: (teamId: string, partId: string, config: WeeklyExportConfig) => Promise<void>;
   onClearPartWeeklyConfig: (teamId: string, partId: string) => Promise<void>;
-  onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormConfig) => Promise<void>;
+  onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormPreset[]) => Promise<void>;
   onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
   allUsers: AppUser[];
 }) {

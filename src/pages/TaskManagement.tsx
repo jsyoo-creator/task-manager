@@ -2351,7 +2351,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       })()}
 
       {expanded && (
-        <div className="border-l-2 border-[#6C63FF]/25 bg-[#6C63FF]/[0.03] border-b border-black/5" style={{ minWidth: rowMinWidth }}>
+        <div className="bg-[#6C63FF]/[0.03] border-t border-black/5" style={{ minWidth: rowMinWidth }}>
           {(filledMeta.length > 0 || enabledCfs.length > 0) ? (
             <div className="overflow-x-auto relative">
               <button

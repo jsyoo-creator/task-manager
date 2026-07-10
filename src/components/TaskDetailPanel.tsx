@@ -28,6 +28,16 @@ function buildMailTemplate(task: Task, statusLabel: string): { subject: string; 
   return { subject, body };
 }
 
+// 작성자 기본값 — 업무의 접수자/담당자 중 기획 직군인 사람을 우선 사용하고,
+// 없으면 팀의 기획 직군 첫 번째 사람으로 대체
+function getDefaultMailAuthor(task: Task, teamMembers?: { name: string; department?: Department }[]): string {
+  if (!teamMembers?.length) return '';
+  const isPlanning = (name?: string) => !!name && teamMembers.some(m => m.name === name && m.department === '기획');
+  if (isPlanning(task.assignee)) return task.assignee!;
+  if (isPlanning(task.receiver)) return task.receiver!;
+  return teamMembers.find(m => m.department === '기획')?.name ?? '';
+}
+
 // OS에 맞게 경로 변환 (Windows ↔ Mac)
 function convertPath(raw: string): string {
   if (!raw) return raw;
@@ -266,9 +276,19 @@ export default function TaskDetailPanel({
   const [mailOpen, setMailOpen] = useState(false);
   const [mailSubject, setMailSubject] = useState('');
   const [mailBody, setMailBody] = useState('');
+  const [mailAuthor, setMailAuthor] = useState('');
   const [mailCopied, setMailCopied] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
+
+  // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음
+  const regenerateMail = (t: Task) => {
+    const sc = statusConfigs.find(s => s.key === t.status);
+    const { subject, body } = buildMailTemplate(t, sc?.label ?? t.status ?? '');
+    setMailSubject(subject);
+    setMailBody(body);
+    setMailAuthor(getDefaultMailAuthor(t, teamMembers));
+  };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
   // 계속 클릭할 수 있음 — padding-left를 메일 양식 폭까지 포함해서 늘림.
@@ -295,6 +315,10 @@ export default function TaskDetailPanel({
     setManualSubstituteIds(new Set());
     setActiveDeptTab(null);
     dirtyTypeIdsRef.current = new Set();
+    // 메일 양식이 열려 있는 채로 다른 업무를 선택하면, 이전 업무 내용이 그대로
+    // 남아있지 않도록 새 업무 기준으로 다시 채움
+    if (mailOpen) regenerateMail(task);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
   // task.subTaskData가 외부에서 변경될 때(초기 Firestore 로드 포함) 동기화.
@@ -547,12 +571,7 @@ export default function TaskDetailPanel({
         </span>
         <button
           onClick={() => {
-            if (!mailOpen) {
-              const sc = statusConfigs.find(s => s.key === task.status);
-              const { subject, body } = buildMailTemplate(task, sc?.label ?? task.status ?? '');
-              setMailSubject(subject);
-              setMailBody(body);
-            }
+            if (!mailOpen) regenerateMail(task);
             setMailOpen(o => !o);
           }}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
@@ -1690,16 +1709,23 @@ export default function TaskDetailPanel({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3 min-h-0">
-          <p className="text-[11px] text-gray-400 leading-relaxed">
-            업무 정보가 자동으로 채워진 초안입니다. 자유롭게 수정한 뒤 복사해서 메일 프로그램에 붙여넣으세요.
-          </p>
           <div>
-            <label className="text-[11px] font-medium text-gray-500 mb-1 block">제목</label>
-            <input
-              value={mailSubject}
-              onChange={e => setMailSubject(e.target.value)}
-              className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-            />
+            <label className="text-[11px] font-medium text-gray-500 mb-1 block">작성자</label>
+            <div className="relative">
+              <select
+                value={mailAuthor}
+                onChange={e => setMailAuthor(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 appearance-none"
+              >
+                <option value="">-</option>
+                {(() => {
+                  const planningMembers = (teamMembers ?? []).filter(m => m.department === '기획');
+                  const names = (planningMembers.length > 0 ? planningMembers : (teamMembers ?? [])).map(m => m.name);
+                  return names.map(n => <option key={n} value={n}>{n}</option>);
+                })()}
+              </select>
+              <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
           </div>
           <div className="flex-1 flex flex-col min-h-0">
             <label className="text-[11px] font-medium text-gray-500 mb-1 block">본문</label>
@@ -1713,13 +1739,14 @@ export default function TaskDetailPanel({
         <div className="px-5 py-3 border-t border-black/[0.08] flex-shrink-0">
           <button
             onClick={() => {
-              navigator.clipboard.writeText(`${mailSubject}\n\n${mailBody}`);
+              const signed = mailAuthor ? `${mailBody}\n\n${mailAuthor} 드림` : mailBody;
+              navigator.clipboard.writeText(`${mailSubject}\n\n${signed}`);
               setMailCopied(true);
               setTimeout(() => setMailCopied(false), 1500);
             }}
             className="w-full flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#6C63FF] hover:bg-[#5a52e0] text-white text-sm font-semibold transition-colors"
           >
-            {mailCopied ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 제목+본문 복사</>}
+            {mailCopied ? <><Check size={14} /> 복사됨</> : <><Copy size={14} /> 메일 내용 복사</>}
           </button>
         </div>
       </div>

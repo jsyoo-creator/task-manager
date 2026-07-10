@@ -51,10 +51,12 @@ function buildMailPlainText(subject: string, greeting: string, message: string, 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
 function buildMailHtml(subject: string, greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
-  const tableHtml = `<table style="border-collapse:collapse;font-size:14px;">${
+  const tableHtml = `<table style="border-collapse:collapse;font-size:14px;width:100%;border:1px solid #d1d5db;">${
     rows.map(r =>
-      `<tr><td style="padding:4px 16px 4px 0;color:#666;white-space:nowrap;vertical-align:top;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:4px 0;">${escapeHtml(r.value)}</td></tr>`
+      `<tr>` +
+      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:8px 12px;background:#ffffff;border:1px solid #d1d5db;">${escapeHtml(r.value)}</td>` +
+      `</tr>`
     ).join('')
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div>${escapeHtml(l)}</div>`).join('');
@@ -1870,12 +1872,12 @@ export default function TaskDetailPanel({
                 className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed"
               />
               <div className="mt-3 overflow-x-auto">
-                <table className="text-xs border-collapse w-full">
+                <table className="text-xs border-collapse w-full border border-gray-300">
                   <tbody>
                     {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
-                      <tr key={r.label} className="border-b border-gray-50 last:border-0">
-                        <td className="py-1.5 pr-4 text-gray-500 whitespace-nowrap align-top">{r.label}</td>
-                        <td className="py-1.5 text-gray-800">{r.value}</td>
+                      <tr key={r.label}>
+                        <td className="py-2 px-3 bg-gray-50 text-gray-600 font-medium whitespace-nowrap align-top border border-gray-300">{r.label}</td>
+                        <td className="py-2 px-3 text-gray-800 border border-gray-300">{r.value}</td>
                       </tr>
                     ))}
                   </tbody>

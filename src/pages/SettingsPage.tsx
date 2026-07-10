@@ -3909,6 +3909,8 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
 
   const handleRemoveField = (id: string) => patch({ customFields: (table.customFields ?? []).filter(f => f.id !== id) });
 
+  const handleSetFieldLinkText = (id: string, linkText: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) });
+
   const rows = resolveMailTableRowOrder((table.customFields ?? []).map(f => f.id), table.rowOrder)
     .map(id => (table.customFields ?? []).find(f => f.id === id))
     .filter((f): f is MailTableCustomField => !!f);
@@ -3969,12 +3971,22 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
         <div>
           <p className="text-[11px] text-gray-500 mb-1.5">표시할 항목</p>
           {(table.customFields ?? []).length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className="space-y-1 mb-2">
               {table.customFields!.map(f => (
-                <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                  {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                  <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100">×</button>
-                </span>
+                <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
+                  <span className="flex-1">
+                    {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                  </span>
+                  {f.type === 'url' && (
+                    <InlineTextField
+                      value={f.linkText ?? ''}
+                      onCommit={v => handleSetFieldLinkText(f.id, v)}
+                      placeholder="링크 텍스트 (예: 자세히 보기)"
+                      className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                    />
+                  )}
+                  <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                </div>
               ))}
             </div>
           )}
@@ -4010,10 +4022,11 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                 <input value={manualLabelDraft} onChange={e => setManualLabelDraft(e.target.value)}
                   placeholder="항목 이름 (예: 특이사항)"
                   className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-                <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+                <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date' | 'url')}
                   className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                   <option value="text">텍스트</option>
                   <option value="date">날짜</option>
+                  <option value="url">링크(URL)</option>
                 </select>
                 <button onClick={handleAddManual} disabled={!manualLabelDraft.trim()}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -4351,7 +4364,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [messageDraft, setMessageDraft] = useState('');
   const [tableTitleDraft, setTableTitleDraft] = useState('');
   const [customSourceKey, setCustomSourceKey] = useState('');
-  const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const [customType, setCustomType] = useState<'text' | 'date' | 'url'>('text');
   const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const [bodyTitleDraft, setBodyTitleDraft] = useState('');
@@ -4497,6 +4510,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleRemoveCustomField = (id: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).filter(f => f.id !== id) } : p));
+  };
+
+  // URL 타입 항목의 실제 값(링크 주소) 대신 하이퍼링크에 표시할 고정 텍스트
+  const handleSetCustomFieldLinkText = (id: string, linkText: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) } : p));
   };
 
   // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 값이 미리 채워지지 않고, 업무 상세의
@@ -4779,12 +4798,22 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             <div>
               <p className="text-[11px] text-gray-500 mb-1.5">추가 항목</p>
               {(currentPreset.tableCustomFields ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
+                <div className="space-y-1 mb-2">
                   {currentPreset.tableCustomFields!.map(f => (
-                    <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                      {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                      <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100">×</button>
-                    </span>
+                    <div key={f.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
+                      <span className="flex-1">
+                        {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                      </span>
+                      {f.type === 'url' && (
+                        <InlineTextField
+                          value={f.linkText ?? ''}
+                          onCommit={v => handleSetCustomFieldLinkText(f.id, v)}
+                          placeholder="링크 텍스트 (예: 자세히 보기)"
+                          className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                        />
+                      )}
+                      <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -4820,10 +4849,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     <input value={manualLabelDraft} onChange={e => setManualLabelDraft(e.target.value)}
                       placeholder="항목 이름 (예: 특이사항)"
                       className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-                    <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+                    <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date' | 'url')}
                       className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                       <option value="text">텍스트</option>
                       <option value="date">날짜</option>
+                      <option value="url">링크(URL)</option>
                     </select>
                     <button onClick={handleAddManualField} disabled={!manualLabelDraft.trim()}
                       className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -5053,7 +5083,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               return (
                 <MailListGroupEditor
                   group={selectedListGroup}
-                  candidateFields={candidateFields}
+                  candidateFields={candidateFields.filter((f): f is { key: string; label: string; type: 'text' | 'date' } => f.type !== 'url')}
                   onSave={handleSaveListGroup}
                   onRemove={() => handleRemoveListGroup(selectedListGroup.id)}
                 />

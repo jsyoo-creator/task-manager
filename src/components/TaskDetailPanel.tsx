@@ -34,6 +34,38 @@ function buildMailTemplate(task: Task, statusLabel: string, author: string, mess
   return { subject, body };
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 복사한 내용을 Outlook/Gmail 등에 붙여넣었을 때 "- 라벨: 값" 형식의 연속된 줄들이
+// 표로 보이도록 HTML 클립보드 데이터를 만든다. text/plain도 함께 써서 표를 지원하지
+// 않는 곳에 붙여넣으면 원래 텍스트 그대로 보이게 함(대시 목록 형태 유지)
+function buildMailClipboardHtml(text: string): string {
+  const lines = text.split('\n');
+  const rowPattern = /^- (.+?): (.*)$/;
+  const htmlParts: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (rowPattern.test(lines[i])) {
+      const rows: string[] = [];
+      while (i < lines.length && rowPattern.test(lines[i])) {
+        const m = lines[i].match(rowPattern)!;
+        rows.push(
+          `<tr><td style="padding:4px 16px 4px 0;color:#666;white-space:nowrap;vertical-align:top;">${escapeHtml(m[1])}</td>` +
+          `<td style="padding:4px 0;">${escapeHtml(m[2])}</td></tr>`
+        );
+        i++;
+      }
+      htmlParts.push(`<table style="border-collapse:collapse;font-size:14px;font-family:inherit;">${rows.join('')}</table>`);
+    } else {
+      htmlParts.push(lines[i] === '' ? '<br>' : `<div>${escapeHtml(lines[i])}</div>`);
+      i++;
+    }
+  }
+  return htmlParts.join('');
+}
+
 // 작성자 기본값 — 업무의 접수자/담당자 중 기획 직군인 사람을 우선 사용하고,
 // 없으면 팀의 기획 직군 첫 번째 사람으로 대체
 function getDefaultMailAuthor(task: Task, teamMembers?: { name: string; department?: Department; email?: string }[]): string {
@@ -1844,9 +1876,21 @@ export default function TaskDetailPanel({
         </div>
         <div className="px-5 py-3 border-t border-black/[0.08] flex-shrink-0">
           <button
-            onClick={() => {
+            onClick={async () => {
               const signed = mailAuthor ? `${mailBody}\n\n${mailAuthor} 드림` : mailBody;
-              navigator.clipboard.writeText(`${mailSubject}\n\n${signed}`);
+              const fullText = `${mailSubject}\n\n${signed}`;
+              try {
+                const html = buildMailClipboardHtml(fullText);
+                await navigator.clipboard.write([
+                  new ClipboardItem({
+                    'text/plain': new Blob([fullText], { type: 'text/plain' }),
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                  }),
+                ]);
+              } catch {
+                // 구형 브라우저 등 ClipboardItem 미지원 시 일반 텍스트로 대체
+                await navigator.clipboard.writeText(fullText);
+              }
               setMailCopied(true);
               setTimeout(() => setMailCopied(false), 1500);
             }}

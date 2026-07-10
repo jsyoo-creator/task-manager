@@ -51,11 +51,11 @@ function buildMailPlainText(subject: string, greeting: string, message: string, 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
 function buildMailHtml(subject: string, greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
-  const tableHtml = `<table style="border-collapse:collapse;font-size:14px;width:100%;border:1px solid #d1d5db;">${
+  const tableHtml = `<table style="border-collapse:collapse;font-size:14px;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:8px 12px;background:#ffffff;border:1px solid #d1d5db;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:8px 12px;background:#ffffff;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;
@@ -1868,8 +1868,11 @@ export default function TaskDetailPanel({
               <textarea
                 value={mailMessage}
                 onChange={e => setMailMessage(e.target.value)}
-                rows={3}
-                className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed"
+                rows={2}
+                // 줄바꿈 문자 수가 아니라 실제 줄바꿈되어 보이는 만큼만 딱 맞게 높이가
+                // 늘어나도록(불필요한 빈 줄 없이) field-sizing 사용, 미지원 브라우저는 rows=2로 대체
+                style={{ fieldSizing: 'content' } as any}
+                className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
               />
               <div className="mt-3 overflow-x-auto">
                 <table className="text-xs border-collapse w-full border border-gray-300">

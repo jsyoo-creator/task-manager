@@ -9,61 +9,63 @@ import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHou
 const PANEL_W = 540;
 const MAIL_PANEL_W = 420;
 
+// 메일 양식 — 인사말/안내 문구는 자유 편집 텍스트, 업무 정보는 항상 업무 데이터로부터
+// 다시 만들어지는(수정 불가) 표. 발송 기능은 없고 복사해서 Outlook/Gmail 등에
+// 붙여넣어 쓰는 용도라, 복사 시 표가 실제 HTML 표로 붙여넣어지도록 별도 처리한다.
+function buildMailGreeting(author: string): string {
+  return author ? `안녕하세요, ${author} 입니다.` : '안녕하세요,';
+}
+
 // 메일 유형(탭)에서 안내 문구를 따로 설정하지 않았을 때 쓰는 기본값
 const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
 
-// 메일 양식 초안 — 업무 핵심 정보를 자동으로 채워 넣은 텍스트. 사용자가 그대로
-// 복사해 Outlook/Gmail 등에 붙여넣어 쓸 수 있도록 발송 기능 없이 텍스트만 생성한다.
-// 인사말에는 선택된 작성자 이름이, 안내 문구에는 선택된 메일 유형(탭)의 문구가 들어간다.
-function buildMailTemplate(task: Task, statusLabel: string, author: string, message: string, showTaskName: boolean): { subject: string; body: string } {
+function buildMailMessage(task: Task, message: string, showTaskName: boolean): string {
+  const base = message || DEFAULT_MAIL_MESSAGE;
+  return showTaskName ? `${task.title} ${base}` : base;
+}
+
+function buildTaskInfoRows(task: Task, statusLabel: string): { label: string; value: string }[] {
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
-  const subject = `[${task.title}] 업무 안내`;
-  const greeting = author ? `안녕하세요, ${author} 입니다.` : '안녕하세요,';
-  const messageBlock = showTaskName ? `${task.title} ${message || DEFAULT_MAIL_MESSAGE}` : (message || DEFAULT_MAIL_MESSAGE);
-  const body =
-    `${greeting}\n\n${messageBlock}\n\n` +
-    `- 업무명: ${task.title}\n` +
-    `- 파트/구분: ${task.category || '-'}\n` +
-    `- 유형: ${task.type || '-'}\n` +
-    `- 접수자: ${task.receiver || '-'}\n` +
-    `- 담당자: ${task.assignee || '-'}\n` +
-    `- 진행상황: ${statusLabel || '-'}\n` +
-    `- 시작일: ${fmt(task.startDate)}\n` +
-    `- 종료일: ${fmt(task.endDate)}\n\n` +
-    `감사합니다.`;
-  return { subject, body };
+  return [
+    { label: '업무명', value: task.title },
+    { label: '파트/구분', value: task.category || '-' },
+    { label: '유형', value: task.type || '-' },
+    { label: '접수자', value: task.receiver || '-' },
+    { label: '담당자', value: task.assignee || '-' },
+    { label: '진행상황', value: statusLabel || '-' },
+    { label: '시작일', value: fmt(task.startDate) },
+    { label: '종료일', value: fmt(task.endDate) },
+  ];
 }
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// 복사한 내용을 Outlook/Gmail 등에 붙여넣었을 때 "- 라벨: 값" 형식의 연속된 줄들이
-// 표로 보이도록 HTML 클립보드 데이터를 만든다. text/plain도 함께 써서 표를 지원하지
-// 않는 곳에 붙여넣으면 원래 텍스트 그대로 보이게 함(대시 목록 형태 유지)
-function buildMailClipboardHtml(text: string): string {
-  const lines = text.split('\n');
-  const rowPattern = /^- (.+?): (.*)$/;
-  const htmlParts: string[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    if (rowPattern.test(lines[i])) {
-      const rows: string[] = [];
-      while (i < lines.length && rowPattern.test(lines[i])) {
-        const m = lines[i].match(rowPattern)!;
-        rows.push(
-          `<tr><td style="padding:4px 16px 4px 0;color:#666;white-space:nowrap;vertical-align:top;">${escapeHtml(m[1])}</td>` +
-          `<td style="padding:4px 0;">${escapeHtml(m[2])}</td></tr>`
-        );
-        i++;
-      }
-      htmlParts.push(`<table style="border-collapse:collapse;font-size:14px;font-family:inherit;">${rows.join('')}</table>`);
-    } else {
-      htmlParts.push(lines[i] === '' ? '<br>' : `<div>${escapeHtml(lines[i])}</div>`);
-      i++;
-    }
-  }
-  return htmlParts.join('');
+// 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
+function buildMailPlainText(subject: string, greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
+  const bulletBlock = rows.map(r => `- ${r.label}: ${r.value}`).join('\n');
+  return `${subject}\n\n${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
+}
+
+// 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
+// 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
+function buildMailHtml(subject: string, greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
+  const tableHtml = `<table style="border-collapse:collapse;font-size:14px;">${
+    rows.map(r =>
+      `<tr><td style="padding:4px 16px 4px 0;color:#666;white-space:nowrap;vertical-align:top;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:4px 0;">${escapeHtml(r.value)}</td></tr>`
+    ).join('')
+  }</table>`;
+  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div>${escapeHtml(l)}</div>`).join('');
+  return (
+    `${textBlock(subject)}<br>` +
+    `${textBlock(greeting)}<br>` +
+    `${textBlock(message)}<br>` +
+    `${tableHtml}<br>` +
+    `<div>감사합니다.</div>` +
+    (signature ? `<br>${textBlock(signature)}` : '')
+  );
 }
 
 // 작성자 기본값 — 업무의 접수자/담당자 중 기획 직군인 사람을 우선 사용하고,
@@ -313,7 +315,7 @@ export default function TaskDetailPanel({
   const [visible, setVisible] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [mailSubject, setMailSubject] = useState('');
-  const [mailBody, setMailBody] = useState('');
+  const [mailMessage, setMailMessage] = useState('');
   const [mailAuthor, setMailAuthor] = useState('');
   const [mailPresetId, setMailPresetId] = useState('');
   const [mailCopied, setMailCopied] = useState(false);
@@ -322,24 +324,17 @@ export default function TaskDetailPanel({
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
 
-  // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음
+  // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음. 인사말/업무 정보 표는
+  // 항상 업무 데이터에서 계산되므로 상태로 따로 안 두고, 자유 편집이 필요한 안내
+  // 문구만 상태(mailMessage)로 관리함
   const regenerateMail = (t: Task) => {
-    const sc = statusConfigs.find(s => s.key === t.status);
     const author = getDefaultMailAuthor(t, teamMembers);
     const taskPart = parts.find(p => p.name === t.category);
     const preset = taskPart?.mailFormConfig?.[0];
-    const { subject, body } = buildMailTemplate(t, sc?.label ?? t.status ?? '', author, preset?.message ?? '', preset?.showTaskName ?? false);
-    setMailSubject(subject);
-    setMailBody(body);
+    setMailSubject(`[${t.title}] 업무 안내`);
+    setMailMessage(buildMailMessage(t, preset?.message ?? '', preset?.showTaskName ?? false));
     setMailAuthor(author);
     setMailPresetId(preset?.id ?? '');
-  };
-
-  // 작성자/메일 유형(탭)을 바꾸면 인사말·안내 문구가 그 즉시 반영되도록 본문을 다시 생성
-  const regenerateBody = (author: string, message: string, showTaskName: boolean) => {
-    const sc = statusConfigs.find(s => s.key === task.status);
-    const { body } = buildMailTemplate(task, sc?.label ?? task.status ?? '', author, message, showTaskName);
-    setMailBody(body);
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -1766,13 +1761,7 @@ export default function TaskDetailPanel({
             <div className="relative">
               <select
                 value={mailAuthor}
-                onChange={e => {
-                  const author = e.target.value;
-                  setMailAuthor(author);
-                  const currentPart = parts.find(p => p.name === task.category);
-                  const preset = currentPart?.mailFormConfig?.find(p => p.id === mailPresetId);
-                  regenerateBody(author, preset?.message ?? '', preset?.showTaskName ?? false);
-                }}
+                onChange={e => setMailAuthor(e.target.value)}
                 className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 appearance-none"
               >
                 <option value="">-</option>
@@ -1804,7 +1793,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); regenerateBody(mailAuthor, p.message ?? '', p.showTaskName ?? false); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(buildMailMessage(task, p.message ?? '', p.showTaskName ?? false)); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -1827,22 +1816,20 @@ export default function TaskDetailPanel({
                   const names = currentPreset?.[key] ?? [];
                   const emails = names.map(emailOf).filter((e): e is string => !!e);
                   return (
-                    <div key={key}>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-medium text-gray-500 block">{label}</label>
-                        {emails.length > 0 && (
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(emails.join(', '));
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 1500);
-                            }}
-                            className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-[#6C63FF]/10 hover:bg-[#6C63FF]/15 border border-[#6C63FF]/20 transition-colors"
-                          >
-                            {copied ? <><Check size={10} /> 복사됨</> : <><Copy size={10} /> 이메일 복사</>}
-                          </button>
-                        )}
-                      </div>
+                    <div key={key} className="relative">
+                      <label className="text-[11px] font-medium text-gray-500 mb-1 block">{label}</label>
+                      {emails.length > 0 && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(emails.join(', '));
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1500);
+                          }}
+                          className="absolute right-0 top-1/2 -translate-y-1/2 text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1 px-2 py-1 rounded-md bg-[#6C63FF]/10 hover:bg-[#6C63FF]/15 border border-[#6C63FF]/20 transition-colors"
+                        >
+                          {copied ? <><Check size={10} /> 복사됨</> : <><Copy size={10} /> 이메일 복사</>}
+                        </button>
+                      )}
                       {names.length === 0 ? (
                         <p className="text-xs text-gray-400 px-3 py-2 rounded-lg border border-dashed border-gray-200">
                           이 탭에 설정된 인원이 없습니다.
@@ -1872,29 +1859,52 @@ export default function TaskDetailPanel({
           })()}
           <div className="flex-1 flex flex-col min-h-0">
             <label className="text-[11px] font-medium text-gray-500 mb-1 block">본문</label>
-            <textarea
-              value={mailBody}
-              onChange={e => setMailBody(e.target.value)}
-              className="w-full flex-1 min-h-[240px] text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30 resize-none leading-relaxed"
-            />
+            {/* 인사말/업무 정보 표/맺음말은 항상 업무 데이터로 다시 생성되는 미리보기(수정 불가),
+                안내 문구만 자유 편집 가능한 textarea로 그 사이에 끼워 넣음 */}
+            <div className="flex-1 min-h-[240px] overflow-y-auto text-sm px-3 py-3 rounded-lg border border-gray-200 bg-white text-gray-800 leading-relaxed">
+              <p>{buildMailGreeting(mailAuthor)}</p>
+              <textarea
+                value={mailMessage}
+                onChange={e => setMailMessage(e.target.value)}
+                rows={3}
+                className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed"
+              />
+              <div className="mt-3 overflow-x-auto">
+                <table className="text-xs border-collapse w-full">
+                  <tbody>
+                    {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
+                      <tr key={r.label} className="border-b border-gray-50 last:border-0">
+                        <td className="py-1.5 pr-4 text-gray-500 whitespace-nowrap align-top">{r.label}</td>
+                        <td className="py-1.5 text-gray-800">{r.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3">감사합니다.</p>
+              {mailAuthor && <p className="mt-1">{mailAuthor} 드림</p>}
+            </div>
           </div>
         </div>
         <div className="px-5 py-3 border-t border-black/[0.08] flex-shrink-0">
           <button
             onClick={async () => {
-              const signed = mailAuthor ? `${mailBody}\n\n${mailAuthor} 드림` : mailBody;
-              const fullText = `${mailSubject}\n\n${signed}`;
+              const greeting = buildMailGreeting(mailAuthor);
+              const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
+              const rows = buildTaskInfoRows(task, statusLabel);
+              const signature = mailAuthor ? `${mailAuthor} 드림` : '';
+              const plainText = buildMailPlainText(mailSubject, greeting, mailMessage, rows, signature);
               try {
-                const html = buildMailClipboardHtml(fullText);
+                const html = buildMailHtml(mailSubject, greeting, mailMessage, rows, signature);
                 await navigator.clipboard.write([
                   new ClipboardItem({
-                    'text/plain': new Blob([fullText], { type: 'text/plain' }),
+                    'text/plain': new Blob([plainText], { type: 'text/plain' }),
                     'text/html': new Blob([html], { type: 'text/html' }),
                   }),
                 ]);
               } catch {
                 // 구형 브라우저 등 ClipboardItem 미지원 시 일반 텍스트로 대체
-                await navigator.clipboard.writeText(fullText);
+                await navigator.clipboard.writeText(plainText);
               }
               setMailCopied(true);
               setTimeout(() => setMailCopied(false), 1500);

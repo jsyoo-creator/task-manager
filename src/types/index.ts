@@ -241,13 +241,15 @@ export interface MailTableCustomField {
   sourceKey?: string; // task.customFields[sourceKey] 참조. 없으면 사용자 입력 항목
 }
 
-// 표의 개별 항목(행) 하나에 대한 배경색/볼드 오버라이드 — 지정 안 하면 프리셋의
+// 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의
 // tableLabelBg/tableValueBg 등 공통 기본값을 사용
 export interface MailTableCellStyle {
   labelBg?: string;
   labelBold?: boolean;
   valueBg?: string;
   valueBold?: boolean;
+  hideRow?: boolean; // true면 이 항목을 표에서 완전히 숨김(항목명+내용 모두)
+  hideLabel?: boolean; // true면 이 항목의 항목명 칸만 숨기고 내용은 그대로 표시
 }
 
 // 업무 상세 "메일 양식"의 받는사람/참조 프리셋 하나 — 받는사람/참조 조합이 매번 다를 수 있어

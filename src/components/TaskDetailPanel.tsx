@@ -48,6 +48,7 @@ interface MailTableRow {
   labelBold: boolean;
   valueBg: string;
   valueBold: boolean;
+  hideLabel: boolean; // 이 항목만 항목명 칸을 비워 표시 (표 전체 항목명 칸 표시 여부와 별개)
 }
 
 // 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나
@@ -81,10 +82,12 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
       labelBold: o?.labelBold ?? preset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
       valueBg: o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg,
       valueBold: o?.valueBold ?? preset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
+      hideRow: o?.hideRow ?? false,
+      hideLabel: o?.hideLabel ?? false,
     };
   };
   const keys = preset?.tableFields?.length ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
-  const rowsByKey: Record<string, MailTableRow> = {};
+  const rowsByKey: Record<string, MailTableRow & { hideRow: boolean }> = {};
   keys
     .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
     .filter((f): f is { key: string; label: string } => !!f)
@@ -95,7 +98,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
   });
   const naturalKeys = [...Object.keys(rowsByKey)];
   const order = resolveMailTableRowOrder(naturalKeys, preset?.tableRowOrder);
-  return order.map(k => rowsByKey[k]).filter(Boolean);
+  return order.map(k => rowsByKey[k]).filter((r): r is MailTableRow & { hideRow: boolean } => !!r && !r.hideRow);
 }
 
 function escapeHtml(s: string): string {
@@ -104,7 +107,7 @@ function escapeHtml(s: string): string {
 
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
 function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string): string {
-  const bulletBlock = rows.map(r => `- ${r.label}: ${r.value}`).join('\n');
+  const bulletBlock = rows.map(r => r.hideLabel ? `- ${r.value}` : `- ${r.label}: ${r.value}`).join('\n');
   return `${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
 }
 
@@ -117,7 +120,7 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
   const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r => {
       const labelCell = showLabelColumn
-        ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>`
+        ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${r.hideLabel ? '' : escapeHtml(r.label)}</td>`
         : '';
       return (
         `<tr>` +
@@ -1990,7 +1993,7 @@ export default function TaskDetailPanel({
                           {rows.map(r => (
                             <tr key={r.key}>
                               {showLabelColumn && (
-                                <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.label}</td>
+                                <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.hideLabel ? '' : r.label}</td>
                               )}
                               <td className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>{r.value}</td>
                             </tr>

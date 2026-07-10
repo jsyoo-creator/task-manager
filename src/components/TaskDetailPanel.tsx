@@ -50,8 +50,17 @@ interface MailTableRow {
   valueBold: boolean;
 }
 
-// preset의 tableFields/tableCustomFields/tableFieldStyles를 반영해 표에 표시할
-// 행 목록을 만든다. tableFields가 없으면(설정 전) 기본 8개 전체를 표시.
+// 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나
+// 순서를 저장하기 전부터 있던 항목(순서 목록에 없는 것)은 기본 순서 그대로 뒤에 붙인다
+export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: string[] | undefined): string[] {
+  if (!savedOrder?.length) return naturalKeys;
+  const known = savedOrder.filter(k => naturalKeys.includes(k));
+  const extra = naturalKeys.filter(k => !known.includes(k));
+  return [...known, ...extra];
+}
+
+// preset의 tableFields/tableCustomFields/tableFieldStyles/tableRowOrder를 반영해
+// 표에 표시할 행 목록을 만든다. tableFields가 없으면(설정 전) 기본 8개 전체를 표시.
 function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPreset | undefined): MailTableRow[] {
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
   const builtinValues: Record<string, string> = {
@@ -74,15 +83,18 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     };
   };
   const keys = preset?.tableFields?.length ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
-  const builtinRows = keys
+  const rowsByKey: Record<string, MailTableRow> = {};
+  keys
     .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
     .filter((f): f is { key: string; label: string } => !!f)
-    .map(f => ({ key: f.key, label: f.label, value: builtinValues[f.key], ...resolveStyle(f.key) }));
-  const customRows = (preset?.tableCustomFields ?? []).map(cf => {
+    .forEach(f => { rowsByKey[f.key] = { key: f.key, label: f.label, value: builtinValues[f.key], ...resolveStyle(f.key) }; });
+  (preset?.tableCustomFields ?? []).forEach(cf => {
     const raw = task.customFields?.[cf.sourceKey] ?? '';
-    return { key: cf.id, label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-'), ...resolveStyle(cf.id) };
+    rowsByKey[cf.id] = { key: cf.id, label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-'), ...resolveStyle(cf.id) };
   });
-  return [...builtinRows, ...customRows];
+  const naturalKeys = [...Object.keys(rowsByKey)];
+  const order = resolveMailTableRowOrder(naturalKeys, preset?.tableRowOrder);
+  return order.map(k => rowsByKey[k]).filter(Boolean);
 }
 
 function escapeHtml(s: string): string {

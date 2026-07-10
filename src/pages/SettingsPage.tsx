@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder } from '../components/TaskDetailPanel';
 
 interface Props {
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -3863,6 +3863,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [tableTitleDraft, setTableTitleDraft] = useState('');
   const [customSourceKey, setCustomSourceKey] = useState('');
   const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const rowDragIdxRef = useRef<number | null>(null);
+  const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -4017,12 +4019,28 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableFieldStyles: nextStyles } : p));
   };
 
-  const activeRows: { key: string; label: string }[] = [
-    ...activeTableFields
+  const naturalRowLabels: Record<string, string> = {
+    ...Object.fromEntries(activeTableFields
       .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
-      .filter((f): f is { key: string; label: string } => !!f),
-    ...(currentPreset?.tableCustomFields ?? []).map(f => ({ key: f.id, label: f.label })),
-  ];
+      .filter((f): f is { key: string; label: string } => !!f)
+      .map(f => [f.key, f.label])),
+    ...Object.fromEntries((currentPreset?.tableCustomFields ?? []).map(f => [f.id, f.label])),
+  };
+  const activeRows: { key: string; label: string }[] = resolveMailTableRowOrder(
+    Object.keys(naturalRowLabels),
+    currentPreset?.tableRowOrder
+  ).map(key => ({ key, label: naturalRowLabels[key] }));
+
+  const handleReorderRow = (toIdx: number) => {
+    const from = rowDragIdxRef.current;
+    if (from === null || from === toIdx || !currentPreset) return;
+    const arr = [...activeRows];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableRowOrder: arr.map(r => r.key) } : p));
+    rowDragIdxRef.current = null;
+    setRowDragOverIdx(null);
+  };
 
   if (team.parts.length === 0) {
     return <p className="text-sm text-gray-400 py-6 text-center">먼저 파트를 추가해주세요.</p>;
@@ -4235,9 +4253,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
             {activeRows.length > 0 && (
               <div>
-                <p className="text-[11px] text-gray-500 mb-1.5">항목별 스타일 재정의 (선택 — 지정하지 않으면 위 기본값 사용)</p>
+                <p className="text-[11px] text-gray-500 mb-1.5">
+                  항목별 스타일 재정의 (선택 — 지정하지 않으면 위 기본값 사용)
+                  <span className="text-gray-300 font-normal ml-1">드래그로 표에 표시될 순서 변경</span>
+                </p>
                 <div className="space-y-2">
-                  {activeRows.map(row => {
+                  {activeRows.map((row, i) => {
                     const override = currentPreset.tableFieldStyles?.[row.key];
                     const effLabelBg = override?.labelBg || currentPreset.tableLabelBg || '#f9fafb';
                     const effLabelBold = override?.labelBold ?? currentPreset.tableLabelBold ?? true;
@@ -4246,9 +4267,19 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     const hasOverride = !!override && Object.keys(override).length > 0;
                     const showLabelCol = currentPreset.tableShowLabelColumn ?? true;
                     return (
-                      <div key={row.key} className="rounded-lg border border-gray-100 p-2.5 space-y-1.5">
+                      <div key={row.key}
+                        draggable
+                        onDragStart={() => { rowDragIdxRef.current = i; }}
+                        onDragOver={e => { e.preventDefault(); setRowDragOverIdx(i); }}
+                        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setRowDragOverIdx(null); }}
+                        onDrop={() => handleReorderRow(i)}
+                        onDragEnd={() => { rowDragIdxRef.current = null; setRowDragOverIdx(null); }}
+                        className={`rounded-lg border border-gray-100 p-2.5 space-y-1.5 ${rowDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-gray-700">{row.label}</span>
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-700">
+                            <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                            {row.label}
+                          </span>
                           {hasOverride && (
                             <button onClick={() => clearFieldStyleOverride(row.key)} className="text-[10px] text-gray-400 hover:text-red-500">
                               기본값으로

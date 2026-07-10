@@ -262,6 +262,7 @@ export interface MailFormPreset {
   tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)
   tableCustomFields?: MailTableCustomField[]; // 표에 추가로 표시할 항목
+  tableRowOrder?: string[]; // 표에 표시되는 행(빌트인 key + 커스텀 필드 id)의 전체 순서, 드래그로 재정렬 (없으면 기본/추가 항목 순서)
   tableShowLabelColumn?: boolean; // 표 항목명 칸 자체를 표시할지 (없으면 true = 표시)
   tableLabelBg?: string; // 표 항목명 칸 공통 배경색 (hex, 없으면 기본값)
   tableLabelBold?: boolean; // 표 항목명 칸 공통 볼드 여부 (없으면 true)

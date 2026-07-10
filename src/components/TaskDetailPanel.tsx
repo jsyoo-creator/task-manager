@@ -49,6 +49,10 @@ interface MailTableRow {
   valueBg: string;
   valueBold: boolean;
   hideLabel: boolean; // 이 항목만 항목명 칸을 비워 표시 (표 전체 항목명 칸 표시 여부와 별개)
+  // sourceKey 없는(=사용자 입력) 커스텀 항목이면 값을 표 안에서 바로 입력할 수 있어야 하므로
+  // 입력 타입/필드 id를 함께 넘김 (미리보기에서만 사용, 복사되는 값은 이미 value에 반영됨)
+  manualFieldId?: string;
+  manualFieldType?: 'text' | 'date';
 }
 
 // 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나
@@ -94,7 +98,13 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     .forEach(f => { rowsByKey[f.key] = { key: f.key, label: f.label, value: builtinValues[f.key], ...resolveStyle(f.key) }; });
   (preset?.tableCustomFields ?? []).forEach(cf => {
     const raw = cf.sourceKey ? (task.customFields?.[cf.sourceKey] ?? '') : (manualValues?.[cf.id] ?? '');
-    rowsByKey[cf.id] = { key: cf.id, label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-'), ...resolveStyle(cf.id) };
+    rowsByKey[cf.id] = {
+      key: cf.id,
+      label: cf.label,
+      value: cf.type === 'date' ? fmt(raw) : (raw || '-'),
+      ...resolveStyle(cf.id),
+      ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
+    };
   });
   const naturalKeys = [...Object.keys(rowsByKey)];
   const order = resolveMailTableRowOrder(naturalKeys, preset?.tableRowOrder);
@@ -119,13 +129,17 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
   const FS = 'font-size:13px!important;';
   const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r => {
-      const labelCell = showLabelColumn
-        ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${r.hideLabel ? '' : escapeHtml(r.label)}</td>`
+      // 이 행만 항목명을 숨기면(hideLabel) 항목명 칸 자체를 아예 안 만들고, 내용 칸이
+      // 그 자리까지 넓게 채우도록 colspan="2"를 준다 (항목명 칸이 빈 채로 남지 않게)
+      const labelVisible = showLabelColumn && !r.hideLabel;
+      const labelCell = labelVisible
+        ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>`
         : '';
+      const valueColspan = showLabelColumn && !labelVisible ? ' colspan="2"' : '';
       return (
         `<tr>` +
         labelCell +
-        `<td style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+        `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
         `</tr>`
       );
     }).join('')
@@ -1960,44 +1974,42 @@ export default function TaskDetailPanel({
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
                 const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
                 const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
-                const manualFields = (currentPreset?.tableCustomFields ?? []).filter(cf => !cf.sourceKey);
                 return (
                   <div className="mt-3">
-                    {manualFields.length > 0 && (
-                      <div className="mb-2 space-y-1.5 rounded-lg border border-dashed border-gray-200 p-2.5">
-                        {manualFields.map(cf => (
-                          <div key={cf.id} className="flex items-center gap-2">
-                            <label className="text-[11px] text-gray-500 w-20 flex-shrink-0 truncate">{cf.label}</label>
-                            {cf.type === 'date' ? (
-                              <DatePicker
-                                value={mailManualValues[cf.id] ?? ''}
-                                onChange={v => setMailManualValues(prev => ({ ...prev, [cf.id]: v }))}
-                                btnClassName="flex-1 rounded-lg px-2.5 py-1.5 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-                              />
-                            ) : (
-                              <input
-                                value={mailManualValues[cf.id] ?? ''}
-                                onChange={e => setMailManualValues(prev => ({ ...prev, [cf.id]: e.target.value }))}
-                                placeholder={`${cf.label} 입력`}
-                                className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
                     {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
                     <div className="overflow-x-auto">
                       <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
                         <tbody>
-                          {rows.map(r => (
-                            <tr key={r.key}>
-                              {showLabelColumn && (
-                                <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.hideLabel ? '' : r.label}</td>
-                              )}
-                              <td className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>{r.value}</td>
-                            </tr>
-                          ))}
+                          {rows.map(r => {
+                            // 이 행만 항목명을 숨기면(hideLabel) 항목명 칸을 아예 만들지 않고,
+                            // 내용 칸이 그 자리까지 colspan으로 넓게 채우게 함
+                            const labelVisible = showLabelColumn && !r.hideLabel;
+                            return (
+                              <tr key={r.key}>
+                                {labelVisible && (
+                                  <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.label}</td>
+                                )}
+                                <td colSpan={showLabelColumn && !labelVisible ? 2 : 1} className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>
+                                  {r.manualFieldId ? (
+                                    r.manualFieldType === 'date' ? (
+                                      <DatePicker
+                                        compact
+                                        value={mailManualValues[r.manualFieldId] ?? ''}
+                                        onChange={v => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: v }))}
+                                      />
+                                    ) : (
+                                      <input
+                                        value={mailManualValues[r.manualFieldId] ?? ''}
+                                        onChange={e => setMailManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
+                                        placeholder="입력"
+                                        className="w-full bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                                      />
+                                    )
+                                  ) : r.value}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

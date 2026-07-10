@@ -3841,7 +3841,8 @@ function RecipientChipInput({ label, value, onChange, members }: {
 // 사용. 팀 레벨 상속 없이 파트별로만 설정(요청사항). 받는사람/참조 조합이 매번
 // 다를 수 있어, 파트마다 이름/색이 다른 "메일 양식 탭"을 여러 개 만들어두고
 // 업무 상세에서 상황에 맞는 탭을 골라 쓸 수 있게 함
-const MAIL_TABLE_BG_PRESETS = ['#ffffff', '#f9fafb', '#f3f4f6', '#eef2ff', '#fef3c7', '#fee2e2', '#dcfce7', '#e0f2fe', '#fce7f3', '#ede9fe'];
+// 표 배경색 프리셋 — 너무 진하지 않게 연한 파스텔 톤(Tailwind 50 계열)만 사용
+const MAIL_TABLE_BG_PRESETS = ['#ffffff', '#f9fafb', '#f3f4f6', '#eef2ff', '#fffbeb', '#fef2f2', '#f0fdf4', '#f0f9ff', '#fdf2f8', '#f5f3ff'];
 
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;

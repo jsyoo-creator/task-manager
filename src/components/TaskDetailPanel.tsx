@@ -54,8 +54,8 @@ function buildMailHtml(greeting: string, message: string, rows: { label: string;
   const tableHtml = `<table style="border-collapse:collapse;font-size:14px;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:8px 12px;background:#ffffff;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:14px;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:8px 12px;background:#ffffff;font-size:14px;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;

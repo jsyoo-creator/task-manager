@@ -366,6 +366,7 @@ function App() {
     if (ids.length === 0) {
       if (activeTeamId !== null) {
         setActiveTeamId(null);
+        setActiveCategory('all');
         localStorage.removeItem('activeTeamId');
       }
       return;
@@ -376,12 +377,16 @@ function App() {
       ? defaultForThisWorkplace
       : ids[0];
     setActiveTeamId(preferred);
+    setActiveCategory('all');
     localStorage.setItem('activeTeamId', preferred);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appUser?.selectedTeamIds?.join(','), appUser?.defaultTeamIdByWorkplace, activeWorkplaceId, teams]);
 
   const handleActiveTeamChange = (id: string) => {
     setActiveTeamId(id);
+    // 팀을 바꾸면 이전 팀의 파트가 선택된 채로 남아, 새 팀에 같은 이름의
+    // 파트가 없으면 어떤 탭도 선택되지 않은 것처럼 보이는 문제 방지
+    setActiveCategory('all');
     localStorage.setItem('activeTeamId', id);
   };
 

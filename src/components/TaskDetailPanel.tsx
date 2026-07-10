@@ -61,7 +61,8 @@ export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: stri
 
 // preset의 tableFields/tableCustomFields/tableFieldStyles/tableRowOrder를 반영해
 // 표에 표시할 행 목록을 만든다. tableFields가 없으면(설정 전) 기본 8개 전체를 표시.
-function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPreset | undefined): MailTableRow[] {
+// manualValues는 sourceKey가 없는(=사용자 입력) 커스텀 항목의 값을, 메일 작성 중 입력한 값에서 채움
+function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPreset | undefined, manualValues?: Record<string, string>): MailTableRow[] {
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
   const builtinValues: Record<string, string> = {
     title: task.title,
@@ -89,7 +90,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     .filter((f): f is { key: string; label: string } => !!f)
     .forEach(f => { rowsByKey[f.key] = { key: f.key, label: f.label, value: builtinValues[f.key], ...resolveStyle(f.key) }; });
   (preset?.tableCustomFields ?? []).forEach(cf => {
-    const raw = task.customFields?.[cf.sourceKey] ?? '';
+    const raw = cf.sourceKey ? (task.customFields?.[cf.sourceKey] ?? '') : (manualValues?.[cf.id] ?? '');
     rowsByKey[cf.id] = { key: cf.id, label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-'), ...resolveStyle(cf.id) };
   });
   const naturalKeys = [...Object.keys(rowsByKey)];
@@ -389,6 +390,9 @@ export default function TaskDetailPanel({
   const [mailMessage, setMailMessage] = useState('');
   const [mailAuthor, setMailAuthor] = useState('');
   const [mailPresetId, setMailPresetId] = useState('');
+  // 사용자 입력(사용자가 직접 입력하는, sourceKey 없는) 표 항목의 값 — 업무 데이터가 아니라
+  // 메일 작성할 때마다 새로 입력하는 값이라 커스텀 필드 id를 key로 별도 관리
+  const [mailManualValues, setMailManualValues] = useState<Record<string, string>>({});
   const [mailCopied, setMailCopied] = useState(false);
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
@@ -405,6 +409,7 @@ export default function TaskDetailPanel({
     setMailMessage(buildMailMessage(t, preset?.message ?? '', preset?.showTaskName ?? false));
     setMailAuthor(author);
     setMailPresetId(preset?.id ?? '');
+    setMailManualValues({});
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -1863,7 +1868,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(buildMailMessage(task, p.message ?? '', p.showTaskName ?? false)); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(buildMailMessage(task, p.message ?? '', p.showTaskName ?? false)); setMailManualValues({}); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -1950,10 +1955,34 @@ export default function TaskDetailPanel({
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
-                const rows = buildTaskInfoRows(task, statusLabel, currentPreset);
+                const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
                 const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
+                const manualFields = (currentPreset?.tableCustomFields ?? []).filter(cf => !cf.sourceKey);
                 return (
                   <div className="mt-3">
+                    {manualFields.length > 0 && (
+                      <div className="mb-2 space-y-1.5 rounded-lg border border-dashed border-gray-200 p-2.5">
+                        {manualFields.map(cf => (
+                          <div key={cf.id} className="flex items-center gap-2">
+                            <label className="text-[11px] text-gray-500 w-20 flex-shrink-0 truncate">{cf.label}</label>
+                            {cf.type === 'date' ? (
+                              <DatePicker
+                                value={mailManualValues[cf.id] ?? ''}
+                                onChange={v => setMailManualValues(prev => ({ ...prev, [cf.id]: v }))}
+                                btnClassName="flex-1 rounded-lg px-2.5 py-1.5 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                              />
+                            ) : (
+                              <input
+                                value={mailManualValues[cf.id] ?? ''}
+                                onChange={e => setMailManualValues(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                                placeholder={`${cf.label} 입력`}
+                                className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
                     <div className="overflow-x-auto">
                       <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
@@ -1985,7 +2014,7 @@ export default function TaskDetailPanel({
               const currentPart = parts.find(p => p.name === task.category);
               const presets = currentPart?.mailFormConfig ?? [];
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
-              const rows = buildTaskInfoRows(task, statusLabel, currentPreset);
+              const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
               const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, mailMessage, rows, signature);

@@ -3863,6 +3863,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [tableTitleDraft, setTableTitleDraft] = useState('');
   const [customSourceKey, setCustomSourceKey] = useState('');
   const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
+  const [manualLabelDraft, setManualLabelDraft] = useState('');
   const rowDragIdxRef = useRef<number | null>(null);
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
 
@@ -3876,6 +3878,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setMessageDraft(currentPreset?.message ?? DEFAULT_MAIL_MESSAGE);
     setTableTitleDraft(currentPreset?.tableTitle ?? '');
     setCustomSourceKey('');
+    setManualLabelDraft('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -3952,9 +3955,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const mergedFormConfig = mergeFormConfig(currentPart?.formConfig, team.formConfig);
   const candidateCustomFields = mergedFormConfig?.customFields ?? [];
   const partMetaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
-  const candidateFields: { key: string; label: string }[] = [
-    ...partMetaFields.map(f => ({ key: f.key, label: f.label })),
-    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label })),
+  // 필드에서 추가할 때는 타입을 따로 고를 필요 없이, 원래 필드의 속성(날짜 타입 커스텀
+  // 필드면 '날짜', 그 외에는 '텍스트')을 그대로 이어받아 바로 추가되게 함
+  const candidateFields: { key: string; label: string; type: 'text' | 'date' }[] = [
+    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: 'text' as const })),
+    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label, type: (f.type === 'date' ? 'date' : 'text') as const })),
   ];
 
   const handleAddCustomField = () => {
@@ -3964,11 +3969,24 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     const field: MailTableCustomField = {
       id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       label: source.label,
-      type: customType,
+      type: source.type,
       sourceKey: source.key,
     };
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: [...(p.tableCustomFields ?? []), field] } : p));
     setCustomSourceKey('');
+  };
+
+  // 팀 필드와 연결되지 않은 "사용자 입력" 항목 — 값이 미리 채워지지 않고, 메일 작성할
+  // 때마다 업무 상세의 메일 양식에서 직접 입력하게 됨
+  const handleAddManualField = () => {
+    if (!currentPreset || !manualLabelDraft.trim()) return;
+    const field: MailTableCustomField = {
+      id: `mtc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      label: manualLabelDraft.trim(),
+      type: customType,
+    };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: [...(p.tableCustomFields ?? []), field] } : p));
+    setManualLabelDraft('');
   };
 
   const handleRemoveCustomField = (id: string) => {
@@ -4176,30 +4194,55 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {currentPreset.tableCustomFields!.map(f => (
                     <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
-                      {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'})</span>
+                      {f.label} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
                       <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100">×</button>
                     </span>
                   ))}
                 </div>
               )}
-              {candidateFields.length === 0 ? (
-                <p className="text-[11px] text-gray-400">추가할 수 있는 항목이 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
+              <div className="flex items-center gap-1 mb-1.5">
+                <button onClick={() => setAddMode('field')}
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${addMode === 'field' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  필드에서 추가
+                </button>
+                <button onClick={() => setAddMode('manual')}
+                  className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${addMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  사용자 입력 항목
+                </button>
+              </div>
+              {addMode === 'field' ? (
+                candidateFields.length === 0 ? (
+                  <p className="text-[11px] text-gray-400">추가할 수 있는 필드가 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
+                      className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                      <option value="">필드 선택</option>
+                      {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </select>
+                    <button onClick={handleAddCustomField} disabled={!customSourceKey}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                      추가
+                    </button>
+                  </div>
+                )
               ) : (
-                <div className="flex items-center gap-1.5">
-                  <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
-                    className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
-                    <option value="">필드 선택</option>
-                    {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                  </select>
-                  <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
-                    className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
-                    <option value="text">텍스트</option>
-                    <option value="date">날짜</option>
-                  </select>
-                  <button onClick={handleAddCustomField} disabled={!customSourceKey}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
-                    추가
-                  </button>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <input value={manualLabelDraft} onChange={e => setManualLabelDraft(e.target.value)}
+                      placeholder="항목 이름 (예: 특이사항)"
+                      className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+                    <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+                      className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                      <option value="text">텍스트</option>
+                      <option value="date">날짜</option>
+                    </select>
+                    <button onClick={handleAddManualField} disabled={!manualLabelDraft.trim()}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                      추가
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
                 </div>
               )}
             </div>

@@ -19,7 +19,7 @@ function buildMailTemplate(task: Task, statusLabel: string, author: string, mess
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
   const subject = `[${task.title}] 업무 안내`;
   const greeting = author ? `안녕하세요, ${author} 입니다.` : '안녕하세요,';
-  const messageBlock = showTaskName ? `${task.title}\n${message || DEFAULT_MAIL_MESSAGE}` : (message || DEFAULT_MAIL_MESSAGE);
+  const messageBlock = showTaskName ? `${task.title} ${message || DEFAULT_MAIL_MESSAGE}` : (message || DEFAULT_MAIL_MESSAGE);
   const body =
     `${greeting}\n\n${messageBlock}\n\n` +
     `- 업무명: ${task.title}\n` +

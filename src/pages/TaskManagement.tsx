@@ -2361,16 +2361,19 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <div className="relative">
               <button
                 onClick={copyMetaFields}
-                className="absolute top-2 right-3 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:text-gray-700 hover:border-gray-300 shadow-sm transition-colors z-10"
+                className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 bg-white border border-gray-200 hover:text-gray-700 hover:border-gray-300 shadow-sm transition-colors z-10 ${
+                  (line3H.scroll.canRight || line3H.scroll.canLeft) ? 'right-10' : 'right-3'
+                }`}
               >
                 {metaCopied ? <><Check size={11} className="text-green-500" /><span className="text-green-500">복사됨</span></> : <><Copy size={11} /><span>복사</span></>}
               </button>
-              {/* 2번째 줄과 동일하게 스크롤바 대신 좌우 토글 버튼으로 가로 스크롤 조작 */}
+              {/* 2번째 줄과 동일하게 스크롤바 대신 좌우 토글 버튼으로 가로 스크롤 조작.
+                  맨 우측에 두고 복사 버튼은 그 왼쪽에 배치 */}
               {(line3H.scroll.canRight || line3H.scroll.canLeft) && (
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); line3H.scrollBy(line3H.scroll.canRight ? 1 : -1); }}
-                  className="absolute bottom-2 right-3 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
                 >
                   {line3H.scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
                 </button>

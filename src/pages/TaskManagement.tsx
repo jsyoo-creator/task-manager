@@ -1082,12 +1082,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="page-title">업무 관리</h1>
-          <p className="page-subtitle">업무 목록 · {filtered.length}건</p>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-y-2">
+        <div className="flex-shrink-0 whitespace-nowrap">
+          <h1 className="page-title whitespace-nowrap">업무 관리</h1>
+          <p className="page-subtitle whitespace-nowrap">업무 목록 · {filtered.length}건</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap justify-end flex-1 min-w-fit">
           <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
           {canManage && brokenDateTasks.length > 0 && (
             <div className="flex items-center gap-2 flex-shrink-0">

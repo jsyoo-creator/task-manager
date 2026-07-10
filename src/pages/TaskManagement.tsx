@@ -1405,8 +1405,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             // 2줄 모드: 헤더는 항상 1줄(체크박스/드래그/월 레일 + 업무명)만 표시 — 2번째 줄
             // 필드들의 이름은 헤더에 두지 않고 각 업무 행 안에서 값과 함께 라벨로 보여줌
             // (헤더 자체는 2줄/가로 스크롤이 필요 없게 함)
+            // 업무 카드가 목록 바깥쪽에 p-2(8px) 만큼 들여써져 있으므로, 카드 자체의 px-3(12px)과
+            // 합쳐 카드 내용은 컨테이너 좌우 끝에서 20px(px-5)만큼 안쪽에서 시작함 — 헤더도 동일하게
+            // px-5를 줘서 체크박스/월/업무명 칼럼이 카드 내용과 정확히 세로로 맞도록 함
             return (
-              <div className="flex items-center gap-3 px-3 py-2.5">
+              <div className="flex items-center gap-3 px-5 py-2.5">
                 <div className="flex items-center gap-3 flex-shrink-0">
                   {selectAllCheckbox}
                   <span style={{ width: 18 }} />

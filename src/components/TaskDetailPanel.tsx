@@ -531,8 +531,8 @@ export default function TaskDetailPanel({
         borderRadius: '28px 0 0 28px',
         overflow: 'hidden',
         // 본문 폭은 그대로 두고 패널만 그 위에 겹쳐서 뜨는 형태라, 아래 목록과 확실히
-        // 구분되도록 그림자를 넣어 "떠 있는 패널"임을 분명하게 함
-        boxShadow: '0 12px 48px rgba(30,34,100,0.22)',
+        // 구분되도록 그림자 대신 테두리 색으로 "떠 있는 패널"임을 분명하게 함
+        border: '1px solid rgba(108,99,255,0.28)',
       }}
     >
     <div style={{ width: panelW, height: '100%', display: 'flex', flexDirection: 'row' }}>
@@ -1682,7 +1682,7 @@ export default function TaskDetailPanel({
     </div>
 
     {mailOpen && (
-      <div style={{ width: MAIL_PANEL_W, height: '100%', flexShrink: 0 }} className="flex flex-col bg-[#FAFAFF]">
+      <div style={{ width: MAIL_PANEL_W, height: '100%', flexShrink: 0, background: '#F4F0FE', borderLeft: '1px solid rgba(108,99,255,0.18)' }} className="flex flex-col">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-black/[0.08] flex-shrink-0">
           <span className="text-xs font-semibold text-gray-700">메일 양식</span>
           <button onClick={() => setMailOpen(false)}

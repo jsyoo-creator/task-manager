@@ -1082,17 +1082,18 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   return (
     <div>
-      {/* 제목/부제 + 필터 탭은 한 줄(넓을 때), 액션 버튼 툴바는 항상 별도 줄로 분리 —
-          같이 한 줄에 두면 좁아졌을 때 탭과 버튼이 뒤섞여 줄바꿈되며 정렬이 지저분해짐 */}
-      <div className="mb-4">
+      {/* 컨테이너 폭 기준(@container)으로 판단 — 넓을 때는 원래대로 제목|필터탭+버튼이 한
+          줄에 같이 표시되고, 패널이 열려 본문이 좁아질 때만 필터탭과 버튼 사이를 강제로
+          줄바꿈해 서로 뒤섞이지 않고 깔끔하게 분리되게 함(중간의 basis-full 스페이서) */}
+      <div className="@container mb-4">
         <div className="flex items-center justify-between flex-wrap gap-y-2">
           <div className="flex-shrink-0 whitespace-nowrap">
             <h1 className="page-title whitespace-nowrap">업무 관리</h1>
             <p className="page-subtitle whitespace-nowrap">업무 목록 · {filtered.length}건</p>
           </div>
-          <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
-        </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end mt-3">
+          <div className="flex items-center gap-2 flex-wrap justify-end flex-1 min-w-fit">
+            <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
+            <div className="hidden @max-[1100px]:block basis-full h-0" />
           {canManage && brokenDateTasks.length > 0 && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
@@ -1311,6 +1312,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </button>
             </>
           )}
+          </div>
         </div>
       </div>
 

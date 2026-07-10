@@ -99,9 +99,9 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
   const resolveStyle = (key: string) => {
     const o = preset?.tableFieldStyles?.[key];
     return {
-      labelBg: lightenHex(o?.labelBg || preset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg, 0.65),
+      labelBg: lightenHex(o?.labelBg || preset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg, 0.4),
       labelBold: o?.labelBold ?? preset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
-      valueBg: lightenHex(o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg, 0.65),
+      valueBg: lightenHex(o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg, 0.4),
       valueBold: o?.valueBold ?? preset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
       hideRow: o?.hideRow ?? false,
       hideLabel: o?.hideLabel ?? false,

@@ -2329,7 +2329,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   <div
                     ref={line2H.ref}
                     onScroll={line2H.update}
-                    className="flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                    className="flex-1 min-w-0 overflow-x-auto pr-6 [&::-webkit-scrollbar]:hidden"
                     style={{ scrollbarWidth: 'none' }}
                   >
                     <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
@@ -2381,7 +2381,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               <div
                 ref={line3H.ref}
                 onScroll={line3H.update}
-                className="overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                className="overflow-x-auto pr-8 [&::-webkit-scrollbar]:hidden"
                 style={{ scrollbarWidth: 'none' }}
               >
               <div className="flex divide-x divide-gray-100 min-w-max pl-8">

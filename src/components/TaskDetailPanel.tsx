@@ -134,8 +134,13 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// 값 앞뒤에 항목별로 지정한 고정 텍스트를 붙임
-const composeRowValue = (r: MailTableRow) => `${r.valuePrefix}${r.value}${r.valueSuffix}`;
+// 값 앞뒤에 항목별로 지정한 고정 텍스트를 붙임 — 직접 띄어쓰기를 입력하지 않아도 값과는
+// 항상 한 칸 띄어 보이도록 자동으로 공백을 넣어줌(이미 공백으로 끝나거나 시작하면 중복 추가 안 함)
+const composeRowValue = (r: MailTableRow) => {
+  const prefix = r.valuePrefix ? (/\s$/.test(r.valuePrefix) ? r.valuePrefix : `${r.valuePrefix} `) : '';
+  const suffix = r.valueSuffix ? (/^\s/.test(r.valueSuffix) ? r.valueSuffix : ` ${r.valueSuffix}`) : '';
+  return `${prefix}${r.value}${suffix}`;
+};
 
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
 function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string): string {
@@ -2031,7 +2036,7 @@ export default function TaskDetailPanel({
                                       )}
                                       {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
                                     </span>
-                                  ) : `${r.valuePrefix}${r.value}${r.valueSuffix}`}
+                                  ) : composeRowValue(r)}
                                 </td>
                               </tr>
                             );

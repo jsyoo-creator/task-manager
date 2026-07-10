@@ -2328,22 +2328,16 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       {restElementsWithLabels}
                     </div>
                   </div>
-                  {line2Scroll.canLeft && (
+                  {/* 좌/우 버튼을 한 자리(우측 끝)에만 두고, 더 스크롤할 방향에 따라
+                      화살표 방향만 바뀜 — 버튼 위치가 매번 달라지면 계속 마우스를
+                      옮겨야 해서 불편하다는 피드백 반영 */}
+                  {(line2Scroll.canRight || line2Scroll.canLeft) && (
                     <button
                       type="button"
-                      onClick={e => { e.stopPropagation(); scrollLine2(-1); }}
-                      className="absolute left-9 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
-                    >
-                      <ChevronLeft size={12} />
-                    </button>
-                  )}
-                  {line2Scroll.canRight && (
-                    <button
-                      type="button"
-                      onClick={e => { e.stopPropagation(); scrollLine2(1); }}
+                      onClick={e => { e.stopPropagation(); scrollLine2(line2Scroll.canRight ? 1 : -1); }}
                       className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
                     >
-                      <ChevronRight size={12} />
+                      {line2Scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
                     </button>
                   )}
                 </div>

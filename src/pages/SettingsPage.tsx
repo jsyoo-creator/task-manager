@@ -3706,12 +3706,14 @@ const TEAM_COLOR_PRESETS = [
 // (근무지 전체) 팀원 검색 드롭다운이 뜨고 이름을 치면 좁혀짐, 쉼표(,)를 누르면
 // 현재 입력을 칩으로 추가. "@"로 시작하지 않은 텍스트(외부 이메일 주소 등)는
 // 그대로 칩으로 추가되어 팀원이 아닌 이메일도 자유롭게 넣을 수 있음
-function RecipientChipInput({ value, onChange, members }: {
+function RecipientChipInput({ label, value, onChange, members }: {
+  label: string;
   value: string[];
   onChange: (next: string[]) => void;
   members: { name: string; department?: Department }[];
 }) {
   const [draft, setDraft] = useState('');
+  const [copied, setCopied] = useState(false);
   const isMention = draft.startsWith('@');
   const query = isMention ? draft.slice(1).trim().toLowerCase() : '';
   const suggestions = isMention
@@ -3754,8 +3756,24 @@ function RecipientChipInput({ value, onChange, members }: {
 
   const removeChip = (item: string) => onChange(value.filter(v => v !== item));
 
+  const handleCopy = () => {
+    const emails = value.map(item => members.find(m => m.name === item)?.email ?? (item.includes('@') ? item : null)).filter((e): e is string => !!e);
+    if (emails.length === 0) return;
+    navigator.clipboard.writeText(emails.join(', '));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
     <div className="relative">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs font-semibold text-gray-700">{label}</p>
+        {value.length > 0 && (
+          <button onClick={handleCopy} className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1">
+            <Copy size={10} /> {copied ? '복사됨' : '이메일 복사'}
+          </button>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500/30 min-h-[38px]">
         {value.map(item => {
           const member = members.find(m => m.name === item);
@@ -3956,14 +3974,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             "@"로 팀원을 검색해 선택하거나, 외부 이메일 주소를 직접 입력할 수 있습니다. 쉼표(,)로 구분해 여러 명 추가하세요.
           </p>
           <div className="space-y-3">
-            <div>
-              <p className="text-xs font-semibold text-gray-700 mb-1.5">받는사람</p>
-              <RecipientChipInput value={currentPreset.to} onChange={next => setList('to', next)} members={members} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-700 mb-1.5">참조</p>
-              <RecipientChipInput value={currentPreset.cc} onChange={next => setList('cc', next)} members={members} />
-            </div>
+            <RecipientChipInput label="받는사람" value={currentPreset.to} onChange={next => setList('to', next)} members={members} />
+            <RecipientChipInput label="참조" value={currentPreset.cc} onChange={next => setList('cc', next)} members={members} />
           </div>
         </div>
       )}

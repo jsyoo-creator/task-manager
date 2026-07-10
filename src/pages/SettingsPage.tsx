@@ -4338,14 +4338,14 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                               {isRowHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                             </div>
                             <input type="checkbox" checked={isRowHidden} onChange={() => setFieldStyleOverride(row.key, { hideRow: !isRowHidden })} className="hidden" />
-                            <span className="text-[10px] text-gray-500">이 항목 전체 숨김</span>
+                            <span className="text-[10px] text-gray-500">전체 숨김</span>
                           </label>
                           <label className={`flex items-center gap-1.5 cursor-pointer select-none ${showLabelCol && !isRowHidden ? '' : 'opacity-40 pointer-events-none'}`}>
                             <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isLabelHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
                               {isLabelHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                             </div>
                             <input type="checkbox" checked={isLabelHidden} onChange={() => setFieldStyleOverride(row.key, { hideLabel: !isLabelHidden })} className="hidden" />
-                            <span className="text-[10px] text-gray-500">이 항목만 항목명 숨김</span>
+                            <span className="text-[10px] text-gray-500">항목명 숨김</span>
                           </label>
                         </div>
                         <div className={`grid grid-cols-2 gap-3 ${isRowHidden ? 'opacity-30 pointer-events-none' : ''}`}>

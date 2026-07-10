@@ -3702,6 +3702,91 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
+// 받는사람/참조 입력 — 체크박스 목록 대신 칩 입력창 하나로: "@"로 시작하면
+// (근무지 전체) 팀원 검색 드롭다운이 뜨고 이름을 치면 좁혀짐, 쉼표(,)를 누르면
+// 현재 입력을 칩으로 추가. "@"로 시작하지 않은 텍스트(외부 이메일 주소 등)는
+// 그대로 칩으로 추가되어 팀원이 아닌 이메일도 자유롭게 넣을 수 있음
+function RecipientChipInput({ value, onChange, members }: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  members: { name: string; department?: Department }[];
+}) {
+  const [draft, setDraft] = useState('');
+  const isMention = draft.startsWith('@');
+  const query = isMention ? draft.slice(1).trim().toLowerCase() : '';
+  const suggestions = isMention
+    ? members
+        .filter(m => !value.includes(m.name))
+        .filter(m => !query || m.name.toLowerCase().includes(query))
+        .slice(0, 30)
+    : [];
+
+  const addChip = (raw: string) => {
+    let item = raw.trim();
+    if (!item) return;
+    if (item.startsWith('@')) {
+      const q = item.slice(1).trim();
+      if (!q) return;
+      const match = members.find(m => m.name === q) ?? members.find(m => m.name.toLowerCase().includes(q.toLowerCase()));
+      item = match?.name ?? q;
+    }
+    if (!value.includes(item)) onChange([...value, item]);
+  };
+
+  const selectMember = (name: string) => {
+    if (!value.includes(name)) onChange([...value, name]);
+    setDraft('');
+  };
+
+  const removeChip = (item: string) => onChange(value.filter(v => v !== item));
+
+  return (
+    <div className="relative">
+      <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500/30 min-h-[38px]">
+        {value.map(item => {
+          const member = members.find(m => m.name === item);
+          return (
+            <span key={item} className={`flex items-center gap-1 text-xs pl-2 pr-1 py-1 rounded-full ${member ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+              {item}
+              <button onClick={() => removeChip(item)} className="w-3.5 h-3.5 flex items-center justify-center rounded-full opacity-50 hover:opacity-100 hover:bg-black/10">×</button>
+            </span>
+          );
+        })}
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === ',') {
+              e.preventDefault();
+              addChip(draft);
+              setDraft('');
+            } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
+              onChange(value.slice(0, -1));
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (isMention && suggestions.length > 0) selectMember(suggestions[0].name);
+              else { addChip(draft); setDraft(''); }
+            }
+          }}
+          placeholder={value.length === 0 ? '@이름 검색 또는 이메일 입력, 쉼표(,)로 추가' : ''}
+          className="flex-1 min-w-[140px] text-sm outline-none bg-transparent py-0.5"
+        />
+      </div>
+      {isMention && suggestions.length > 0 && (
+        <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white rounded-lg border border-gray-200 shadow-lg max-h-48 overflow-y-auto">
+          {suggestions.map(m => (
+            <button key={m.name} onClick={() => selectMember(m.name)}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-50 text-sm text-gray-700">
+              {m.name}
+              {m.department && <span className="text-[10px] text-gray-400 ml-auto">{m.department}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 파트별 메일 양식 받는사람/참조 기본 인원 설정 — 업무 상세의 "메일 양식" 패널에서
 // 사용. 팀 레벨 상속 없이 파트별로만 설정(요청사항). 받는사람/참조 조합이 매번
 // 다를 수 있어, 파트마다 이름/색이 다른 "메일 양식 탭"을 여러 개 만들어두고
@@ -3719,11 +3804,19 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const currentPreset = presets.find(p => p.id === selectedPresetId) ?? presets[0];
   const [flash, setFlash] = useState(false);
   const doFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1200); };
+  // 탭 이름 입력 — 매 키 입력마다 바로 저장(re-render)하면 한글 조합 중인 입력이
+  // 끊겨 자모가 분리되어 보이는 문제가 있어, 로컬 draft로만 편집하고 blur 시 저장
+  const [nameDraft, setNameDraft] = useState('');
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPartId]);
+
+  useEffect(() => {
+    setNameDraft(currentPreset?.name ?? '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPreset?.id]);
 
   const savePresets = (next: MailFormPreset[]) => {
     if (!currentPart) return;
@@ -3761,39 +3854,14 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setSelectedPresetId(next[0]?.id ?? '');
   };
 
-  const toggle = (list: 'to' | 'cc', name: string) => {
+  const setList = (list: 'to' | 'cc', next: string[]) => {
     if (!currentPreset) return;
-    const cur = currentPreset[list];
-    const next = cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name];
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, [list]: next } : p));
   };
 
   if (team.parts.length === 0) {
     return <p className="text-sm text-gray-400 py-6 text-center">먼저 파트를 추가해주세요.</p>;
   }
-
-  const MemberList = ({ list, label }: { list: 'to' | 'cc'; label: string }) => (
-    <div className="flex-1 min-w-0">
-      <p className="text-xs font-semibold text-gray-700 mb-2">{label}</p>
-      <div className="rounded-xl border border-gray-100 divide-y divide-gray-50 max-h-64 overflow-y-auto">
-        {members.length === 0 ? (
-          <p className="text-xs text-gray-400 px-3 py-4 text-center">팀원이 없습니다</p>
-        ) : members.map(m => {
-          const checked = currentPreset?.[list].includes(m.name) ?? false;
-          return (
-            <button key={m.name} onClick={() => toggle(list, m.name)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left">
-              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${checked ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
-                {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-              </div>
-              <span className="text-sm text-gray-700">{m.name}</span>
-              {m.department && <span className="text-[10px] text-gray-400 ml-auto">{m.department}</span>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-4">
@@ -3837,8 +3905,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
         <div className="space-y-3 rounded-xl border border-gray-100 p-4">
           <div className="flex items-center gap-3">
             <input
-              value={currentPreset.name}
-              onChange={e => handleRenamePreset(e.target.value)}
+              value={nameDraft}
+              onChange={e => setNameDraft(e.target.value)}
+              onBlur={() => { if (nameDraft.trim() && nameDraft !== currentPreset.name) handleRenamePreset(nameDraft.trim()); }}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               placeholder="탭 이름"
             />
@@ -3856,11 +3926,18 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             ))}
           </div>
           <p className="text-[11px] text-gray-400">
-            업무 상세의 메일 양식에서 이 탭을 선택하면, 여기서 체크한 인원이 받는사람/참조로 채워집니다.
+            업무 상세의 메일 양식에서 이 탭을 선택하면, 아래 지정한 인원이 받는사람/참조로 채워집니다.
+            "@"로 팀원을 검색해 선택하거나, 외부 이메일 주소를 직접 입력할 수 있습니다. 쉼표(,)로 구분해 여러 명 추가하세요.
           </p>
-          <div className="flex gap-4">
-            <MemberList list="to" label="받는사람" />
-            <MemberList list="cc" label="참조" />
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-700 mb-1.5">받는사람</p>
+              <RecipientChipInput value={currentPreset.to} onChange={next => setList('to', next)} members={members} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-700 mb-1.5">참조</p>
+              <RecipientChipInput value={currentPreset.cc} onChange={next => setList('cc', next)} members={members} />
+            </div>
           </div>
         </div>
       )}
@@ -4378,8 +4455,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                       <MailFormConfigManager
                         team={team}
                         members={allUsers
-                          .filter(u => u.selectedTeamIds?.includes(team.id))
-                          .map(u => ({ name: u.displayName, department: u.department }))}
+                          .map(u => ({ name: u.displayName, department: u.department }))
+                          .sort((a, b) => a.name.localeCompare(b.name, 'ko'))}
                         onSavePart={onUpdatePartMailFormConfig}
                         onClearPart={onClearPartMailFormConfig}
                       />

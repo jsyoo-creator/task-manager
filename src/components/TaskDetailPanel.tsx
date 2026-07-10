@@ -1736,7 +1736,13 @@ export default function TaskDetailPanel({
             const currentPart = parts.find(p => p.name === task.category);
             const presets = currentPart?.mailFormConfig ?? [];
             const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
-            const emailOf = (name: string) => teamMembers?.find(m => m.name === name)?.email;
+            // 팀원 이름이면 등록된 이메일로 치환, 아니면(팀원이 아닌 이름이거나 처음부터
+            // 외부 이메일 주소로 직접 입력된 값이면) 값 자체를 이메일로 간주
+            const emailOf = (nameOrEmail: string) => {
+              const member = teamMembers?.find(m => m.name === nameOrEmail);
+              if (member?.email) return member.email;
+              return nameOrEmail.includes('@') ? nameOrEmail : undefined;
+            };
 
             return (
               <>

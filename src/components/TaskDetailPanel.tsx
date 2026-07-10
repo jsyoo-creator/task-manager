@@ -40,6 +40,21 @@ export const MAIL_TABLE_BUILTIN_FIELDS: { key: string; label: string }[] = [
 // 있으면 그걸, 없으면 프리셋 공통값을, 그것도 없으면 기본값을 사용
 const DEFAULT_MAIL_TABLE_STYLE = { labelBg: '#f9fafb', labelBold: true, valueBg: '#ffffff', valueBold: false };
 
+// 표에 실제로 적용되는 배경색은 지정한 색을 흰색과 섞어 항상 옅게 만든다 — 어떤 색을
+// 골라도(이미 저장된 진한 값 포함) 너무 진해 보이지 않게. rgba 반투명 대신 흰색과 섞은
+// 불투명 hex를 직접 계산하는 이유는 Outlook 등 일부 메일 클라이언트가 반투명 배경을
+// 안정적으로 지원하지 않기 때문
+function lightenHex(hex: string, ratio: number): string {
+  const full = hex.replace('#', '');
+  const norm = full.length === 3 ? full.split('').map(c => c + c).join('') : full;
+  const num = parseInt(norm, 16);
+  if (norm.length !== 6 || isNaN(num)) return hex;
+  const mix = (c: number) => Math.round(c + (255 - c) * ratio);
+  const toHex = (c: number) => c.toString(16).padStart(2, '0');
+  const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+}
+
 interface MailTableRow {
   key: string;
   label: string;
@@ -84,9 +99,9 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
   const resolveStyle = (key: string) => {
     const o = preset?.tableFieldStyles?.[key];
     return {
-      labelBg: o?.labelBg || preset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg,
+      labelBg: lightenHex(o?.labelBg || preset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg, 0.65),
       labelBold: o?.labelBold ?? preset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
-      valueBg: o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg,
+      valueBg: lightenHex(o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg, 0.65),
       valueBold: o?.valueBold ?? preset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
       hideRow: o?.hideRow ?? false,
       hideLabel: o?.hideLabel ?? false,

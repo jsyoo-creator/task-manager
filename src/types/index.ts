@@ -241,6 +241,14 @@ export interface MailTableCustomField {
   sourceKey?: string; // task.customFields[sourceKey] 참조. 없으면 사용자 입력 항목
 }
 
+// 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 표의 사용자 입력 항목과 마찬가지로 값이
+// 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력한다
+export interface MailBodyCustomField {
+  id: string;
+  title: string;
+  type: 'text' | 'date';
+}
+
 // 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의
 // tableLabelBg/tableValueBg 등 공통 기본값을 사용
 export interface MailTableCellStyle {
@@ -274,6 +282,7 @@ export interface MailFormPreset {
   tableValueBg?: string; // 표 내용 칸 공통 배경색 (hex, 없으면 기본값)
   tableValueBold?: boolean; // 표 내용 칸 공통 볼드 여부 (없으면 false)
   tableFieldStyles?: Record<string, MailTableCellStyle>; // 항목(빌트인 key 또는 커스텀 필드 id)별 배경색/볼드 개별 오버라이드
+  bodyCustomFields?: MailBodyCustomField[]; // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

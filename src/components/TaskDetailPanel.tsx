@@ -72,6 +72,21 @@ interface MailTableRow {
   manualFieldType?: 'text' | 'date';
 }
 
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+// YYYY-MM-DD 문자열에서 요일 한 글자(일~토)를 계산. 값이 없거나 파싱 불가하면 ''
+function weekdayOf(dateStr?: string): string {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr.slice(0, 10)}T00:00:00`);
+  return isNaN(d.getTime()) ? '' : WEEKDAY_KO[d.getDay()];
+}
+// 메일 표/본문에 노출되는 날짜는 항상 요일을 함께 표기 — "2026-07-10" -> "2026-07-10 (금)"
+function fmtDateWithWeekday(dateStr?: string): string {
+  if (!dateStr) return '-';
+  const dateOnly = dateStr.slice(0, 10);
+  const wd = weekdayOf(dateOnly);
+  return wd ? `${dateOnly} (${wd})` : dateOnly;
+}
+
 // 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나
 // 순서를 저장하기 전부터 있던 항목(순서 목록에 없는 것)은 기본 순서 그대로 뒤에 붙인다
 export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: string[] | undefined): string[] {
@@ -85,7 +100,6 @@ export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: stri
 // 표에 표시할 행 목록을 만든다. tableFields가 없으면(설정 전) 기본 8개 전체를 표시.
 // manualValues는 sourceKey가 없는(=사용자 입력) 커스텀 항목의 값을, 메일 작성 중 입력한 값에서 채움
 function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPreset | undefined, manualValues?: Record<string, string>): MailTableRow[] {
-  const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
   const builtinValues: Record<string, string> = {
     title: task.title,
     category: task.category || '-',
@@ -93,8 +107,8 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     receiver: task.receiver || '-',
     assignee: task.assignee || '-',
     status: statusLabel || '-',
-    startDate: fmt(task.startDate),
-    endDate: fmt(task.endDate),
+    startDate: fmtDateWithWeekday(task.startDate),
+    endDate: fmtDateWithWeekday(task.endDate),
   };
   const resolveStyle = (key: string) => {
     const o = preset?.tableFieldStyles?.[key];
@@ -120,7 +134,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     rowsByKey[cf.id] = {
       key: cf.id,
       label: cf.label,
-      value: cf.type === 'date' ? fmt(raw) : (raw || '-'),
+      value: cf.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-'),
       ...resolveStyle(cf.id),
       ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
     };
@@ -142,15 +156,21 @@ const composeRowValue = (r: MailTableRow) => {
   return `${prefix}${r.value}${suffix}`;
 };
 
+interface MailBodyExtraItem {
+  title: string;
+  value: string;
+}
+
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
-function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string): string {
+function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string, bodyExtra: MailBodyExtraItem[]): string {
   const bulletBlock = rows.map(r => r.hideLabel ? `- ${composeRowValue(r)}` : `- ${r.label}: ${composeRowValue(r)}`).join('\n');
-  return `${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
+  const extraBlock = bodyExtra.length ? `\n\n${bodyExtra.map(f => `${f.title}: ${f.value}`).join('\n')}` : '';
+  return `${greeting}\n\n${message}\n\n${bulletBlock}${extraBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
 }
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean): string {
+function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean, bodyExtra: MailBodyExtraItem[]): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';
@@ -173,12 +193,16 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
   const titleHtml = title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(title)}]</div>` : '';
+  const extraHtml = bodyExtra.length
+    ? bodyExtra.map(f => `<div style="${FS}"><b>${escapeHtml(f.title)}:</b> ${escapeHtml(f.value)}</div>`).join('') + '<br>'
+    : '';
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
     `${titleHtml}` +
     `${tableHtml}<br>` +
+    `${extraHtml}` +
     `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '') +
     `</div>`
@@ -437,6 +461,8 @@ export default function TaskDetailPanel({
   // 사용자 입력(사용자가 직접 입력하는, sourceKey 없는) 표 항목의 값 — 업무 데이터가 아니라
   // 메일 작성할 때마다 새로 입력하는 값이라 커스텀 필드 id를 key로 별도 관리
   const [mailManualValues, setMailManualValues] = useState<Record<string, string>>({});
+  // 표 밖 본문에 추가한 텍스트/날짜 입력 항목의 값 — 위와 마찬가지로 메일 작성할 때마다 직접 입력
+  const [mailBodyManualValues, setMailBodyManualValues] = useState<Record<string, string>>({});
   const [mailCopied, setMailCopied] = useState(false);
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
@@ -454,6 +480,7 @@ export default function TaskDetailPanel({
     setMailAuthor(author);
     setMailPresetId(preset?.id ?? '');
     setMailManualValues({});
+    setMailBodyManualValues({});
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -1912,7 +1939,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(buildMailMessage(task, p.message ?? '', p.showTaskName ?? false)); setMailManualValues({}); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(buildMailMessage(task, p.message ?? '', p.showTaskName ?? false)); setMailManualValues({}); setMailBodyManualValues({}); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -2044,6 +2071,35 @@ export default function TaskDetailPanel({
                         </tbody>
                       </table>
                     </div>
+                    {(currentPreset?.bodyCustomFields ?? []).length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {currentPreset!.bodyCustomFields!.map(f => {
+                          const val = mailBodyManualValues[f.id] ?? '';
+                          return (
+                            <div key={f.id} className="flex items-center gap-2">
+                              <label className="text-[13px] text-gray-700 font-medium flex-shrink-0">{f.title}</label>
+                              {f.type === 'date' ? (
+                                <div className="flex items-center gap-1.5">
+                                  <DatePicker
+                                    value={val}
+                                    onChange={v => setMailBodyManualValues(prev => ({ ...prev, [f.id]: v }))}
+                                    btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                                  />
+                                  {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
+                                </div>
+                              ) : (
+                                <input
+                                  value={val}
+                                  onChange={e => setMailBodyManualValues(prev => ({ ...prev, [f.id]: e.target.value }))}
+                                  placeholder="입력"
+                                  className="flex-1 min-w-0 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -2062,10 +2118,14 @@ export default function TaskDetailPanel({
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
               const rows = buildTaskInfoRows(task, statusLabel, currentPreset, mailManualValues);
               const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
+              const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
+                title: f.title,
+                value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
+              }));
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature);
+              const plainText = buildMailPlainText(greeting, mailMessage, rows, signature, bodyExtra);
               try {
-                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn);
+                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn, bodyExtra);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

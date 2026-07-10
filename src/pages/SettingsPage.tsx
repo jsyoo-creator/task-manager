@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -3888,6 +3888,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [customType, setCustomType] = useState<'text' | 'date'>('text');
   const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
   const [manualLabelDraft, setManualLabelDraft] = useState('');
+  const [bodyTitleDraft, setBodyTitleDraft] = useState('');
+  const [bodyTypeDraft, setBodyTypeDraft] = useState<'text' | 'date'>('text');
   const rowDragIdxRef = useRef<number | null>(null);
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
 
@@ -3902,6 +3904,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setTableTitleDraft(currentPreset?.tableTitle ?? '');
     setCustomSourceKey('');
     setManualLabelDraft('');
+    setBodyTitleDraft('');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4015,6 +4018,24 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleRemoveCustomField = (id: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).filter(f => f.id !== id) } : p));
+  };
+
+  // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 값이 미리 채워지지 않고, 업무 상세의
+  // 메일 양식에서 메일 작성할 때마다 직접 입력함
+  const handleAddBodyField = () => {
+    if (!currentPreset || !bodyTitleDraft.trim()) return;
+    const field: MailBodyCustomField = {
+      id: `mbc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title: bodyTitleDraft.trim(),
+      type: bodyTypeDraft,
+    };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: [...(p.bodyCustomFields ?? []), field] } : p));
+    setBodyTitleDraft('');
+  };
+
+  const handleRemoveBodyField = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).filter(f => f.id !== id) } : p));
   };
 
   const handleSetLabelBg = (bg: string) => {
@@ -4423,6 +4444,35 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-700">본문 추가 항목</p>
+            <p className="text-[11px] text-gray-400">표 밖 본문에 텍스트/날짜를 직접 입력하는 항목을 추가합니다. 값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
+            {(currentPreset.bodyCustomFields ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {currentPreset.bodyCustomFields!.map(f => (
+                  <span key={f.id} className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                    {f.title} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'})</span>
+                    <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <input value={bodyTitleDraft} onChange={e => setBodyTitleDraft(e.target.value)}
+                placeholder="제목 (예: 다음 미팅 일정)"
+                className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+              <select value={bodyTypeDraft} onChange={e => setBodyTypeDraft(e.target.value as 'text' | 'date')}
+                className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                <option value="text">텍스트</option>
+                <option value="date">날짜</option>
+              </select>
+              <button onClick={handleAddBodyField} disabled={!bodyTitleDraft.trim()}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                추가
+              </button>
+            </div>
           </div>
         </div>
       )}

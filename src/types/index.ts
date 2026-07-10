@@ -233,12 +233,13 @@ export interface TeamPart {
 // 메일 양식 표에 추가로 넣는 항목 — 기본 8개 항목에 없는 값을 표시.
 // sourceKey가 있으면 팀의 업무 정보 필드(metaFields)/커스텀 필드 값을 그대로 가져오고,
 // 없으면(사용자 입력 항목) 값이 미리 채워지지 않고 메일 작성할 때마다 직접 입력한다.
-// type에 따라 값 서식(날짜는 YYYY-MM-DD)만 다르게 적용됨
+// type에 따라 값 서식(날짜는 YYYY-MM-DD, url은 하이퍼링크)이 다르게 적용됨
 export interface MailTableCustomField {
   id: string;
   label: string;
-  type: 'text' | 'date';
+  type: 'text' | 'date' | 'url';
   sourceKey?: string; // task.customFields[sourceKey] 참조. 없으면 사용자 입력 항목
+  linkText?: string; // type이 'url'일 때, 실제 값(URL) 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
 }
 
 // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 표의 사용자 입력 항목과 마찬가지로 값이

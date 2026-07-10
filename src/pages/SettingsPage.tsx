@@ -3870,13 +3870,13 @@ function InlineTextField({ value, onCommit, placeholder, className }: {
 // 업무 항목 개념이 없고, 필드에서 가져오거나 사용자가 직접 입력하는 항목만으로 구성
 function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   table: MailTableConfig;
-  candidateFields: { key: string; label: string; type: 'text' | 'date' }[];
+  candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url' }[];
   onSave: (next: MailTableConfig) => void;
   onRemove: () => void;
 }) {
   const [titleDraft, setTitleDraft] = useState(table.title ?? '');
   const [customSourceKey, setCustomSourceKey] = useState('');
-  const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const [customType, setCustomType] = useState<'text' | 'date' | 'url'>('text');
   const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const rowDragIdxRef = useRef<number | null>(null);
@@ -4432,7 +4432,9 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, [list]: next } : p));
   };
 
-  const activeTableFields = currentPreset?.tableFields?.length
+  // tableFields가 undefined면(=한 번도 설정 안 함) 기본 8개 전체, 빈 배열이면(=전부 끔)
+  // 그대로 빈 배열로 취급 — length로만 판단하면 전부 끄자마자 다시 8개 전체로 되돌아가버림
+  const activeTableFields = currentPreset?.tableFields !== undefined
     ? currentPreset.tableFields
     : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
 
@@ -4458,11 +4460,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const mergedFormConfig = mergeFormConfig(currentPart?.formConfig, team.formConfig);
   const candidateCustomFields = mergedFormConfig?.customFields ?? [];
   const partMetaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
-  // 필드에서 추가할 때는 타입을 따로 고를 필요 없이, 원래 필드의 속성(날짜 타입 커스텀
-  // 필드면 '날짜', 그 외에는 '텍스트')을 그대로 이어받아 바로 추가되게 함
-  const candidateFields: { key: string; label: string; type: 'text' | 'date' }[] = [
-    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: 'text' as const })),
-    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label, type: (f.type === 'date' ? 'date' : 'text') as const })),
+  // 필드에서 추가할 때는 타입을 따로 고를 필요 없이, 원래 필드의 속성(날짜 타입이면
+  // '날짜', URL 필드면 '링크', 그 외에는 '텍스트')을 그대로 이어받아 바로 추가되게 함
+  const candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url' }[] = [
+    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: (f.isUrl ? 'url' : 'text') as const })),
+    ...candidateCustomFields.map(f => ({ key: f.id, label: f.label, type: (f.type === 'date' ? 'date' : f.type === 'link' ? 'url' : 'text') as const })),
   ];
 
   const handleAddCustomField = () => {

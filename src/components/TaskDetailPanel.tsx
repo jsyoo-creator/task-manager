@@ -66,10 +66,12 @@ interface MailTableRow {
   hideLabel: boolean; // 이 항목만 항목명 칸을 비워 표시 (표 전체 항목명 칸 표시 여부와 별개)
   valuePrefix: string; // 내용 값 앞에 붙는 고정 텍스트 (없으면 '')
   valueSuffix: string; // 내용 값 뒤에 붙는 고정 텍스트 (없으면 '')
+  isUrl?: boolean; // true면 value를 URL로 보고 하이퍼링크로 렌더링
+  linkText?: string; // isUrl일 때 실제 URL 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
   // sourceKey 없는(=사용자 입력) 커스텀 항목이면 값을 표 안에서 바로 입력할 수 있어야 하므로
   // 입력 타입/필드 id를 함께 넘김 (미리보기에서만 사용, 복사되는 값은 이미 value에 반영됨)
   manualFieldId?: string;
-  manualFieldType?: 'text' | 'date';
+  manualFieldType?: 'text' | 'date' | 'url';
 }
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -130,7 +132,9 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
     endDate: fmtDateWithWeekday(task.endDate),
   };
   const resolveStyle = (key: string) => resolveRowStyle(key, preset?.tableFieldStyles, preset?.tableLabelBg, preset?.tableLabelBold, preset?.tableValueBg, preset?.tableValueBold);
-  const keys = preset?.tableFields?.length ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
+  // tableFields가 undefined면(=한 번도 설정 안 함) 기본 8개 전체, 빈 배열이면(=전부 끔)
+  // 그대로 빈 배열로 취급 — length로만 판단하면 전부 끄자마자 다시 8개 전체로 되돌아가버림
+  const keys = preset?.tableFields !== undefined ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
   const rowsByKey: Record<string, MailTableRow & { hideRow: boolean }> = {};
   keys
     .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
@@ -143,6 +147,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
       label: cf.label,
       value: cf.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-'),
       ...resolveStyle(cf.id),
+      ...(cf.type === 'url' ? { isUrl: true, linkText: cf.linkText } : {}),
       ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
     };
   });
@@ -163,6 +168,7 @@ function buildExtraTableRows(task: Task, cfg: MailTableConfig, manualValues?: Re
       label: cf.label,
       value: cf.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-'),
       ...resolveStyle(cf.id),
+      ...(cf.type === 'url' ? { isUrl: true, linkText: cf.linkText } : {}),
       ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
     };
   });
@@ -177,10 +183,16 @@ function escapeHtml(s: string): string {
 
 // 값 앞뒤에 항목별로 지정한 고정 텍스트를 붙임 — 직접 띄어쓰기를 입력하지 않아도 값과는
 // 항상 한 칸 띄어 보이도록 자동으로 공백을 넣어줌(이미 공백으로 끝나거나 시작하면 중복 추가 안 함)
+const resolveAffixes = (r: MailTableRow) => ({
+  prefix: r.valuePrefix ? (/\s$/.test(r.valuePrefix) ? r.valuePrefix : `${r.valuePrefix} `) : '',
+  suffix: r.valueSuffix ? (/^\s/.test(r.valueSuffix) ? r.valueSuffix : ` ${r.valueSuffix}`) : '',
+});
+
+// 링크(URL) 항목은 하이퍼링크를 지원하지 않는 일반 텍스트에서 "표시텍스트 (URL)" 형태로 보여줌
 const composeRowValue = (r: MailTableRow) => {
-  const prefix = r.valuePrefix ? (/\s$/.test(r.valuePrefix) ? r.valuePrefix : `${r.valuePrefix} `) : '';
-  const suffix = r.valueSuffix ? (/^\s/.test(r.valueSuffix) ? r.valueSuffix : ` ${r.valueSuffix}`) : '';
-  return `${prefix}${r.value}${suffix}`;
+  const { prefix, suffix } = resolveAffixes(r);
+  const core = r.isUrl && r.linkText ? `${r.linkText} (${r.value})` : r.value;
+  return `${prefix}${core}${suffix}`;
 };
 
 interface MailBodyExtraItem {
@@ -280,6 +292,16 @@ function buildMailPlainText(greeting: string, message: string, tables: Renderabl
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
+// URL 항목은 실제 <a> 하이퍼링크로 렌더링(값 앞뒤 고정 텍스트는 링크 밖 일반 텍스트로 유지)
+function renderValueHtml(r: MailTableRow): string {
+  const { prefix, suffix } = resolveAffixes(r);
+  if (r.isUrl) {
+    const linkLabel = escapeHtml(r.linkText || r.value);
+    return `${escapeHtml(prefix)}<a href="${escapeHtml(r.value)}" style="color:#2563eb;text-decoration:underline;" target="_blank" rel="noreferrer">${linkLabel}</a>${escapeHtml(suffix)}`;
+  }
+  return escapeHtml(composeRowValue(r));
+}
+
 function tableToHtml(t: RenderableTable, FS: string): string {
   if (!t.visible) return '';
   const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
@@ -293,7 +315,7 @@ function tableToHtml(t: RenderableTable, FS: string): string {
         : '';
       const valueColspan = t.showLabelColumn && !labelVisible ? ' colspan="2"' : '';
       const valueCell = t.showValueColumn
-        ? `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(composeRowValue(r))}</td>`
+        ? `<td${valueColspan} style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${renderValueHtml(r)}</td>`
         : '';
       return `<tr>${labelCell}${valueCell}</tr>`;
     }).join('')
@@ -375,12 +397,18 @@ function MailTablePreview({ table, manualValues, setManualValues }: {
                             <input
                               value={manualValues[r.manualFieldId] ?? ''}
                               onChange={e => setManualValues(prev => ({ ...prev, [r.manualFieldId!]: e.target.value }))}
-                              placeholder="입력"
+                              placeholder={r.manualFieldType === 'url' ? 'URL 입력' : '입력'}
                               className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-800 focus:outline-none"
                             />
                           )}
                           {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
                         </span>
+                      ) : r.isUrl ? (
+                        <>
+                          {resolveAffixes(r).prefix}
+                          <a href={r.value} target="_blank" rel="noreferrer" className="text-blue-600 underline">{r.linkText || r.value}</a>
+                          {resolveAffixes(r).suffix}
+                        </>
                       ) : composeRowValue(r)}
                     </td>
                   )}

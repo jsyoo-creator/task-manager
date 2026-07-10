@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -3994,6 +3994,36 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableValueBold: !(p.tableValueBold ?? false) } : p));
   };
 
+  const handleToggleShowLabelColumn = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableShowLabelColumn: !(p.tableShowLabelColumn ?? true) } : p));
+  };
+
+  // 항목(행)별 배경색/볼드 오버라이드 — 값이 모두 비면 오버라이드 자체를 지워 정리
+  const setFieldStyleOverride = (key: string, patch: Partial<MailTableCellStyle>) => {
+    if (!currentPreset) return;
+    const cur = currentPreset.tableFieldStyles ?? {};
+    const next = { ...cur[key], ...patch };
+    const isEmpty = !next.labelBg && next.labelBold === undefined && !next.valueBg && next.valueBold === undefined;
+    const nextStyles = { ...cur };
+    if (isEmpty) delete nextStyles[key]; else nextStyles[key] = next;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableFieldStyles: nextStyles } : p));
+  };
+
+  const clearFieldStyleOverride = (key: string) => {
+    if (!currentPreset) return;
+    const nextStyles = { ...(currentPreset.tableFieldStyles ?? {}) };
+    delete nextStyles[key];
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableFieldStyles: nextStyles } : p));
+  };
+
+  const activeRows: { key: string; label: string }[] = [
+    ...activeTableFields
+      .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
+      .filter((f): f is { key: string; label: string } => !!f),
+    ...(currentPreset?.tableCustomFields ?? []).map(f => ({ key: f.id, label: f.label })),
+  ];
+
   if (team.parts.length === 0) {
     return <p className="text-sm text-gray-400 py-6 text-center">먼저 파트를 추가해주세요.</p>;
   }
@@ -4156,9 +4186,17 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               )}
             </div>
 
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(currentPreset.tableShowLabelColumn ?? true) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {(currentPreset.tableShowLabelColumn ?? true) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={currentPreset.tableShowLabelColumn ?? true} onChange={handleToggleShowLabelColumn} className="hidden" />
+              <span className="text-[11px] text-gray-600">항목명 칸 표시 (끄면 내용 칸만 표시)</span>
+            </label>
+
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[11px] text-gray-500 mb-1.5">항목명 칸</p>
+              <div className={(currentPreset.tableShowLabelColumn ?? true) ? '' : 'opacity-40 pointer-events-none'}>
+                <p className="text-[11px] text-gray-500 mb-1.5">항목명 칸 기본값</p>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {MAIL_TABLE_BG_PRESETS.map(c => (
                     <button key={c} onClick={() => handleSetLabelBg(c)}
@@ -4176,7 +4214,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 </label>
               </div>
               <div>
-                <p className="text-[11px] text-gray-500 mb-1.5">내용 칸</p>
+                <p className="text-[11px] text-gray-500 mb-1.5">내용 칸 기본값</p>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {MAIL_TABLE_BG_PRESETS.map(c => (
                     <button key={c} onClick={() => handleSetValueBg(c)}
@@ -4194,6 +4232,63 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 </label>
               </div>
             </div>
+
+            {activeRows.length > 0 && (
+              <div>
+                <p className="text-[11px] text-gray-500 mb-1.5">항목별 스타일 재정의 (선택 — 지정하지 않으면 위 기본값 사용)</p>
+                <div className="space-y-2">
+                  {activeRows.map(row => {
+                    const override = currentPreset.tableFieldStyles?.[row.key];
+                    const effLabelBg = override?.labelBg || currentPreset.tableLabelBg || '#f9fafb';
+                    const effLabelBold = override?.labelBold ?? currentPreset.tableLabelBold ?? true;
+                    const effValueBg = override?.valueBg || currentPreset.tableValueBg || '#ffffff';
+                    const effValueBold = override?.valueBold ?? currentPreset.tableValueBold ?? false;
+                    const hasOverride = !!override && Object.keys(override).length > 0;
+                    const showLabelCol = currentPreset.tableShowLabelColumn ?? true;
+                    return (
+                      <div key={row.key} className="rounded-lg border border-gray-100 p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-gray-700">{row.label}</span>
+                          {hasOverride && (
+                            <button onClick={() => clearFieldStyleOverride(row.key)} className="text-[10px] text-gray-400 hover:text-red-500">
+                              기본값으로
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className={`flex items-center gap-1 flex-wrap ${showLabelCol ? '' : 'opacity-40 pointer-events-none'}`}>
+                            <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">항목명</span>
+                            {MAIL_TABLE_BG_PRESETS.map(c => (
+                              <button key={c} onClick={() => setFieldStyleOverride(row.key, { labelBg: c })}
+                                className={`w-3.5 h-3.5 rounded-full flex-shrink-0 border border-gray-200 ${effLabelBg === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                                style={{ background: c }}
+                              />
+                            ))}
+                            <button onClick={() => setFieldStyleOverride(row.key, { labelBold: !effLabelBold })}
+                              className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 font-bold ${effLabelBold ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
+                              B
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-[10px] text-gray-400 flex-shrink-0 w-9">내용</span>
+                            {MAIL_TABLE_BG_PRESETS.map(c => (
+                              <button key={c} onClick={() => setFieldStyleOverride(row.key, { valueBg: c })}
+                                className={`w-3.5 h-3.5 rounded-full flex-shrink-0 border border-gray-200 ${effValueBg === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                                style={{ background: c }}
+                              />
+                            ))}
+                            <button onClick={() => setFieldStyleOverride(row.key, { valueBold: !effValueBold })}
+                              className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded border flex-shrink-0 font-bold ${effValueBold ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200 text-gray-400'}`}>
+                              B
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

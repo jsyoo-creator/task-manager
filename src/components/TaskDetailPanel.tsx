@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailTableCustomField } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -36,14 +36,23 @@ export const MAIL_TABLE_BUILTIN_FIELDS: { key: string; label: string }[] = [
   { key: 'endDate', label: '종료일' },
 ];
 
-// selectedKeys가 없으면(설정 전) 기본 8개 전체, 있으면 그 순서대로만 표시.
-// customFields는 팀의 업무 정보 필드/커스텀 필드 중 탭 설정에서 추가로 고른 항목.
-function buildTaskInfoRows(
-  task: Task,
-  statusLabel: string,
-  selectedKeys: string[] | undefined,
-  customFields: MailTableCustomField[] | undefined
-): { label: string; value: string }[] {
+// 표 항목(행) 하나를 렌더링할 때 실제로 적용할 배경색/볼드 — 항목별 오버라이드가
+// 있으면 그걸, 없으면 프리셋 공통값을, 그것도 없으면 기본값을 사용
+const DEFAULT_MAIL_TABLE_STYLE = { labelBg: '#f9fafb', labelBold: true, valueBg: '#ffffff', valueBold: false };
+
+interface MailTableRow {
+  key: string;
+  label: string;
+  value: string;
+  labelBg: string;
+  labelBold: boolean;
+  valueBg: string;
+  valueBold: boolean;
+}
+
+// preset의 tableFields/tableCustomFields/tableFieldStyles를 반영해 표에 표시할
+// 행 목록을 만든다. tableFields가 없으면(설정 전) 기본 8개 전체를 표시.
+function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPreset | undefined): MailTableRow[] {
   const fmt = (d?: string) => (d ? d.slice(0, 10) : '-');
   const builtinValues: Record<string, string> = {
     title: task.title,
@@ -55,14 +64,23 @@ function buildTaskInfoRows(
     startDate: fmt(task.startDate),
     endDate: fmt(task.endDate),
   };
-  const keys = selectedKeys?.length ? selectedKeys : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
+  const resolveStyle = (key: string) => {
+    const o = preset?.tableFieldStyles?.[key];
+    return {
+      labelBg: o?.labelBg || preset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg,
+      labelBold: o?.labelBold ?? preset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
+      valueBg: o?.valueBg || preset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg,
+      valueBold: o?.valueBold ?? preset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
+    };
+  };
+  const keys = preset?.tableFields?.length ? preset.tableFields : MAIL_TABLE_BUILTIN_FIELDS.map(f => f.key);
   const builtinRows = keys
     .map(k => MAIL_TABLE_BUILTIN_FIELDS.find(f => f.key === k))
     .filter((f): f is { key: string; label: string } => !!f)
-    .map(f => ({ label: f.label, value: builtinValues[f.key] }));
-  const customRows = (customFields ?? []).map(cf => {
+    .map(f => ({ key: f.key, label: f.label, value: builtinValues[f.key], ...resolveStyle(f.key) }));
+  const customRows = (preset?.tableCustomFields ?? []).map(cf => {
     const raw = task.customFields?.[cf.sourceKey] ?? '';
-    return { label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-') };
+    return { key: cf.id, label: cf.label, value: cf.type === 'date' ? fmt(raw) : (raw || '-'), ...resolveStyle(cf.id) };
   });
   return [...builtinRows, ...customRows];
 }
@@ -72,34 +90,29 @@ function escapeHtml(s: string): string {
 }
 
 // 클립보드용 일반 텍스트(대시 목록) — 표를 지원하지 않는 곳에 붙여넣었을 때의 대체 표현
-function buildMailPlainText(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
+function buildMailPlainText(greeting: string, message: string, rows: MailTableRow[], signature: string): string {
   const bulletBlock = rows.map(r => `- ${r.label}: ${r.value}`).join('\n');
   return `${greeting}\n\n${message}\n\n${bulletBlock}\n\n감사합니다.${signature ? `\n\n${signature}` : ''}`;
 }
 
-export interface MailTableStyle {
-  title?: string;
-  labelBg: string;
-  labelBold: boolean;
-  valueBg: string;
-  valueBold: boolean;
-}
-export const DEFAULT_MAIL_TABLE_STYLE: MailTableStyle = { labelBg: '#f9fafb', labelBold: true, valueBg: '#ffffff', valueBold: false };
-
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
-function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string, tableStyle: MailTableStyle): string {
+function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], signature: string, title: string | undefined, showLabelColumn: boolean): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';
-  const { title, labelBg, labelBold, valueBg, valueBold } = tableStyle;
   const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
-    rows.map(r =>
-      `<tr>` +
-      `<td style="padding:4px 12px;background:${labelBg};color:#555;${labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:4px 12px;background:${valueBg};${valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
-      `</tr>`
-    ).join('')
+    rows.map(r => {
+      const labelCell = showLabelColumn
+        ? `<td style="padding:4px 12px;background:${r.labelBg};color:#555;${r.labelBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>`
+        : '';
+      return (
+        `<tr>` +
+        labelCell +
+        `<td style="padding:4px 12px;background:${r.valueBg};${r.valueBold ? 'font-weight:700;' : 'font-weight:400;'}${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+        `</tr>`
+      );
+    }).join('')
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
   const titleHtml = title ? `<div style="${FS}font-weight:700;">[${escapeHtml(title)}]</div>` : '';
@@ -1925,11 +1938,8 @@ export default function TaskDetailPanel({
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
-                const rows = buildTaskInfoRows(task, statusLabel, currentPreset?.tableFields, currentPreset?.tableCustomFields);
-                const labelBg = currentPreset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg;
-                const labelBold = currentPreset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold;
-                const valueBg = currentPreset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg;
-                const valueBold = currentPreset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold;
+                const rows = buildTaskInfoRows(task, statusLabel, currentPreset);
+                const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
                 return (
                   <div className="mt-3">
                     {currentPreset?.tableTitle && <p className="font-bold mb-1">[{currentPreset.tableTitle}]</p>}
@@ -1937,9 +1947,11 @@ export default function TaskDetailPanel({
                       <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
                         <tbody>
                           {rows.map(r => (
-                            <tr key={r.label}>
-                              <td className={`py-1 px-3 text-gray-600 ${labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: labelBg }}>{r.label}</td>
-                              <td className={`py-1 px-3 text-gray-800 ${valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: valueBg }}>{r.value}</td>
+                            <tr key={r.key}>
+                              {showLabelColumn && (
+                                <td className={`py-1 px-3 text-gray-600 ${r.labelBold ? 'font-bold' : 'font-normal'} whitespace-nowrap align-top border border-gray-300`} style={{ background: r.labelBg }}>{r.label}</td>
+                              )}
+                              <td className={`py-1 px-3 text-gray-800 ${r.valueBold ? 'font-bold' : 'font-normal'} border border-gray-300`} style={{ background: r.valueBg }}>{r.value}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1961,18 +1973,12 @@ export default function TaskDetailPanel({
               const currentPart = parts.find(p => p.name === task.category);
               const presets = currentPart?.mailFormConfig ?? [];
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
-              const rows = buildTaskInfoRows(task, statusLabel, currentPreset?.tableFields, currentPreset?.tableCustomFields);
-              const tableStyle: MailTableStyle = {
-                title: currentPreset?.tableTitle,
-                labelBg: currentPreset?.tableLabelBg || DEFAULT_MAIL_TABLE_STYLE.labelBg,
-                labelBold: currentPreset?.tableLabelBold ?? DEFAULT_MAIL_TABLE_STYLE.labelBold,
-                valueBg: currentPreset?.tableValueBg || DEFAULT_MAIL_TABLE_STYLE.valueBg,
-                valueBold: currentPreset?.tableValueBold ?? DEFAULT_MAIL_TABLE_STYLE.valueBold,
-              };
+              const rows = buildTaskInfoRows(task, statusLabel, currentPreset);
+              const showLabelColumn = currentPreset?.tableShowLabelColumn ?? true;
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, mailMessage, rows, signature);
               try {
-                const html = buildMailHtml(greeting, mailMessage, rows, signature, tableStyle);
+                const html = buildMailHtml(greeting, mailMessage, rows, signature, currentPreset?.tableTitle, showLabelColumn);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

@@ -240,6 +240,15 @@ export interface MailTableCustomField {
   sourceKey: string; // task.customFields[sourceKey] 참조
 }
 
+// 표의 개별 항목(행) 하나에 대한 배경색/볼드 오버라이드 — 지정 안 하면 프리셋의
+// tableLabelBg/tableValueBg 등 공통 기본값을 사용
+export interface MailTableCellStyle {
+  labelBg?: string;
+  labelBold?: boolean;
+  valueBg?: string;
+  valueBold?: boolean;
+}
+
 // 업무 상세 "메일 양식"의 받는사람/참조 프리셋 하나 — 받는사람/참조 조합이 매번 다를 수 있어
 // 파트별로 이름/색이 다른 탭을 여러 개 만들어두고 상황에 맞게 골라 쓸 수 있게 함
 export interface MailFormPreset {
@@ -253,10 +262,12 @@ export interface MailFormPreset {
   tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)
   tableCustomFields?: MailTableCustomField[]; // 표에 추가로 표시할 항목
-  tableLabelBg?: string; // 표 항목명 칸 배경색 (hex, 없으면 기본값)
-  tableLabelBold?: boolean; // 표 항목명 칸 볼드 여부 (없으면 true)
-  tableValueBg?: string; // 표 내용 칸 배경색 (hex, 없으면 기본값)
-  tableValueBold?: boolean; // 표 내용 칸 볼드 여부 (없으면 false)
+  tableShowLabelColumn?: boolean; // 표 항목명 칸 자체를 표시할지 (없으면 true = 표시)
+  tableLabelBg?: string; // 표 항목명 칸 공통 배경색 (hex, 없으면 기본값)
+  tableLabelBold?: boolean; // 표 항목명 칸 공통 볼드 여부 (없으면 true)
+  tableValueBg?: string; // 표 내용 칸 공통 배경색 (hex, 없으면 기본값)
+  tableValueBold?: boolean; // 표 내용 칸 공통 볼드 여부 (없으면 false)
+  tableFieldStyles?: Record<string, MailTableCellStyle>; // 항목(빌트인 key 또는 커스텀 필드 id)별 배경색/볼드 개별 오버라이드
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

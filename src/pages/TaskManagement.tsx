@@ -2307,7 +2307,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'
             }`}
             style={twoLineMode ? undefined : { minWidth: rowMinWidth }}>
-            <div className={`flex items-center gap-3 px-3 text-sm ${twoLineMode ? `py-2.5 bg-[#6C63FF]/[0.035] ${hasLine2Bg ? 'rounded-t-xl' : 'rounded-xl'}` : ''}`}>
+            <div className={`flex items-center gap-3 px-3 text-sm ${twoLineMode ? `py-3.5 bg-[#6C63FF]/[0.035] ${hasLine2Bg ? 'rounded-t-xl' : 'rounded-xl'}` : ''}`}>
               <div className="flex items-center gap-3 flex-shrink-0">
                 {checkboxCell}
                 {dragHandleCell}

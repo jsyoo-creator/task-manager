@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine } from '../types';
@@ -1812,6 +1812,23 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
     setCopiedUrlKey(key);
     setTimeout(() => setCopiedUrlKey(null), 1500);
   };
+  // 2번째 줄(필드 영역) 가로 스크롤을 화살표 버튼으로도 조작할 수 있게 함 —
+  // 눈에 띄는 스크롤바 대신 명확한 클릭 UI 제공
+  const line2ScrollRef = useRef<HTMLDivElement>(null);
+  const [line2Scroll, setLine2Scroll] = useState({ canLeft: false, canRight: false });
+  const updateLine2Scroll = () => {
+    const el = line2ScrollRef.current;
+    if (!el) return;
+    const canLeft = el.scrollLeft > 2;
+    const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 2;
+    setLine2Scroll(prev => (prev.canLeft === canLeft && prev.canRight === canRight) ? prev : { canLeft, canRight });
+  };
+  // 매 렌더 후 측정 — 값이 실제로 바뀔 때만 상태를 갱신하므로(updateLine2Scroll 내부 가드)
+  // 무한 리렌더 없이 내용/폭 변경 시 화살표 표시 여부가 항상 최신으로 유지됨
+  useEffect(() => { updateLine2Scroll(); });
+  const scrollLine2 = (dir: 1 | -1) => {
+    line2ScrollRef.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
+  };
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const tableCfIds = new Set(tableCfs.map(cf => cf.id));
   // task.category 파트의 receiver/assignee 순서가 전체 탭(tableFields)과 반대이면 swap
@@ -2278,11 +2295,11 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         // "3번째 줄은 2번째 줄에 속한 더 깊은 영역"이라는 위계를 표현함.
         const hasLine2Bg = twoLineMode && restElements.length > 0;
         return (
-          <div className={`flex flex-col ${twoLineMode ? (hasLine2Bg ? 'gap-0' : 'gap-2.5') : ''} pt-3.5 ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${
-              twoLineMode ? 'border-l-2 border-black/8' : ''
-            } ${isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'}`}
+          <div className={`flex flex-col ${twoLineMode ? (hasLine2Bg ? 'gap-0' : 'gap-2.5') : 'pt-3.5'} ${hasLine2Bg ? '' : 'pb-3.5'} transition-colors ${isDragging ? 'opacity-40' : ''} ${
+              isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'
+            }`}
             style={twoLineMode ? undefined : { minWidth: rowMinWidth }}>
-            <div className="flex items-center gap-3 px-3 text-sm">
+            <div className={`flex items-center gap-3 px-3 text-sm ${twoLineMode ? `py-2.5 bg-[#6C63FF]/[0.035] ${hasLine2Bg ? 'rounded-t-xl' : 'rounded-xl'}` : ''}`}>
               <div className="flex items-center gap-3 flex-shrink-0">
                 {checkboxCell}
                 {dragHandleCell}
@@ -2296,18 +2313,39 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               {actionButtonsCell}
             </div>
             {hasLine2Bg && (
-              <div className="px-3 pb-1 text-sm bg-[#6C63FF]/[0.02]">
-                <div className="flex pt-2">
+              <div className="px-3 pb-2 pt-2 text-sm">
+                <div className="flex relative">
                   {/* 드래그핸들 시작 위치와 맞춤(체크박스 폭+간격만큼 들여쓰기) */}
                   <div className="flex-shrink-0" style={{ width: 28 + 12 }} />
-                  {/* 값과 가로 스크롤바 사이 여백을 둬서 스크롤바가 2번째 줄 맨 아래에 오게 함.
-                      스크롤바 색은 전역 보라색 대신 은은한 회색으로 낮춰 업무 구분(지그재그 배경/경계선)과
-                      시각적으로 부딪히지 않게 함 */}
-                  <div className="flex-1 min-w-0 overflow-x-auto pb-3 [&::-webkit-scrollbar-thumb]:bg-black/5!">
+                  {/* 스크롤바 대신 좌우 화살표 버튼으로 가로 스크롤 — 스크롤바 자체는 숨김 */}
+                  <div
+                    ref={line2ScrollRef}
+                    onScroll={updateLine2Scroll}
+                    className="flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: 'none' }}
+                  >
                     <div className="grid gap-x-3 items-start" style={{ gridTemplateColumns: rowFieldsTemplate2, minWidth: 'max-content' }}>
                       {restElementsWithLabels}
                     </div>
                   </div>
+                  {line2Scroll.canLeft && (
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); scrollLine2(-1); }}
+                      className="absolute left-9 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
+                    >
+                      <ChevronLeft size={12} />
+                    </button>
+                  )}
+                  {line2Scroll.canRight && (
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); scrollLine2(1); }}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
+                    >
+                      <ChevronRight size={12} />
+                    </button>
+                  )}
                 </div>
               </div>
             )}

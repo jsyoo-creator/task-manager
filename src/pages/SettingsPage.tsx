@@ -4320,33 +4320,33 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                         onDrop={() => handleReorderRow(i)}
                         onDragEnd={() => { rowDragIdxRef.current = null; setRowDragOverIdx(null); }}
                         className={`rounded-lg border border-gray-100 p-2.5 space-y-1.5 ${rowDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between flex-wrap gap-y-1">
                           <span className={`flex items-center gap-1.5 text-[11px] font-semibold ${isRowHidden ? 'text-gray-300' : 'text-gray-700'}`}>
                             <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
                             {row.label}
                             {isRowHidden && <span className="text-[10px] font-normal text-gray-400">(숨김)</span>}
                           </span>
-                          {hasOverride && (
-                            <button onClick={() => clearFieldStyleOverride(row.key)} className="text-[10px] text-gray-400 hover:text-red-500">
-                              기본값으로
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                            <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isRowHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
-                              {isRowHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                            </div>
-                            <input type="checkbox" checked={isRowHidden} onChange={() => setFieldStyleOverride(row.key, { hideRow: !isRowHidden })} className="hidden" />
-                            <span className="text-[10px] text-gray-500">전체 숨김</span>
-                          </label>
-                          <label className={`flex items-center gap-1.5 cursor-pointer select-none ${showLabelCol && !isRowHidden ? '' : 'opacity-40 pointer-events-none'}`}>
-                            <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isLabelHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
-                              {isLabelHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                            </div>
-                            <input type="checkbox" checked={isLabelHidden} onChange={() => setFieldStyleOverride(row.key, { hideLabel: !isLabelHidden })} className="hidden" />
-                            <span className="text-[10px] text-gray-500">항목명 숨김</span>
-                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                              <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isRowHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                                {isRowHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                              </div>
+                              <input type="checkbox" checked={isRowHidden} onChange={() => setFieldStyleOverride(row.key, { hideRow: !isRowHidden })} className="hidden" />
+                              <span className="text-[10px] text-gray-500">전체 숨김</span>
+                            </label>
+                            <label className={`flex items-center gap-1.5 cursor-pointer select-none ${showLabelCol && !isRowHidden ? '' : 'opacity-40 pointer-events-none'}`}>
+                              <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${isLabelHidden ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                                {isLabelHidden && <svg width="8" height="7" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                              </div>
+                              <input type="checkbox" checked={isLabelHidden} onChange={() => setFieldStyleOverride(row.key, { hideLabel: !isLabelHidden })} className="hidden" />
+                              <span className="text-[10px] text-gray-500">항목명 숨김</span>
+                            </label>
+                            {hasOverride && (
+                              <button onClick={() => clearFieldStyleOverride(row.key)} className="text-[10px] text-gray-400 hover:text-red-500">
+                                기본값으로
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className={`grid grid-cols-2 gap-3 ${isRowHidden ? 'opacity-30 pointer-events-none' : ''}`}>
                           <div className={`flex items-center gap-1 flex-wrap ${showLabelCol && !isLabelHidden ? '' : 'opacity-40 pointer-events-none'}`}>

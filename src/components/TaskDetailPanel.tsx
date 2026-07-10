@@ -59,12 +59,14 @@ function buildMailHtml(greeting: string, message: string, rows: { label: string;
       `</tr>`
     ).join('')
   }</table>`;
-  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div>${escapeHtml(l)}</div>`).join('');
+  // 붙여넣는 곳(Outlook 등)의 기본 글자 크기에 좌우되지 않도록, 표와 나머지 텍스트에
+  // 동일한 font-size를 명시해 크기가 서로 달라 보이지 않게 함
+  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="font-size:14px;">${escapeHtml(l)}</div>`).join('');
   return (
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
     `${tableHtml}<br>` +
-    `<div>감사합니다.</div>` +
+    `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '')
   );
 }
@@ -1875,7 +1877,7 @@ export default function TaskDetailPanel({
                 className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
               />
               <div className="mt-3 overflow-x-auto">
-                <table className="text-xs border-collapse w-full border border-gray-300">
+                <table className="text-sm border-collapse w-full border border-gray-300">
                   <tbody>
                     {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
                       <tr key={r.label}>

@@ -1446,7 +1446,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           })()}
         </div>
 
-        <div className={twoLineMode ? 'p-2' : ''}>
+        {/* 아래쪽만 카드 자체의 mb-2가 이미 여백을 만들어주므로 컨테이너의 pb는 생략 —
+            그렇지 않으면 목록 맨 아래(마지막 카드 밑)만 위쪽(첫 카드 위)보다 여백이
+            두 배로 넓어짐 */}
+        <div className={twoLineMode ? 'px-2 pt-2' : ''}>
           {displayFlat.length === 0 && (
             <div className="py-14 text-center text-sm text-gray-400">등록된 업무가 없습니다</div>
           )}
@@ -2307,7 +2310,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               isActive ? 'bg-indigo-50/60 hover:bg-indigo-50' : 'hover:bg-gray-50'
             }`}
             style={twoLineMode ? undefined : { minWidth: rowMinWidth }}>
-            <div className={`flex items-center gap-3 px-3 text-sm ${twoLineMode ? `py-5 bg-[#6C63FF]/[0.035] ${hasLine2Bg ? 'rounded-t-xl' : 'rounded-xl'}` : ''}`}>
+            <div className={`flex items-center gap-3 px-3 text-sm ${twoLineMode ? `py-2.5 bg-[#6C63FF]/[0.035] ${hasLine2Bg ? 'rounded-t-xl' : 'rounded-xl'}` : ''}`}>
               <div className="flex items-center gap-3 flex-shrink-0">
                 {checkboxCell}
                 {dragHandleCell}

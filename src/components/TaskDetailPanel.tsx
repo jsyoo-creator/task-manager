@@ -172,7 +172,7 @@ function buildMailHtml(greeting: string, message: string, rows: MailTableRow[], 
     }).join('')
   }</table>`;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
-  const titleHtml = title ? `<div style="${FS}font-weight:700;">[${escapeHtml(title)}]</div>` : '';
+  const titleHtml = title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(title)}]</div>` : '';
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +

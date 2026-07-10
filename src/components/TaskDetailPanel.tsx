@@ -51,23 +51,26 @@ function buildMailPlainText(greeting: string, message: string, rows: { label: st
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
 // 서식을 지원하는 곳에 붙여넣으면 표로 보이게 함
 function buildMailHtml(greeting: string, message: string, rows: { label: string; value: string }[], signature: string): string {
-  const tableHtml = `<table style="border-collapse:collapse;font-size:13px;line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
+  // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
+  // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
+  const FS = 'font-size:13px!important;';
+  const tableHtml = `<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:4px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:13px;line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:4px 12px;background:#ffffff;font-size:13px;line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:4px 12px;background:#f9fafb;color:#555;font-weight:500;${FS}line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:4px 12px;background:#ffffff;${FS}line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;
-  // 붙여넣는 곳(Outlook 등)의 기본 글자 크기에 좌우되지 않도록, 표와 나머지 텍스트에
-  // 동일한 font-size를 명시해 크기가 서로 달라 보이지 않게 함
-  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="font-size:13px;">${escapeHtml(l)}</div>`).join('');
+  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
   return (
+    `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
     `${tableHtml}<br>` +
     `${textBlock('감사합니다.')}` +
-    (signature ? `<br>${textBlock(signature)}` : '')
+    (signature ? `<br>${textBlock(signature)}` : '') +
+    `</div>`
   );
 }
 

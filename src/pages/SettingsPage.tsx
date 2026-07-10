@@ -3712,7 +3712,6 @@ function RecipientChipInput({ value, onChange, members }: {
   members: { name: string; department?: Department }[];
 }) {
   const [draft, setDraft] = useState('');
-  const [copied, setCopied] = useState(false);
   const isMention = draft.startsWith('@');
   const query = isMention ? draft.slice(1).trim().toLowerCase() : '';
   const suggestions = isMention
@@ -3755,23 +3754,8 @@ function RecipientChipInput({ value, onChange, members }: {
 
   const removeChip = (item: string) => onChange(value.filter(v => v !== item));
 
-  const handleCopy = () => {
-    const emails = value.map(item => members.find(m => m.name === item)?.email ?? (item.includes('@') ? item : null)).filter((e): e is string => !!e);
-    if (emails.length === 0) return;
-    navigator.clipboard.writeText(emails.join(', '));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
   return (
     <div className="relative">
-      <div className="flex items-center justify-end mb-1 h-4">
-        {value.length > 0 && (
-          <button onClick={handleCopy} className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1">
-            {copied ? '복사됨' : '이메일 복사'}
-          </button>
-        )}
-      </div>
       <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2 rounded-lg border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-500/30 min-h-[38px]">
         {value.map(item => {
           const member = members.find(m => m.name === item);

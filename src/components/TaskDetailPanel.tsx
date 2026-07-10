@@ -1877,7 +1877,7 @@ export default function TaskDetailPanel({
                 className="w-full mt-2 text-sm text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
               />
               <div className="mt-3 overflow-x-auto">
-                <table className="text-xs leading-relaxed border-collapse w-full border border-gray-300">
+                <table className="text-sm leading-relaxed border-collapse w-full border border-gray-300">
                   <tbody>
                     {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
                       <tr key={r.label}>

@@ -54,8 +54,8 @@ function buildMailHtml(greeting: string, message: string, rows: { label: string;
   const tableHtml = `<table style="border-collapse:collapse;font-size:13px;line-height:1.6;width:auto;max-width:480px;border:1px solid #d1d5db;">${
     rows.map(r =>
       `<tr>` +
-      `<td style="padding:8px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:13px;line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
-      `<td style="padding:8px 12px;background:#ffffff;font-size:13px;line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
+      `<td style="padding:4px 12px;background:#f9fafb;color:#555;font-weight:500;font-size:13px;line-height:1.6;white-space:nowrap;vertical-align:top;border:1px solid #d1d5db;min-width:110px;">${escapeHtml(r.label)}</td>` +
+      `<td style="padding:4px 12px;background:#ffffff;font-size:13px;line-height:1.6;border:1px solid #d1d5db;min-width:200px;">${escapeHtml(r.value)}</td>` +
       `</tr>`
     ).join('')
   }</table>`;
@@ -1881,8 +1881,8 @@ export default function TaskDetailPanel({
                   <tbody>
                     {buildTaskInfoRows(task, statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '').map(r => (
                       <tr key={r.label}>
-                        <td className="py-2 px-3 bg-gray-50 text-gray-600 font-medium whitespace-nowrap align-top border border-gray-300">{r.label}</td>
-                        <td className="py-2 px-3 text-gray-800 border border-gray-300">{r.value}</td>
+                        <td className="py-1 px-3 bg-gray-50 text-gray-600 font-medium whitespace-nowrap align-top border border-gray-300">{r.label}</td>
+                        <td className="py-1 px-3 text-gray-800 border border-gray-300">{r.value}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1093,7 +1093,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end flex-1 min-w-fit">
             <CategoryTabs active={activeCategory} onChange={onCategoryChange} parts={parts} />
-            <div className="hidden @max-[1100px]:block basis-full h-0" />
+            <div className="hidden @max-[700px]:block basis-full h-0" />
           {canManage && brokenDateTasks.length > 0 && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <button

@@ -188,10 +188,11 @@ const resolveAffixes = (r: MailTableRow) => ({
   suffix: r.valueSuffix ? (/^\s/.test(r.valueSuffix) ? r.valueSuffix : ` ${r.valueSuffix}`) : '',
 });
 
-// 링크(URL) 항목은 하이퍼링크를 지원하지 않는 일반 텍스트에서 "표시텍스트 (URL)" 형태로 보여줌
+// 링크(URL) 항목은 하이퍼링크를 지원하지 않는 일반 텍스트에서 "표시텍스트 (URL)" 형태로
+// 보여줌 — 값이 없어서 '-'로 표시되는 경우에는 링크 형식 없이 그냥 '-'만 표시
 const composeRowValue = (r: MailTableRow) => {
   const { prefix, suffix } = resolveAffixes(r);
-  const core = r.isUrl && r.linkText ? `${r.linkText} (${r.value})` : r.value;
+  const core = r.isUrl && r.linkText && r.value !== '-' ? `${r.linkText} (${r.value})` : r.value;
   return `${prefix}${core}${suffix}`;
 };
 
@@ -295,7 +296,7 @@ function buildMailPlainText(greeting: string, message: string, tables: Renderabl
 // URL 항목은 실제 <a> 하이퍼링크로 렌더링(값 앞뒤 고정 텍스트는 링크 밖 일반 텍스트로 유지)
 function renderValueHtml(r: MailTableRow): string {
   const { prefix, suffix } = resolveAffixes(r);
-  if (r.isUrl) {
+  if (r.isUrl && r.value !== '-') {
     const linkLabel = escapeHtml(r.linkText || r.value);
     return `${escapeHtml(prefix)}<a href="${escapeHtml(r.value)}" style="color:#2563eb;text-decoration:underline;" target="_blank" rel="noreferrer">${linkLabel}</a>${escapeHtml(suffix)}`;
   }
@@ -403,7 +404,7 @@ function MailTablePreview({ table, manualValues, setManualValues }: {
                           )}
                           {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
                         </span>
-                      ) : r.isUrl ? (
+                      ) : r.isUrl && r.value !== '-' ? (
                         <>
                           {resolveAffixes(r).prefix}
                           <a href={r.value} target="_blank" rel="noreferrer" className="text-blue-600 underline">{r.linkText || r.value}</a>

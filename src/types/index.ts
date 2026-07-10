@@ -267,6 +267,14 @@ export interface MailListGroup {
   items: MailListItem[];
 }
 
+// 본문 인사말 다음 줄(업무명 다음, 안내 문구 앞)에 끼워 넣는 입력 항목 — 메일 작성할
+// 때마다 값을 직접 입력한다. type이 'count'면 값 뒤에 자동으로 "건"이 붙음
+export interface MailMessageInsert {
+  id: string;
+  type: 'text' | 'date' | 'count';
+  label?: string; // 작성 화면에서 입력창에 보여줄 안내 텍스트(플레이스홀더) — 실제 메일 문구에는 값만 들어감
+}
+
 // 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의
 // tableLabelBg/tableValueBg 등 공통 기본값을 사용
 export interface MailTableCellStyle {
@@ -307,6 +315,7 @@ export interface MailFormPreset {
   cc: string[];
   message?: string; // 본문 인사말 다음에 들어가는 안내 문구(탭별로 다르게 설정 가능, 없으면 기본 문구 사용)
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
+  messageInserts?: MailMessageInsert[]; // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목들(텍스트/날짜/건수)
   tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)
   tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)

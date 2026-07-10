@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, PLMainTaskType, CustomHoliday, ExcelFieldConfig, WeeklyExportConfig, RevisionStep } from '../types';
+import type { Team, TeamPart, TeamFormConfig, MetaField, SubTaskType, PLMainTaskType, CustomHoliday, ExcelFieldConfig, WeeklyExportConfig, RevisionStep, MailFormConfig } from '../types';
 
 export function useTeams(uid?: string, workplaceId?: string) {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -314,6 +314,24 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
+  const updatePartMailFormConfig = async (teamId: string, partId: string, config: MailFormConfig) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => p.id === partId ? { ...p, mailFormConfig: config } : p);
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  const clearPartMailFormConfig = async (teamId: string, partId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => {
+      if (p.id !== partId) return p;
+      const { mailFormConfig: _, ...rest } = p;
+      return rest;
+    });
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
   const updatePartWeeklyConfig = async (teamId: string, partId: string, config: WeeklyExportConfig) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
@@ -344,5 +362,5 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await batch.commit();
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, updatePartMailFormConfig, clearPartMailFormConfig, reorderTeams };
 }

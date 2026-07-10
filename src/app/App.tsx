@@ -297,7 +297,7 @@ function App() {
 
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations(activeWorkplaceId ?? undefined);
-  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
+  const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, updatePartMailFormConfig, clearPartMailFormConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
   const { customHolidays, updateHolidays } = useHolidays(activeWorkplaceId ?? undefined);
   const { profileFields, updateProfileFields } = useProfileFields(activeWorkplaceId ?? undefined);
   const { workplaces } = useWorkplaces();
@@ -441,7 +441,7 @@ function App() {
   };
   const teamMembers = selectedTeam
     ? allUsers.filter(u => isMemberOfTeam(u, selectedTeam.id))
-        .map(u => ({ name: u.displayName, department: u.department }))
+        .map(u => ({ name: u.displayName, department: u.department, email: u.email }))
     : [];
 
   // 휴가 표시용: 지원팀의 "여러 팀 지원" 예외는 적용하지 않고 기본(우선선택) 팀 소속만 인정
@@ -970,6 +970,8 @@ function App() {
                     onClearPartExcelConfig={clearPartExcelConfig}
                     onUpdatePartWeeklyConfig={updatePartWeeklyConfig}
                     onClearPartWeeklyConfig={clearPartWeeklyConfig}
+                    onUpdatePartMailFormConfig={updatePartMailFormConfig}
+                    onClearPartMailFormConfig={clearPartMailFormConfig}
                     onReorderTeams={reorderTeams}
                     customHolidays={customHolidays}
                     onUpdateHolidays={updateHolidays}

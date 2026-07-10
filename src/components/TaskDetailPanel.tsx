@@ -30,7 +30,7 @@ function buildMailTemplate(task: Task, statusLabel: string): { subject: string; 
 
 // 작성자 기본값 — 업무의 접수자/담당자 중 기획 직군인 사람을 우선 사용하고,
 // 없으면 팀의 기획 직군 첫 번째 사람으로 대체
-function getDefaultMailAuthor(task: Task, teamMembers?: { name: string; department?: Department }[]): string {
+function getDefaultMailAuthor(task: Task, teamMembers?: { name: string; department?: Department; email?: string }[]): string {
   if (!teamMembers?.length) return '';
   const isPlanning = (name?: string) => !!name && teamMembers.some(m => m.name === name && m.department === '기획');
   if (isPlanning(task.assignee)) return task.assignee!;
@@ -197,7 +197,7 @@ export default function TaskDetailPanel({
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
   revisionSteps?: RevisionStep[];
-  teamMembers?: { name: string; department?: Department }[];
+  teamMembers?: { name: string; department?: Department; email?: string }[];
   formConfig?: TeamFormConfig;
   teamFormConfig?: TeamFormConfig;
   userPhotoMap?: Map<string, string>;
@@ -278,6 +278,8 @@ export default function TaskDetailPanel({
   const [mailBody, setMailBody] = useState('');
   const [mailAuthor, setMailAuthor] = useState('');
   const [mailCopied, setMailCopied] = useState(false);
+  const [toCopied, setToCopied] = useState(false);
+  const [ccCopied, setCcCopied] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
 
@@ -1727,6 +1729,54 @@ export default function TaskDetailPanel({
               <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
+          {(() => {
+            const currentPart = parts.find(p => p.name === task.category);
+            const cfg = currentPart?.mailFormConfig;
+            const emailOf = (name: string) => teamMembers?.find(m => m.name === name)?.email;
+            const rows: { key: 'to' | 'cc'; label: string; copied: boolean; setCopied: (v: boolean) => void }[] = [
+              { key: 'to', label: '받는사람', copied: toCopied, setCopied: setToCopied },
+              { key: 'cc', label: '참조', copied: ccCopied, setCopied: setCcCopied },
+            ];
+            return rows.map(({ key, label, copied, setCopied }) => {
+              const names = cfg?.[key] ?? [];
+              const emails = names.map(emailOf).filter((e): e is string => !!e);
+              return (
+                <div key={key}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-medium text-gray-500 block">{label}</label>
+                    {emails.length > 0 && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(emails.join(', '));
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1500);
+                        }}
+                        className="text-[11px] text-[#6C63FF] hover:text-[#5a52e0] font-medium flex items-center gap-1"
+                      >
+                        {copied ? <><Check size={10} /> 복사됨</> : <><Copy size={10} /> 이메일 복사</>}
+                      </button>
+                    )}
+                  </div>
+                  {names.length === 0 ? (
+                    <p className="text-xs text-gray-400 px-3 py-2 rounded-lg border border-dashed border-gray-200">
+                      설정된 인원이 없습니다. 설정 &gt; 팀 관리 &gt; 메일 양식에서 지정할 수 있습니다.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {names.map(n => {
+                        const hasEmail = !!emailOf(n);
+                        return (
+                          <span key={n} className={`text-xs px-2 py-1 rounded-full ${hasEmail ? 'bg-white border border-gray-200 text-gray-700' : 'bg-red-50 border border-red-100 text-red-400'}`}>
+                            {n}{!hasEmail && ' (이메일 없음)'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
           <div className="flex-1 flex flex-col min-h-0">
             <label className="text-[11px] font-medium text-gray-500 mb-1 block">본문</label>
             <textarea

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormConfig } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -55,6 +55,8 @@ interface Props {
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartWeeklyConfig: (teamId: string, partId: string, config: WeeklyExportConfig) => Promise<void>;
   onClearPartWeeklyConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormConfig) => Promise<void>;
+  onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
   customHolidays: CustomHoliday[];
   onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
   onReorderTeams: (ordered: Team[]) => Promise<void>;
@@ -3700,7 +3702,91 @@ const TEAM_COLOR_PRESETS = [
   '#a5b4fc','#f9a8d4','#d9f99d','#99f6e4','#e2e8f0',
 ];
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig }: {
+// 파트별 메일 양식 받는사람/참조 기본 인원 설정 — 업무 상세의 "메일 양식" 패널에서
+// 사용. 팀 레벨 상속 없이 파트별로만 설정(요청사항)
+function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
+  team: Team;
+  members: { name: string; department?: Department }[];
+  onSavePart: (teamId: string, partId: string, config: MailFormConfig) => Promise<void>;
+  onClearPart: (teamId: string, partId: string) => Promise<void>;
+}) {
+  const [selectedPartId, setSelectedPartId] = useState<string>(team.parts[0]?.id ?? '');
+  const currentPart = team.parts.find(p => p.id === selectedPartId);
+  const saved: MailFormConfig = currentPart?.mailFormConfig ?? { to: [], cc: [] };
+  const [flash, setFlash] = useState(false);
+  const doFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1200); };
+
+  const toggle = (list: 'to' | 'cc', name: string) => {
+    if (!currentPart) return;
+    const cur = saved[list];
+    const next = cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name];
+    onSavePart(team.id, currentPart.id, { ...saved, [list]: next });
+    doFlash();
+  };
+
+  const handleClear = () => {
+    if (!currentPart) return;
+    onClearPart(team.id, currentPart.id);
+    doFlash();
+  };
+
+  if (team.parts.length === 0) {
+    return <p className="text-sm text-gray-400 py-6 text-center">먼저 파트를 추가해주세요.</p>;
+  }
+
+  const MemberList = ({ list, label }: { list: 'to' | 'cc'; label: string }) => (
+    <div className="flex-1 min-w-0">
+      <p className="text-xs font-semibold text-gray-700 mb-2">{label}</p>
+      <div className="rounded-xl border border-gray-100 divide-y divide-gray-50 max-h-64 overflow-y-auto">
+        {members.length === 0 ? (
+          <p className="text-xs text-gray-400 px-3 py-4 text-center">팀원이 없습니다</p>
+        ) : members.map(m => {
+          const checked = saved[list].includes(m.name);
+          return (
+            <button key={m.name} onClick={() => toggle(list, m.name)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${checked ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {checked && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <span className="text-sm text-gray-700">{m.name}</span>
+              {m.department && <span className="text-[10px] text-gray-400 ml-auto">{m.department}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        {team.parts.map(p => (
+          <button key={p.id} onClick={() => setSelectedPartId(p.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              selectedPartId === p.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            {p.name}
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          {flash && <span className="text-[11px] text-green-500 font-medium">저장됨</span>}
+          <button onClick={handleClear} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors">
+            초기화
+          </button>
+        </div>
+      </div>
+      <p className="text-[11px] text-gray-400">
+        업무 상세의 메일 양식에서 이 파트의 업무를 열면, 여기서 체크한 인원이 받는사람/참조 기본값으로 채워집니다.
+      </p>
+      <div className="flex gap-4">
+        <MemberList list="to" label="받는사람" />
+        <MemberList list="cc" label="참조" />
+      </div>
+    </div>
+  );
+}
+
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -3742,13 +3828,16 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartExcelConfig: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartWeeklyConfig: (teamId: string, partId: string, config: WeeklyExportConfig) => Promise<void>;
   onClearPartWeeklyConfig: (teamId: string, partId: string) => Promise<void>;
+  onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormConfig) => Promise<void>;
+  onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
+  allUsers: AppUser[];
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'permission' | 'support' | 'revision'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -3959,7 +4048,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto">
-                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'permission', 'support'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -3967,7 +4056,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'permission' ? '권한' : '지원팀'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : '지원팀'}
                       </button>
                     ))}
                   </div>
@@ -4197,6 +4286,20 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onSave={cfg => onUpdateTeam(team.id, { weeklyExportConfig: cfg })}
                         onSavePart={onUpdatePartWeeklyConfig}
                         onClearPart={onClearPartWeeklyConfig}
+                      />
+                    </div>
+                  )}
+
+                  {/* 메일 양식 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'mail' && (
+                    <div className="px-5 py-4">
+                      <MailFormConfigManager
+                        team={team}
+                        members={allUsers
+                          .filter(u => u.selectedTeamIds?.includes(team.id))
+                          .map(u => ({ name: u.displayName, department: u.department }))}
+                        onSavePart={onUpdatePartMailFormConfig}
+                        onClearPart={onClearPartMailFormConfig}
                       />
                     </div>
                   )}
@@ -4772,7 +4875,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -5186,6 +5289,9 @@ export default function SettingsPage({
           onClearPartExcelConfig={onClearPartExcelConfig}
           onUpdatePartWeeklyConfig={onUpdatePartWeeklyConfig}
           onClearPartWeeklyConfig={onClearPartWeeklyConfig}
+          onUpdatePartMailFormConfig={onUpdatePartMailFormConfig}
+          onClearPartMailFormConfig={onClearPartMailFormConfig}
+          allUsers={users}
         />
       )}
 

@@ -5,7 +5,7 @@ import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, res
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
-import { collection, getDocs, updateDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
 import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder } from '../components/TaskDetailPanel';
@@ -5417,13 +5417,41 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
 
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
+    const oldName = team.parts.find(p => p.id === editingPartId)?.name;
+    const newName = editingPartName.trim();
     const updated = team.parts.map(p =>
       p.id === editingPartId
-        ? { ...p, name: editingPartName.trim(), color: editingPartColor, departments: editingPartDepts.length ? editingPartDepts : undefined }
+        ? { ...p, name: newName, color: editingPartColor, departments: editingPartDepts.length ? editingPartDepts : undefined }
         : p
     );
     await onSetParts(team.id, updated);
+    if (oldName && oldName !== newName) {
+      await migratePartRenameToTasks(team.id, oldName, newName);
+    }
     setEditingPartId(null);
+  };
+
+  // 파트 이름을 바꿀 때 그 이름을 참조하던 기존 업무의 category/plParts도 새 이름으로 갱신
+  // (하지 않으면 업무가 어떤 파트에도 매칭되지 않는 "고아" 상태가 되어 화면에서 사라짐)
+  const migratePartRenameToTasks = async (teamId: string, oldName: string, newName: string) => {
+    const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', teamId)));
+    const toUpdate = tasksSnap.docs.filter(d => {
+      const data = d.data();
+      return data.category === oldName || (Array.isArray(data.plParts) && data.plParts.includes(oldName));
+    });
+    for (let i = 0; i < toUpdate.length; i += 499) {
+      const batch = writeBatch(db);
+      toUpdate.slice(i, i + 499).forEach(taskDoc => {
+        const data = taskDoc.data();
+        const patch: Record<string, unknown> = {};
+        if (data.category === oldName) patch.category = newName;
+        if (Array.isArray(data.plParts) && data.plParts.includes(oldName)) {
+          patch.plParts = data.plParts.map((p: string) => p === oldName ? newName : p);
+        }
+        batch.update(doc(db, 'tasks', taskDoc.id), patch);
+      });
+      await batch.commit();
+    }
   };
 
   return (

@@ -4442,11 +4442,11 @@ function MailBodyPreview({ part, preset, members }: {
   const html = buildMailHtml(greeting, messageLine, [mainTable, ...extraTables], signature, bodyExtra, listGroups);
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 sticky top-4">
-      <p className="text-xs font-semibold text-gray-700 mb-2">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 sticky top-4">
+      <p className="text-xs font-semibold text-gray-700 mb-3">
         본문 미리보기 <span className="font-normal text-gray-400">(샘플 값으로 표시)</span>
       </p>
-      <div className="text-[13px] text-gray-800 leading-relaxed max-h-[70vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="text-[13px] text-gray-800 leading-relaxed max-h-[85vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
@@ -5371,7 +5371,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             </div>
           </div>
         </div>
-        <div className="w-[360px] flex-shrink-0">
+        <div className="w-[560px] flex-shrink-0">
           <MailBodyPreview part={currentPart} preset={currentPreset} members={members} />
         </div>
         </div>

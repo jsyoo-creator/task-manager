@@ -12,7 +12,7 @@ const MAIL_PANEL_W = 420;
 // 메일 양식 — 인사말/안내 문구는 자유 편집 텍스트, 업무 정보는 항상 업무 데이터로부터
 // 다시 만들어지는(수정 불가) 표. 발송 기능은 없고 복사해서 Outlook/Gmail 등에
 // 붙여넣어 쓰는 용도라, 복사 시 표가 실제 HTML 표로 붙여넣어지도록 별도 처리한다.
-function buildMailGreeting(author: string): string {
+export function buildMailGreeting(author: string): string {
   return author ? `안녕하세요, ${author} 입니다.` : '안녕하세요,';
 }
 
@@ -22,7 +22,7 @@ const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
 // 인사말 다음 줄 — (업무명 노출 시) 업무명, (설정된) 삽입 항목 값들, 안내 문구 순으로
 // 한 줄에 이어 붙임. 업무명/삽입 항목은 항상 최신 값으로 다시 만들어지는 고정 표시라
 // mailMessage(자유 편집 텍스트)에는 포함하지 않고 렌더링/복사 시점에 합쳐서 씀
-function composeMessageLine(task: Task, preset: MailFormPreset | undefined, message: string, insertValues: Record<string, string>): string {
+export function composeMessageLine(task: Task, preset: MailFormPreset | undefined, message: string, insertValues: Record<string, string>): string {
   const parts: string[] = [];
   if (preset?.showTaskName) parts.push(task.title);
   (preset?.messageInserts ?? []).forEach(ins => {
@@ -234,14 +234,14 @@ interface RenderableTable {
   visible: boolean;
 }
 
-function buildMainRenderableTable(task: Task, statusLabel: string, preset: MailFormPreset | undefined, manualValues?: Record<string, string>): RenderableTable {
+export function buildMainRenderableTable(task: Task, statusLabel: string, preset: MailFormPreset | undefined, manualValues?: Record<string, string>): RenderableTable {
   const rows = buildTaskInfoRows(task, statusLabel, preset, manualValues);
   const showLabelColumn = preset?.tableShowLabelColumn ?? true;
   const showValueColumn = preset?.tableShowValueColumn ?? true;
   return { rows, title: preset?.tableTitle, showLabelColumn, showValueColumn, visible: !preset?.tableHidden && (showLabelColumn || showValueColumn) };
 }
 
-function buildExtraRenderableTable(task: Task, cfg: MailTableConfig, manualValues?: Record<string, string>): RenderableTable {
+export function buildExtraRenderableTable(task: Task, cfg: MailTableConfig, manualValues?: Record<string, string>): RenderableTable {
   const rows = buildExtraTableRows(task, cfg, manualValues);
   const showLabelColumn = cfg.showLabelColumn ?? true;
   const showValueColumn = cfg.showValueColumn ?? true;
@@ -265,7 +265,7 @@ interface RenderableListGroup {
   visible: boolean;
 }
 
-function buildRenderableListGroup(task: Task, group: MailListGroup, manualValues?: Record<string, string>): RenderableListGroup {
+export function buildRenderableListGroup(task: Task, group: MailListGroup, manualValues?: Record<string, string>): RenderableListGroup {
   const items: MailListItemResolved[] = (group.items ?? []).map((it, i) => {
     const raw = it.sourceKey ? (task.customFields?.[it.sourceKey] ?? '') : (manualValues?.[it.id] ?? '');
     const value = it.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-');
@@ -358,7 +358,7 @@ function listGroupToHtml(g: RenderableListGroup, FS: string): string {
   return `${titleHtml}${itemsHtml}<br>`;
 }
 
-function buildMailHtml(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[], listGroups: RenderableListGroup[]): string {
+export function buildMailHtml(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[], listGroups: RenderableListGroup[]): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = 'font-size:13px!important;';

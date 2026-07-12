@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, buildMailHtml } from '../components/TaskDetailPanel';
 
 interface Props {
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -4403,6 +4403,54 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   );
 }
 
+// 메일 양식 편집 중인 값(preset)을 실제 발송 로직과 동일한 함수로 렌더링해 미리보기로 보여줌.
+// 실제 업무가 없으므로 샘플 값을 채운 가짜 Task로 대체한다.
+function MailBodyPreview({ part, preset, members }: {
+  part: TeamPart | undefined;
+  preset: MailFormPreset;
+  members: { name: string; department?: Department }[];
+}) {
+  const sampleAuthor = members.find(m => m.department === '기획')?.name ?? members[0]?.name ?? '홍길동';
+  const today = new Date().toISOString().slice(0, 10);
+  const sampleValue = (type: 'text' | 'date' | 'url' | 'count') =>
+    type === 'date' ? today : type === 'count' ? '3' : type === 'url' ? 'https://example.com' : '샘플 텍스트';
+
+  const dummyTask: Task = {
+    id: 'preview', projectId: '', teamId: '',
+    title: '샘플 업무명', category: part?.name ?? '', type: '신규', status: '진행 중',
+    receiver: '홍길동', assignee: '김철수', startDate: today, endDate: today,
+    weeklyHours: {}, totalHours: 0, revisionLevel: 0,
+    customFields: {}, subTaskData: {},
+    createdAt: today, updatedAt: today,
+  };
+
+  const manualValues: Record<string, string> = {};
+  (preset.tableCustomFields ?? []).forEach(cf => { if (!cf.sourceKey) manualValues[cf.id] = sampleValue(cf.type); });
+  (preset.extraTables ?? []).forEach(cfg => (cfg.customFields ?? []).forEach(cf => { if (!cf.sourceKey) manualValues[cf.id] = sampleValue(cf.type); }));
+  (preset.listGroups ?? []).forEach(g => (g.items ?? []).forEach(it => { if (!it.sourceKey) manualValues[it.id] = sampleValue(it.type); }));
+
+  const insertValues: Record<string, string> = {};
+  (preset.messageInserts ?? []).forEach(ins => { insertValues[ins.id] = sampleValue(ins.type); });
+
+  const greeting = buildMailGreeting(sampleAuthor);
+  const messageLine = composeMessageLine(dummyTask, preset, preset.message || DEFAULT_MAIL_MESSAGE, insertValues);
+  const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
+  const extraTables = (preset.extraTables ?? []).map(cfg => buildExtraRenderableTable(dummyTask, cfg, manualValues));
+  const listGroups = (preset.listGroups ?? []).map(g => buildRenderableListGroup(dummyTask, g, manualValues));
+  const bodyExtra = (preset.bodyCustomFields ?? []).map(f => ({ title: f.title, value: sampleValue(f.type) }));
+  const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
+  const html = buildMailHtml(greeting, messageLine, [mainTable, ...extraTables], signature, bodyExtra, listGroups);
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4 sticky top-4">
+      <p className="text-xs font-semibold text-gray-700 mb-2">
+        본문 미리보기 <span className="font-normal text-gray-400">(샘플 값으로 표시)</span>
+      </p>
+      <div className="text-[13px] text-gray-800 leading-relaxed max-h-[70vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
+}
+
 function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   team: Team;
   members: { name: string; department?: Department }[];
@@ -4822,7 +4870,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
           이 파트에는 아직 메일 양식 탭이 없습니다. "탭 추가"로 만들어보세요.
         </p>
       ) : (
-        <div className="space-y-3 rounded-xl border border-gray-100 p-4">
+        <div className="flex items-start gap-4">
+        <div className="flex-1 min-w-0 space-y-3 rounded-xl border border-gray-100 p-4">
           <div className="flex items-center gap-3">
             <input
               value={nameDraft}
@@ -5321,6 +5370,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               </button>
             </div>
           </div>
+        </div>
+        <div className="w-[360px] flex-shrink-0">
+          <MailBodyPreview part={currentPart} preset={currentPreset} members={members} />
+        </div>
         </div>
       )}
     </div>

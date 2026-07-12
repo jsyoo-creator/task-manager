@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Task, SubTask, TaskStatus, TaskCategory, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
+import type { Task, SubTask, TaskStatus, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import SubtaskQuickEditModal from '../components/SubtaskQuickEditModal';
 
@@ -18,8 +18,6 @@ interface Props {
   tasks: Task[];
   subtasks: SubTask[];
   members: Member[];
-  activeCategory: TaskCategory | 'all';
-  onCategoryChange: (cat: TaskCategory | 'all') => void;
   parts?: TeamPart[];
   userPhotoMap?: Map<string, string>;
   customHolidays?: CustomHoliday[];
@@ -159,7 +157,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType }: Props) {
+export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [onlyMe, setOnlyMe] = useState(false);
@@ -199,29 +197,24 @@ export default function WeeklyPage({ tasks, subtasks, activeCategory, parts, use
     return s <= end && e >= start;
   };
 
-  const filtered = useMemo(() =>
-    tasks.filter(t => activeCategory === 'all' || t.category === activeCategory),
-    [tasks, activeCategory]
-  );
-
   const weekTasks = useMemo(() =>
-    filtered.filter(t => inRange(t.startDate, t.endDate)),
-    [filtered, start, end]
+    tasks.filter(t => inRange(t.startDate, t.endDate)),
+    [tasks, start, end]
   );
 
   // 세부업무 자체 날짜 기준으로 이번 주 포함 여부 판단
   // 부모 업무 날짜와 무관하게 세부업무 startDate가 이번 주면 표시
-  const allTaskMap = useMemo(() => new Map(filtered.map(t => [t.id, t])), [filtered]);
+  const allTaskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
 
   const weekSubtasks = useMemo(() => {
-    const allTaskIds = new Set(filtered.map(t => t.id));
+    const allTaskIds = new Set(tasks.map(t => t.id));
     return subtasks.filter(s => {
       if (!allTaskIds.has(s.taskId)) return false;
       if (s.startDate) return inRange(s.startDate, s.endDate || s.startDate);
       const parent = allTaskMap.get(s.taskId);
       return parent ? inRange(parent.startDate, parent.endDate) : false;
     });
-  }, [subtasks, filtered, allTaskMap, start, end]);
+  }, [subtasks, tasks, allTaskMap, start, end]);
 
   const weekTaskMap = useMemo(() => new Map(weekTasks.map(t => [t.id, t])), [weekTasks]);
 

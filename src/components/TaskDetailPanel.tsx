@@ -385,6 +385,7 @@ interface MailBodyExtraItem {
   value: string;
   isUrl?: boolean; // true면 value를 URL로 보고 하이퍼링크로 렌더링
   linkText?: string; // isUrl일 때 실제 URL 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
+  hideTitle?: boolean; // true면 값 위 "[제목]" 줄을 감추고 값만 표시
 }
 
 // 미리보기/복사에 쓰이는, 화면에 그려질 표 하나의 최종 형태(메인 표 1개 + 별도로 구성한
@@ -578,7 +579,7 @@ function gridTableToHtml(b: Extract<MailBodyBlock, { kind: 'grid' }>, FS: string
 
 function bodyExtraItemToPlainText(f: MailBodyExtraItem): string {
   const core = f.isUrl && f.linkText && f.value !== '-' ? `${f.linkText} (${f.value})` : f.value;
-  return `[${f.title}]\n${core}`;
+  return f.hideTitle ? core : `[${f.title}]\n${core}`;
 }
 
 function blockToPlainText(b: MailBodyBlock): string | null {
@@ -656,8 +657,8 @@ export function mailBodyBlockToHtml(block: MailBodyBlock, FS: string = MAIL_BODY
     const valueHtml = f.isUrl && f.value !== '-'
       ? `<a href="${escapeHtml(f.value)}" style="color:#2563eb;text-decoration:underline;" target="_blank" rel="noreferrer">${escapeHtml(f.linkText || f.value)}</a>`
       : escapeHtml(f.value);
-    return `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
-      `<div style="${FS}margin-bottom:8px;">${valueHtml}</div>`;
+    const titleHtml = f.hideTitle ? '' : `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>`;
+    return `${titleHtml}<div style="${FS}margin-bottom:8px;">${valueHtml}</div>`;
   }).join('') + '<br>';
 }
 
@@ -2909,7 +2910,7 @@ export default function TaskDetailPanel({
                               const resolved = f.sourceKey ? resolveMailBodyFieldValue(task, f, mailBodyManualValues) : '';
                               return (
                                 <div key={f.id}>
-                                  <p className="font-bold mb-1">[{f.title}]</p>
+                                  {!f.hideTitle && <p className="font-bold mb-1">[{f.title}]</p>}
                                   {f.sourceKey ? (
                                     // 필드/세부업무에 연결된 항목은 항상 최신 업무 데이터로 다시
                                     // 계산되는 고정 표시 — 표의 연결 항목과 동일하게 수정 불가
@@ -2984,6 +2985,7 @@ export default function TaskDetailPanel({
               const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
                 title: f.title,
                 value: resolveMailBodyFieldValue(task, f, mailBodyManualValues),
+                hideTitle: f.hideTitle,
                 ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
               }));
               const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));

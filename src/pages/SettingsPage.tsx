@@ -4757,6 +4757,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   const bodyExtra = (preset.bodyCustomFields ?? []).map(f => ({
     title: f.title,
     value: f.sourceKey ? resolveMailBodyFieldValue(dummyTask, f, manualValues) : sampleValue(f.type),
+    hideTitle: f.hideTitle,
     ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
   }));
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
@@ -5290,6 +5291,15 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? {
       ...p,
       bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, type, source: undefined, sourceKey: undefined } : f),
+    } : p));
+  };
+
+  // 값 위에 표시되는 "[제목]" 줄을 감출지 (끄면 값만 표시)
+  const handleToggleBodyFieldHideTitle = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? {
+      ...p,
+      bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, hideTitle: !f.hideTitle } : f),
     } : p));
   };
 
@@ -6263,6 +6273,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                         )}
                       </>
                     )}
+                    <button onClick={() => handleToggleBodyFieldHideTitle(f.id)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md flex-shrink-0 transition-colors ${f.hideTitle ? 'bg-gray-200 text-gray-500' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                      {f.hideTitle ? '제목 숨김' : '제목 표시'}
+                    </button>
                     <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                   </div>
                 ))}

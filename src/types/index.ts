@@ -257,6 +257,7 @@ export interface MailBodyCustomField {
   source?: 'field' | 'subtask';
   sourceKey?: string; // source==='field'면 customFields의 key, source==='subtask'면 'subTaskTypeId:startDate|endDate'
   linkText?: string; // type이 'url'일 때, 실제 값(URL) 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
+  hideTitle?: boolean; // true면 값 위에 표시되는 "[제목]" 줄을 감추고 값만 표시 (없으면 false = 표시)
 }
 
 // 번호 목록 항목 하나 — "N. 항목명" 다음 줄에 값이 오는 형태. sourceKey가 있으면 필드

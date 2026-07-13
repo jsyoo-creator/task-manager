@@ -81,6 +81,28 @@ export function resolveMessageTemplate(message: string, phrases: MailOptionalPhr
   return replaced.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim();
 }
 
+// 안내 문구를 "일반 텍스트 조각"과 "{이름} 자리" 조각으로 쪼갬 — 메일 작성 화면에서
+// 체크박스를 마커의 실제 위치 그대로(문장 중간이든 어디든) 인라인으로 보여주기 위함
+type MessageSegment = { type: 'text'; value: string } | { type: 'phrase'; name: string };
+
+function splitMessageIntoSegments(message: string): MessageSegment[] {
+  const segments: MessageSegment[] = [];
+  const re = /\{([^{}]+)\}/g;
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(message))) {
+    if (m.index > lastIndex) segments.push({ type: 'text', value: message.slice(lastIndex, m.index) });
+    segments.push({ type: 'phrase', name: m[1] });
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < message.length || segments.length === 0) segments.push({ type: 'text', value: message.slice(lastIndex) });
+  return segments;
+}
+
+function segmentsToMessage(segments: MessageSegment[]): string {
+  return segments.map(seg => seg.type === 'text' ? seg.value : `{${seg.name}}`).join('');
+}
+
 // 메일 표의 기본 제공 항목 — 설정에서 이 중 어떤 걸 보여줄지 탭별로 고를 수 있음
 export const MAIL_TABLE_BUILTIN_FIELDS: { key: string; label: string }[] = [
   { key: 'title', label: '업무명' },
@@ -904,7 +926,9 @@ export default function TaskDetailPanel({
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
-  const mailMessageRef = useRef<HTMLSpanElement>(null);
+  // 안내 문구는 텍스트 조각별로 각각 별도의 contentEditable을 쓰므로(조각 사이에 체크박스가
+  // 끼기 때문), 조각 인덱스 → DOM 노드로 여러 개를 들고 있어야 함
+  const mailMessageSegRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
 
   // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음. 인사말/업무 정보 표는
@@ -931,14 +955,17 @@ export default function TaskDetailPanel({
     document.documentElement.style.setProperty('--detail-panel-w', `${panelW}px`);
   }, [visible, panelW]);
 
-  // 안내 문구를 업무명/삽입 항목 바로 뒤에 자연스럽게 이어지는 진짜 텍스트 흐름으로
-  // 보여주기 위해 textarea 대신 contentEditable을 씀(둘 다 flex 아이템으로 두면 각자
-  // 고정 폭 박스가 되어, 줄바꿈될 때 실제 이메일처럼 자연스럽게 이어지지 않고 어색하게
-  // 끊겨 보임). contentEditable은 React가 자식을 직접 관리하지 않으므로, 사용자가 아닌
-  // 외부 요인(프리셋 전환 등)으로 mailMessage가 바뀌었을 때만 DOM에 반영한다
+  // 안내 문구를 업무명/삽입 항목과 자연스럽게 이어지는 진짜 텍스트 흐름으로 보여주면서도
+  // "{이름}" 자리에는 실제 위치 그대로 체크박스를 끼워 넣어야 해서, 텍스트 조각마다 별도의
+  // contentEditable을 쓴다. contentEditable은 React가 자식을 직접 관리하지 않으므로,
+  // 사용자가 아닌 외부 요인(프리셋 전환 등)으로 mailMessage가 바뀌었을 때만 DOM에 반영한다
   useEffect(() => {
-    const el = mailMessageRef.current;
-    if (el && el.innerText !== mailMessage) el.textContent = mailMessage;
+    const segments = splitMessageIntoSegments(mailMessage);
+    segments.forEach((seg, i) => {
+      if (seg.type !== 'text') return;
+      const el = mailMessageSegRefs.current.get(i);
+      if (el && el.innerText !== seg.value) el.textContent = seg.value;
+    });
   }, [mailMessage, mailOpen, mailPresetId]);
 
   useEffect(() => {
@@ -2536,62 +2563,62 @@ export default function TaskDetailPanel({
                         </span>
                       );
                     })}
-                    <span
-                      ref={mailMessageRef}
-                      contentEditable
-                      suppressContentEditableWarning
-                      onInput={e => setMailMessage(e.currentTarget.innerText)}
-                      className="outline-none rounded break-keep focus:ring-1 focus:ring-[#6C63FF]/30"
-                    />
-                  </p>
-                );
-              })()}
-              {(() => {
-                const currentPart = parts.find(p => p.name === task.category);
-                const presets = currentPart?.mailFormConfig ?? [];
-                const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
-                // 안내 문구 안에 "{이름}" 자리가 있으면, 체크 여부로 그 문구를 넣을지 뺄지 고를 수 있게 함
-                const phraseNames = extractPhraseMarkerNames(mailMessage);
-                if (phraseNames.length === 0) return null;
-                return (
-                  <div className="mt-2 space-y-1">
-                    {phraseNames.map(name => {
-                      const phrase = currentPreset?.optionalPhrases?.find(p => p.name === name);
-                      if (!phrase || phrase.options.length === 0) return null;
-                      const selectedId = mailPhraseSelected[phrase.id] ?? '';
-                      if (phrase.options.length === 1) {
-                        const only = phrase.options[0];
-                        const checked = selectedId === only.id;
-                        return (
-                          <label key={phrase.id} className="flex items-start gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => setMailPhraseSelected(prev => ({ ...prev, [phrase.id]: checked ? '' : only.id }))}
-                              className="mt-0.5 flex-shrink-0"
+                    {(() => {
+                      // "{이름}" 자리는 실제 위치 그대로 체크박스(옵션 1개) 또는 드롭다운(2개 이상)을
+                      // 끼워 넣고, 그 사이사이 일반 텍스트는 조각별로 나눠 각각 편집 가능하게 함
+                      const segments = splitMessageIntoSegments(mailMessage);
+                      return segments.map((seg, i) => {
+                        if (seg.type === 'text') {
+                          return (
+                            <span
+                              key={i}
+                              ref={el => { if (el) mailMessageSegRefs.current.set(i, el); else mailMessageSegRefs.current.delete(i); }}
+                              contentEditable
+                              suppressContentEditableWarning
+                              onInput={e => {
+                                const next = [...segments];
+                                next[i] = { type: 'text', value: e.currentTarget.textContent ?? '' };
+                                setMailMessage(segmentsToMessage(next));
+                              }}
+                              className="outline-none rounded break-keep focus:ring-1 focus:ring-[#6C63FF]/30"
                             />
-                            <span>
-                              <span className="font-medium text-gray-500">{name}</span>
-                              {only.text && <span className="text-gray-400"> — {only.text}</span>}
-                            </span>
-                          </label>
-                        );
-                      }
-                      return (
-                        <div key={phrase.id} className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <span className="font-medium text-gray-500 flex-shrink-0">{name}</span>
+                          );
+                        }
+                        const phrase = currentPreset?.optionalPhrases?.find(p => p.name === seg.name);
+                        if (!phrase || phrase.options.length === 0) {
+                          // 아직 "선택 문구 관리"에서 옵션을 설정하지 않은 마커 — 데이터 손실 방지를
+                          // 위해 마커 그대로 보여줌(설정하면 자동으로 체크박스/드롭다운으로 바뀜)
+                          return <span key={i} className="text-gray-400">{`{${seg.name}}`}</span>;
+                        }
+                        const selectedId = mailPhraseSelected[phrase.id] ?? '';
+                        if (phrase.options.length === 1) {
+                          const only = phrase.options[0];
+                          const checked = selectedId === only.id;
+                          return (
+                            <label key={i} className="inline-flex items-center gap-1 align-middle mx-0.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => setMailPhraseSelected(prev => ({ ...prev, [phrase.id]: checked ? '' : only.id }))}
+                              />
+                              <span className="text-xs text-gray-600">{seg.name}</span>
+                            </label>
+                          );
+                        }
+                        return (
                           <select
+                            key={i}
                             value={selectedId}
                             onChange={e => setMailPhraseSelected(prev => ({ ...prev, [phrase.id]: e.target.value }))}
-                            className="flex-1 min-w-0 text-xs px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 bg-white"
+                            className="inline-block align-middle mx-0.5 text-xs px-1.5 py-0.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 bg-white"
                           >
-                            <option value="">선택 안 함</option>
+                            <option value="">{seg.name}</option>
                             {phrase.options.map(o => <option key={o.id} value={o.id}>{o.text}</option>)}
                           </select>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      });
+                    })()}
+                  </p>
                 );
               })()}
               {(() => {

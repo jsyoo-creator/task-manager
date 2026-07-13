@@ -3918,6 +3918,11 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
 
   const handleSetFieldLinkText = (id: string, linkText: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) });
 
+  // 사용자 입력(연결 안 된) 항목의 텍스트/날짜/링크 속성을 자유롭게 바꿈 — 연결된 항목은
+  // 실제 필드 타입을 따라야 하므로 이 드롭다운 대신 아래 handleFixFieldToUrl로만 보정
+  const handleSetFieldType = (id: string, type: 'text' | 'date' | 'url') =>
+    patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, type } : f) });
+
   const handleSetFieldLabel = (id: string, label: string) => {
     if (!label.trim()) return;
     patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, label: label.trim() } : f) });
@@ -3926,10 +3931,14 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   // 링크(URL) 속성이 생기기 전에 "텍스트"로 추가해둔 필드를 링크로 전환
   const handleFixFieldToUrl = (id: string) => patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, type: 'url' } : f) });
 
-  // 이미 추가해둔 "사용자 입력" 항목을 세부 업무의 시작일/종료일과 연결(이름은 그대로 유지)
-  const handleConnectSubTask = (id: string, subTaskKey: string) => {
-    if (!subTaskKey) return;
-    patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, sourceKey: subTaskKey, source: 'subtask' as const } : f) });
+  // 이미 추가해둔 "사용자 입력" 항목을 필드 또는 세부 업무 시작일/종료일과 연결(이름은 그대로 유지).
+  // 연결하는 필드의 타입에 맞춰 항목 타입도 함께 바꿔서, 미리 텍스트/날짜/링크 중 뭘로
+  // 맞춰놨는지와 상관없이 아무 필드나 바로 연결할 수 있게 함
+  const handleConnectField = (id: string, key: string) => {
+    if (!key) return;
+    const source = candidateFields.find(f => f.key === key);
+    if (!source) return;
+    patch({ customFields: (table.customFields ?? []).map(f => f.id === id ? { ...f, type: source.type, sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const } : f) });
   };
 
   // 연결을 해제해 다시 "사용자 입력" 항목으로 되돌림
@@ -4008,25 +4017,48 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                       onCommit={v => handleSetFieldLabel(f.id, v)}
                       className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
                     />
-                    <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                    {f.sourceKey ? (
+                      <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'})</span>
+                    ) : (
+                      <select value={f.type} onChange={e => handleSetFieldType(f.id, e.target.value as 'text' | 'date' | 'url')}
+                        className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                        <option value="text">텍스트</option>
+                        <option value="date">날짜</option>
+                        <option value="url">링크</option>
+                      </select>
+                    )}
                     {needsFix && (
                       <button onClick={() => handleFixFieldToUrl(f.id)}
                         className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
                         🔗 링크로 전환
                       </button>
                     )}
-                    {!f.sourceKey && f.type === 'date' && candidateFields.some(cf => cf.source === 'subtask') && (
-                      <select value="" onChange={e => handleConnectSubTask(f.id, e.target.value)}
-                        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
-                        <option value="">세부 업무 연결</option>
-                        {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                      </select>
-                    )}
-                    {f.source === 'subtask' && (
-                      <button onClick={() => handleDisconnectField(f.id)}
-                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
-                        연결 해제
-                      </button>
+                    {f.sourceKey ? (
+                      <>
+                        <span className="text-gray-400 flex-shrink-0">연결됨</span>
+                        <button onClick={() => handleDisconnectField(f.id)}
+                          className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                          연결 해제
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-400 flex-shrink-0">사용자 입력</span>
+                        {candidateFields.length > 0 && (
+                          <select value="" onChange={e => handleConnectField(f.id, e.target.value)}
+                            className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                            <option value="">필드 연결</option>
+                            <optgroup label="필드">
+                              {candidateFields.filter(cf => cf.source === 'field').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                            </optgroup>
+                            {candidateFields.some(cf => cf.source === 'subtask') && (
+                              <optgroup label="세부 업무">
+                                {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                              </optgroup>
+                            )}
+                          </select>
+                        )}
+                      </>
                     )}
                     {f.type === 'url' && (
                       <InlineTextField
@@ -4830,10 +4862,20 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, label: label.trim() } : f) } : p));
   };
 
-  // 이미 추가해둔 "사용자 입력" 항목을 세부 업무의 시작일/종료일과 연결(이름은 그대로 유지)
-  const handleConnectSubTask = (id: string, subTaskKey: string) => {
-    if (!currentPreset || !subTaskKey) return;
-    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: subTaskKey, source: 'subtask' as const } : f) } : p));
+  // 사용자 입력(연결 안 된) 항목의 텍스트/날짜/링크 속성을 자유롭게 바꿈
+  const handleSetCustomFieldType = (id: string, type: 'text' | 'date' | 'url') => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, type } : f) } : p));
+  };
+
+  // 이미 추가해둔 "사용자 입력" 항목을 필드 또는 세부 업무 시작일/종료일과 연결(이름은 그대로 유지).
+  // 연결하는 필드의 타입에 맞춰 항목 타입도 함께 바꿔서, 미리 텍스트/날짜/링크 중 뭘로
+  // 맞춰놨는지와 상관없이 아무 필드나 바로 연결할 수 있게 함
+  const handleConnectField = (id: string, key: string) => {
+    if (!currentPreset || !key) return;
+    const source = candidateFields.find(f => f.key === key);
+    if (!source) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, tableCustomFields: (p.tableCustomFields ?? []).map(f => f.id === id ? { ...f, type: source.type, sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const } : f) } : p));
   };
 
   // 연결을 해제해 다시 "사용자 입력" 항목으로 되돌림
@@ -5230,25 +5272,48 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                           onCommit={v => handleSetCustomFieldLabel(f.id, v)}
                           className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
                         />
-                        <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                        {f.sourceKey ? (
+                          <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : f.type === 'url' ? '링크' : '텍스트'})</span>
+                        ) : (
+                          <select value={f.type} onChange={e => handleSetCustomFieldType(f.id, e.target.value as 'text' | 'date' | 'url')}
+                            className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                            <option value="text">텍스트</option>
+                            <option value="date">날짜</option>
+                            <option value="url">링크</option>
+                          </select>
+                        )}
                         {needsFix && (
                           <button onClick={() => handleFixFieldToUrl(f.id)}
                             className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200 flex-shrink-0">
                             🔗 링크로 전환
                           </button>
                         )}
-                        {!f.sourceKey && f.type === 'date' && candidateFields.some(cf => cf.source === 'subtask') && (
-                          <select value="" onChange={e => handleConnectSubTask(f.id, e.target.value)}
-                            className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
-                            <option value="">세부 업무 연결</option>
-                            {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                          </select>
-                        )}
-                        {f.source === 'subtask' && (
-                          <button onClick={() => handleDisconnectField(f.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
-                            연결 해제
-                          </button>
+                        {f.sourceKey ? (
+                          <>
+                            <span className="text-gray-400 flex-shrink-0">연결됨</span>
+                            <button onClick={() => handleDisconnectField(f.id)}
+                              className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                              연결 해제
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-gray-400 flex-shrink-0">사용자 입력</span>
+                            {candidateFields.length > 0 && (
+                              <select value="" onChange={e => handleConnectField(f.id, e.target.value)}
+                                className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                                <option value="">필드 연결</option>
+                                <optgroup label="필드">
+                                  {candidateFields.filter(cf => cf.source === 'field').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                                </optgroup>
+                                {candidateFields.some(cf => cf.source === 'subtask') && (
+                                  <optgroup label="세부 업무">
+                                    {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                                  </optgroup>
+                                )}
+                              </select>
+                            )}
+                          </>
                         )}
                         {f.type === 'url' && (
                           <InlineTextField

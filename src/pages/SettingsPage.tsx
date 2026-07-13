@@ -8,7 +8,8 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml } from '../components/TaskDetailPanel';
+import type { MailBodyBlock } from '../components/TaskDetailPanel';
 
 interface Props {
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -4446,6 +4447,17 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
 
   const blockKeys = resolveMailBodyBlockKeys(preset);
   const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
+  // 실제 발송/복사 때와 완전히 동일한 함수로 만든 HTML 그대로 보여줘야 미리보기가
+  // "진짜처럼" 보임 — 드래그 UI를 씌운다고 블록별로 쪼개 다시 감싸면 여백/정렬이 미묘하게
+  // 달라져 어색해지므로, 미리보기 자체는 손대지 않고 순서 변경은 아래 별도 목록으로 분리
+  const html = buildMailHtml(greeting, messageLine, blocks, signature);
+
+  const visibleBlocks = blocks.filter(b => mailBodyBlockToHtml(b).trim() !== '');
+  const blockLabel = (block: MailBodyBlock) => {
+    if (block.kind === 'table') return block.table.title || (block.key === 'table:main' ? '표 (기본 정보)' : '표');
+    if (block.kind === 'list') return block.group.title || '목록';
+    return '본문 추가 항목';
+  };
 
   const dragKeyRef = useRef<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
@@ -4469,37 +4481,35 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   // 미리보기만 화면에 남고, 미리보기 자체가 뷰포트보다 길면 내부적으로만 스크롤되게 캡을 둠
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-      <p className="text-xs font-semibold text-gray-700 mb-1">
+      <p className="text-xs font-semibold text-gray-700 mb-3">
         본문 미리보기 <span className="font-normal text-gray-400">(샘플 값으로 표시)</span>
       </p>
-      <p className="text-[11px] text-gray-400 mb-3">표/본문 추가 항목/목록 영역을 드래그해서 순서를 바꿀 수 있어요.</p>
-      <div className="text-[13px] text-gray-800 leading-relaxed">
-        <p>{greeting}</p>
-        <p>{messageLine}</p>
-        {blocks.map(block => {
-          const html = mailBodyBlockToHtml(block);
-          if (!html) return null;
-          return (
-            <div
-              key={block.key}
-              draggable
-              onDragStart={() => { dragKeyRef.current = block.key; }}
-              onDragOver={e => { e.preventDefault(); setDragOverKey(block.key); }}
-              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null); }}
-              onDrop={() => handleDropBlock(block.key)}
-              onDragEnd={() => { dragKeyRef.current = null; setDragOverKey(null); }}
-              className={`group flex items-start gap-1.5 -mx-1.5 px-1.5 py-1 rounded-lg cursor-grab active:cursor-grabbing transition-colors ${
-                dragOverKey === block.key ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-gray-50'
-              }`}
-            >
-              <GripVertical size={14} className="text-gray-300 mt-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="flex-1 min-w-0" dangerouslySetInnerHTML={{ __html: html }} />
-            </div>
-          );
-        })}
-        <p className="mt-1">감사합니다.</p>
-        {signature && <p className="mt-1">{signature}</p>}
-      </div>
+      <div className="text-[13px] text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+
+      {visibleBlocks.length > 1 && (
+        <div className="mt-4 pt-3 border-t border-gray-100">
+          <p className="text-[11px] font-semibold text-gray-500 mb-1.5">영역 순서 변경</p>
+          <div className="space-y-1">
+            {visibleBlocks.map(block => (
+              <div
+                key={block.key}
+                draggable
+                onDragStart={() => { dragKeyRef.current = block.key; }}
+                onDragOver={e => { e.preventDefault(); setDragOverKey(block.key); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null); }}
+                onDrop={() => handleDropBlock(block.key)}
+                onDragEnd={() => { dragKeyRef.current = null; setDragOverKey(null); }}
+                className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 cursor-grab active:cursor-grabbing transition-colors ${
+                  dragOverKey === block.key ? 'ring-1 ring-indigo-300 bg-indigo-50' : ''
+                }`}
+              >
+                <GripVertical size={12} className="text-gray-300 flex-shrink-0" />
+                <span className="truncate">{blockLabel(block)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4789,10 +4799,25 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, title: title.trim() } : f) } : p));
   };
 
-  // 이미 추가해둔 "사용자 입력" 항목을 세부 업무의 시작일/종료일과 연결(제목은 그대로 유지)
-  const handleConnectBodyFieldSubTask = (id: string, subTaskKey: string) => {
-    if (!currentPreset || !subTaskKey) return;
-    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: subTaskKey, source: 'subtask' as const } : f) } : p));
+  // 텍스트/날짜 속성 변경 — 이미 연결된 항목이면 타입이 안 맞을 수 있으니 연결을 해제하고
+  // 다시 "사용자 입력" 항목으로 되돌린 뒤 새 타입으로 재연결하게 함
+  const handleSetBodyFieldType = (id: string, type: 'text' | 'date') => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? {
+      ...p,
+      bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, type, source: undefined, sourceKey: undefined } : f),
+    } : p));
+  };
+
+  // 이미 추가해둔 "사용자 입력" 항목을 필드 또는 세부 업무 시작일/종료일과 연결(제목은 그대로 유지)
+  const handleConnectBodyField = (id: string, key: string) => {
+    if (!currentPreset || !key) return;
+    const source = candidateFields.find(f => f.key === key);
+    if (!source) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? {
+      ...p,
+      bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const } : f),
+    } : p));
   };
 
   // 연결을 해제해 다시 "사용자 입력" 항목으로 되돌림
@@ -5451,19 +5476,39 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                       onCommit={v => handleSetBodyFieldTitle(f.id, v)}
                       className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
                     />
-                    <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
-                    {!f.sourceKey && f.type === 'date' && candidateFields.some(cf => cf.source === 'subtask') && (
-                      <select value="" onChange={e => handleConnectBodyFieldSubTask(f.id, e.target.value)}
-                        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
-                        <option value="">세부 업무 연결</option>
-                        {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                      </select>
-                    )}
-                    {f.sourceKey && (
-                      <button onClick={() => handleDisconnectBodyField(f.id)}
-                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
-                        연결 해제
-                      </button>
+                    <select value={f.type} onChange={e => handleSetBodyFieldType(f.id, e.target.value as 'text' | 'date')}
+                      className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                      <option value="text">텍스트</option>
+                      <option value="date">날짜</option>
+                    </select>
+                    {f.sourceKey ? (
+                      <>
+                        <span className="text-gray-400 flex-shrink-0">연결됨</span>
+                        <button onClick={() => handleDisconnectBodyField(f.id)}
+                          className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                          연결 해제
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-400 flex-shrink-0">사용자 입력</span>
+                        {candidateFields.some(cf => cf.type === f.type) && (
+                          <select value="" onChange={e => handleConnectBodyField(f.id, e.target.value)}
+                            className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                            <option value="">필드 연결</option>
+                            {candidateFields.some(cf => cf.source === 'field' && cf.type === f.type) && (
+                              <optgroup label="필드">
+                                {candidateFields.filter(cf => cf.source === 'field' && cf.type === f.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                              </optgroup>
+                            )}
+                            {candidateFields.some(cf => cf.source === 'subtask' && cf.type === f.type) && (
+                              <optgroup label="세부 업무">
+                                {candidateFields.filter(cf => cf.source === 'subtask' && cf.type === f.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                              </optgroup>
+                            )}
+                          </select>
+                        )}
+                      </>
                     )}
                     <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                   </div>

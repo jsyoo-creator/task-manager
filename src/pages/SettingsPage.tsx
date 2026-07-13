@@ -3500,8 +3500,9 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const isInherited = !isTeam && !currentPart?.excelConfig;
 
-  // formConfig의 customLabel 반영 (설정에서 명칭 변경한 경우 적용)
-  const resolvedBuiltins = resolveBuiltinFields(team.formConfig);
+  // formConfig의 customLabel 반영 (설정에서 명칭 변경한 경우 적용) — 파트 선택 시 파트 전용 설정(팀과 병합) 기준
+  const resolvedFormConfig = isTeam ? team.formConfig : mergeFormConfig(currentPart?.formConfig, team.formConfig);
+  const resolvedBuiltins = resolveBuiltinFields(resolvedFormConfig);
   const BUILTIN_EXCEL_KEYS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
   const builtinExcelFields = BUILTIN_EXCEL_KEYS.map((key, i) => {
     const bf = resolvedBuiltins.find(f => f.key === key);
@@ -3509,7 +3510,7 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
     return { key, label: bf?.customLabel ?? defaultLabel, enabled: true, order: i };
   });
   const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
-  const customFormFields = (team.formConfig?.customFields ?? []).filter(f => f.enabled !== false);
+  const customFormFields = (resolvedFormConfig?.customFields ?? []).filter(f => f.enabled !== false);
 
   const defaultFields: ExcelFieldConfig[] = [
     ...builtinExcelFields,
@@ -3543,7 +3544,7 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   useEffect(() => {
     setFields(buildFields(isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [team.formConfig, team.metaFields]);
+  }, [team.formConfig, team.metaFields, currentPart?.formConfig]);
 
   const toggle = (key: string) => {
     if (isInherited) return;
@@ -3585,7 +3586,6 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   // 폼설정(업무정보필드)의 현재 필드 순서를 이 대상(팀 기본/파트)의 엑셀 컬럼 순서에
   // 한 번 그대로 적용 — 실시간으로 계속 따라가는 게 아니라 이 시점 순서를 그대로 복사해
   // 오는 것이라, 적용한 뒤에는 평소처럼 드래그로 자유롭게 다시 순서를 바꿀 수 있음
-  const resolvedFormConfig = isTeam ? team.formConfig : mergeFormConfig(currentPart?.formConfig, team.formConfig);
   const handleSortByFormOrder = () => {
     const orderKeys = resolveFormFieldOrderKeys(resolvedFormConfig);
     const rank = (key: string) => { const i = orderKeys.indexOf(key); return i === -1 ? Infinity : i; };

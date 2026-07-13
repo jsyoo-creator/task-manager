@@ -2624,14 +2624,24 @@ export default function TaskDetailPanel({
                         const raw = mailPhraseSelected[seg.name] ?? '';
                         if (opts.length <= 1) {
                           const checked = raw === '1';
+                          // 그냥 글자 사이에 작은 체크박스만 있으면 눌러야 하는 자리인지 눈에 잘
+                          // 안 띄므로, 알약 모양 배경을 씌워서 체크 여부와 별개로 "클릭 가능한
+                          // 영역"이라는 게 바로 보이게 하고, 체크되면 색이 확 바뀌게 함
                           return (
-                            <label key={i} className="inline-flex items-center gap-1 align-middle mx-0.5 cursor-pointer select-none">
+                            <label
+                              key={i}
+                              className={`inline-flex items-center gap-1 align-middle mx-0.5 px-2 py-0.5 rounded-full border cursor-pointer select-none transition-colors text-xs font-medium ${
+                                checked
+                                  ? 'bg-[#6C63FF] border-[#6C63FF] text-white'
+                                  : 'bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100'
+                              }`}
+                            >
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 onChange={() => setMailPhraseSelected(prev => ({ ...prev, [seg.name]: checked ? '' : '1' }))}
                               />
-                              <span className="text-xs text-gray-600">{seg.name}</span>
+                              <span>{seg.name}</span>
                             </label>
                           );
                         }
@@ -2640,7 +2650,9 @@ export default function TaskDetailPanel({
                             key={i}
                             value={raw}
                             onChange={e => setMailPhraseSelected(prev => ({ ...prev, [seg.name]: e.target.value }))}
-                            className="inline-block align-middle mx-0.5 text-xs px-1.5 py-0.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 bg-white"
+                            className={`inline-block align-middle mx-0.5 text-xs font-medium px-2 py-0.5 rounded-full border cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 transition-colors ${
+                              raw ? 'bg-[#6C63FF] border-[#6C63FF] text-white' : 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                            }`}
                           >
                             <option value="">{seg.name}</option>
                             {opts.map(o => <option key={o.id} value={o.id}>{o.text}</option>)}

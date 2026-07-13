@@ -246,12 +246,16 @@ export interface MailTableCustomField {
   linkText?: string; // type이 'url'일 때, 실제 값(URL) 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
 }
 
-// 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — 표의 사용자 입력 항목과 마찬가지로 값이
-// 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력한다
+// 표 밖 본문에 추가하는 텍스트/날짜 입력 항목 — sourceKey가 없으면(레거시 기본) 표의
+// 사용자 입력 항목과 마찬가지로 값이 미리 채워지지 않고, 업무 상세의 메일 양식에서
+// 메일 작성할 때마다 직접 입력한다. source/sourceKey가 있으면 표의 커스텀 항목처럼
+// 실제 업무 정보(필드) 또는 세부 업무 시작일/종료일에서 값을 자동으로 가져온다
 export interface MailBodyCustomField {
   id: string;
   title: string;
   type: 'text' | 'date';
+  source?: 'field' | 'subtask';
+  sourceKey?: string; // source==='field'면 customFields의 key, source==='subtask'면 'subTaskTypeId:startDate|endDate'
 }
 
 // 번호 목록 항목 하나 — "N. 항목명" 다음 줄에 값이 오는 형태. sourceKey가 있으면 필드
@@ -335,6 +339,10 @@ export interface MailFormPreset {
   extraTables?: MailTableConfig[]; // 기존 표에 합치지 않고 별도로 구성하는 추가 표 목록
   bodyCustomFields?: MailBodyCustomField[]; // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목
   listGroups?: MailListGroup[]; // 제목 아래 번호 매긴 항목을 나열하는 목록들
+  // 본문에서 표/본문추가항목/목록 "영역" 단위의 전체 순서. 각 항목은 'table:main',
+  // 'table:<extraTables[].id>', 'fields:body', 'list:<listGroups[].id>' 형식의 key.
+  // 없으면 기본 순서(메인 표 → 추가 표들 → 본문 추가 항목 → 목록들) 사용
+  bodyBlockOrder?: string[];
 }
 
 // ── 폼 빌더 ──────────────────────────────────────

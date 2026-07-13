@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, buildMailHtml } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue } from '../components/TaskDetailPanel';
 
 interface Props {
   onUpdatePartCopyIncludeDetails: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -4405,10 +4405,11 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
 
 // 메일 양식 편집 중인 값(preset)을 실제 발송 로직과 동일한 함수로 렌더링해 미리보기로 보여줌.
 // 실제 업무가 없으므로 샘플 값을 채운 가짜 Task로 대체한다.
-function MailBodyPreview({ part, preset, members }: {
+function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   part: TeamPart | undefined;
   preset: MailFormPreset;
   members: { name: string; department?: Department }[];
+  onReorderBlocks: (order: string[]) => void;
 }) {
   const sampleAuthor = members.find(m => m.department === '기획')?.name ?? members[0]?.name ?? '홍길동';
   const today = new Date().toISOString().slice(0, 10);
@@ -4435,20 +4436,70 @@ function MailBodyPreview({ part, preset, members }: {
   const greeting = buildMailGreeting(sampleAuthor);
   const messageLine = composeMessageLine(dummyTask, preset, preset.message || DEFAULT_MAIL_MESSAGE, insertValues);
   const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
-  const extraTables = (preset.extraTables ?? []).map(cfg => buildExtraRenderableTable(dummyTask, cfg, manualValues));
-  const listGroups = (preset.listGroups ?? []).map(g => buildRenderableListGroup(dummyTask, g, manualValues));
-  const bodyExtra = (preset.bodyCustomFields ?? []).map(f => ({ title: f.title, value: sampleValue(f.type) }));
+  const extraTables = (preset.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(dummyTask, cfg, manualValues) }));
+  const listGroups = (preset.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(dummyTask, g, manualValues) }));
+  const bodyExtra = (preset.bodyCustomFields ?? []).map(f => ({
+    title: f.title,
+    value: f.sourceKey ? resolveMailBodyFieldValue(dummyTask, f, manualValues) : sampleValue(f.type),
+  }));
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
-  const html = buildMailHtml(greeting, messageLine, [mainTable, ...extraTables], signature, bodyExtra, listGroups);
+
+  const blockKeys = resolveMailBodyBlockKeys(preset);
+  const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
+
+  const dragKeyRef = useRef<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  const handleDropBlock = (targetKey: string) => {
+    const fromKey = dragKeyRef.current;
+    dragKeyRef.current = null;
+    setDragOverKey(null);
+    if (!fromKey || fromKey === targetKey) return;
+    const keys = blocks.map(b => b.key);
+    const fromIdx = keys.indexOf(fromKey);
+    const toIdx = keys.indexOf(targetKey);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const next = [...keys];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    onReorderBlocks(next);
+  };
 
   // 페이지 전체 스크롤을 따라 내려가다가 상단에서 붙는(sticky) 방식 — 편집 영역이 길어도
   // 미리보기만 화면에 남고, 미리보기 자체가 뷰포트보다 길면 내부적으로만 스크롤되게 캡을 둠
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
-      <p className="text-xs font-semibold text-gray-700 mb-3">
+      <p className="text-xs font-semibold text-gray-700 mb-1">
         본문 미리보기 <span className="font-normal text-gray-400">(샘플 값으로 표시)</span>
       </p>
-      <div className="text-[13px] text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+      <p className="text-[11px] text-gray-400 mb-3">표/본문 추가 항목/목록 영역을 드래그해서 순서를 바꿀 수 있어요.</p>
+      <div className="text-[13px] text-gray-800 leading-relaxed">
+        <p>{greeting}</p>
+        <p>{messageLine}</p>
+        {blocks.map(block => {
+          const html = mailBodyBlockToHtml(block);
+          if (!html) return null;
+          return (
+            <div
+              key={block.key}
+              draggable
+              onDragStart={() => { dragKeyRef.current = block.key; }}
+              onDragOver={e => { e.preventDefault(); setDragOverKey(block.key); }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null); }}
+              onDrop={() => handleDropBlock(block.key)}
+              onDragEnd={() => { dragKeyRef.current = null; setDragOverKey(null); }}
+              className={`group flex items-start gap-1.5 -mx-1.5 px-1.5 py-1 rounded-lg cursor-grab active:cursor-grabbing transition-colors ${
+                dragOverKey === block.key ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-gray-50'
+              }`}
+            >
+              <GripVertical size={14} className="text-gray-300 mt-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex-1 min-w-0" dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
+          );
+        })}
+        <p className="mt-1">감사합니다.</p>
+        {signature && <p className="mt-1">{signature}</p>}
+      </div>
     </div>
   );
 }
@@ -4477,6 +4528,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const [bodyTitleDraft, setBodyTitleDraft] = useState('');
   const [bodyTypeDraft, setBodyTypeDraft] = useState<'text' | 'date'>('text');
+  const [bodyAddMode, setBodyAddMode] = useState<'field' | 'manual'>('manual');
+  const [bodySourceKey, setBodySourceKey] = useState('');
   const bodyDragIdxRef = useRef<number | null>(null);
   const [bodyDragOverIdx, setBodyDragOverIdx] = useState<number | null>(null);
   const rowDragIdxRef = useRef<number | null>(null);
@@ -4538,6 +4591,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleSetMessage = (message: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, message } : p));
+  };
+
+  // 본문 미리보기에서 표/본문추가항목/목록 영역을 드래그로 재정렬했을 때 저장
+  const handleReorderMailBodyBlocks = (order: string[]) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyBlockOrder: order } : p));
   };
 
   const handleToggleShowTaskName = () => {
@@ -4704,9 +4763,42 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setBodyTitleDraft('');
   };
 
+  // 필드/세부 업무와 연결해 추가 — 값이 매번 실제 업무 데이터로 자동 채워짐
+  const handleAddBodyFieldFromSource = () => {
+    if (!currentPreset || !bodySourceKey) return;
+    const source = candidateFields.find(f => f.key === bodySourceKey);
+    if (!source || source.type === 'url') return;
+    const field: MailBodyCustomField = {
+      id: `mbc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      title: source.label,
+      type: source.type,
+      sourceKey: source.key,
+      ...(source.source === 'subtask' ? { source: 'subtask' as const } : {}),
+    };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: [...(p.bodyCustomFields ?? []), field] } : p));
+    setBodySourceKey('');
+  };
+
   const handleRemoveBodyField = (id: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).filter(f => f.id !== id) } : p));
+  };
+
+  const handleSetBodyFieldTitle = (id: string, title: string) => {
+    if (!currentPreset || !title.trim()) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, title: title.trim() } : f) } : p));
+  };
+
+  // 이미 추가해둔 "사용자 입력" 항목을 세부 업무의 시작일/종료일과 연결(제목은 그대로 유지)
+  const handleConnectBodyFieldSubTask = (id: string, subTaskKey: string) => {
+    if (!currentPreset || !subTaskKey) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: subTaskKey, source: 'subtask' as const } : f) } : p));
+  };
+
+  // 연결을 해제해 다시 "사용자 입력" 항목으로 되돌림
+  const handleDisconnectBodyField = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: undefined, source: undefined } : f) } : p));
   };
 
   const handleReorderBodyField = (toIdx: number) => {
@@ -5341,9 +5433,9 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
           <div className="pt-3 border-t border-gray-100 space-y-3">
             <p className="text-xs font-semibold text-gray-700">본문 추가 항목</p>
-            <p className="text-[11px] text-gray-400">표 밖 본문에 텍스트/날짜를 직접 입력하는 항목을 추가합니다. 값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
+            <p className="text-[11px] text-gray-400">표 밖 본문에 텍스트/날짜 항목을 추가합니다. 필드나 세부 업무와 연결하면 실제 업무 데이터로 자동 채워지고, 연결하지 않으면 메일 작성할 때마다 직접 입력합니다.</p>
             {(currentPreset.bodyCustomFields ?? []).length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1 mb-2">
                 {currentPreset.bodyCustomFields!.map((f, i) => (
                   <div key={f.id}
                     draggable
@@ -5354,30 +5446,83 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     onDragEnd={() => { bodyDragIdxRef.current = null; setBodyDragOverIdx(null); }}
                     className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${bodyDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
                     <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                    <span className="flex-1">{f.title} <span className="text-gray-400">({f.type === 'date' ? '날짜' : '텍스트'})</span></span>
+                    <InlineTextField
+                      value={f.title}
+                      onCommit={v => handleSetBodyFieldTitle(f.id, v)}
+                      className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                    />
+                    <span className="text-gray-400 flex-shrink-0">({f.type === 'date' ? '날짜' : '텍스트'}{!f.sourceKey ? ' · 사용자 입력' : ''})</span>
+                    {!f.sourceKey && f.type === 'date' && candidateFields.some(cf => cf.source === 'subtask') && (
+                      <select value="" onChange={e => handleConnectBodyFieldSubTask(f.id, e.target.value)}
+                        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                        <option value="">세부 업무 연결</option>
+                        {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                      </select>
+                    )}
+                    {f.sourceKey && (
+                      <button onClick={() => handleDisconnectBodyField(f.id)}
+                        className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                        연결 해제
+                      </button>
+                    )}
                     <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                   </div>
                 ))}
               </div>
             )}
-            <div className="flex items-center gap-1.5">
-              <input value={bodyTitleDraft} onChange={e => setBodyTitleDraft(e.target.value)}
-                placeholder="제목 (예: 다음 미팅 일정)"
-                className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-              <select value={bodyTypeDraft} onChange={e => setBodyTypeDraft(e.target.value as 'text' | 'date')}
-                className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
-                <option value="text">텍스트</option>
-                <option value="date">날짜</option>
-              </select>
-              <button onClick={handleAddBodyField} disabled={!bodyTitleDraft.trim()}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
-                추가
+            <div className="flex items-center gap-1 mb-1.5">
+              <button onClick={() => setBodyAddMode('field')}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${bodyAddMode === 'field' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                필드에서 추가
+              </button>
+              <button onClick={() => setBodyAddMode('manual')}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${bodyAddMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                사용자 입력 항목
               </button>
             </div>
+            {bodyAddMode === 'field' ? (
+              candidateFields.filter(f => f.type !== 'url').length === 0 ? (
+                <p className="text-[11px] text-gray-400">추가할 수 있는 필드가 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <select value={bodySourceKey} onChange={e => setBodySourceKey(e.target.value)}
+                    className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                    <option value="">필드 선택</option>
+                    <optgroup label="필드">
+                      {candidateFields.filter(f => f.source === 'field' && f.type !== 'url').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </optgroup>
+                    {candidateFields.some(f => f.source === 'subtask') && (
+                      <optgroup label="세부 업무">
+                        {candidateFields.filter(f => f.source === 'subtask').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                  <button onClick={handleAddBodyFieldFromSource} disabled={!bodySourceKey}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                    추가
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <input value={bodyTitleDraft} onChange={e => setBodyTitleDraft(e.target.value)}
+                  placeholder="제목 (예: 다음 미팅 일정)"
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+                <select value={bodyTypeDraft} onChange={e => setBodyTypeDraft(e.target.value as 'text' | 'date')}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+                  <option value="text">텍스트</option>
+                  <option value="date">날짜</option>
+                </select>
+                <button onClick={handleAddBodyField} disabled={!bodyTitleDraft.trim()}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                  추가
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <div className="w-[560px] flex-shrink-0">
-          <MailBodyPreview part={currentPart} preset={currentPreset} members={members} />
+          <MailBodyPreview part={currentPart} preset={currentPreset} members={members} onReorderBlocks={handleReorderMailBodyBlocks} />
         </div>
         </div>
       )}

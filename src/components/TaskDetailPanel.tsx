@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -82,6 +82,11 @@ interface MailTableRow {
   // 입력 타입/필드 id를 함께 넘김 (미리보기에서만 사용, 복사되는 값은 이미 value에 반영됨)
   manualFieldId?: string;
   manualFieldType?: 'text' | 'date' | 'url';
+  // 필드/세부 업무와 연결된 날짜 항목은, 표에서 바로 클릭해 그 원본 값(실제 업무 정보)을
+  // 수정할 수 있어야 하므로 연결 정보 + 원본(미포맷) 날짜 값을 함께 넘김
+  // (실제 업무 메일 작성 화면에서만 사용, value는 이미 "M/D(요일)" 형태로 포맷된 표시용 문자열)
+  dateSourceRef?: { source: 'field' | 'subtask'; sourceKey: string };
+  rawValue?: string;
 }
 
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
@@ -96,7 +101,9 @@ function fmtDateWithWeekday(dateStr?: string): string {
   if (!dateStr) return '-';
   const dateOnly = dateStr.slice(0, 10);
   const wd = weekdayOf(dateOnly);
-  return wd ? `${dateOnly} (${wd})` : dateOnly;
+  const [, m, d] = dateOnly.split('-').map(Number);
+  const md = `${m}/${d}`;
+  return wd ? `${md}(${wd})` : md;
 }
 
 // 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나
@@ -111,7 +118,7 @@ export function resolveMailTableRowOrder(naturalKeys: string[], savedOrder: stri
 // 커스텀 항목의 실제 값을 가져옴 — source가 'subtask'면 sourceKey를
 // "세부업무타입id:startDate|endDate" 형식으로 보고 task.subTaskData에서, 그 외
 // sourceKey가 있으면 task.customFields에서, 없으면(사용자 입력) manualValues에서 가져옴
-function resolveCustomFieldRawValue(task: Task, cf: MailTableCustomField, manualValues?: Record<string, string>): string {
+export function resolveCustomFieldRawValue(task: Task, cf: MailTableCustomField, manualValues?: Record<string, string>): string {
   if (cf.source === 'subtask' && cf.sourceKey) {
     const [subTaskTypeId, dateField] = cf.sourceKey.split(':');
     const entry = task.subTaskData?.[subTaskTypeId];
@@ -119,6 +126,15 @@ function resolveCustomFieldRawValue(task: Task, cf: MailTableCustomField, manual
   }
   if (cf.sourceKey) return task.customFields?.[cf.sourceKey] ?? '';
   return manualValues?.[cf.id] ?? '';
+}
+
+// 본문 추가 항목(MailBodyCustomField) 하나의 최종 표시값 — sourceKey가 있으면 표의
+// 커스텀 항목과 동일한 방식(필드/세부업무)으로 실제 값을 가져오고, 없으면 사용자 입력값을 씀
+export function resolveMailBodyFieldValue(task: Task, f: MailBodyCustomField, manualValues?: Record<string, string>): string {
+  const raw = f.sourceKey
+    ? resolveCustomFieldRawValue(task, { id: f.id, label: f.title, type: f.type, source: f.source, sourceKey: f.sourceKey }, manualValues)
+    : (manualValues?.[f.id] ?? '');
+  return f.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-');
 }
 
 // 항목별 배경색/볼드/숨김/접두·접미 오버라이드 해석 — 공통 로직을 메인 표/추가 표가 함께 씀
@@ -172,6 +188,7 @@ function buildTaskInfoRows(task: Task, statusLabel: string, preset: MailFormPres
       ...resolveStyle(cf.id),
       ...(cf.type === 'url' ? { isUrl: true, linkText: cf.linkText } : {}),
       ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
+      ...(cf.sourceKey && cf.type === 'date' ? { dateSourceRef: { source: cf.source ?? 'field', sourceKey: cf.sourceKey }, rawValue: raw } : {}),
     };
   });
   const naturalKeys = [...Object.keys(rowsByKey)];
@@ -193,6 +210,7 @@ function buildExtraTableRows(task: Task, cfg: MailTableConfig, manualValues?: Re
       ...resolveStyle(cf.id),
       ...(cf.type === 'url' ? { isUrl: true, linkText: cf.linkText } : {}),
       ...(cf.sourceKey ? {} : { manualFieldId: cf.id, manualFieldType: cf.type }),
+      ...(cf.sourceKey && cf.type === 'date' ? { dateSourceRef: { source: cf.source ?? 'field', sourceKey: cf.sourceKey }, rawValue: raw } : {}),
     };
   });
   const naturalKeys = [...Object.keys(rowsByKey)];
@@ -302,16 +320,51 @@ function listGroupToPlainText(g: RenderableListGroup): string | null {
   return g.title ? `[${g.title}]\n${body}` : body;
 }
 
-function buildMailPlainText(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[], listGroups: RenderableListGroup[]): string {
-  const tableBlocks = tables.map(tableToPlainText).filter((b): b is string => !!b);
-  const extraText = bodyExtra.length ? bodyExtra.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : '';
-  const listBlocks = listGroups.map(listGroupToPlainText).filter((b): b is string => !!b);
-  const blocks = [greeting, message, ...tableBlocks];
-  if (extraText) blocks.push(extraText);
-  blocks.push(...listBlocks);
-  blocks.push('감사합니다.');
-  if (signature) blocks.push(signature);
-  return blocks.join('\n\n');
+// 본문의 표/본문추가항목/목록 "영역" 하나 — SettingsPage의 미리보기에서 드래그로
+// 순서를 바꿀 수 있는 최소 단위. key는 MailFormPreset.bodyBlockOrder에 저장되는 값과 동일
+export type MailBodyBlock =
+  | { key: string; kind: 'table'; table: RenderableTable }
+  | { key: string; kind: 'fields'; fields: MailBodyExtraItem[] }
+  | { key: string; kind: 'list'; group: RenderableListGroup };
+
+// 표/본문추가항목/목록 영역 전체의 자연 순서(key) 목록을 preset.bodyBlockOrder에 저장된
+// 순서로 정렬해 반환. 새로 추가되었거나 순서를 저장하기 전부터 있던 영역은 기본 순서
+// (메인 표 → 추가 표들 → 본문 추가 항목 → 목록들) 그대로 뒤에 붙는다.
+export function resolveMailBodyBlockKeys(preset: MailFormPreset | undefined): string[] {
+  const naturalKeys: string[] = ['table:main'];
+  (preset?.extraTables ?? []).forEach(cfg => naturalKeys.push(`table:${cfg.id}`));
+  if ((preset?.bodyCustomFields ?? []).length > 0) naturalKeys.push('fields:body');
+  (preset?.listGroups ?? []).forEach(g => naturalKeys.push(`list:${g.id}`));
+  return resolveMailTableRowOrder(naturalKeys, preset?.bodyBlockOrder);
+}
+
+// 이미 계산된 표/목록/본문추가항목 데이터를 key 순서(resolveMailBodyBlockKeys 결과)대로 조립
+export function assembleMailBodyBlocks(
+  keys: string[],
+  mainTable: RenderableTable,
+  extraTables: { id: string; table: RenderableTable }[],
+  bodyExtra: MailBodyExtraItem[],
+  listGroups: { id: string; group: RenderableListGroup }[]
+): MailBodyBlock[] {
+  const byKey = new Map<string, MailBodyBlock>();
+  byKey.set('table:main', { key: 'table:main', kind: 'table', table: mainTable });
+  extraTables.forEach(({ id, table }) => byKey.set(`table:${id}`, { key: `table:${id}`, kind: 'table', table }));
+  if (bodyExtra.length) byKey.set('fields:body', { key: 'fields:body', kind: 'fields', fields: bodyExtra });
+  listGroups.forEach(({ id, group }) => byKey.set(`list:${id}`, { key: `list:${id}`, kind: 'list', group }));
+  return keys.map(k => byKey.get(k)).filter((b): b is MailBodyBlock => !!b);
+}
+
+function blockToPlainText(b: MailBodyBlock): string | null {
+  if (b.kind === 'table') return tableToPlainText(b.table);
+  if (b.kind === 'list') return listGroupToPlainText(b.group);
+  return b.fields.length ? b.fields.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : null;
+}
+
+export function buildMailPlainText(greeting: string, message: string, blocks: MailBodyBlock[], signature: string): string {
+  const blockTexts = blocks.map(blockToPlainText).filter((b): b is string => !!b);
+  const parts = [greeting, message, ...blockTexts, '감사합니다.'];
+  if (signature) parts.push(signature);
+  return parts.join('\n\n');
 }
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
@@ -358,26 +411,31 @@ function listGroupToHtml(g: RenderableListGroup, FS: string): string {
   return `${titleHtml}${itemsHtml}<br>`;
 }
 
-export function buildMailHtml(greeting: string, message: string, tables: RenderableTable[], signature: string, bodyExtra: MailBodyExtraItem[], listGroups: RenderableListGroup[]): string {
+const MAIL_BODY_FS = 'font-size:13px!important;';
+
+// 영역 하나(표/목록/본문추가항목)를 HTML로 렌더링 — SettingsPage의 미리보기가 영역별로
+// 개별 렌더링해 드래그 UI를 씌울 수 있도록 buildMailHtml에서 분리해 export
+export function mailBodyBlockToHtml(block: MailBodyBlock, FS: string = MAIL_BODY_FS): string {
+  if (block.kind === 'table') return tableToHtml(block.table, FS);
+  if (block.kind === 'list') return listGroupToHtml(block.group, FS);
+  if (!block.fields.length) return '';
+  return block.fields.map(f =>
+    `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
+    `<div style="${FS}margin-bottom:8px;">${escapeHtml(f.value)}</div>`
+  ).join('') + '<br>';
+}
+
+export function buildMailHtml(greeting: string, message: string, blocks: MailBodyBlock[], signature: string): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
-  const FS = 'font-size:13px!important;';
+  const FS = MAIL_BODY_FS;
   const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
-  const tablesHtml = tables.map(t => tableToHtml(t, FS)).join('');
-  const extraHtml = bodyExtra.length
-    ? bodyExtra.map(f =>
-        `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
-        `<div style="${FS}margin-bottom:8px;">${escapeHtml(f.value)}</div>`
-      ).join('') + '<br>'
-    : '';
-  const listGroupsHtml = listGroups.map(g => listGroupToHtml(g, FS)).join('');
+  const blocksHtml = blocks.map(b => mailBodyBlockToHtml(b, FS)).join('');
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
     `${textBlock(message)}<br>` +
-    `${tablesHtml}` +
-    `${extraHtml}` +
-    `${listGroupsHtml}` +
+    `${blocksHtml}` +
     `${textBlock('감사합니다.')}` +
     (signature ? `<br>${textBlock(signature)}` : '') +
     `</div>`
@@ -386,10 +444,13 @@ export function buildMailHtml(greeting: string, message: string, tables: Rendera
 
 // 표 미리보기 — 메인 표/추가로 구성한 표 모두 이 컴포넌트로 렌더링. 사용자 입력(값이
 // 미리 채워지지 않는) 항목은 입력창을 그대로 셀 안에 보여줘 바로 작성할 수 있게 함
-function MailTablePreview({ table, manualValues, setManualValues }: {
+function MailTablePreview({ table, manualValues, setManualValues, onEditDate }: {
   table: RenderableTable;
   manualValues: Record<string, string>;
   setManualValues: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+  // 필드/세부 업무와 연결된 날짜 항목을 표에서 바로 클릭해 수정할 수 있게 함
+  // (실제 업무 데이터를 갱신 — 없으면 그냥 텍스트로만 표시)
+  onEditDate?: (ref: { source: 'field' | 'subtask'; sourceKey: string }, newValue: string) => void;
 }) {
   if (!table.visible) return null;
   return (
@@ -433,6 +494,16 @@ function MailTablePreview({ table, manualValues, setManualValues }: {
                           <a href={r.value} target="_blank" rel="noreferrer" className="text-blue-600 underline">{r.linkText || r.value}</a>
                           {resolveAffixes(r).suffix}
                         </>
+                      ) : r.dateSourceRef && onEditDate ? (
+                        <span className="inline-flex items-center gap-1 w-full">
+                          {r.valuePrefix && <span className="flex-shrink-0">{r.valuePrefix}</span>}
+                          <DatePicker
+                            compact
+                            value={r.rawValue ?? ''}
+                            onChange={v => onEditDate(r.dateSourceRef!, v)}
+                          />
+                          {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
+                        </span>
                       ) : composeRowValue(r)}
                     </td>
                   )}
@@ -985,6 +1056,23 @@ export default function TaskDetailPanel({
   const [pendingDeleteTask, setPendingDeleteTask] = useState(false);
 
   const handleDelete = () => setPendingDeleteTask(true);
+
+  // 메일 표에서 필드/세부 업무와 연결된 날짜 항목을 바로 클릭해 수정 — 표는 항상 실제
+  // 업무 데이터를 다시 그려 보여주는 미리보기라, 여기서 고치면 원본 데이터 자체가 바뀐다
+  const handleEditMailSourcedDate = (ref: { source: 'field' | 'subtask'; sourceKey: string }, newValue: string) => {
+    if (ref.source === 'subtask') {
+      const [subTaskTypeId, dateField] = ref.sourceKey.split(':');
+      const existing = task.subTaskData?.[subTaskTypeId];
+      onUpdate(task.id, {
+        subTaskData: {
+          ...(task.subTaskData ?? {}),
+          [subTaskTypeId]: { weeklyHours: {}, totalHours: 0, ...(existing ?? {}), [dateField]: newValue },
+        },
+      });
+    } else {
+      onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [ref.sourceKey]: newValue } });
+    }
+  };
 
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
 
@@ -2299,93 +2387,115 @@ export default function TaskDetailPanel({
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const inserts = currentPreset?.messageInserts ?? [];
-                if (!currentPreset?.showTaskName && inserts.length === 0) return null;
+                // 업무명/삽입 항목은 실제 복사 시 안내 문구와 한 줄로 이어붙는(composeMessageLine)
+                // 고정 표시라, 편집 중에도 같은 줄에 보이도록 textarea와 한 flex 행에 둠
                 return (
-                  <div className="mt-1 space-y-1.5">
-                    {currentPreset?.showTaskName && <p>{task.title}</p>}
-                    {inserts.map(ins => {
-                      const val = mailMessageInsertValues[ins.id] ?? '';
-                      return (
-                        <div key={ins.id} className="flex items-center gap-1.5">
-                          {ins.type === 'date' ? (
-                            <>
-                              <DatePicker
-                                value={val}
-                                onChange={v => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: v }))}
-                                btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-                              />
-                              {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
-                            </>
-                          ) : (
-                            <input
-                              value={val}
-                              onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
-                              placeholder={ins.label || (ins.type === 'count' ? '건수 입력' : '입력')}
-                              className="flex-1 min-w-0 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
-                            />
-                          )}
-                          {ins.type === 'count' && <span className="text-xs text-gray-400 flex-shrink-0">건</span>}
-                        </div>
-                      );
-                    })}
+                  <div className="mt-1 flex items-start flex-wrap gap-1.5">
+                    {(currentPreset?.showTaskName || inserts.length > 0) && (
+                      <div className="flex items-center flex-wrap gap-1.5 pt-[3px] flex-shrink-0">
+                        {currentPreset?.showTaskName && <span className="whitespace-nowrap">{task.title}</span>}
+                        {inserts.map(ins => {
+                          const val = mailMessageInsertValues[ins.id] ?? '';
+                          return (
+                            <div key={ins.id} className="flex items-center gap-1.5">
+                              {ins.type === 'date' ? (
+                                <>
+                                  <DatePicker
+                                    value={val}
+                                    onChange={v => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: v }))}
+                                    btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                                  />
+                                  {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
+                                </>
+                              ) : (
+                                <input
+                                  value={val}
+                                  onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
+                                  placeholder={ins.label || (ins.type === 'count' ? '건수 입력' : '입력')}
+                                  className="flex-1 min-w-0 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                                />
+                              )}
+                              {ins.type === 'count' && <span className="text-xs text-gray-400 flex-shrink-0">건</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <textarea
+                      value={mailMessage}
+                      onChange={e => setMailMessage(e.target.value)}
+                      rows={1}
+                      // 줄바꿈 문자 수가 아니라 실제 줄바꿈되어 보이는 만큼만 딱 맞게 높이가
+                      // 늘어나도록(불필요한 빈 줄 없이) field-sizing 사용, 미지원 브라우저는 rows=1로 대체
+                      style={{ fieldSizing: 'content' } as any}
+                      className="flex-1 min-w-[140px] text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
+                    />
                   </div>
                 );
               })()}
-              <textarea
-                value={mailMessage}
-                onChange={e => setMailMessage(e.target.value)}
-                rows={2}
-                // 줄바꿈 문자 수가 아니라 실제 줄바꿈되어 보이는 만큼만 딱 맞게 높이가
-                // 늘어나도록(불필요한 빈 줄 없이) field-sizing 사용, 미지원 브라우저는 rows=2로 대체
-                style={{ fieldSizing: 'content' } as any}
-                className="w-full mt-2 text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
-              />
               {(() => {
                 const currentPart = parts.find(p => p.name === task.category);
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
                 const mainTable = buildMainRenderableTable(task, statusLabel, currentPreset, mailManualValues);
-                const extraTables = (currentPreset?.extraTables ?? []).map(cfg => ({ cfg, table: buildExtraRenderableTable(task, cfg, mailManualValues) }));
-                const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ group: g, resolved: buildRenderableListGroup(task, g, mailManualValues) }));
+                const extraTableMap = new Map((currentPreset?.extraTables ?? []).map(cfg => [cfg.id, buildExtraRenderableTable(task, cfg, mailManualValues)]));
+                const listGroupMap = new Map((currentPreset?.listGroups ?? []).map(g => [g.id, buildRenderableListGroup(task, g, mailManualValues)]));
+                // 영역(표/본문추가항목/목록) 순서 — 설정 > 메일 양식 미리보기에서 드래그로
+                // 바꾼 순서(preset.bodyBlockOrder)를 그대로 따름
+                const blockKeys = resolveMailBodyBlockKeys(currentPreset);
                 return (
                   <div>
-                    <MailTablePreview table={mainTable} manualValues={mailManualValues} setManualValues={setMailManualValues} />
-                    {extraTables.map(({ cfg, table }) => (
-                      <MailTablePreview key={cfg.id} table={table} manualValues={mailManualValues} setManualValues={setMailManualValues} />
-                    ))}
-                    {(currentPreset?.bodyCustomFields ?? []).length > 0 && (
-                      <div className="mt-3 space-y-3">
-                        {currentPreset!.bodyCustomFields!.map(f => {
-                          const val = mailBodyManualValues[f.id] ?? '';
-                          return (
-                            <div key={f.id}>
-                              <p className="font-bold mb-1">[{f.title}]</p>
-                              {f.type === 'date' ? (
-                                <div className="flex items-center gap-1.5">
-                                  <DatePicker
-                                    value={val}
-                                    onChange={v => setMailBodyManualValues(prev => ({ ...prev, [f.id]: v }))}
-                                    btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-                                  />
-                                  {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
+                    {blockKeys.map(key => {
+                      if (key === 'table:main') {
+                        return <MailTablePreview key={key} table={mainTable} manualValues={mailManualValues} setManualValues={setMailManualValues} onEditDate={handleEditMailSourcedDate} />;
+                      }
+                      if (key === 'fields:body') {
+                        if (!(currentPreset?.bodyCustomFields ?? []).length) return null;
+                        return (
+                          <div key={key} className="mt-3 space-y-3">
+                            {currentPreset!.bodyCustomFields!.map(f => {
+                              const val = mailBodyManualValues[f.id] ?? '';
+                              return (
+                                <div key={f.id}>
+                                  <p className="font-bold mb-1">[{f.title}]</p>
+                                  {f.sourceKey ? (
+                                    // 필드/세부업무에 연결된 항목은 항상 최신 업무 데이터로 다시
+                                    // 계산되는 고정 표시 — 표의 연결 항목과 동일하게 수정 불가
+                                    <p className="text-gray-700">{resolveMailBodyFieldValue(task, f, mailBodyManualValues)}</p>
+                                  ) : f.type === 'date' ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <DatePicker
+                                        value={val}
+                                        onChange={v => setMailBodyManualValues(prev => ({ ...prev, [f.id]: v }))}
+                                        btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                                      />
+                                      {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
+                                    </div>
+                                  ) : (
+                                    <input
+                                      value={val}
+                                      onChange={e => setMailBodyManualValues(prev => ({ ...prev, [f.id]: e.target.value }))}
+                                      placeholder="입력"
+                                      className="w-full text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                                    />
+                                  )}
                                 </div>
-                              ) : (
-                                <input
-                                  value={val}
-                                  onChange={e => setMailBodyManualValues(prev => ({ ...prev, [f.id]: e.target.value }))}
-                                  placeholder="입력"
-                                  className="w-full text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
-                                />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {listGroups.map(({ group, resolved }) => (
-                      <MailListGroupPreview key={group.id} group={resolved} manualValues={mailManualValues} setManualValues={setMailManualValues} />
-                    ))}
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      if (key.startsWith('table:')) {
+                        const table = extraTableMap.get(key.slice('table:'.length));
+                        return table ? <MailTablePreview key={key} table={table} manualValues={mailManualValues} setManualValues={setMailManualValues} onEditDate={handleEditMailSourcedDate} /> : null;
+                      }
+                      if (key.startsWith('list:')) {
+                        const group = listGroupMap.get(key.slice('list:'.length));
+                        return group ? <MailListGroupPreview key={key} group={group} manualValues={mailManualValues} setManualValues={setMailManualValues} /> : null;
+                      }
+                      return null;
+                    })}
                   </div>
                 );
               })()}
@@ -2403,18 +2513,19 @@ export default function TaskDetailPanel({
               const presets = currentPart?.mailFormConfig ?? [];
               const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
               const mainTable = buildMainRenderableTable(task, statusLabel, currentPreset, mailManualValues);
-              const extraTables = (currentPreset?.extraTables ?? []).map(cfg => buildExtraRenderableTable(task, cfg, mailManualValues));
-              const allTables = [mainTable, ...extraTables];
+              const extraTables = (currentPreset?.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(task, cfg, mailManualValues) }));
               const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
                 title: f.title,
-                value: f.type === 'date' ? fmtDateWithWeekday(mailBodyManualValues[f.id]) : (mailBodyManualValues[f.id] || '-'),
+                value: resolveMailBodyFieldValue(task, f, mailBodyManualValues),
               }));
-              const listGroups = (currentPreset?.listGroups ?? []).map(g => buildRenderableListGroup(task, g, mailManualValues));
+              const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));
+              const blockKeys = resolveMailBodyBlockKeys(currentPreset);
+              const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
               const messageLine = composeMessageLine(task, currentPreset, mailMessage, mailMessageInsertValues);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, messageLine, allTables, signature, bodyExtra, listGroups);
+              const plainText = buildMailPlainText(greeting, messageLine, blocks, signature);
               try {
-                const html = buildMailHtml(greeting, messageLine, allTables, signature, bodyExtra, listGroups);
+                const html = buildMailHtml(greeting, messageLine, blocks, signature);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

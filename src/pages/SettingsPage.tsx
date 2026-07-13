@@ -4441,16 +4441,14 @@ function MailBodyPreview({ part, preset, members }: {
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
   const html = buildMailHtml(greeting, messageLine, [mainTable, ...extraTables], signature, bodyExtra, listGroups);
 
-  // 이 컴포넌트를 감싸는 조상(.glass-card)이 overflow:hidden이라 position:sticky가 페이지
-  // 스크롤을 기준으로 동작하지 않는다. 대신 이 카드 자체를 뷰포트 높이에 맞춰 고정하고
-  // (제목은 고정, 본문만 내부 스크롤) 왼쪽 편집 영역도 자체 스크롤을 갖게 해, 왼쪽을
-  // 스크롤해도 오른쪽 미리보기가 화면에서 사라지지 않도록 한다.
+  // 페이지 전체 스크롤을 따라 내려가다가 상단에서 붙는(sticky) 방식 — 편집 영역이 길어도
+  // 미리보기만 화면에 남고, 미리보기 자체가 뷰포트보다 길면 내부적으로만 스크롤되게 캡을 둠
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 max-h-[75vh] flex flex-col">
-      <p className="text-xs font-semibold text-gray-700 mb-3 flex-shrink-0">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <p className="text-xs font-semibold text-gray-700 mb-3">
         본문 미리보기 <span className="font-normal text-gray-400">(샘플 값으로 표시)</span>
       </p>
-      <div className="text-[13px] text-gray-800 leading-relaxed overflow-y-auto flex-1 min-h-0" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="text-[13px] text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
@@ -4875,7 +4873,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
         </p>
       ) : (
         <div className="flex items-start gap-4">
-        <div className="flex-1 min-w-0 space-y-3 rounded-xl border border-gray-100 p-4 max-h-[75vh] overflow-y-auto">
+        <div className="flex-1 min-w-0 space-y-3 rounded-xl border border-gray-100 p-4">
           <div className="flex items-center gap-3">
             <input
               value={nameDraft}
@@ -5512,7 +5510,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   };
 
   return (
-    <section className="glass-card">
+    // 메일 관리 탭의 본문 미리보기가 position:sticky로 붙어야 하는데, glass-card의
+    // overflow:hidden이 있으면 페이지 스크롤 기준으로 sticky가 동작하지 않아 noclip 버전 사용
+    <section className="glass-card-noclip">
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <Layers size={15} className="text-blue-500" />

@@ -25,6 +25,8 @@ const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
 export function composeMessageLine(task: Task, preset: MailFormPreset | undefined, message: string, insertValues: Record<string, string>): string {
   const parts: string[] = [];
   if (preset?.showTaskName) parts.push(task.title);
+  // 삽입 항목이 여러 개 체크/입력되면 서로 붙어 보여 구분이 안 되므로 "·"로 구분해 이어붙임
+  const insertParts: string[] = [];
   (preset?.messageInserts ?? []).forEach(ins => {
     const raw = insertValues[ins.id] ?? '';
     if (!raw) return;
@@ -32,15 +34,16 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
       // 옵션이 1개 이하면 "여러 개 중 선택"이 아니라 "이 문구를 쓸지 말지"(체크박스)라,
       // 옵션 유무와 상관없이 체크만 하면 옵션 문구(없으면 항목 이름)를 그대로 씀
       if ((ins.options ?? []).length <= 1) {
-        if (raw === '1') { const t = ins.options?.[0]?.text || ins.label; if (t) parts.push(t); }
+        if (raw === '1') { const t = ins.options?.[0]?.text || ins.label; if (t) insertParts.push(t); }
         return;
       }
       const text = ins.options?.find(o => o.id === raw)?.text;
-      if (text) parts.push(text);
+      if (text) insertParts.push(text);
       return;
     }
-    parts.push(ins.type === 'date' ? fmtDateInsertLabel(raw) : ins.type === 'count' ? `${raw}건` : raw);
+    insertParts.push(ins.type === 'date' ? fmtDateInsertLabel(raw) : ins.type === 'count' ? `${raw}건` : raw);
   });
+  if (insertParts.length) parts.push(insertParts.join(' · '));
   parts.push(message || DEFAULT_MAIL_MESSAGE);
   return parts.join(' ');
 }

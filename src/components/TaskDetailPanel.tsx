@@ -846,7 +846,7 @@ export default function TaskDetailPanel({
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
-  const mailMessageRef = useRef<HTMLTextAreaElement>(null);
+  const mailMessageRef = useRef<HTMLSpanElement>(null);
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
 
   // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음. 인사말/업무 정보 표는
@@ -872,14 +872,14 @@ export default function TaskDetailPanel({
     document.documentElement.style.setProperty('--detail-panel-w', `${panelW}px`);
   }, [visible, panelW]);
 
-  // 안내 문구 textarea 높이를 내용에 맞춰 자동 조절 — field-sizing:content를 flex-1(가변
-  // 너비)와 같이 쓰면 줄바꿈 계산이 실제 렌더 너비와 어긋나 이상한 위치에서 줄이 바뀌는
-  // 문제가 있어, 대신 자바스크립트로 직접 높이만 맞춘다(너비는 flex가 그대로 담당)
+  // 안내 문구를 업무명/삽입 항목 바로 뒤에 자연스럽게 이어지는 진짜 텍스트 흐름으로
+  // 보여주기 위해 textarea 대신 contentEditable을 씀(둘 다 flex 아이템으로 두면 각자
+  // 고정 폭 박스가 되어, 줄바꿈될 때 실제 이메일처럼 자연스럽게 이어지지 않고 어색하게
+  // 끊겨 보임). contentEditable은 React가 자식을 직접 관리하지 않으므로, 사용자가 아닌
+  // 외부 요인(프리셋 전환 등)으로 mailMessage가 바뀌었을 때만 DOM에 반영한다
   useEffect(() => {
     const el = mailMessageRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    if (el && el.innerText !== mailMessage) el.textContent = mailMessage;
   }, [mailMessage, mailOpen, mailPresetId]);
 
   useEffect(() => {
@@ -2425,53 +2425,46 @@ export default function TaskDetailPanel({
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const inserts = currentPreset?.messageInserts ?? [];
-                // 업무명/삽입 항목은 실제 복사 시 안내 문구와 한 줄로 이어붙는(composeMessageLine)
-                // 고정 표시라, 편집 중에도 같은 줄에 보이도록 textarea와 한 flex 행에 둠
+                // 업무명/삽입 항목/안내 문구는 실제 복사 시 한 줄로 이어붙는(composeMessageLine)
+                // 고정 표시라, 편집 중에도 하나의 자연스러운 텍스트 흐름으로 보여야 함 — flex로
+                // 감싸면 각자 고정 폭 박스가 되어 줄바꿈될 때 이메일처럼 자연스럽게 안 이어지므로,
+                // 일반 인라인 흐름(같은 문단) 안에 두고 안내 문구만 contentEditable로 편집 가능하게 함
                 return (
-                  <div className="mt-1 flex items-start flex-wrap gap-1.5">
-                    {(currentPreset?.showTaskName || inserts.length > 0) && (
-                      <div className="flex items-center flex-wrap gap-1.5 pt-[3px] flex-shrink-0">
-                        {currentPreset?.showTaskName && <span className="whitespace-nowrap">{task.title}</span>}
-                        {inserts.map(ins => {
-                          const val = mailMessageInsertValues[ins.id] ?? '';
-                          return (
-                            <div key={ins.id} className="flex items-center gap-1.5">
-                              {ins.type === 'date' ? (
-                                <>
-                                  <DatePicker
-                                    value={val}
-                                    onChange={v => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: v }))}
-                                    btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
-                                  />
-                                  {weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
-                                </>
-                              ) : (
-                                <input
-                                  value={val}
-                                  onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
-                                  placeholder={ins.label || (ins.type === 'count' ? '건수 입력' : '입력')}
-                                  className="flex-1 min-w-0 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
-                                />
-                              )}
-                              {ins.type === 'count' && <span className="text-xs text-gray-400 flex-shrink-0">건</span>}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <textarea
+                  <p className="mt-1">
+                    {currentPreset?.showTaskName && <span className="whitespace-nowrap">{task.title}{' '}</span>}
+                    {inserts.map(ins => {
+                      const val = mailMessageInsertValues[ins.id] ?? '';
+                      return (
+                        <span key={ins.id} className="inline-flex items-center gap-1.5 align-middle mr-1.5">
+                          {ins.type === 'date' ? (
+                            <>
+                              <DatePicker
+                                value={val}
+                                onChange={v => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: v }))}
+                                btnClassName="rounded-lg px-2.5 py-1 text-xs bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#6C63FF]/30"
+                              />
+                              {weekdayOf(val) && <span className="text-xs text-gray-400">({weekdayOf(val)})</span>}
+                            </>
+                          ) : (
+                            <input
+                              value={val}
+                              onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
+                              placeholder={ins.label || (ins.type === 'count' ? '건수 입력' : '입력')}
+                              className="inline-block w-28 align-middle text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                            />
+                          )}
+                          {ins.type === 'count' && <span className="text-xs text-gray-400">건</span>}
+                        </span>
+                      );
+                    })}
+                    <span
                       ref={mailMessageRef}
-                      value={mailMessage}
-                      onChange={e => setMailMessage(e.target.value)}
-                      onInput={e => {
-                        const el = e.currentTarget;
-                        el.style.height = 'auto';
-                        el.style.height = `${el.scrollHeight}px`;
-                      }}
-                      rows={1}
-                      className="flex-1 min-w-[140px] text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden break-keep"
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={e => setMailMessage(e.currentTarget.innerText)}
+                      className="outline-none rounded break-keep focus:ring-1 focus:ring-[#6C63FF]/30"
                     />
-                  </div>
+                  </p>
                 );
               })()}
               {(() => {

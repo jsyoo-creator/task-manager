@@ -4316,11 +4316,13 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   const handleSetItemNumberLabel = (id: string, numberLabel: string) => patchItem(id, { numberLabel: numberLabel.trim() || undefined });
   // 타입을 바꾸면 기존 연결은 타입이 안 맞을 수 있으니 해제하고 사용자 입력으로 되돌림
   const handleSetItemType = (id: string, type: 'text' | 'date' | 'url') => patchItem(id, { type, source: undefined, sourceKey: undefined });
+  // 연결하는 필드의 타입에 맞춰 항목 타입도 함께 바꿔서, 미리 텍스트/날짜/링크 중 뭘로
+  // 맞춰놨는지와 상관없이 아무 필드나 바로 연결할 수 있게 함
   const handleConnectItem = (id: string, key: string) => {
     if (!key) return;
     const source = candidateFields.find(f => f.key === key);
     if (!source) return;
-    patchItem(id, { sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const });
+    patchItem(id, { type: source.type, sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const });
   };
   const handleDisconnectItem = (id: string) => patchItem(id, { source: undefined, sourceKey: undefined });
 
@@ -4404,18 +4406,16 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
                 ) : (
                   <>
                     <span className="text-gray-400 flex-shrink-0">사용자 입력</span>
-                    {candidateFields.some(cf => cf.type === it.type) && (
+                    {candidateFields.length > 0 && (
                       <select value="" onChange={e => handleConnectItem(it.id, e.target.value)}
                         className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
                         <option value="">필드 연결</option>
-                        {candidateFields.some(cf => cf.source === 'field' && cf.type === it.type) && (
-                          <optgroup label="필드">
-                            {candidateFields.filter(cf => cf.source === 'field' && cf.type === it.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                          </optgroup>
-                        )}
-                        {candidateFields.some(cf => cf.source === 'subtask' && cf.type === it.type) && (
+                        <optgroup label="필드">
+                          {candidateFields.filter(cf => cf.source === 'field').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                        </optgroup>
+                        {candidateFields.some(cf => cf.source === 'subtask') && (
                           <optgroup label="세부 업무">
-                            {candidateFields.filter(cf => cf.source === 'subtask' && cf.type === it.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                            {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
                           </optgroup>
                         )}
                       </select>
@@ -4896,14 +4896,16 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     } : p));
   };
 
-  // 이미 추가해둔 "사용자 입력" 항목을 필드 또는 세부 업무 시작일/종료일과 연결(제목은 그대로 유지)
+  // 이미 추가해둔 "사용자 입력" 항목을 필드 또는 세부 업무 시작일/종료일과 연결(제목은 그대로 유지).
+  // 연결하는 필드의 타입에 맞춰 항목 타입도 함께 바꿔서, 미리 텍스트/날짜/링크 중 뭘로
+  // 맞춰놨는지와 상관없이 아무 필드나 바로 연결할 수 있게 함
   const handleConnectBodyField = (id: string, key: string) => {
     if (!currentPreset || !key) return;
     const source = candidateFields.find(f => f.key === key);
     if (!source) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? {
       ...p,
-      bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const } : f),
+      bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, type: source.type, sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const } : f),
     } : p));
   };
 
@@ -5588,18 +5590,16 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     ) : (
                       <>
                         <span className="text-gray-400 flex-shrink-0">사용자 입력</span>
-                        {candidateFields.some(cf => cf.type === f.type) && (
+                        {candidateFields.length > 0 && (
                           <select value="" onChange={e => handleConnectBodyField(f.id, e.target.value)}
                             className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
                             <option value="">필드 연결</option>
-                            {candidateFields.some(cf => cf.source === 'field' && cf.type === f.type) && (
-                              <optgroup label="필드">
-                                {candidateFields.filter(cf => cf.source === 'field' && cf.type === f.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
-                              </optgroup>
-                            )}
-                            {candidateFields.some(cf => cf.source === 'subtask' && cf.type === f.type) && (
+                            <optgroup label="필드">
+                              {candidateFields.filter(cf => cf.source === 'field').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                            </optgroup>
+                            {candidateFields.some(cf => cf.source === 'subtask') && (
                               <optgroup label="세부 업무">
-                                {candidateFields.filter(cf => cf.source === 'subtask' && cf.type === f.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                                {candidateFields.filter(cf => cf.source === 'subtask').map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
                               </optgroup>
                             )}
                           </select>

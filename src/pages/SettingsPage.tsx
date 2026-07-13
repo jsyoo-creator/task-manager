@@ -4550,8 +4550,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   (preset.messageInserts ?? []).forEach(ins => {
     insertValues[ins.id] = ins.type === 'date' ? today
       : ins.type === 'count' ? '3'
-      // 선택 타입: 옵션 1개 이하(체크박스)면 샘플로 체크된 상태(1)로, 2개 이상(드롭다운)이면 첫 옵션으로
-      : ins.type === 'select' ? ((ins.options ?? []).length <= 1 ? '1' : (ins.options?.[0]?.id ?? ''))
+      : ins.type === 'select' ? '1' // 체크박스 — 샘플에서는 항상 체크된 상태로 표시
       : (ins.label || '샘플 텍스트');
   });
 
@@ -4780,14 +4779,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목(텍스트/날짜/건수) 관리
   const handleAddMessageInsert = () => {
     if (!currentPreset || !msgInsertLabelDraft.trim()) return;
-    const label = msgInsertLabelDraft.trim();
     const insert: MailMessageInsert = {
       id: `mmi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       type: msgInsertType,
-      label,
-      // 선택 타입은 보통 "이 문구를 쓸지 말지"(체크박스)로 바로 쓰는 경우가 많아,
-      // 항목 이름을 그대로 옵션 1개로 미리 채워 넣어 추가 클릭 없이 바로 체크박스로 동작하게 함
-      ...(msgInsertType === 'select' ? { options: [{ id: `mio_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text: label }] } : {}),
+      label: msgInsertLabelDraft.trim(),
     };
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: [...(p.messageInserts ?? []), insert] } : p));
     setMsgInsertLabelDraft('');
@@ -4806,22 +4801,6 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleSetMessageInsertType = (id: string, type: 'text' | 'date' | 'count' | 'select') => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, type } : m) } : p));
-  };
-
-  const handleAddMessageInsertOption = (id: string) => {
-    if (!currentPreset) return;
-    const newOption = { id: `mio_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text: '' };
-    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, options: [...(m.options ?? []), newOption] } : m) } : p));
-  };
-
-  const handleSetMessageInsertOptionText = (id: string, optionId: string, text: string) => {
-    if (!currentPreset) return;
-    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, options: (m.options ?? []).map(o => o.id === optionId ? { ...o, text } : o) } : m) } : p));
-  };
-
-  const handleRemoveMessageInsertOption = (id: string, optionId: string) => {
-    if (!currentPreset) return;
-    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, options: (m.options ?? []).filter(o => o.id !== optionId) } : m) } : p));
   };
 
   const handleReorderMessageInsert = (toIdx: number) => {
@@ -5301,7 +5280,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-[11px] font-semibold text-gray-700 mb-1">삽입 항목</p>
-              <p className="text-[11px] text-gray-400 mb-1.5">업무명과 안내 문구 사이에 끼워 넣을 입력 항목을 추가합니다. 텍스트/날짜/건수는 메일 작성할 때마다 직접 입력하고, 선택은 옵션을 1개만 두면 체크박스(쓸지 말지)로, 2개 이상 두면 그중 하나를 고르는 드롭다운으로 동작합니다.</p>
+              <p className="text-[11px] text-gray-400 mb-1.5">업무명과 안내 문구 사이에 끼워 넣을 입력 항목을 추가합니다. 텍스트/날짜/건수는 메일 작성할 때마다 직접 입력하고, 체크박스는 체크하면 항목 이름이 그대로 삽입됩니다. 안내 문구 중간 등 원하는 위치에 넣고 싶다면, 이 삽입 항목 대신 안내 문구 입력창에 {'{이름}'}을 표시해두고 아래 "선택 문구 관리"를 이용하세요.</p>
               {(currentPreset.messageInserts ?? []).length > 0 && (
                 <div className="space-y-1 mb-2">
                   {currentPreset.messageInserts!.map((ins, i) => (
@@ -5312,44 +5291,21 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setMsgInsertDragOverIdx(null); }}
                       onDrop={() => handleReorderMessageInsert(i)}
                       onDragEnd={() => { msgInsertDragIdxRef.current = null; setMsgInsertDragOverIdx(null); }}
-                      className={`rounded-lg bg-gray-100 text-gray-600 ${msgInsertDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
-                      <div className="flex items-center gap-1.5 text-[11px] px-2 py-1.5">
-                        <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                        <InlineTextField
-                          value={ins.label ?? ''}
-                          onCommit={v => handleSetMessageInsertLabel(ins.id, v)}
-                          className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
-                        />
-                        <select value={ins.type} onChange={e => handleSetMessageInsertType(ins.id, e.target.value as 'text' | 'date' | 'count' | 'select')}
-                          className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
-                          <option value="text">텍스트</option>
-                          <option value="date">날짜</option>
-                          <option value="count">건수</option>
-                          <option value="select">선택</option>
-                        </select>
-                        <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
-                      </div>
-                      {ins.type === 'select' && (
-                        <div className="px-2 pb-1.5 space-y-1">
-                          {(ins.options ?? []).map(opt => (
-                            <div key={opt.id} className="flex items-center gap-1.5 pl-4">
-                              <input
-                                value={phraseOptionDrafts[opt.id] ?? opt.text}
-                                onChange={e => setPhraseOptionDrafts(prev => ({ ...prev, [opt.id]: e.target.value }))}
-                                onBlur={e => handleSetMessageInsertOptionText(ins.id, opt.id, e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                                placeholder="선택지 내용"
-                                className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none bg-white"
-                              />
-                              <button onClick={() => handleRemoveMessageInsertOption(ins.id, opt.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
-                            </div>
-                          ))}
-                          <button onClick={() => handleAddMessageInsertOption(ins.id)}
-                            className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium pl-4">
-                            + 선택지 추가
-                          </button>
-                        </div>
-                      )}
+                      className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${msgInsertDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                      <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                      <InlineTextField
+                        value={ins.label ?? ''}
+                        onCommit={v => handleSetMessageInsertLabel(ins.id, v)}
+                        className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                      />
+                      <select value={ins.type} onChange={e => handleSetMessageInsertType(ins.id, e.target.value as 'text' | 'date' | 'count' | 'select')}
+                        className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                        <option value="text">텍스트</option>
+                        <option value="date">날짜</option>
+                        <option value="count">건수</option>
+                        <option value="select">체크박스</option>
+                      </select>
+                      <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                     </div>
                   ))}
                 </div>
@@ -5363,7 +5319,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                   <option value="text">텍스트</option>
                   <option value="date">날짜</option>
                   <option value="count">건수</option>
-                  <option value="select">선택</option>
+                  <option value="select">체크박스</option>
                 </select>
                 <button onClick={handleAddMessageInsert} disabled={!msgInsertLabelDraft.trim()}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">

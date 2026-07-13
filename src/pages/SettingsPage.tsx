@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups } from '../components/TaskDetailPanel';
 import type { MailBodyBlock } from '../components/TaskDetailPanel';
 
 interface Props {
@@ -4563,7 +4563,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
     const opts = phrase?.options ?? [];
     previewPhraseSelected[name] = opts.length <= 1 ? '1' : (phrase?.defaultOptionId ?? opts[0]?.id ?? '');
   });
-  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, previewPhraseSelected);
+  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, previewPhraseSelected, preset.phraseGroupOverrides);
   const messageLine = composeMessageLine(dummyTask, preset, resolvedMessage, insertValues);
   const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
   const extraTables = (preset.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(dummyTask, cfg, manualValues) }));
@@ -4682,6 +4682,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [msgInsertDragOverIdx, setMsgInsertDragOverIdx] = useState<number | null>(null);
   // 안내 문구 안 선택 문구 옵션별 텍스트 draft (option.id → 입력 중인 텍스트)
   const [phraseOptionDrafts, setPhraseOptionDrafts] = useState<Record<string, string>>({});
+  // 붙어 있는 마커 그룹의 "전체 선택 시 문구" draft (그룹 key(이름들을 |로 이음) → 입력 중인 텍스트)
+  const [groupOverrideDrafts, setGroupOverrideDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -4699,6 +4701,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setSelectedListGroupId('');
     setMsgInsertLabelDraft('');
     setPhraseOptionDrafts({});
+    setGroupOverrideDrafts({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4770,6 +4773,17 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     if (!currentPreset) return;
     const next = (currentPreset.optionalPhrases ?? []).map(p => p.name === name ? { ...p, defaultOptionId: optionId || undefined } : p);
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
+  };
+
+  // 공백 없이 붙어 있는 마커 그룹(예: {KV}{페이지}{배너})이 전부 선택됐을 때 대신 쓸 문구 저장
+  const handleSetPhraseGroupOverride = (names: string[], text: string) => {
+    if (!currentPreset) return;
+    const existing = currentPreset.phraseGroupOverrides ?? [];
+    const idx = existing.findIndex(g => g.names.length === names.length && g.names.every((n, i) => n === names[i]));
+    const next = idx >= 0
+      ? existing.map((g, i) => i === idx ? { ...g, text } : g)
+      : [...existing, { names, text }];
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, phraseGroupOverrides: next } : p));
   };
 
   // 본문 미리보기에서 표/본문추가항목/목록 영역을 드래그로 재정렬했을 때 저장
@@ -5276,6 +5290,42 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                               + 옵션 추가
                             </button>
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+            {(() => {
+              // 공백 없이 붙어 있는 마커 그룹(예: {KV}{페이지}{배너})마다, 전부 선택됐을 때
+              // 각 이름을 "·"로 이어붙이는 대신 쓸 문구를 선택적으로 지정할 수 있게 함
+              const groups = Array.from(new Map([
+                ...extractAdjacentPhraseGroups(messageDraft),
+                ...extractAdjacentPhraseGroups(currentPreset.message ?? ''),
+              ].map(names => [names.join('|'), names])).values());
+              if (groups.length === 0) return null;
+              return (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <p className="text-[11px] font-semibold text-gray-700 mb-1">전체 선택 시 대체 문구 (선택)</p>
+                  <p className="text-[11px] text-gray-400 mb-1.5">
+                    비워두면 체크된 이름들을 "·"로 이어붙입니다. 입력하면 전부 선택됐을 때만 이 문구로 통째로 바뀝니다.
+                  </p>
+                  <div className="space-y-1.5">
+                    {groups.map(names => {
+                      const key = names.join('|');
+                      const override = currentPreset.phraseGroupOverrides?.find(g => g.names.length === names.length && g.names.every((n, i) => n === names[i]));
+                      return (
+                        <div key={key} className="flex items-center gap-1.5 text-[11px] bg-gray-100 rounded-lg px-2 py-1.5">
+                          <span className="text-gray-500 flex-shrink-0 max-w-[160px] truncate" title={names.join(' + ')}>{names.join(' + ')} 모두 선택 시</span>
+                          <input
+                            value={groupOverrideDrafts[key] ?? override?.text ?? ''}
+                            onChange={e => setGroupOverrideDrafts(prev => ({ ...prev, [key]: e.target.value }))}
+                            onBlur={e => handleSetPhraseGroupOverride(names, e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            placeholder="예: 전소재"
+                            className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none"
+                          />
                         </div>
                       );
                     })}

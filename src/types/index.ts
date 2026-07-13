@@ -304,6 +304,13 @@ export interface MailOptionalPhrase {
   defaultOptionId?: string; // 메일 작성을 새로 열었을 때 기본으로 선택되어 있을 옵션 (없으면 선택 안 함)
 }
 
+// 공백 없이 붙여 쓴 "{이름}" 마커 여러 개(예: "{KV}{페이지}{배너}")가 전부 선택됐을 때,
+// 각 이름을 "·"로 이어붙이는 대신 쓸 대체 문구(예: "전소재"). names는 메시지에 등장하는 순서 그대로
+export interface MailPhraseGroupOverride {
+  names: string[];
+  text: string;
+}
+
 // 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의
 // tableLabelBg/tableValueBg 등 공통 기본값을 사용
 export interface MailTableCellStyle {
@@ -346,6 +353,8 @@ export interface MailFormPreset {
   // message 안에 "{이름}" 형태로 표시해둔 자리마다, 실제 메일 작성 시 체크 여부에 따라
   // 아래 문구 중 이름이 일치하는 항목의 text가 삽입되거나(체크) 빠짐(체크 해제)
   optionalPhrases?: MailOptionalPhrase[];
+  // 공백 없이 붙여 쓴 "{이름}" 마커 그룹이 전부 선택됐을 때 대신 쓸 문구들 (예: KV+페이지+배너 → "전소재")
+  phraseGroupOverrides?: MailPhraseGroupOverride[];
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
   messageInserts?: MailMessageInsert[]; // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목들(텍스트/날짜/건수)
   tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)

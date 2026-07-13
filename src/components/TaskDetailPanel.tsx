@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -57,12 +57,15 @@ export function extractPhraseMarkerNames(message: string): string[] {
 }
 
 // 안내 문구의 "{이름}" 마커를 선택된 옵션의 실제 문구로 바꾸거나(선택함), 지움(선택 안 함).
-// selected는 phrase.id → 고른 option.id (없거나 빈 문자열이면 "선택 안 함").
-// 정의되지 않은 이름은 아직 설정이 안 된 것이므로 안전하게 마커 그대로 남겨둠(데이터 손실 방지)
 // selected는 phrase.id가 아니라 마커 "이름" 기준(예: "KV")으로 관리됨 — 옵션을 하나도
 // 등록하지 않아도(설정 없이도) 바로 체크박스로 쓸 수 있어야 하므로, 존재가 보장되지 않는
 // phrase.id 대신 항상 존재하는 이름 자체를 키로 쓴다
-export function resolveMessageTemplate(message: string, phrases: MailOptionalPhrase[] | undefined, selected: Record<string, string>): string {
+export function resolveMessageTemplate(
+  message: string,
+  phrases: MailOptionalPhrase[] | undefined,
+  selected: Record<string, string>,
+  groupOverrides?: MailPhraseGroupOverride[]
+): string {
   const byName = new Map((phrases ?? []).map(p => [p.name, p]));
   // 옵션이 0~1개면 "여러 개 중 선택"이 아니라 "이 단어를 쓸지 말지"(체크박스)이므로,
   // 옵션을 안 만들었어도 체크만 하면 이름 자체를(옵션을 만들었으면 그 옵션 문구를) 그대로 씀
@@ -74,15 +77,30 @@ export function resolveMessageTemplate(message: string, phrases: MailOptionalPhr
     return opts.find(o => o.id === raw)?.text || '';
   };
   // 마커가 공백 없이 여러 개 붙어 있으면({KV}{페이지}{배너}) 서로 붙어 보여 구분이 안 되므로,
-  // 그중 실제로 값이 들어간 것들만 모아 "·"로 구분해 이어붙임
+  // 그중 실제로 값이 들어간 것들만 모아 "·"로 구분해 이어붙임. 단, 그 조합 전체에 대한
+  // 대체 문구(groupOverrides)가 설정돼 있고 전부 선택돼 있으면 그 문구로 통째로 대체
   const replaced = message
     .replace(/(?:\{[^{}]+\}){2,}/g, group => {
       const names = Array.from(group.matchAll(/\{([^{}]+)\}/g)).map(m => m[1]);
+      const override = groupOverrides?.find(g => g.names.length === names.length && g.names.every((n, i) => n === names[i]));
+      if (override?.text && names.every(n => resolveOne(n) !== '')) return override.text;
       return names.map(resolveOne).filter(t => t !== '').join(' · ');
     })
     .replace(/\{([^{}]+)\}/g, (_match, name) => resolveOne(name));
   // 문구가 빠지면서 생기는 이중 공백/구두점 앞 공백 정리
   return replaced.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim();
+}
+
+// 공백 없이 붙어 있는 "{이름}" 마커 그룹들을 찾아, 각 그룹의 이름 목록(등장 순서 그대로)을 반환.
+// "선택 문구 관리"에서 그룹별 "전체 선택 시 문구" 입력칸을 보여주기 위해 씀
+export function extractAdjacentPhraseGroups(message: string): string[][] {
+  const groups: string[][] = [];
+  const re = /(?:\{[^{}]+\}){2,}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(message))) {
+    groups.push(Array.from(m[0].matchAll(/\{([^{}]+)\}/g)).map(mm => mm[1]));
+  }
+  return groups;
 }
 
 // 안내 문구를 "일반 텍스트 조각"과 "{이름} 자리" 조각으로 쪼갬 — 메일 작성 화면에서
@@ -2728,7 +2746,7 @@ export default function TaskDetailPanel({
               const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));
               const blockKeys = resolveMailBodyBlockKeys(currentPreset);
               const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
-              const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected);
+              const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides);
               const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, messageLine, blocks, signature);

@@ -661,16 +661,16 @@ export function mailBodyBlockToHtml(block: MailBodyBlock, FS: string = MAIL_BODY
   }).join('') + '<br>';
 }
 
-export function buildMailHtml(greeting: string, message: string, blocks: MailBodyBlock[], signature: string, recipientLine?: string): string {
+export function buildMailHtml(greeting: string, message: string, blocks: MailBodyBlock[], signature: string, recipientLine?: string, recipientLineBold?: boolean): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = MAIL_BODY_FS;
-  const textBlock = (s: string) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}">${escapeHtml(l)}</div>`).join('');
+  const textBlock = (s: string, bold?: boolean) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}${bold ? 'font-weight:700;' : ''}">${escapeHtml(l)}</div>`).join('');
   const blocksHtml = blocks.map(b => mailBodyBlockToHtml(b, FS)).join('');
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
-    (recipientLine ? `${textBlock(recipientLine)}<br>` : '') +
+    (recipientLine ? `${textBlock(recipientLine, recipientLineBold)}<br>` : '') +
     `${textBlock(message)}<br>` +
     `${blocksHtml}` +
     `${textBlock('감사합니다.')}` +
@@ -2738,11 +2738,11 @@ export default function TaskDetailPanel({
                   <>
                   {recipientOptions.length > 0 && (
                     <div className="mt-2 flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500 flex-shrink-0">수신:</span>
+                      <span className={`text-xs text-gray-500 flex-shrink-0 ${currentPreset?.recipientLineBold ? 'font-bold' : ''}`}>수신:</span>
                       <select
                         value={mailRecipientId}
                         onChange={e => setMailRecipientId(e.target.value)}
-                        className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:outline-none bg-white"
+                        className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:outline-none bg-white ${currentPreset?.recipientLineBold ? 'font-bold' : ''}`}
                       >
                         <option value="">선택 안 함</option>
                         {recipientOptions.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -2980,7 +2980,7 @@ export default function TaskDetailPanel({
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, messageLine, blocks, signature, recipientLine);
               try {
-                const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine);
+                const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine, currentPreset?.recipientLineBold);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

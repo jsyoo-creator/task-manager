@@ -396,6 +396,7 @@ export interface MailFormPreset {
   // 인사말과 안내 문구 사이에 별도 줄로 "수신: 이름" 형태로 넣을 수 있는, 미리 등록해둔
   // 수신인 후보 목록 — 메일 작성 화면에서 이 중 하나를 골라 넣거나 선택 안 함으로 둠
   recipients?: MailRecipientOption[];
+  recipientLineBold?: boolean; // "수신: 이름" 줄을 볼드로 표시할지 (없으면 false)
   tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)
   tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)

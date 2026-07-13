@@ -4757,7 +4757,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   // 실제 발송/복사 때와 완전히 동일한 함수로 만든 HTML 그대로 보여줘야 미리보기가
   // "진짜처럼" 보임 — 드래그 UI를 씌운다고 블록별로 쪼개 다시 감싸면 여백/정렬이 미묘하게
   // 달라져 어색해지므로, 미리보기 자체는 손대지 않고 순서 변경은 아래 별도 목록으로 분리
-  const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine);
+  const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine, preset.recipientLineBold);
 
   const visibleBlocks = blocks.filter(b => mailBodyBlockToHtml(b).trim() !== '');
   const blockLabel = (block: MailBodyBlock) => {
@@ -5076,6 +5076,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleSetRecipientLabel = (id: string, label: string) => {
     if (!currentPreset || !label.trim()) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, recipients: (p.recipients ?? []).map(r => r.id === id ? { ...r, label: label.trim() } : r) } : p));
+  };
+
+  const handleToggleRecipientLineBold = () => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, recipientLineBold: !p.recipientLineBold } : p));
   };
 
   const handleDeletePreset = () => {
@@ -5725,6 +5730,13 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                   추가
                 </button>
               </div>
+              <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
+                <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${currentPreset.recipientLineBold ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                  {currentPreset.recipientLineBold && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <input type="checkbox" checked={!!currentPreset.recipientLineBold} onChange={handleToggleRecipientLineBold} className="hidden" />
+                <span className="text-[11px] text-gray-600">"수신: 이름" 줄을 볼드로 표시</span>
+              </label>
             </div>
           </div>
           <p className="text-[11px] text-gray-400">

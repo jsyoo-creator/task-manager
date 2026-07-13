@@ -4779,10 +4779,14 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목(텍스트/날짜/건수) 관리
   const handleAddMessageInsert = () => {
     if (!currentPreset || !msgInsertLabelDraft.trim()) return;
+    const label = msgInsertLabelDraft.trim();
     const insert: MailMessageInsert = {
       id: `mmi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       type: msgInsertType,
-      label: msgInsertLabelDraft.trim(),
+      label,
+      // 선택 타입은 보통 "이 문구를 쓸지 말지"(체크박스)로 바로 쓰는 경우가 많아,
+      // 항목 이름을 그대로 옵션 1개로 미리 채워 넣어 추가 클릭 없이 바로 체크박스로 동작하게 함
+      ...(msgInsertType === 'select' ? { options: [{ id: `mio_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text: label }] } : {}),
     };
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: [...(p.messageInserts ?? []), insert] } : p));
     setMsgInsertLabelDraft('');
@@ -5296,7 +5300,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-[11px] font-semibold text-gray-700 mb-1">삽입 항목</p>
-              <p className="text-[11px] text-gray-400 mb-1.5">업무명과 안내 문구 사이에 끼워 넣을 텍스트/날짜/건수 입력 항목을 추가합니다. 값이 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 직접 입력합니다.</p>
+              <p className="text-[11px] text-gray-400 mb-1.5">업무명과 안내 문구 사이에 끼워 넣을 입력 항목을 추가합니다. 텍스트/날짜/건수는 메일 작성할 때마다 직접 입력하고, 선택은 옵션을 1개만 두면 체크박스(쓸지 말지)로, 2개 이상 두면 그중 하나를 고르는 드롭다운으로 동작합니다.</p>
               {(currentPreset.messageInserts ?? []).length > 0 && (
                 <div className="space-y-1 mb-2">
                   {currentPreset.messageInserts!.map((ins, i) => (

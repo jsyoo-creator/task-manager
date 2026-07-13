@@ -2502,6 +2502,24 @@ export default function TaskDetailPanel({
                               placeholder="0"
                               className="inline-block w-16 align-middle text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
                             />
+                          ) : ins.type === 'select' && (ins.options ?? []).length <= 1 ? (
+                            // 옵션이 1개(또는 아직 없음)면 여러 개 중 고르는 게 아니라 "이 문구를
+                            // 쓸지 말지"를 정하는 것이므로 드롭다운 대신 체크박스로 표시
+                            (() => {
+                              const only = ins.options?.[0];
+                              const checked = !!only && val === only.id;
+                              return (
+                                <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={!only}
+                                    onChange={() => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: checked ? '' : (only?.id ?? '') }))}
+                                  />
+                                  <span className="text-xs text-gray-600">{ins.label || '체크'}</span>
+                                </label>
+                              );
+                            })()
                           ) : ins.type === 'select' ? (
                             <select
                               value={val}

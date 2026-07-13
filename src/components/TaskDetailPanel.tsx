@@ -89,9 +89,6 @@ interface MailTableRow {
   rawValue?: string;
 }
 
-// 삽입 항목(건수) 선택지 — 0~50건
-const COUNT_INSERT_OPTIONS = Array.from({ length: 51 }, (_, i) => i);
-
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 // YYYY-MM-DD 문자열에서 요일 한 글자(일~토)를 계산. 값이 없거나 파싱 불가하면 ''
 function weekdayOf(dateStr?: string): string {
@@ -2458,14 +2455,16 @@ export default function TaskDetailPanel({
                               {weekdayOf(val) && <span className="text-xs text-gray-400">({weekdayOf(val)})</span>}
                             </>
                           ) : ins.type === 'count' ? (
-                            <select
+                            <input
+                              type="number"
+                              min={0}
+                              max={50}
+                              step={1}
                               value={val}
                               onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
-                              className="inline-block align-middle text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 bg-white"
-                            >
-                              <option value="">-</option>
-                              {COUNT_INSERT_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
+                              placeholder="0"
+                              className="inline-block w-16 align-middle text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                            />
                           ) : (
                             <input
                               value={val}

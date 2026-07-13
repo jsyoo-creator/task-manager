@@ -501,6 +501,7 @@ function MailTablePreview({ table, manualValues, setManualValues, onEditDate }: 
                             compact
                             value={r.rawValue ?? ''}
                             onChange={v => onEditDate(r.dateSourceRef!, v)}
+                            displayLabel={r.value}
                           />
                           {r.valueSuffix && <span className="flex-shrink-0">{r.valueSuffix}</span>}
                         </span>
@@ -819,6 +820,7 @@ export default function TaskDetailPanel({
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const mailMessageRef = useRef<HTMLTextAreaElement>(null);
   const panelW = mailOpen ? PANEL_W + MAIL_PANEL_W : PANEL_W;
 
   // 메일 양식 내용을 지금 보고 있는 업무 기준으로 (다시) 채워 넣음. 인사말/업무 정보 표는
@@ -843,6 +845,16 @@ export default function TaskDetailPanel({
     if (!visible) return;
     document.documentElement.style.setProperty('--detail-panel-w', `${panelW}px`);
   }, [visible, panelW]);
+
+  // 안내 문구 textarea 높이를 내용에 맞춰 자동 조절 — field-sizing:content를 flex-1(가변
+  // 너비)와 같이 쓰면 줄바꿈 계산이 실제 렌더 너비와 어긋나 이상한 위치에서 줄이 바뀌는
+  // 문제가 있어, 대신 자바스크립트로 직접 높이만 맞춘다(너비는 flex가 그대로 담당)
+  useEffect(() => {
+    const el = mailMessageRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [mailMessage, mailOpen, mailPresetId]);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -2422,12 +2434,15 @@ export default function TaskDetailPanel({
                       </div>
                     )}
                     <textarea
+                      ref={mailMessageRef}
                       value={mailMessage}
                       onChange={e => setMailMessage(e.target.value)}
+                      onInput={e => {
+                        const el = e.currentTarget;
+                        el.style.height = 'auto';
+                        el.style.height = `${el.scrollHeight}px`;
+                      }}
                       rows={1}
-                      // 줄바꿈 문자 수가 아니라 실제 줄바꿈되어 보이는 만큼만 딱 맞게 높이가
-                      // 늘어나도록(불필요한 빈 줄 없이) field-sizing 사용, 미지원 브라우저는 rows=1로 대체
-                      style={{ fieldSizing: 'content' } as any}
                       className="flex-1 min-w-[140px] text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
                     />
                   </div>

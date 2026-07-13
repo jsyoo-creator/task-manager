@@ -16,9 +16,11 @@ interface Props {
   disabled?: boolean;
   /** 버튼 className 오버라이드 */
   btnClassName?: string;
+  /** 버튼에 표시할 텍스트를 기본 "YY.MM.DD" 대신 직접 지정 (예: 메일 표의 "M/D(요일)") */
+  displayLabel?: string;
 }
 
-export default function DatePicker({ value, onChange, compact, disabled, btnClassName }: Props) {
+export default function DatePicker({ value, onChange, compact, disabled, btnClassName, displayLabel }: Props) {
   const holidayMap = useHolidayMap();
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -85,11 +87,11 @@ export default function DatePicker({ value, onChange, compact, disabled, btnClas
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   // YYYY-MM-DD 형식이면 YY.MM.DD 로 표시, 아니면 원본 값 그대로 표시
   const isValidFormat = /^\d{4}-\d{2}-\d{2}$/.test(value ?? '');
-  const displayValue = value
+  const displayValue = displayLabel ?? (value
     ? isValidFormat
       ? `${value.slice(2,4)}.${value.slice(5,7)}.${value.slice(8,10)}`
       : value
-    : '';
+    : '');
 
   const btnClass = compact
     ? 'w-full h-full flex items-center justify-center gap-1 text-xs text-gray-600 hover:text-blue-500 transition-colors cursor-pointer'

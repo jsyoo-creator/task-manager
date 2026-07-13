@@ -59,15 +59,19 @@ export function extractPhraseMarkerNames(message: string): string[] {
 // 안내 문구의 "{이름}" 마커를 선택된 옵션의 실제 문구로 바꾸거나(선택함), 지움(선택 안 함).
 // selected는 phrase.id → 고른 option.id (없거나 빈 문자열이면 "선택 안 함").
 // 정의되지 않은 이름은 아직 설정이 안 된 것이므로 안전하게 마커 그대로 남겨둠(데이터 손실 방지)
+// selected는 phrase.id가 아니라 마커 "이름" 기준(예: "KV")으로 관리됨 — 옵션을 하나도
+// 등록하지 않아도(설정 없이도) 바로 체크박스로 쓸 수 있어야 하므로, 존재가 보장되지 않는
+// phrase.id 대신 항상 존재하는 이름 자체를 키로 쓴다
 export function resolveMessageTemplate(message: string, phrases: MailOptionalPhrase[] | undefined, selected: Record<string, string>): string {
   const byName = new Map((phrases ?? []).map(p => [p.name, p]));
-  // 마커 하나를 실제 문구로 바꾸거나(선택함) 빈 문자열로(선택 안 함). 정의 안 된 이름은
-  // 마커 그대로("{name}") 돌려줘 데이터 손실을 막음
+  // 옵션이 0~1개면 "여러 개 중 선택"이 아니라 "이 단어를 쓸지 말지"(체크박스)이므로,
+  // 옵션을 안 만들었어도 체크만 하면 이름 자체를(옵션을 만들었으면 그 옵션 문구를) 그대로 씀
   const resolveOne = (name: string): string => {
-    const phrase = byName.get(name);
-    if (!phrase) return `{${name}}`;
-    const option = phrase.options.find(o => o.id === selected[phrase.id]);
-    return option ? option.text : '';
+    const raw = selected[name] ?? '';
+    if (!raw) return '';
+    const opts = byName.get(name)?.options ?? [];
+    if (opts.length <= 1) return raw === '1' ? (opts[0]?.text || name) : '';
+    return opts.find(o => o.id === raw)?.text || '';
   };
   // 마커가 공백 없이 여러 개 붙어 있으면({KV}{페이지}{배너}) 서로 붙어 보여 구분이 안 되므로,
   // 그중 실제로 값이 들어간 것들만 모아 "·"로 구분해 이어붙임
@@ -101,6 +105,18 @@ function splitMessageIntoSegments(message: string): MessageSegment[] {
 
 function segmentsToMessage(segments: MessageSegment[]): string {
   return segments.map(seg => seg.type === 'text' ? seg.value : `{${seg.name}}`).join('');
+}
+
+// 메일 양식을 새로 열거나 탭을 바꿀 때, 안내 문구에 있는 "{이름}" 마커들의 기본 체크/선택
+// 상태를 계산 — 옵션을 안 만든 마커도 항상 포함해서(옵션 없으면 기본은 항상 선택 안 함) 다룸
+function buildInitialPhraseSelected(preset: MailFormPreset | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  extractPhraseMarkerNames(preset?.message ?? '').forEach(name => {
+    const phrase = preset?.optionalPhrases?.find(p => p.name === name);
+    const opts = phrase?.options ?? [];
+    result[name] = opts.length <= 1 ? (phrase?.defaultOptionId ? '1' : '') : (phrase?.defaultOptionId ?? '');
+  });
+  return result;
 }
 
 // 메일 표의 기본 제공 항목 — 설정에서 이 중 어떤 걸 보여줄지 탭별로 고를 수 있음
@@ -944,7 +960,7 @@ export default function TaskDetailPanel({
     setMailManualValues({});
     setMailBodyManualValues({});
     setMailMessageInsertValues({});
-    setMailPhraseSelected(Object.fromEntries((preset?.optionalPhrases ?? []).map(p => [p.id, p.defaultOptionId ?? ''])));
+    setMailPhraseSelected(buildInitialPhraseSelected(preset));
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -2433,7 +2449,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseSelected(Object.fromEntries((p.optionalPhrases ?? []).map(ph => [ph.id, ph.defaultOptionId ?? '']))); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseSelected(buildInitialPhraseSelected(p)); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -2584,22 +2600,19 @@ export default function TaskDetailPanel({
                             />
                           );
                         }
+                        // "{이름}" 자리는 설정에서 옵션을 안 만들어도 이름 자체를 바로 켜고 끄는
+                        // 체크박스로 동작함 — 옵션을 2개 이상 등록했을 때만 드롭다운으로 바뀜
                         const phrase = currentPreset?.optionalPhrases?.find(p => p.name === seg.name);
-                        if (!phrase || phrase.options.length === 0) {
-                          // 아직 "선택 문구 관리"에서 옵션을 설정하지 않은 마커 — 데이터 손실 방지를
-                          // 위해 마커 그대로 보여줌(설정하면 자동으로 체크박스/드롭다운으로 바뀜)
-                          return <span key={i} className="text-gray-400">{`{${seg.name}}`}</span>;
-                        }
-                        const selectedId = mailPhraseSelected[phrase.id] ?? '';
-                        if (phrase.options.length === 1) {
-                          const only = phrase.options[0];
-                          const checked = selectedId === only.id;
+                        const opts = phrase?.options ?? [];
+                        const raw = mailPhraseSelected[seg.name] ?? '';
+                        if (opts.length <= 1) {
+                          const checked = raw === '1';
                           return (
                             <label key={i} className="inline-flex items-center gap-1 align-middle mx-0.5 cursor-pointer select-none">
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => setMailPhraseSelected(prev => ({ ...prev, [phrase.id]: checked ? '' : only.id }))}
+                                onChange={() => setMailPhraseSelected(prev => ({ ...prev, [seg.name]: checked ? '' : '1' }))}
                               />
                               <span className="text-xs text-gray-600">{seg.name}</span>
                             </label>
@@ -2608,12 +2621,12 @@ export default function TaskDetailPanel({
                         return (
                           <select
                             key={i}
-                            value={selectedId}
-                            onChange={e => setMailPhraseSelected(prev => ({ ...prev, [phrase.id]: e.target.value }))}
+                            value={raw}
+                            onChange={e => setMailPhraseSelected(prev => ({ ...prev, [seg.name]: e.target.value }))}
                             className="inline-block align-middle mx-0.5 text-xs px-1.5 py-0.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 bg-white"
                           >
                             <option value="">{seg.name}</option>
-                            {phrase.options.map(o => <option key={o.id} value={o.id}>{o.text}</option>)}
+                            {opts.map(o => <option key={o.id} value={o.id}>{o.text}</option>)}
                           </select>
                         );
                       });

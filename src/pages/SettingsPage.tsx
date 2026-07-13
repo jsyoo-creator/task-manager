@@ -4555,8 +4555,15 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   });
 
   const greeting = buildMailGreeting(sampleAuthor);
-  const defaultPhraseSelected = Object.fromEntries((preset.optionalPhrases ?? []).map(p => [p.id, p.defaultOptionId ?? '']));
-  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, defaultPhraseSelected);
+  // 미리보기에서는 옵션을 안 만든 "{이름}" 마커도 실제로 어떻게 보이는지 알 수 있도록
+  // 기본으로 체크된 것처럼(이름 자체를 그대로 사용) 보여줌
+  const previewPhraseSelected: Record<string, string> = {};
+  extractPhraseMarkerNames(preset.message || DEFAULT_MAIL_MESSAGE).forEach(name => {
+    const phrase = preset.optionalPhrases?.find(p => p.name === name);
+    const opts = phrase?.options ?? [];
+    previewPhraseSelected[name] = opts.length <= 1 ? '1' : (phrase?.defaultOptionId ?? opts[0]?.id ?? '');
+  });
+  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, previewPhraseSelected);
   const messageLine = composeMessageLine(dummyTask, preset, resolvedMessage, insertValues);
   const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
   const extraTables = (preset.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(dummyTask, cfg, manualValues) }));
@@ -5231,7 +5238,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 <div className="mt-2 pt-2 border-t border-gray-100">
                   <p className="text-[11px] font-semibold text-gray-700 mb-1">선택 문구 관리</p>
                   <p className="text-[11px] text-gray-400 mb-1.5">
-                    안내 문구 안에 표시해둔 {'{이름}'} 자리마다 옵션을 추가하세요. 옵션이 1개면 업무 상세의 메일 작성 화면에서 체크박스로 켜고 끄고, 2개 이상이면 그중 하나를 고르는 선택지로 나타납니다.
+                    옵션을 따로 추가하지 않아도 이름 자체가 그대로 삽입되는 체크박스로 바로 동작합니다. 다른 문구를 넣고 싶을 때만 옵션을 추가하세요 — 옵션이 2개 이상이면 그중 하나를 고르는 선택지로 바뀝니다.
                   </p>
                   <div className="space-y-2">
                     {phraseNames.map(name => {

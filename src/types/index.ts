@@ -297,6 +297,10 @@ export interface MailGridTableConfig {
   title?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   columns: MailGridColumn[];
   showNumberColumn?: boolean; // 맨 앞에 "No." 자동 순번 컬럼을 보여줄지 (없으면 true = 표시)
+  headerBg?: string; // 헤더(컬럼명) 칸 배경색 (hex, 없으면 기본값 #f9fafb)
+  headerBold?: boolean; // 헤더 칸 볼드 여부 (없으면 true)
+  cellBg?: string; // 데이터 칸 배경색 (hex, 없으면 기본값 흰색)
+  cellBold?: boolean; // 데이터 칸 볼드 여부 (없으면 false)
 }
 
 // 본문 인사말 다음 줄(업무명 다음, 안내 문구 앞)에 끼워 넣는 입력 항목 — 메일 작성할

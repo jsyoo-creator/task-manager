@@ -4602,6 +4602,45 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
         <span className="text-[11px] text-gray-600">맨 앞에 "No." 순번 칸 표시</span>
       </label>
 
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-[11px] text-gray-500 mb-1.5">헤더(컬럼명) 칸 기본값</p>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {MAIL_TABLE_BG_PRESETS.map(c => (
+              <button key={c} onClick={() => patch({ headerBg: c })}
+                className={`w-5 h-5 rounded-full flex-shrink-0 border border-gray-200 ${(table.headerBg ?? '#f9fafb') === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${(table.headerBold ?? true) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+              {(table.headerBold ?? true) && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <input type="checkbox" checked={table.headerBold ?? true} onChange={() => patch({ headerBold: !(table.headerBold ?? true) })} className="hidden" />
+            <span className="text-[11px] text-gray-600">볼드</span>
+          </label>
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-500 mb-1.5">내용 칸 기본값</p>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {MAIL_TABLE_BG_PRESETS.map(c => (
+              <button key={c} onClick={() => patch({ cellBg: c })}
+                className={`w-5 h-5 rounded-full flex-shrink-0 border border-gray-200 ${(table.cellBg ?? '#ffffff') === c ? 'ring-2 ring-offset-1 ring-gray-400' : ''}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${table.cellBold ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+              {table.cellBold && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <input type="checkbox" checked={!!table.cellBold} onChange={() => patch({ cellBold: !table.cellBold })} className="hidden" />
+            <span className="text-[11px] text-gray-600">볼드</span>
+          </label>
+        </div>
+      </div>
+
       <div>
         <p className="text-[11px] text-gray-500 mb-1.5">
           컬럼 구성

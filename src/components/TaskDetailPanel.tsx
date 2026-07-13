@@ -563,8 +563,12 @@ function gridTableToHtml(b: Extract<MailBodyBlock, { kind: 'grid' }>, FS: string
   if (rows.length === 0) return '';
   const cols = buildEffectiveGridColumns(config);
   const showNo = config.showNumberColumn !== false;
-  const thStyle = `padding:4px 12px;background:#f9fafb;font-weight:700;${FS}line-height:1.6;border:1px solid #d1d5db;white-space:nowrap;text-align:center;`;
-  const tdStyle = `padding:4px 12px;${FS}line-height:1.6;border:1px solid #d1d5db;text-align:center;`;
+  const headerBg = config.headerBg || '#f9fafb';
+  const headerBold = config.headerBold ?? true;
+  const cellBg = config.cellBg || '#ffffff';
+  const cellBold = config.cellBold ?? false;
+  const thStyle = `padding:4px 12px;background:${headerBg};font-weight:${headerBold ? 700 : 400};${FS}line-height:1.6;border:1px solid #d1d5db;white-space:nowrap;text-align:center;`;
+  const tdStyle = `padding:4px 12px;background:${cellBg};font-weight:${cellBold ? 700 : 400};${FS}line-height:1.6;border:1px solid #d1d5db;text-align:center;`;
   const headerCells = [...(showNo ? [`<th style="${thStyle}">No.</th>`] : []), ...cols.map(c => `<th style="${thStyle}">${escapeHtml(c.label)}</th>`)].join('');
   const bodyRows = rows.map((r, i) => {
     const cells = [
@@ -809,6 +813,8 @@ function MailGridTablePreview({ config, rows, setRows }: {
   setRows: (updater: (prev: MailGridRow[]) => MailGridRow[]) => void;
 }) {
   const showNo = config.showNumberColumn !== false;
+  const headerStyle = { background: config.headerBg || '#f9fafb', fontWeight: (config.headerBold ?? true) ? 700 : 400 };
+  const cellStyle = { background: config.cellBg || '#ffffff', fontWeight: config.cellBold ? 700 : 400 };
 
   const handleAddRow = () => {
     setRows(prev => [...prev, { id: `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, values: {} }]);
@@ -825,23 +831,23 @@ function MailGridTablePreview({ config, rows, setRows }: {
         <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
           <thead>
             <tr>
-              {showNo && <th className="py-1 px-3 text-gray-600 font-bold whitespace-nowrap border border-gray-300 bg-gray-50">No.</th>}
+              {showNo && <th style={headerStyle} className="py-1 px-3 text-gray-600 whitespace-nowrap border border-gray-300">No.</th>}
               {config.columns.map(c => (
-                <th key={c.id} className="py-1 px-3 text-gray-600 font-bold whitespace-nowrap border border-gray-300 bg-gray-50">
+                <th key={c.id} style={headerStyle} className="py-1 px-3 text-gray-600 whitespace-nowrap border border-gray-300">
                   {c.label}{c.type === 'date' && c.showWeekday ? ' / 요일' : ''}
                 </th>
               ))}
-              <th className="py-1 px-1 border border-gray-300 bg-gray-50 w-8" />
+              <th style={headerStyle} className="py-1 px-1 border border-gray-300 w-8" />
             </tr>
           </thead>
           <tbody>
             {rows.map((row, i) => (
               <tr key={row.id}>
-                {showNo && <td className="py-1 px-3 text-center border border-gray-300 text-gray-500">{i + 1}</td>}
+                {showNo && <td style={cellStyle} className="py-1 px-3 text-center border border-gray-300 text-gray-500">{i + 1}</td>}
                 {config.columns.map(c => {
                   const val = row.values[c.id] ?? '';
                   return (
-                    <td key={c.id} className="py-1 px-2 border border-gray-300">
+                    <td key={c.id} style={cellStyle} className="py-1 px-2 border border-gray-300">
                       {c.type === 'date' ? (
                         <div className="flex items-center gap-1">
                           <DatePicker compact value={val} onChange={v => handleSetCell(row.id, c.id, v)} />

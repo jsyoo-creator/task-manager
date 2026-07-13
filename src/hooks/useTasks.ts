@@ -18,7 +18,13 @@ export function useTasks(projectId: string, teamId: string | null) {
         const sorted = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Task))
           .sort((a, b) => {
-            if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+            if (a.sortOrder != null && b.sortOrder != null) {
+              // sortOrder가 완전히 같은 값이면(예: 서로 다른 파트 업무가 과거 버그로 값이
+              // 겹친 경우) 조회할 때마다 순서가 안정적이어야 하므로, Firestore 스냅샷의
+              // 문서 순서(orderBy 없어 비결정적)에 기대지 않고 createdAt으로 한 번 더 확정
+              if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+              return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;
+            }
             if (a.sortOrder != null) return -1;
             if (b.sortOrder != null) return 1;
             return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;

@@ -997,14 +997,22 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const handleDrop = (dropOnId: string) => {
     if (!dragId || dragId === dropOnId) { setDragId(null); setDragOverId(null); return; }
-    const ids = displayFlat.map(t => t.id);
+    // sortOrder는 파트 구분 없는 팀 전체 공용 값이라, 화면에 보이는(필터된) 목록만 기준으로
+    // 0부터 다시 매기면 다른 파트 업무와 순서 값이 겹친다(충돌). 그러면 그 파트에서 업무를
+    // 추가/삭제/재정렬할 때마다 동점(tie) 처리 기준인 Firestore 스냅샷 순서가 바뀌어, 아무것도
+    // 손대지 않은 이 파트의 화면 순서까지 같이 흔들려 보이는 문제가 있었다. 항상 팀 전체
+    // 업무(tasks) 기준으로 이동시켜 팀 전체에서 고유한 순서를 유지한다.
+    const ids = tasks.map(t => t.id);
     const fromIdx = ids.indexOf(dragId);
     const toIdx = ids.indexOf(dropOnId);
     if (fromIdx === -1 || toIdx === -1) return;
     const newIds = [...ids];
     newIds.splice(fromIdx, 1);
     newIds.splice(toIdx, 0, dragId);
-    newIds.forEach((id, idx) => onUpdateTask(id, { sortOrder: idx }));
+    newIds.forEach((id, idx) => {
+      const t = tasks.find(x => x.id === id);
+      if (t && t.sortOrder !== idx) onUpdateTask(id, { sortOrder: idx });
+    });
     setDragId(null);
     setDragOverId(null);
   };
@@ -1845,6 +1853,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   // 드롭다운(select) 타입 커스텀 필드 중 "직접 입력"으로 전환한 필드 id 모음 — 목록 대신
   // 자유 텍스트로 입력하다가 다시 목록 선택으로 되돌릴 수 있게 함
   const [manualCustomFields, setManualCustomFields] = useState<Set<string>>(new Set());
+  // 직접 입력 중인 값은 매 키 입력마다 바로 저장(onUpdate)하면 한글 조합 중인 입력이 끊겨
+  // 자모가 분리되어 보이므로, 로컬 draft로만 편집하고 blur 시에만 실제로 저장
+  const [manualFieldDrafts, setManualFieldDrafts] = useState<Record<string, string>>({});
   const copyUrl = (key: string, url: string) => {
     navigator.clipboard.writeText(url);
     setCopiedUrlKey(key);
@@ -2017,8 +2028,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
                   <div className="flex items-center gap-1">
                     <input
-                      value={val}
-                      onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                      value={manualFieldDrafts[cf.id] ?? val}
+                      onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                      onBlur={e => {
+                        onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                        setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                      }}
                       placeholder="직접 입력"
                       readOnly={!canManage}
                       className="min-w-0 flex-1 text-xs text-gray-700 bg-gray-100 rounded-full px-2.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
@@ -2027,6 +2042,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       <button type="button" title="목록에서 선택"
                         onClick={() => {
                           setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                          setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                           onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
                         }}
                         className="flex-shrink-0 text-gray-300 hover:text-blue-400 transition-colors">
@@ -2472,8 +2488,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
                         <div className="flex items-center gap-1 max-w-[180px]">
                           <input
-                            value={val}
-                            onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                            value={manualFieldDrafts[cf.id] ?? val}
+                            onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                            onBlur={e => {
+                              onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                              setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                            }}
                             placeholder="직접 입력"
                             readOnly={!canManage}
                             className="min-w-0 flex-1 text-xs text-gray-800 font-medium bg-black/[0.07] rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
@@ -2482,6 +2502,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                             <button type="button" title="목록에서 선택"
                               onClick={() => {
                                 setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                                setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                                 onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
                               }}
                               className="flex-shrink-0 text-gray-300 hover:text-blue-400 transition-colors">

@@ -1171,6 +1171,9 @@ export default function TaskDetailPanel({
   // 드롭다운(select) 타입 커스텀 필드 중 "직접 입력"으로 전환한 필드 id 모음 — 목록 대신
   // 자유 텍스트로 입력하다가 다시 목록 선택으로 되돌릴 수 있게 함
   const [manualCustomFields, setManualCustomFields] = useState<Set<string>>(new Set());
+  // 직접 입력 중인 값은 매 키 입력마다 바로 저장(onUpdate)하면 한글 조합 중인 입력이 끊겨
+  // 자모가 분리되어 보이므로, 로컬 draft로만 편집하고 blur 시에만 실제로 저장
+  const [manualFieldDrafts, setManualFieldDrafts] = useState<Record<string, string>>({});
   const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
   const localSubTaskDataRef = useRef(localSubTaskData);
   localSubTaskDataRef.current = localSubTaskData;
@@ -1264,6 +1267,7 @@ export default function TaskDetailPanel({
     setDeletedSubTaskIds(new Set());
     setManualSubstituteIds(new Set());
     setManualCustomFields(new Set());
+    setManualFieldDrafts({});
     setActiveDeptTab(null);
     dirtyTypeIdsRef.current = new Set();
     // 메일 양식이 열려 있는 채로 다른 업무를 선택하면, 이전 업무 내용이 그대로
@@ -2551,15 +2555,19 @@ export default function TaskDetailPanel({
                       <div className="flex-1 min-w-0">
                         {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
                           <div className="flex items-center gap-1.5">
-                            <input type="text" readOnly={!canManage} value={val}
-                              onChange={e => handleBlur(e.target.value)}
-                              onBlur={e => handleBlur(e.target.value)}
+                            <input type="text" readOnly={!canManage} value={manualFieldDrafts[cf.id] ?? val}
+                              onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                              onBlur={e => {
+                                handleBlur(e.target.value);
+                                setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                              }}
                               placeholder="직접 입력"
                               className={cls} />
                             {canManage && (
                               <button type="button"
                                 onClick={() => {
                                   setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                                  setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                                   handleBlur('');
                                 }}
                                 className="flex-shrink-0 text-[11px] text-gray-400 hover:text-blue-400 transition-colors whitespace-nowrap">

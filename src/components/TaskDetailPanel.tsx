@@ -19,6 +19,10 @@ export function buildMailGreeting(author: string): string {
 // 메일 유형(탭)에서 안내 문구를 따로 설정하지 않았을 때 쓰는 기본값
 const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
 
+// 드롭다운(select) 타입 커스텀 필드의 옵션 목록 맨 끝에 붙여, 목록 대신 자유 텍스트를
+// 직접 입력하는 모드로 전환할 수 있게 하는 특수 선택지
+const CUSTOM_FIELD_MANUAL_OPTION = '__manual_input__';
+
 // 인사말 다음 줄 — (업무명 노출 시) 업무명, (설정된) 삽입 항목 값들, 안내 문구 순으로
 // 한 줄에 이어 붙임. 업무명/삽입 항목은 항상 최신 값으로 다시 만들어지는 고정 표시라
 // mailMessage(자유 편집 텍스트)에는 포함하지 않고 렌더링/복사 시점에 합쳐서 씀
@@ -1164,6 +1168,9 @@ export default function TaskDetailPanel({
 
   const [title, setTitle] = useState(task.title);
   const [localMeta, setLocalMeta] = useState<Record<string, string>>(task.customFields ?? {});
+  // 드롭다운(select) 타입 커스텀 필드 중 "직접 입력"으로 전환한 필드 id 모음 — 목록 대신
+  // 자유 텍스트로 입력하다가 다시 목록 선택으로 되돌릴 수 있게 함
+  const [manualCustomFields, setManualCustomFields] = useState<Set<string>>(new Set());
   const [localSubTaskData, setLocalSubTaskData] = useState<Record<string, SubTaskEntry>>(task.subTaskData ?? {});
   const localSubTaskDataRef = useRef(localSubTaskData);
   localSubTaskDataRef.current = localSubTaskData;
@@ -1256,6 +1263,7 @@ export default function TaskDetailPanel({
     setLocalSubTaskData(task.subTaskData ?? {});
     setDeletedSubTaskIds(new Set());
     setManualSubstituteIds(new Set());
+    setManualCustomFields(new Set());
     setActiveDeptTab(null);
     dirtyTypeIdsRef.current = new Set();
     // 메일 양식이 열려 있는 채로 다른 업무를 선택하면, 이전 업무 내용이 그대로
@@ -2541,7 +2549,25 @@ export default function TaskDetailPanel({
                     <div key={cf.id} className="flex items-center gap-2">
                       <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
                       <div className="flex-1 min-w-0">
-                        {(isNameType || cfType === 'select') ? (
+                        {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
+                          <div className="flex items-center gap-1.5">
+                            <input type="text" readOnly={!canManage} value={val}
+                              onChange={e => handleBlur(e.target.value)}
+                              onBlur={e => handleBlur(e.target.value)}
+                              placeholder="직접 입력"
+                              className={cls} />
+                            {canManage && (
+                              <button type="button"
+                                onClick={() => {
+                                  setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                                  handleBlur('');
+                                }}
+                                className="flex-shrink-0 text-[11px] text-gray-400 hover:text-blue-400 transition-colors whitespace-nowrap">
+                                목록에서 선택
+                              </button>
+                            )}
+                          </div>
+                        ) : (isNameType || cfType === 'select') ? (
                           <div className="relative w-full">
                             {cfType === 'select' && cf.optionColors?.[val] ? (
                               <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium"
@@ -2556,10 +2582,18 @@ export default function TaskDetailPanel({
                               </div>
                             )}
                             <select disabled={!canManage} value={val}
-                              onChange={e => handleBlur(e.target.value)}
+                              onChange={e => {
+                                if (cfType === 'select' && e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
+                                  setManualCustomFields(prev => new Set(prev).add(cf.id));
+                                  handleBlur('');
+                                  return;
+                                }
+                                handleBlur(e.target.value);
+                              }}
                               className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
                               <option value="">-</option>
                               {opts.map(o => <option key={o}>{o}</option>)}
+                              {cfType === 'select' && <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>}
                             </select>
                           </div>
                         ) : cfType === 'date' ? (

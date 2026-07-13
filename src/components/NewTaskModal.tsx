@@ -17,6 +17,10 @@ interface Props {
   currentUserName?: string;
 }
 
+// 드롭다운(select) 타입 커스텀 필드의 옵션 목록 맨 끝에 붙여, 목록 대신 자유 텍스트를
+// 직접 입력하는 모드로 전환할 수 있게 하는 특수 선택지
+const CUSTOM_FIELD_MANUAL_OPTION = '__manual_input__';
+
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const REVISION_OPTIONS = ['없음', 'F1 단계', 'F2 단계', 'F3 단계', 'F4 단계', 'F5 단계', 'F6 단계'];
@@ -111,6 +115,9 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
     revisionLevel: 0,
   });
   const [custom, setCustom] = useState<Record<string, string>>({});
+  // 드롭다운(select) 타입 커스텀 필드 중 "직접 입력"으로 전환한 필드 id 모음 — 목록 대신
+  // 자유 텍스트로 입력하다가 다시 목록 선택으로 되돌릴 수 있게 함
+  const [manualCustomFields, setManualCustomFields] = useState<Set<string>>(new Set());
 
   // PL업무 폼 상태
   const [plForm, setPlForm] = useState({ taskMonth: DEFAULT_TASK_MONTH, status: '' as TaskStatus, startDate: '', endDate: '' });
@@ -645,13 +652,42 @@ export default function NewTaskModal({ open, onClose, onSubmit, projectId, parts
                       <input type="text" required={cf.required} className={cls}
                         value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
                     )}
-                    {cfType === 'select' && (
-                      <select required={cf.required} className={cls}
-                        value={custom[cf.id] ?? ''} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))}>
-                        <option value="">선택하세요</option>
-                        {selectOpts.map(o => <option key={o}>{o}</option>)}
-                      </select>
-                    )}
+                    {cfType === 'select' && (() => {
+                      const val = custom[cf.id] ?? '';
+                      const isManual = manualCustomFields.has(cf.id) || (!!val && !selectOpts.includes(val));
+                      if (isManual) {
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <input type="text" required={cf.required} className={cls} placeholder="직접 입력"
+                              value={val} onChange={e => setCustom(c => ({ ...c, [cf.id]: e.target.value }))} />
+                            <button type="button"
+                              onClick={() => {
+                                setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                                setCustom(c => ({ ...c, [cf.id]: '' }));
+                              }}
+                              className="flex-shrink-0 text-[11px] text-gray-400 hover:text-[#6C63FF] transition-colors whitespace-nowrap">
+                              목록에서 선택
+                            </button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <select required={cf.required} className={cls}
+                          value={val}
+                          onChange={e => {
+                            if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
+                              setManualCustomFields(prev => new Set(prev).add(cf.id));
+                              setCustom(c => ({ ...c, [cf.id]: '' }));
+                              return;
+                            }
+                            setCustom(c => ({ ...c, [cf.id]: e.target.value }));
+                          }}>
+                          <option value="">선택하세요</option>
+                          {selectOpts.map(o => <option key={o}>{o}</option>)}
+                          <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>
+                        </select>
+                      );
+                    })()}
                     {cfType === 'date' && (
                       <DatePicker value={custom[cf.id] ?? ''} onChange={v => setCustom(c => ({ ...c, [cf.id]: v }))} />
                     )}

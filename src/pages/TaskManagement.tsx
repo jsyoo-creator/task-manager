@@ -62,6 +62,10 @@ const now = new Date();
 const YEARS = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
+// 드롭다운(select) 타입 커스텀 필드의 옵션 목록 맨 끝에 붙여, 목록 대신 자유 텍스트를
+// 직접 입력하는 모드로 전환할 수 있게 하는 특수 선택지
+const CUSTOM_FIELD_MANUAL_OPTION = '__manual_input__';
+
 // 다양한 날짜 형식(엑셀 직렬 숫자 포함) → YYYY-MM-DD 정규화. 엑셀 가져오기와
 // 이미 잘못 저장된 데이터 일괄 복구 양쪽에서 공용으로 사용.
 function parseExcelDateValue(raw: unknown, fallbackYear: number): string {
@@ -1838,6 +1842,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
 }) {
   const [metaCopied, setMetaCopied] = useState(false);
   const [copiedUrlKey, setCopiedUrlKey] = useState<string | null>(null);
+  // 드롭다운(select) 타입 커스텀 필드 중 "직접 입력"으로 전환한 필드 id 모음 — 목록 대신
+  // 자유 텍스트로 입력하다가 다시 목록 선택으로 되돌릴 수 있게 함
+  const [manualCustomFields, setManualCustomFields] = useState<Set<string>>(new Set());
   const copyUrl = (key: string, url: string) => {
     navigator.clipboard.writeText(url);
     setCopiedUrlKey(key);
@@ -2007,7 +2014,27 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
             return [
               <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-                {cfType === 'select' ? (() => {
+                {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={val}
+                      onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                      placeholder="직접 입력"
+                      readOnly={!canManage}
+                      className="min-w-0 flex-1 text-xs text-gray-700 bg-gray-100 rounded-full px-2.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
+                    />
+                    {canManage && (
+                      <button type="button" title="목록에서 선택"
+                        onClick={() => {
+                          setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                          onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                        }}
+                        className="flex-shrink-0 text-gray-300 hover:text-blue-400 transition-colors">
+                        <ChevronDown size={12} />
+                      </button>
+                    )}
+                  </div>
+                ) : cfType === 'select' ? (() => {
                   const custColor = cf.optionColors?.[val];
                   return (
                     <div className={`relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
@@ -2016,10 +2043,18 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       {canManage && <ChevronDown size={10} className={`flex-shrink-0 ${custColor ? 'opacity-70' : 'text-gray-400'}`} />}
                       {canManage && (
                         <select value={val}
-                          onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                          onChange={e => {
+                            if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
+                              setManualCustomFields(prev => new Set(prev).add(cf.id));
+                              onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                              return;
+                            }
+                            onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                          }}
                           className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
                           <option value="">-</option>
                           {opts.map(o => <option key={o}>{o}</option>)}
+                          <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>
                         </select>
                       )}
                     </div>
@@ -2434,7 +2469,27 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   return (
                     <div key={cf.id} className="flex flex-col px-5 py-3 shrink-0">
                       <span className="text-[10px] text-gray-400 font-medium mb-1">{cf.label}</span>
-                      {cfType === 'select' ? (() => {
+                      {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
+                        <div className="flex items-center gap-1 max-w-[180px]">
+                          <input
+                            value={val}
+                            onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                            placeholder="직접 입력"
+                            readOnly={!canManage}
+                            className="min-w-0 flex-1 text-xs text-gray-800 font-medium bg-black/[0.07] rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
+                          />
+                          {canManage && (
+                            <button type="button" title="목록에서 선택"
+                              onClick={() => {
+                                setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
+                                onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                              }}
+                              className="flex-shrink-0 text-gray-300 hover:text-blue-400 transition-colors">
+                              <ChevronDown size={12} />
+                            </button>
+                          )}
+                        </div>
+                      ) : cfType === 'select' ? (() => {
                         const custColor = cf.optionColors?.[val];
                         return (
                           <div className="relative">
@@ -2446,11 +2501,19 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                             {canManage && (
                               <select
                                 value={val}
-                                onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                                onChange={e => {
+                                  if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
+                                    setManualCustomFields(prev => new Set(prev).add(cf.id));
+                                    onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                                    return;
+                                  }
+                                  onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                                }}
                                 className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                               >
                                 <option value="">-</option>
                                 {opts.map(o => <option key={o}>{o}</option>)}
+                                <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>
                               </select>
                             )}
                           </div>

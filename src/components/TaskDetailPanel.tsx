@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -462,36 +462,104 @@ function listGroupToPlainText(g: RenderableListGroup): string | null {
 
 // 본문의 표/본문추가항목/목록 "영역" 하나 — SettingsPage의 미리보기에서 드래그로
 // 순서를 바꿀 수 있는 최소 단위. key는 MailFormPreset.bodyBlockOrder에 저장되는 값과 동일
+// 여러 행을 가로 표로 나열하는 행표 하나의 행 데이터 — 메일 작성할 때마다 직접 채움
+export interface MailGridRow {
+  id: string;
+  values: Record<string, string>; // column.id → 값 (checkbox면 '1'/'', date면 'YYYY-MM-DD')
+}
+
 export type MailBodyBlock =
   | { key: string; kind: 'table'; table: RenderableTable }
   | { key: string; kind: 'fields'; fields: MailBodyExtraItem[] }
-  | { key: string; kind: 'list'; group: RenderableListGroup };
+  | { key: string; kind: 'list'; group: RenderableListGroup }
+  | { key: string; kind: 'grid'; config: MailGridTableConfig; rows: MailGridRow[] };
 
-// 표/본문추가항목/목록 영역 전체의 자연 순서(key) 목록을 preset.bodyBlockOrder에 저장된
+// 표/본문추가항목/목록/행표 영역 전체의 자연 순서(key) 목록을 preset.bodyBlockOrder에 저장된
 // 순서로 정렬해 반환. 새로 추가되었거나 순서를 저장하기 전부터 있던 영역은 기본 순서
-// (메인 표 → 추가 표들 → 본문 추가 항목 → 목록들) 그대로 뒤에 붙는다.
+// (메인 표 → 추가 표들 → 본문 추가 항목 → 목록들 → 행표들) 그대로 뒤에 붙는다.
 export function resolveMailBodyBlockKeys(preset: MailFormPreset | undefined): string[] {
   const naturalKeys: string[] = ['table:main'];
   (preset?.extraTables ?? []).forEach(cfg => naturalKeys.push(`table:${cfg.id}`));
   if ((preset?.bodyCustomFields ?? []).length > 0) naturalKeys.push('fields:body');
   (preset?.listGroups ?? []).forEach(g => naturalKeys.push(`list:${g.id}`));
+  (preset?.gridTables ?? []).forEach(g => naturalKeys.push(`grid:${g.id}`));
   return resolveMailTableRowOrder(naturalKeys, preset?.bodyBlockOrder);
 }
 
-// 이미 계산된 표/목록/본문추가항목 데이터를 key 순서(resolveMailBodyBlockKeys 결과)대로 조립
+// 이미 계산된 표/목록/본문추가항목/행표 데이터를 key 순서(resolveMailBodyBlockKeys 결과)대로 조립
 export function assembleMailBodyBlocks(
   keys: string[],
   mainTable: RenderableTable,
   extraTables: { id: string; table: RenderableTable }[],
   bodyExtra: MailBodyExtraItem[],
-  listGroups: { id: string; group: RenderableListGroup }[]
+  listGroups: { id: string; group: RenderableListGroup }[],
+  gridTables: { id: string; config: MailGridTableConfig; rows: MailGridRow[] }[] = []
 ): MailBodyBlock[] {
   const byKey = new Map<string, MailBodyBlock>();
   byKey.set('table:main', { key: 'table:main', kind: 'table', table: mainTable });
   extraTables.forEach(({ id, table }) => byKey.set(`table:${id}`, { key: `table:${id}`, kind: 'table', table }));
   if (bodyExtra.length) byKey.set('fields:body', { key: 'fields:body', kind: 'fields', fields: bodyExtra });
   listGroups.forEach(({ id, group }) => byKey.set(`list:${id}`, { key: `list:${id}`, kind: 'list', group }));
+  gridTables.forEach(({ id, config, rows }) => byKey.set(`grid:${id}`, { key: `grid:${id}`, kind: 'grid', config, rows }));
   return keys.map(k => byKey.get(k)).filter((b): b is MailBodyBlock => !!b);
+}
+
+// 행표의 실제 컬럼 목록 — 날짜 컬럼에 요일 표시를 켜두면 그 바로 뒤에 자동 계산되는
+// "요일" 컬럼을 하나 더 끼워 넣는다(사용자가 따로 만들 필요 없음)
+interface EffectiveGridColumn { id: string; label: string; kind: 'text' | 'date' | 'checkbox' | 'weekday'; sourceColumnId?: string }
+
+function buildEffectiveGridColumns(config: MailGridTableConfig): EffectiveGridColumn[] {
+  const cols: EffectiveGridColumn[] = [];
+  config.columns.forEach(c => {
+    cols.push({ id: c.id, label: c.label, kind: c.type });
+    if (c.type === 'date' && c.showWeekday) cols.push({ id: `${c.id}__weekday`, label: '요일', kind: 'weekday', sourceColumnId: c.id });
+  });
+  return cols;
+}
+
+// 행표의 날짜 표시는 다른 표(M/D(요일))와 달리 "07월 01일" 형태를 씀 — 예시 표와 동일하게
+function fmtGridDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  const [, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+  if (!m || !d) return '-';
+  return `${String(m).padStart(2, '0')}월 ${String(d).padStart(2, '0')}일`;
+}
+
+function renderGridCellValue(row: MailGridRow, col: EffectiveGridColumn): string {
+  if (col.kind === 'weekday') return weekdayOf(row.values[col.sourceColumnId!] ?? '') || '-';
+  const raw = row.values[col.id] ?? '';
+  if (col.kind === 'date') return raw ? fmtGridDate(raw) : '-';
+  if (col.kind === 'checkbox') return raw === '1' ? 'O' : '-';
+  return raw || '-';
+}
+
+function gridTableToPlainText(b: Extract<MailBodyBlock, { kind: 'grid' }>): string | null {
+  const { config, rows } = b;
+  if (rows.length === 0) return null;
+  const cols = buildEffectiveGridColumns(config);
+  const showNo = config.showNumberColumn !== false;
+  const header = [...(showNo ? ['No.'] : []), ...cols.map(c => c.label)].join(' | ');
+  const body = rows.map((r, i) => [...(showNo ? [String(i + 1)] : []), ...cols.map(c => renderGridCellValue(r, c))].join(' | ')).join('\n');
+  return config.title ? `[${config.title}]\n${header}\n${body}` : `${header}\n${body}`;
+}
+
+function gridTableToHtml(b: Extract<MailBodyBlock, { kind: 'grid' }>, FS: string): string {
+  const { config, rows } = b;
+  if (rows.length === 0) return '';
+  const cols = buildEffectiveGridColumns(config);
+  const showNo = config.showNumberColumn !== false;
+  const thStyle = `padding:4px 12px;background:#f9fafb;font-weight:700;${FS}line-height:1.6;border:1px solid #d1d5db;white-space:nowrap;text-align:center;`;
+  const tdStyle = `padding:4px 12px;${FS}line-height:1.6;border:1px solid #d1d5db;text-align:center;`;
+  const headerCells = [...(showNo ? [`<th style="${thStyle}">No.</th>`] : []), ...cols.map(c => `<th style="${thStyle}">${escapeHtml(c.label)}</th>`)].join('');
+  const bodyRows = rows.map((r, i) => {
+    const cells = [
+      ...(showNo ? [`<td style="${tdStyle}">${i + 1}</td>`] : []),
+      ...cols.map(c => `<td style="${tdStyle}">${escapeHtml(renderGridCellValue(r, c))}</td>`),
+    ].join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  const titleHtml = config.title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(config.title)}]</div>` : '';
+  return `${titleHtml}<table style="border-collapse:collapse;${FS}line-height:1.6;width:auto;border:1px solid #d1d5db;"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><br>`;
 }
 
 function bodyExtraItemToPlainText(f: MailBodyExtraItem): string {
@@ -502,6 +570,7 @@ function bodyExtraItemToPlainText(f: MailBodyExtraItem): string {
 function blockToPlainText(b: MailBodyBlock): string | null {
   if (b.kind === 'table') return tableToPlainText(b.table);
   if (b.kind === 'list') return listGroupToPlainText(b.group);
+  if (b.kind === 'grid') return gridTableToPlainText(b);
   return b.fields.length ? b.fields.map(bodyExtraItemToPlainText).join('\n\n') : null;
 }
 
@@ -567,6 +636,7 @@ const MAIL_BODY_FS = 'font-size:13px!important;word-break:keep-all!important;';
 export function mailBodyBlockToHtml(block: MailBodyBlock, FS: string = MAIL_BODY_FS): string {
   if (block.kind === 'table') return tableToHtml(block.table, FS);
   if (block.kind === 'list') return listGroupToHtml(block.group, FS);
+  if (block.kind === 'grid') return gridTableToHtml(block, FS);
   if (!block.fields.length) return '';
   return block.fields.map(f => {
     const valueHtml = f.isUrl && f.value !== '-'
@@ -710,6 +780,83 @@ function MailListGroupPreview({ group, manualValues, setManualValues }: {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// 행표 미리보기/편집 — 메일 작성할 때마다 필요한 만큼 행을 추가/삭제하고 셀을 직접 채우는
+// 미니 스프레드시트. 값은 업무 데이터와 무관하게 이번 메일에서만 쓰는 임시 데이터라 rows 자체를
+// 그대로 부모(TaskDetailPanel)의 mailGridRows 상태로 관리하고 이 컴포넌트는 그 조작만 담당함
+function MailGridTablePreview({ config, rows, setRows }: {
+  config: MailGridTableConfig;
+  rows: MailGridRow[];
+  setRows: (updater: (prev: MailGridRow[]) => MailGridRow[]) => void;
+}) {
+  const showNo = config.showNumberColumn !== false;
+
+  const handleAddRow = () => {
+    setRows(prev => [...prev, { id: `mgr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, values: {} }]);
+  };
+  const handleRemoveRow = (rowId: string) => setRows(prev => prev.filter(r => r.id !== rowId));
+  const handleSetCell = (rowId: string, columnId: string, value: string) => {
+    setRows(prev => prev.map(r => r.id === rowId ? { ...r, values: { ...r.values, [columnId]: value } } : r));
+  };
+
+  return (
+    <div className="mt-3">
+      {config.title && <p className="font-bold mb-1">[{config.title}]</p>}
+      <div className="overflow-x-auto">
+        <table className="text-[13px] leading-relaxed border-collapse w-full border border-gray-300">
+          <thead>
+            <tr>
+              {showNo && <th className="py-1 px-3 text-gray-600 font-bold whitespace-nowrap border border-gray-300 bg-gray-50">No.</th>}
+              {config.columns.map(c => (
+                <th key={c.id} className="py-1 px-3 text-gray-600 font-bold whitespace-nowrap border border-gray-300 bg-gray-50">
+                  {c.label}{c.type === 'date' && c.showWeekday ? ' / 요일' : ''}
+                </th>
+              ))}
+              <th className="py-1 px-1 border border-gray-300 bg-gray-50 w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={row.id}>
+                {showNo && <td className="py-1 px-3 text-center border border-gray-300 text-gray-500">{i + 1}</td>}
+                {config.columns.map(c => {
+                  const val = row.values[c.id] ?? '';
+                  return (
+                    <td key={c.id} className="py-1 px-2 border border-gray-300">
+                      {c.type === 'date' ? (
+                        <div className="flex items-center gap-1">
+                          <DatePicker compact value={val} onChange={v => handleSetCell(row.id, c.id, v)} />
+                          {c.showWeekday && weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
+                        </div>
+                      ) : c.type === 'checkbox' ? (
+                        <label className="flex items-center justify-center cursor-pointer select-none">
+                          <input type="checkbox" checked={val === '1'} onChange={() => handleSetCell(row.id, c.id, val === '1' ? '' : '1')} />
+                        </label>
+                      ) : (
+                        <input
+                          value={val}
+                          onChange={e => handleSetCell(row.id, c.id, e.target.value)}
+                          placeholder="입력"
+                          className="w-full min-w-[60px] bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="py-1 px-1 border border-gray-300 text-center">
+                  <button onClick={() => handleRemoveRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors">×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button onClick={handleAddRow} className="mt-1.5 text-xs text-[#6C63FF] hover:text-[#5a52e0] font-medium">
+        + 행 추가
+      </button>
     </div>
   );
 }
@@ -972,6 +1119,8 @@ export default function TaskDetailPanel({
   const [mailMessageInsertValues, setMailMessageInsertValues] = useState<Record<string, string>>({});
   // 안내 문구 안 "{이름}" 자리마다 고른 옵션 id (phrase.id → option.id, 없으면 선택 안 함)
   const [mailPhraseSelected, setMailPhraseSelected] = useState<Record<string, string>>({});
+  // 행표(gridTables)의 실제 행 데이터 — gridTable.id → 행 목록. 메일 작성할 때마다 직접 채움
+  const [mailGridRows, setMailGridRows] = useState<Record<string, MailGridRow[]>>({});
   const [mailCopied, setMailCopied] = useState(false);
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
@@ -995,6 +1144,7 @@ export default function TaskDetailPanel({
     setMailBodyManualValues({});
     setMailMessageInsertValues({});
     setMailPhraseSelected(buildInitialPhraseSelected(preset));
+    setMailGridRows({});
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -2483,7 +2633,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseSelected(buildInitialPhraseSelected(p)); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseSelected(buildInitialPhraseSelected(p)); setMailGridRows({}); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -2748,6 +2898,18 @@ export default function TaskDetailPanel({
                         const group = listGroupMap.get(key.slice('list:'.length));
                         return group ? <MailListGroupPreview key={key} group={group} manualValues={mailManualValues} setManualValues={setMailManualValues} /> : null;
                       }
+                      if (key.startsWith('grid:')) {
+                        const gridConfig = currentPreset?.gridTables?.find(g => g.id === key.slice('grid:'.length));
+                        if (!gridConfig) return null;
+                        return (
+                          <MailGridTablePreview
+                            key={key}
+                            config={gridConfig}
+                            rows={mailGridRows[gridConfig.id] ?? []}
+                            setRows={updater => setMailGridRows(prev => ({ ...prev, [gridConfig.id]: updater(prev[gridConfig.id] ?? []) }))}
+                          />
+                        );
+                      }
                       return null;
                     })}
                   </div>
@@ -2774,9 +2936,10 @@ export default function TaskDetailPanel({
                 ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
               }));
               const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));
+              const gridTables = (currentPreset?.gridTables ?? []).map(cfg => ({ id: cfg.id, config: cfg, rows: mailGridRows[cfg.id] ?? [] }));
               const blockKeys = resolveMailBodyBlockKeys(currentPreset)
                 .filter(key => isBlockVisible(key, currentPreset?.optionalPhrases, mailPhraseSelected));
-              const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
+              const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups, gridTables);
               const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides, currentPreset?.joinMultipleWithDot !== false);
               const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';

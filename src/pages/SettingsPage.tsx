@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, Task } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -8,6 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
+import type { MailGridRow } from '../components/TaskDetailPanel';
 import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups, isBlockVisible } from '../components/TaskDetailPanel';
 import type { MailBodyBlock } from '../components/TaskDetailPanel';
 
@@ -4517,6 +4518,145 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   );
 }
 
+// 여러 행을 가로 표로 나열하는 "행표" 하나를 편집 — 값은 저장하지 않고 컬럼 구성(이름/타입)만
+// 관리하며, 실제 행 데이터는 업무 상세의 메일 작성 화면에서 매번 직접 입력함
+function MailGridTableEditor({ table, onSave, onRemove }: {
+  table: MailGridTableConfig;
+  onSave: (next: MailGridTableConfig) => void;
+  onRemove: () => void;
+}) {
+  const [titleDraft, setTitleDraft] = useState(table.title ?? '');
+  const [colLabelDraft, setColLabelDraft] = useState('');
+  const [colTypeDraft, setColTypeDraft] = useState<'text' | 'date' | 'checkbox'>('text');
+  const colDragIdxRef = useRef<number | null>(null);
+  const [colDragOverIdx, setColDragOverIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setTitleDraft(table.title ?? '');
+    setColLabelDraft('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.id]);
+
+  const patch = (p: Partial<MailGridTableConfig>) => onSave({ ...table, ...p });
+
+  const handleAddColumn = () => {
+    if (!colLabelDraft.trim()) return;
+    const col: MailGridColumn = { id: `mgc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: colLabelDraft.trim(), type: colTypeDraft };
+    patch({ columns: [...table.columns, col] });
+    setColLabelDraft('');
+  };
+
+  const handleRemoveColumn = (id: string) => patch({ columns: table.columns.filter(c => c.id !== id) });
+
+  const handleSetColumnLabel = (id: string, label: string) => {
+    if (!label.trim()) return;
+    patch({ columns: table.columns.map(c => c.id === id ? { ...c, label: label.trim() } : c) });
+  };
+
+  const handleSetColumnType = (id: string, type: 'text' | 'date' | 'checkbox') =>
+    patch({ columns: table.columns.map(c => c.id === id ? { ...c, type, ...(type !== 'date' ? { showWeekday: undefined } : {}) } : c) });
+
+  const handleToggleColumnWeekday = (id: string) =>
+    patch({ columns: table.columns.map(c => c.id === id ? { ...c, showWeekday: !c.showWeekday } : c) });
+
+  const handleReorderColumn = (toIdx: number) => {
+    const from = colDragIdxRef.current;
+    if (from === null || from === toIdx) return;
+    const arr = [...table.columns];
+    const [item] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, item);
+    patch({ columns: arr });
+    colDragIdxRef.current = null;
+    setColDragOverIdx(null);
+  };
+
+  const showNumberColumn = table.showNumberColumn !== false;
+
+  return (
+    <div className="space-y-3 rounded-xl border border-gray-100 p-4">
+      <div className="flex items-center gap-3">
+        <input
+          value={titleDraft}
+          onChange={e => setTitleDraft(e.target.value)}
+          onBlur={() => { if (titleDraft !== (table.title ?? '')) patch({ title: titleDraft.trim() }); }}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder="표 제목 (선택, 예: 라이브 방송 일정)"
+          className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        />
+        <button onClick={onRemove} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+          행표 삭제
+        </button>
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${showNumberColumn ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+          {showNumberColumn && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        </div>
+        <input type="checkbox" checked={showNumberColumn} onChange={() => patch({ showNumberColumn: !showNumberColumn })} className="hidden" />
+        <span className="text-[11px] text-gray-600">맨 앞에 "No." 순번 칸 표시</span>
+      </label>
+
+      <div>
+        <p className="text-[11px] text-gray-500 mb-1.5">
+          컬럼 구성
+          {table.columns.length > 0 && <span className="text-gray-300 font-normal ml-1">드래그로 순서 변경</span>}
+        </p>
+        {table.columns.length > 0 && (
+          <div className="space-y-1 mb-2">
+            {table.columns.map((c, i) => (
+              <div key={c.id}
+                draggable
+                onDragStart={() => { colDragIdxRef.current = i; }}
+                onDragOver={e => { e.preventDefault(); setColDragOverIdx(i); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setColDragOverIdx(null); }}
+                onDrop={() => handleReorderColumn(i)}
+                onDragEnd={() => { colDragIdxRef.current = null; setColDragOverIdx(null); }}
+                className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${colDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                <InlineTextField
+                  value={c.label}
+                  onCommit={v => handleSetColumnLabel(c.id, v)}
+                  className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                />
+                <select value={c.type} onChange={e => handleSetColumnType(c.id, e.target.value as 'text' | 'date' | 'checkbox')}
+                  className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                  <option value="text">텍스트</option>
+                  <option value="date">날짜</option>
+                  <option value="checkbox">체크박스</option>
+                </select>
+                {c.type === 'date' && (
+                  <label className="flex items-center gap-1 cursor-pointer select-none flex-shrink-0">
+                    <input type="checkbox" checked={!!c.showWeekday} onChange={() => handleToggleColumnWeekday(c.id)} className="w-3 h-3" />
+                    <span className="text-[10px] text-gray-500">요일 표시</span>
+                  </label>
+                )}
+                <button onClick={() => handleRemoveColumn(c.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-1.5">
+          <input value={colLabelDraft} onChange={e => setColLabelDraft(e.target.value)}
+            placeholder="컬럼 이름 (예: 라이브 일자)"
+            onKeyDown={e => { if (e.key === 'Enter') handleAddColumn(); }}
+            className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+          <select value={colTypeDraft} onChange={e => setColTypeDraft(e.target.value as 'text' | 'date' | 'checkbox')}
+            className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
+            <option value="text">텍스트</option>
+            <option value="date">날짜</option>
+            <option value="checkbox">체크박스</option>
+          </select>
+          <button onClick={handleAddColumn} disabled={!colLabelDraft.trim()}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+            추가
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1">값은 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 행을 추가하며 직접 입력합니다.</p>
+      </div>
+    </div>
+  );
+}
+
 // 영역 key(resolveMailBodyBlockKeys가 반환하는 'table:main' 등)를 사람이 알아볼 수 있는
 // 이름으로 — "이 문구를 선택해야만 노출할 영역" 체크리스트에 씀
 function mailBlockKeyLabel(preset: MailFormPreset, key: string): string {
@@ -4531,6 +4671,11 @@ function mailBlockKeyLabel(preset: MailFormPreset, key: string): string {
     const id = key.slice('list:'.length);
     const g = preset.listGroups?.find(g => g.id === id);
     return g?.title ? `목록: ${g.title}` : '번호 목록';
+  }
+  if (key.startsWith('grid:')) {
+    const id = key.slice('grid:'.length);
+    const g = preset.gridTables?.find(g => g.id === id);
+    return g?.title ? `행표: ${g.title}` : '행표';
   }
   return key;
 }
@@ -4593,9 +4738,19 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   }));
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
 
+  // 행표는 매번 직접 입력하는 표라 저장된 값이 없으므로, 미리보기에서는 컬럼 구성이
+  // 어떻게 표시되는지 알 수 있도록 샘플 행 2개를 채워서 보여줌
+  const gridTables = (preset.gridTables ?? []).map(cfg => {
+    const rows: MailGridRow[] = [1, 2].map(n => ({
+      id: `preview-grid-row-${n}`,
+      values: Object.fromEntries(cfg.columns.map(col => [col.id, col.type === 'date' ? today : col.type === 'checkbox' ? '1' : `샘플 ${n}`])),
+    }));
+    return { id: cfg.id, config: cfg, rows };
+  });
+
   const blockKeys = resolveMailBodyBlockKeys(preset)
     .filter(key => isBlockVisible(key, preset.optionalPhrases, previewPhraseSelected));
-  const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
+  const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups, gridTables);
   // 실제 발송/복사 때와 완전히 동일한 함수로 만든 HTML 그대로 보여줘야 미리보기가
   // "진짜처럼" 보임 — 드래그 UI를 씌운다고 블록별로 쪼개 다시 감싸면 여백/정렬이 미묘하게
   // 달라져 어색해지므로, 미리보기 자체는 손대지 않고 순서 변경은 아래 별도 목록으로 분리
@@ -4605,6 +4760,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   const blockLabel = (block: MailBodyBlock) => {
     if (block.kind === 'table') return block.table.title || (block.key === 'table:main' ? '표 (기본 정보)' : '표');
     if (block.kind === 'list') return block.group.title || '목록';
+    if (block.kind === 'grid') return block.config.title || '행표';
     return '본문 추가 항목';
   };
 
@@ -4695,6 +4851,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
   const [selectedExtraTableId, setSelectedExtraTableId] = useState<string>('');
   const [selectedListGroupId, setSelectedListGroupId] = useState<string>('');
+  const [selectedGridTableId, setSelectedGridTableId] = useState<string>('');
   const [msgInsertLabelDraft, setMsgInsertLabelDraft] = useState('');
   const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count' | 'select'>('text');
   const msgInsertDragIdxRef = useRef<number | null>(null);
@@ -5132,6 +5289,26 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleSaveListGroup = (next: MailListGroup) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, listGroups: (p.listGroups ?? []).map(g => g.id === next.id ? next : g) } : p));
+  };
+
+  // 여러 행을 가로 표로 나열하는 "행표" 관리 — 컬럼 구성만 여기서 저장하고, 실제 행 값은
+  // 업무 상세의 메일 작성 화면에서 매번 직접 입력(미니 스프레드시트)
+  const handleAddGridTable = () => {
+    if (!currentPreset) return;
+    const table: MailGridTableConfig = { id: `mgt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, columns: [] };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, gridTables: [...(p.gridTables ?? []), table] } : p));
+    setSelectedGridTableId(table.id);
+  };
+
+  const handleRemoveGridTable = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, gridTables: (p.gridTables ?? []).filter(t => t.id !== id) } : p));
+    if (selectedGridTableId === id) setSelectedGridTableId('');
+  };
+
+  const handleSaveGridTable = (next: MailGridTableConfig) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, gridTables: (p.gridTables ?? []).map(t => t.id === next.id ? next : t) } : p));
   };
 
   const handleSetLabelBg = (bg: string) => {
@@ -5869,6 +6046,36 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                   candidateFields={candidateFields}
                   onSave={handleSaveListGroup}
                   onRemove={() => handleRemoveListGroup(selectedListGroup.id)}
+                />
+              );
+            })()}
+          </div>
+
+          <div className="pt-3 border-t border-gray-100 space-y-3">
+            <p className="text-xs font-semibold text-gray-700">행표 추가</p>
+            <p className="text-[11px] text-gray-400">여러 행을 가로 표로 나열하는 표를 추가합니다. 예: No. / 라이브 일자 / 요일 / 시간 / 제품 / URL. 값은 여기서 미리 채우지 않고, 업무 상세의 메일 작성 화면에서 메일을 쓸 때마다 행을 추가하며 미니 스프레드시트처럼 직접 입력합니다.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(currentPreset.gridTables ?? []).map((g, i) => (
+                <button key={g.id} onClick={() => setSelectedGridTableId(g.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    selectedGridTableId === g.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}>
+                  {g.title || `행표 ${i + 1}`}
+                </button>
+              ))}
+              <button onClick={handleAddGridTable}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-dashed border-gray-300 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+                + 행표 추가
+              </button>
+            </div>
+            {(() => {
+              const selectedGridTable = (currentPreset.gridTables ?? []).find(g => g.id === selectedGridTableId);
+              if (!selectedGridTable) return null;
+              return (
+                <MailGridTableEditor
+                  table={selectedGridTable}
+                  onSave={handleSaveGridTable}
+                  onRemove={() => handleRemoveGridTable(selectedGridTable.id)}
                 />
               );
             })()}

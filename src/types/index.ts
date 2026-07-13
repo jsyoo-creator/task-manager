@@ -279,6 +279,24 @@ export interface MailListGroup {
   items: MailListItem[];
 }
 
+// 여러 "행"을 나열하는 표(No. | 라이브 일자 | 요일 | 시간 | 제품 | URL 생성 처럼)의 컬럼 하나.
+// 값은 업무 데이터에서 가져오지 않고 메일 작성할 때마다 행을 추가해가며 직접 입력한다
+export interface MailGridColumn {
+  id: string;
+  label: string; // 헤더에 표시할 컬럼명
+  type: 'text' | 'date' | 'checkbox'; // checkbox는 셀에 O/- 토글로 표시
+  showWeekday?: boolean; // type이 'date'일 때, 바로 뒤에 자동 계산된 "요일" 컬럼을 추가로 보여줌
+}
+
+// 여러 행을 가로 표로 나열하는 표 하나("메인 표"와 달리 업무 하나가 아니라, 메일 작성할
+// 때마다 필요한 만큼 행을 추가/삭제하는 미니 스프레드시트 형태)
+export interface MailGridTableConfig {
+  id: string;
+  title?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
+  columns: MailGridColumn[];
+  showNumberColumn?: boolean; // 맨 앞에 "No." 자동 순번 컬럼을 보여줄지 (없으면 true = 표시)
+}
+
 // 본문 인사말 다음 줄(업무명 다음, 안내 문구 앞)에 끼워 넣는 입력 항목 — 메일 작성할
 // 때마다 값을 직접 입력한다. type이 'count'면 값 뒤에 자동으로 "건"이 붙음
 export interface MailMessageInsert {
@@ -378,9 +396,10 @@ export interface MailFormPreset {
   extraTables?: MailTableConfig[]; // 기존 표에 합치지 않고 별도로 구성하는 추가 표 목록
   bodyCustomFields?: MailBodyCustomField[]; // 표 밖 본문에 추가하는 텍스트/날짜 입력 항목
   listGroups?: MailListGroup[]; // 제목 아래 번호 매긴 항목을 나열하는 목록들
-  // 본문에서 표/본문추가항목/목록 "영역" 단위의 전체 순서. 각 항목은 'table:main',
-  // 'table:<extraTables[].id>', 'fields:body', 'list:<listGroups[].id>' 형식의 key.
-  // 없으면 기본 순서(메인 표 → 추가 표들 → 본문 추가 항목 → 목록들) 사용
+  gridTables?: MailGridTableConfig[]; // 여러 행을 가로 표로 나열하는(메일 작성 때마다 행을 추가하는) 표들
+  // 본문에서 표/본문추가항목/목록/행표 "영역" 단위의 전체 순서. 각 항목은 'table:main',
+  // 'table:<extraTables[].id>', 'fields:body', 'list:<listGroups[].id>', 'grid:<gridTables[].id>'
+  // 형식의 key. 없으면 기본 순서(메인 표 → 추가 표들 → 본문 추가 항목 → 목록들 → 행표들) 사용
   bodyBlockOrder?: string[];
 }
 

@@ -253,9 +253,10 @@ export interface MailTableCustomField {
 export interface MailBodyCustomField {
   id: string;
   title: string;
-  type: 'text' | 'date';
+  type: 'text' | 'date' | 'url';
   source?: 'field' | 'subtask';
   sourceKey?: string; // source==='field'면 customFields의 key, source==='subtask'면 'subTaskTypeId:startDate|endDate'
+  linkText?: string; // type이 'url'일 때, 실제 값(URL) 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
 }
 
 // 번호 목록 항목 하나 — "N. 항목명" 다음 줄에 값이 오는 형태. sourceKey가 있으면 필드
@@ -263,10 +264,11 @@ export interface MailBodyCustomField {
 export interface MailListItem {
   id: string;
   label: string;
-  type: 'text' | 'date';
+  type: 'text' | 'date' | 'url';
   source?: 'field' | 'subtask'; // 없으면 'field' (하위 호환)
   sourceKey?: string;
   numberLabel?: string; // 없으면 "N."(순번) 자동 표시, 있으면 이 텍스트로 대체 (예: "A안")
+  linkText?: string; // type이 'url'일 때, 실제 값(URL) 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
 }
 
 // 표와 별개로, "[제목]" 아래 번호가 매겨진 항목들을 나열하는 목록 —

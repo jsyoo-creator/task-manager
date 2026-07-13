@@ -240,6 +240,8 @@ const composeRowValue = (r: MailTableRow) => {
 interface MailBodyExtraItem {
   title: string;
   value: string;
+  isUrl?: boolean; // true면 value를 URL로 보고 하이퍼링크로 렌더링
+  linkText?: string; // isUrl일 때 실제 URL 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
 }
 
 // 미리보기/복사에 쓰이는, 화면에 그려질 표 하나의 최종 형태(메인 표 1개 + 별도로 구성한
@@ -275,7 +277,9 @@ interface MailListItemResolved {
   label: string;
   value: string;
   manualFieldId?: string;
-  manualFieldType?: 'text' | 'date';
+  manualFieldType?: 'text' | 'date' | 'url';
+  isUrl?: boolean; // true면 value를 URL로 보고 하이퍼링크로 렌더링
+  linkText?: string; // isUrl일 때 실제 URL 대신 하이퍼링크에 표시할 고정 텍스트 (없으면 URL 그대로 표시)
 }
 
 interface RenderableListGroup {
@@ -296,6 +300,7 @@ export function buildRenderableListGroup(task: Task, group: MailListGroup, manua
       label: it.label,
       value,
       ...(it.sourceKey ? {} : { manualFieldId: it.id, manualFieldType: it.type }),
+      ...(it.type === 'url' ? { isUrl: true, linkText: it.linkText } : {}),
     };
   });
   return { title: group.title, items, visible: items.length > 0 };
@@ -319,7 +324,10 @@ function tableToPlainText(t: RenderableTable): string | null {
 
 function listGroupToPlainText(g: RenderableListGroup): string | null {
   if (!g.visible) return null;
-  const body = g.items.map(it => `${it.indexLabel} ${it.label}\n${it.value}`).join('\n\n');
+  const body = g.items.map(it => {
+    const value = it.isUrl && it.linkText && it.value !== '-' ? `${it.linkText} (${it.value})` : it.value;
+    return `${it.indexLabel} ${it.label}\n${value}`;
+  }).join('\n\n');
   return g.title ? `[${g.title}]\n${body}` : body;
 }
 
@@ -357,10 +365,15 @@ export function assembleMailBodyBlocks(
   return keys.map(k => byKey.get(k)).filter((b): b is MailBodyBlock => !!b);
 }
 
+function bodyExtraItemToPlainText(f: MailBodyExtraItem): string {
+  const core = f.isUrl && f.linkText && f.value !== '-' ? `${f.linkText} (${f.value})` : f.value;
+  return `[${f.title}]\n${core}`;
+}
+
 function blockToPlainText(b: MailBodyBlock): string | null {
   if (b.kind === 'table') return tableToPlainText(b.table);
   if (b.kind === 'list') return listGroupToPlainText(b.group);
-  return b.fields.length ? b.fields.map(f => `[${f.title}]\n${f.value}`).join('\n\n') : null;
+  return b.fields.length ? b.fields.map(bodyExtraItemToPlainText).join('\n\n') : null;
 }
 
 export function buildMailPlainText(greeting: string, message: string, blocks: MailBodyBlock[], signature: string): string {
@@ -407,14 +420,19 @@ function tableToHtml(t: RenderableTable, FS: string): string {
 function listGroupToHtml(g: RenderableListGroup, FS: string): string {
   if (!g.visible) return '';
   const titleHtml = g.title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(g.title)}]</div>` : '';
-  const itemsHtml = g.items.map(it =>
-    `<div style="${FS}">${escapeHtml(it.indexLabel)} ${escapeHtml(it.label)}</div>` +
-    `<div style="${FS}margin-bottom:8px;">${escapeHtml(it.value)}</div>`
-  ).join('');
+  const itemsHtml = g.items.map(it => {
+    const valueHtml = it.isUrl && it.value !== '-'
+      ? `<a href="${escapeHtml(it.value)}" style="color:#2563eb;text-decoration:underline;" target="_blank" rel="noreferrer">${escapeHtml(it.linkText || it.value)}</a>`
+      : escapeHtml(it.value);
+    return `<div style="${FS}">${escapeHtml(it.indexLabel)} ${escapeHtml(it.label)}</div>` +
+      `<div style="${FS}margin-bottom:8px;">${valueHtml}</div>`;
+  }).join('');
   return `${titleHtml}${itemsHtml}<br>`;
 }
 
-const MAIL_BODY_FS = 'font-size:13px!important;';
+// 한글은 word-break이 기본(normal)이면 단어/어미 중간에서도 줄바꿈될 수 있어("드립니다."가
+// "드립니"/"다."로 쪼개지는 등) 문장이 지저분해 보임 — 공백에서만 줄바꿈되도록 강제
+const MAIL_BODY_FS = 'font-size:13px!important;word-break:keep-all!important;';
 
 // 영역 하나(표/목록/본문추가항목)를 HTML로 렌더링 — SettingsPage의 미리보기가 영역별로
 // 개별 렌더링해 드래그 UI를 씌울 수 있도록 buildMailHtml에서 분리해 export
@@ -422,10 +440,13 @@ export function mailBodyBlockToHtml(block: MailBodyBlock, FS: string = MAIL_BODY
   if (block.kind === 'table') return tableToHtml(block.table, FS);
   if (block.kind === 'list') return listGroupToHtml(block.group, FS);
   if (!block.fields.length) return '';
-  return block.fields.map(f =>
-    `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
-    `<div style="${FS}margin-bottom:8px;">${escapeHtml(f.value)}</div>`
-  ).join('') + '<br>';
+  return block.fields.map(f => {
+    const valueHtml = f.isUrl && f.value !== '-'
+      ? `<a href="${escapeHtml(f.value)}" style="color:#2563eb;text-decoration:underline;" target="_blank" rel="noreferrer">${escapeHtml(f.linkText || f.value)}</a>`
+      : escapeHtml(f.value);
+    return `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(f.title)}]</div>` +
+      `<div style="${FS}margin-bottom:8px;">${valueHtml}</div>`;
+  }).join('') + '<br>';
 }
 
 export function buildMailHtml(greeting: string, message: string, blocks: MailBodyBlock[], signature: string): string {
@@ -550,10 +571,12 @@ function MailListGroupPreview({ group, manualValues, setManualValues }: {
               <input
                 value={manualValues[it.manualFieldId] ?? ''}
                 onChange={e => setManualValues(prev => ({ ...prev, [it.manualFieldId!]: e.target.value }))}
-                placeholder="입력"
+                placeholder={it.manualFieldType === 'url' ? 'URL 입력' : '입력'}
                 className="w-full mt-0.5 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
               />
             )
+          ) : it.isUrl && it.value !== '-' ? (
+            <a href={it.value} target="_blank" rel="noreferrer" className="text-blue-600 underline">{it.linkText || it.value}</a>
           ) : (
             <p className="text-gray-800">{it.value}</p>
           )}
@@ -2395,7 +2418,7 @@ export default function TaskDetailPanel({
             <label className="text-[11px] font-medium text-gray-500 mb-1 block">본문</label>
             {/* 인사말/업무 정보 표/맺음말은 항상 업무 데이터로 다시 생성되는 미리보기(수정 불가),
                 안내 문구만 자유 편집 가능한 textarea로 그 사이에 끼워 넣음 */}
-            <div className="flex-1 min-h-[240px] overflow-y-auto text-[13px] px-3 py-3 rounded-lg border border-gray-200 bg-white text-gray-800 leading-relaxed">
+            <div className="flex-1 min-h-[240px] overflow-y-auto text-[13px] px-3 py-3 rounded-lg border border-gray-200 bg-white text-gray-800 leading-relaxed break-keep">
               <p>{buildMailGreeting(mailAuthor)}</p>
               {(() => {
                 const currentPart = parts.find(p => p.name === task.category);
@@ -2446,7 +2469,7 @@ export default function TaskDetailPanel({
                         el.style.height = `${el.scrollHeight}px`;
                       }}
                       rows={1}
-                      className="flex-1 min-w-[140px] text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden"
+                      className="flex-1 min-w-[140px] text-[13px] text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 rounded resize-none leading-relaxed overflow-hidden break-keep"
                     />
                   </div>
                 );
@@ -2474,13 +2497,18 @@ export default function TaskDetailPanel({
                           <div key={key} className="mt-3 space-y-3">
                             {currentPreset!.bodyCustomFields!.map(f => {
                               const val = mailBodyManualValues[f.id] ?? '';
+                              const resolved = f.sourceKey ? resolveMailBodyFieldValue(task, f, mailBodyManualValues) : '';
                               return (
                                 <div key={f.id}>
                                   <p className="font-bold mb-1">[{f.title}]</p>
                                   {f.sourceKey ? (
                                     // 필드/세부업무에 연결된 항목은 항상 최신 업무 데이터로 다시
                                     // 계산되는 고정 표시 — 표의 연결 항목과 동일하게 수정 불가
-                                    <p className="text-gray-700">{resolveMailBodyFieldValue(task, f, mailBodyManualValues)}</p>
+                                    f.type === 'url' && resolved !== '-' ? (
+                                      <a href={resolved} target="_blank" rel="noreferrer" className="text-blue-600 underline">{f.linkText || resolved}</a>
+                                    ) : (
+                                      <p className="text-gray-700">{resolved}</p>
+                                    )
                                   ) : f.type === 'date' ? (
                                     <div className="flex items-center gap-1.5">
                                       <DatePicker
@@ -2494,7 +2522,7 @@ export default function TaskDetailPanel({
                                     <input
                                       value={val}
                                       onChange={e => setMailBodyManualValues(prev => ({ ...prev, [f.id]: e.target.value }))}
-                                      placeholder="입력"
+                                      placeholder={f.type === 'url' ? 'URL 입력' : '입력'}
                                       className="w-full text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
                                     />
                                   )}
@@ -2535,6 +2563,7 @@ export default function TaskDetailPanel({
               const bodyExtra: MailBodyExtraItem[] = (currentPreset?.bodyCustomFields ?? []).map(f => ({
                 title: f.title,
                 value: resolveMailBodyFieldValue(task, f, mailBodyManualValues),
+                ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
               }));
               const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));
               const blockKeys = resolveMailBodyBlockKeys(currentPreset);

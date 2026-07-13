@@ -4266,13 +4266,13 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
 // 등 스타일 없이, 항목 이름과 값(필드에서 가져오거나 사용자 입력)만으로 구성
 function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   group: MailListGroup;
-  candidateFields: { key: string; label: string; type: 'text' | 'date'; source: 'field' | 'subtask' }[];
+  candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url'; source: 'field' | 'subtask' }[];
   onSave: (next: MailListGroup) => void;
   onRemove: () => void;
 }) {
   const [titleDraft, setTitleDraft] = useState(group.title ?? '');
   const [customSourceKey, setCustomSourceKey] = useState('');
-  const [customType, setCustomType] = useState<'text' | 'date'>('text');
+  const [customType, setCustomType] = useState<'text' | 'date' | 'url'>('text');
   const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const dragIdxRef = useRef<number | null>(null);
@@ -4311,10 +4311,11 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
 
   const handleRemoveItem = (id: string) => patch({ items: (group.items ?? []).filter(it => it.id !== id) });
   const handleSetItemLabel = (id: string, label: string) => { if (label.trim()) patchItem(id, { label: label.trim() }); };
+  const handleSetItemLinkText = (id: string, linkText: string) => patchItem(id, { linkText });
   // 비워두면 다시 순번 자동 표시로 돌아감 ("A안" 같은 텍스트로 직접 지정도 가능)
   const handleSetItemNumberLabel = (id: string, numberLabel: string) => patchItem(id, { numberLabel: numberLabel.trim() || undefined });
   // 타입을 바꾸면 기존 연결은 타입이 안 맞을 수 있으니 해제하고 사용자 입력으로 되돌림
-  const handleSetItemType = (id: string, type: 'text' | 'date') => patchItem(id, { type, source: undefined, sourceKey: undefined });
+  const handleSetItemType = (id: string, type: 'text' | 'date' | 'url') => patchItem(id, { type, source: undefined, sourceKey: undefined });
   const handleConnectItem = (id: string, key: string) => {
     if (!key) return;
     const source = candidateFields.find(f => f.key === key);
@@ -4378,11 +4379,20 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
                   onCommit={v => handleSetItemLabel(it.id, v)}
                   className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
                 />
-                <select value={it.type} onChange={e => handleSetItemType(it.id, e.target.value as 'text' | 'date')}
+                <select value={it.type} onChange={e => handleSetItemType(it.id, e.target.value as 'text' | 'date' | 'url')}
                   className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
                   <option value="text">텍스트</option>
                   <option value="date">날짜</option>
+                  <option value="url">링크</option>
                 </select>
+                {it.type === 'url' && (
+                  <InlineTextField
+                    value={it.linkText ?? ''}
+                    onCommit={v => handleSetItemLinkText(it.id, v)}
+                    placeholder="링크 텍스트"
+                    className="w-28 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0"
+                  />
+                )}
                 {it.sourceKey ? (
                   <>
                     <span className="text-gray-400 flex-shrink-0">연결됨</span>
@@ -4456,10 +4466,11 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
               <input value={manualLabelDraft} onChange={e => setManualLabelDraft(e.target.value)}
                 placeholder="항목 이름 (예: 방송 안내 페이지)"
                 className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-              <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date')}
+              <select value={customType} onChange={e => setCustomType(e.target.value as 'text' | 'date' | 'url')}
                 className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                 <option value="text">텍스트</option>
                 <option value="date">날짜</option>
+                <option value="url">링크</option>
               </select>
               <button onClick={handleAddManual} disabled={!manualLabelDraft.trim()}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -4512,6 +4523,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   const bodyExtra = (preset.bodyCustomFields ?? []).map(f => ({
     title: f.title,
     value: f.sourceKey ? resolveMailBodyFieldValue(dummyTask, f, manualValues) : sampleValue(f.type),
+    ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
   }));
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
 
@@ -4554,7 +4566,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
       <p className="text-xs font-semibold text-gray-700 mb-3">
         본문 미리보기 <span className="font-normal text-gray-400">(샘플 값으로 표시)</span>
       </p>
-      <div className="text-[13px] text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="text-[13px] text-gray-800 leading-relaxed break-keep" dangerouslySetInnerHTML={{ __html: html }} />
 
       {visibleBlocks.length > 1 && (
         <div className="mt-4 pt-3 border-t border-gray-100">
@@ -4607,7 +4619,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [addMode, setAddMode] = useState<'field' | 'manual'>('field');
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const [bodyTitleDraft, setBodyTitleDraft] = useState('');
-  const [bodyTypeDraft, setBodyTypeDraft] = useState<'text' | 'date'>('text');
+  const [bodyTypeDraft, setBodyTypeDraft] = useState<'text' | 'date' | 'url'>('text');
   const [bodyAddMode, setBodyAddMode] = useState<'field' | 'manual'>('manual');
   const [bodySourceKey, setBodySourceKey] = useState('');
   const bodyDragIdxRef = useRef<number | null>(null);
@@ -4847,7 +4859,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleAddBodyFieldFromSource = () => {
     if (!currentPreset || !bodySourceKey) return;
     const source = candidateFields.find(f => f.key === bodySourceKey);
-    if (!source || source.type === 'url') return;
+    if (!source) return;
     const field: MailBodyCustomField = {
       id: `mbc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       title: source.label,
@@ -4869,9 +4881,14 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, title: title.trim() } : f) } : p));
   };
 
-  // 텍스트/날짜 속성 변경 — 이미 연결된 항목이면 타입이 안 맞을 수 있으니 연결을 해제하고
+  const handleSetBodyFieldLinkText = (id: string, linkText: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, bodyCustomFields: (p.bodyCustomFields ?? []).map(f => f.id === id ? { ...f, linkText } : f) } : p));
+  };
+
+  // 텍스트/날짜/링크 속성 변경 — 이미 연결된 항목이면 타입이 안 맞을 수 있으니 연결을 해제하고
   // 다시 "사용자 입력" 항목으로 되돌린 뒤 새 타입으로 재연결하게 함
-  const handleSetBodyFieldType = (id: string, type: 'text' | 'date') => {
+  const handleSetBodyFieldType = (id: string, type: 'text' | 'date' | 'url') => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? {
       ...p,
@@ -5518,7 +5535,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               return (
                 <MailListGroupEditor
                   group={selectedListGroup}
-                  candidateFields={candidateFields.filter((f): f is { key: string; label: string; type: 'text' | 'date'; source: 'field' | 'subtask' } => f.type !== 'url')}
+                  candidateFields={candidateFields}
                   onSave={handleSaveListGroup}
                   onRemove={() => handleRemoveListGroup(selectedListGroup.id)}
                 />
@@ -5546,11 +5563,20 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                       onCommit={v => handleSetBodyFieldTitle(f.id, v)}
                       className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
                     />
-                    <select value={f.type} onChange={e => handleSetBodyFieldType(f.id, e.target.value as 'text' | 'date')}
+                    <select value={f.type} onChange={e => handleSetBodyFieldType(f.id, e.target.value as 'text' | 'date' | 'url')}
                       className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
                       <option value="text">텍스트</option>
                       <option value="date">날짜</option>
+                      <option value="url">링크</option>
                     </select>
+                    {f.type === 'url' && (
+                      <InlineTextField
+                        value={f.linkText ?? ''}
+                        onCommit={v => handleSetBodyFieldLinkText(f.id, v)}
+                        placeholder="링크 텍스트 (예: 자세히 보기)"
+                        className="w-32 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0"
+                      />
+                    )}
                     {f.sourceKey ? (
                       <>
                         <span className="text-gray-400 flex-shrink-0">연결됨</span>
@@ -5596,7 +5622,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               </button>
             </div>
             {bodyAddMode === 'field' ? (
-              candidateFields.filter(f => f.type !== 'url').length === 0 ? (
+              candidateFields.length === 0 ? (
                 <p className="text-[11px] text-gray-400">추가할 수 있는 필드가 없습니다. 팀 관리에서 필드를 먼저 만들어주세요.</p>
               ) : (
                 <div className="flex items-center gap-1.5">
@@ -5604,7 +5630,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                     className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                     <option value="">필드 선택</option>
                     <optgroup label="필드">
-                      {candidateFields.filter(f => f.source === 'field' && f.type !== 'url').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      {candidateFields.filter(f => f.source === 'field').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
                     </optgroup>
                     {candidateFields.some(f => f.source === 'subtask') && (
                       <optgroup label="세부 업무">
@@ -5623,10 +5649,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 <input value={bodyTitleDraft} onChange={e => setBodyTitleDraft(e.target.value)}
                   placeholder="제목 (예: 다음 미팅 일정)"
                   className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-                <select value={bodyTypeDraft} onChange={e => setBodyTypeDraft(e.target.value as 'text' | 'date')}
+                <select value={bodyTypeDraft} onChange={e => setBodyTypeDraft(e.target.value as 'text' | 'date' | 'url')}
                   className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                   <option value="text">텍스트</option>
                   <option value="date">날짜</option>
+                  <option value="url">링크</option>
                 </select>
                 <button onClick={handleAddBodyField} disabled={!bodyTitleDraft.trim()}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">

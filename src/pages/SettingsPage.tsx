@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, Task } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -4737,6 +4737,9 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
     ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
   }));
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
+  // 수신인은 실제로는 메일 작성할 때마다 고르는 값이라 미리보기에는 등록된 후보 중
+  // 첫 번째를 골랐다고 가정하고 보여줌 (등록된 게 없으면 그 줄 자체가 안 보임)
+  const recipientLine = preset.recipients?.[0] ? `수신: ${preset.recipients[0].label}` : '';
 
   // 행표는 매번 직접 입력하는 표라 저장된 값이 없으므로, 미리보기에서는 컬럼 구성이
   // 어떻게 표시되는지 알 수 있도록 샘플 행 2개를 채워서 보여줌
@@ -4754,7 +4757,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   // 실제 발송/복사 때와 완전히 동일한 함수로 만든 HTML 그대로 보여줘야 미리보기가
   // "진짜처럼" 보임 — 드래그 UI를 씌운다고 블록별로 쪼개 다시 감싸면 여백/정렬이 미묘하게
   // 달라져 어색해지므로, 미리보기 자체는 손대지 않고 순서 변경은 아래 별도 목록으로 분리
-  const html = buildMailHtml(greeting, messageLine, blocks, signature);
+  const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine);
 
   const visibleBlocks = blocks.filter(b => mailBodyBlockToHtml(b).trim() !== '');
   const blockLabel = (block: MailBodyBlock) => {
@@ -4856,6 +4859,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count' | 'select'>('text');
   const msgInsertDragIdxRef = useRef<number | null>(null);
   const [msgInsertDragOverIdx, setMsgInsertDragOverIdx] = useState<number | null>(null);
+  const [recipientLabelDraft, setRecipientLabelDraft] = useState('');
   // 안내 문구 안 선택 문구 옵션별 텍스트 draft (option.id → 입력 중인 텍스트)
   const [phraseOptionDrafts, setPhraseOptionDrafts] = useState<Record<string, string>>({});
   // 붙어 있는 마커 그룹의 "전체 선택 시 문구" draft (그룹 key(이름들을 |로 이음) → 입력 중인 텍스트)
@@ -5053,6 +5057,25 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: arr } : p));
     msgInsertDragIdxRef.current = null;
     setMsgInsertDragOverIdx(null);
+  };
+
+  // 인사말과 안내 문구 사이 "수신: 이름" 줄에 쓸 수신인 후보 등록 관리 — 메일 작성 화면에서는
+  // 여기 등록해둔 것 중 하나를 고르기만 함
+  const handleAddRecipient = () => {
+    if (!currentPreset || !recipientLabelDraft.trim()) return;
+    const recipient: MailRecipientOption = { id: `mro_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: recipientLabelDraft.trim() };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, recipients: [...(p.recipients ?? []), recipient] } : p));
+    setRecipientLabelDraft('');
+  };
+
+  const handleRemoveRecipient = (id: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, recipients: (p.recipients ?? []).filter(r => r.id !== id) } : p));
+  };
+
+  const handleSetRecipientLabel = (id: string, label: string) => {
+    if (!currentPreset || !label.trim()) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, recipients: (p.recipients ?? []).map(r => r.id === id ? { ...r, label: label.trim() } : r) } : p));
   };
 
   const handleDeletePreset = () => {
@@ -5669,6 +5692,35 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                   <option value="select">체크박스</option>
                 </select>
                 <button onClick={handleAddMessageInsert} disabled={!msgInsertLabelDraft.trim()}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
+                  추가
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-[11px] font-semibold text-gray-700 mb-1">수신인 등록</p>
+              <p className="text-[11px] text-gray-400 mb-1.5">인사말과 안내 문구 사이에 "수신: 이름" 형태로 넣을 수신인 후보를 미리 등록해둡니다. 메일 작성 화면에서 이 중 하나를 골라 넣거나, 선택 안 함으로 둘 수 있습니다.</p>
+              {(currentPreset.recipients ?? []).length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {currentPreset.recipients!.map(r => (
+                    <div key={r.id} className="flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600">
+                      <InlineTextField
+                        value={r.label}
+                        onCommit={v => handleSetRecipientLabel(r.id, v)}
+                        className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                      />
+                      <button onClick={() => handleRemoveRecipient(r.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <input value={recipientLabelDraft} onChange={e => setRecipientLabelDraft(e.target.value)}
+                  placeholder="수신인 표시 이름 (예: 이지수 책임님)"
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddRecipient(); }}
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
+                <button onClick={handleAddRecipient} disabled={!recipientLabelDraft.trim()}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
                   추가
                 </button>

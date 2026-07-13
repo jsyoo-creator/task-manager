@@ -42,6 +42,13 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
   return parts.join(' ');
 }
 
+// 인사말과 안내 문구 사이에 별도 줄로 넣는 "수신: 이름" — 등록된 수신인 후보 중 실제로
+// 고른 게 있을 때만 표시하고, 선택 안 했으면 그 줄 자체가 아예 안 보여야 하므로 빈 문자열 반환
+export function resolveRecipientLine(preset: MailFormPreset | undefined, recipientId: string): string {
+  const opt = preset?.recipients?.find(r => r.id === recipientId);
+  return opt ? `수신: ${opt.label}` : '';
+}
+
 // 안내 문구 안에서 "{이름}" 마커를 찾아, 처음 등장한 순서대로 고유한 이름 목록을 반환.
 // (참고: 정규식 리터럴을 매번 새로 만들어 씀 — g 플래그 정규식을 모듈 상수로 공유하면
 // lastIndex가 호출 간에 남아 있어 간헐적으로 매칭을 건너뛰는 버그가 생길 수 있음)
@@ -581,9 +588,9 @@ function blockToPlainText(b: MailBodyBlock): string | null {
   return b.fields.length ? b.fields.map(bodyExtraItemToPlainText).join('\n\n') : null;
 }
 
-export function buildMailPlainText(greeting: string, message: string, blocks: MailBodyBlock[], signature: string): string {
+export function buildMailPlainText(greeting: string, message: string, blocks: MailBodyBlock[], signature: string, recipientLine?: string): string {
   const blockTexts = blocks.map(blockToPlainText).filter((b): b is string => !!b);
-  const parts = [greeting, message, ...blockTexts, '감사합니다.'];
+  const parts = [greeting, ...(recipientLine ? [recipientLine] : []), message, ...blockTexts, '감사합니다.'];
   if (signature) parts.push(signature);
   return parts.join('\n\n');
 }
@@ -654,7 +661,7 @@ export function mailBodyBlockToHtml(block: MailBodyBlock, FS: string = MAIL_BODY
   }).join('') + '<br>';
 }
 
-export function buildMailHtml(greeting: string, message: string, blocks: MailBodyBlock[], signature: string): string {
+export function buildMailHtml(greeting: string, message: string, blocks: MailBodyBlock[], signature: string, recipientLine?: string): string {
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = MAIL_BODY_FS;
@@ -663,6 +670,7 @@ export function buildMailHtml(greeting: string, message: string, blocks: MailBod
   return (
     `<div style="${FS}">` +
     `${textBlock(greeting)}<br>` +
+    (recipientLine ? `${textBlock(recipientLine)}<br>` : '') +
     `${textBlock(message)}<br>` +
     `${blocksHtml}` +
     `${textBlock('감사합니다.')}` +
@@ -1128,6 +1136,8 @@ export default function TaskDetailPanel({
   const [mailPhraseSelected, setMailPhraseSelected] = useState<Record<string, string>>({});
   // 행표(gridTables)의 실제 행 데이터 — gridTable.id → 행 목록. 메일 작성할 때마다 직접 채움
   const [mailGridRows, setMailGridRows] = useState<Record<string, MailGridRow[]>>({});
+  // 인사말과 안내 문구 사이 "수신: 이름" 줄에 넣을, 등록된 수신인 후보 중 고른 것의 id
+  const [mailRecipientId, setMailRecipientId] = useState('');
   const [mailCopied, setMailCopied] = useState(false);
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
@@ -1152,6 +1162,7 @@ export default function TaskDetailPanel({
     setMailMessageInsertValues({});
     setMailPhraseSelected(buildInitialPhraseSelected(preset));
     setMailGridRows({});
+    setMailRecipientId('');
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -2640,7 +2651,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseSelected(buildInitialPhraseSelected(p)); setMailGridRows({}); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseSelected(buildInitialPhraseSelected(p)); setMailGridRows({}); setMailRecipientId(''); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -2718,11 +2729,26 @@ export default function TaskDetailPanel({
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const inserts = currentPreset?.messageInserts ?? [];
+                const recipientOptions = currentPreset?.recipients ?? [];
                 // 업무명/삽입 항목/안내 문구는 실제 복사 시 한 줄로 이어붙는(composeMessageLine)
                 // 고정 표시라, 편집 중에도 하나의 자연스러운 텍스트 흐름으로 보여야 함 — flex로
                 // 감싸면 각자 고정 폭 박스가 되어 줄바꿈될 때 이메일처럼 자연스럽게 안 이어지므로,
                 // 일반 인라인 흐름(같은 문단) 안에 두고 안내 문구만 contentEditable로 편집 가능하게 함
                 return (
+                  <>
+                  {recipientOptions.length > 0 && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500 flex-shrink-0">수신:</span>
+                      <select
+                        value={mailRecipientId}
+                        onChange={e => setMailRecipientId(e.target.value)}
+                        className="text-xs px-2 py-1 rounded-lg border border-gray-200 focus:outline-none bg-white"
+                      >
+                        <option value="">선택 안 함</option>
+                        {recipientOptions.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <p className="mt-1">
                     {currentPreset?.showTaskName && <span className="whitespace-nowrap">{task.title}{' '}</span>}
                     {inserts.map(ins => {
@@ -2835,6 +2861,7 @@ export default function TaskDetailPanel({
                       });
                     })()}
                   </p>
+                  </>
                 );
               })()}
               {(() => {
@@ -2949,10 +2976,11 @@ export default function TaskDetailPanel({
               const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups, gridTables);
               const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides, currentPreset?.joinMultipleWithDot !== false);
               const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);
+              const recipientLine = resolveRecipientLine(currentPreset, mailRecipientId);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
-              const plainText = buildMailPlainText(greeting, messageLine, blocks, signature);
+              const plainText = buildMailPlainText(greeting, messageLine, blocks, signature, recipientLine);
               try {
-                const html = buildMailHtml(greeting, messageLine, blocks, signature);
+                const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine);
                 await navigator.clipboard.write([
                   new ClipboardItem({
                     'text/plain': new Blob([plainText], { type: 'text/plain' }),

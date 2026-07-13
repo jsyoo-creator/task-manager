@@ -311,6 +311,13 @@ export interface MailMessageInsert {
   dateShowWeekday?: boolean;
 }
 
+// 인사말과 안내 문구 사이 "수신: " 뒤에 그대로 표시할 수신인 후보 하나 — 미리 등록해두고
+// 메일 작성 때마다 그중 골라 쓴다 (예: label "이지수 책임님")
+export interface MailRecipientOption {
+  id: string;
+  label: string;
+}
+
 // 선택 문구의 후보 하나 — text는 선택 목록에도 그대로 보여주고, 고르면 그 내용이 삽입됨
 export interface MailPhraseOption {
   id: string;
@@ -386,6 +393,9 @@ export interface MailFormPreset {
   joinMultipleWithDot?: boolean;
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
   messageInserts?: MailMessageInsert[]; // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목들(텍스트/날짜/건수)
+  // 인사말과 안내 문구 사이에 별도 줄로 "수신: 이름" 형태로 넣을 수 있는, 미리 등록해둔
+  // 수신인 후보 목록 — 메일 작성 화면에서 이 중 하나를 골라 넣거나 선택 안 함으로 둠
+  recipients?: MailRecipientOption[];
   tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)
   tableTitle?: string; // 표 위에 "[제목]" 형태(볼드)로 표시할 제목 (없으면 표시 안 함)
   tableFields?: string[]; // 표에 표시할 기본 항목 key 목록, 순서대로 (없으면 8개 전체 기본값)

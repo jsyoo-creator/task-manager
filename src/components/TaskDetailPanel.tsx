@@ -28,7 +28,7 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
   (preset?.messageInserts ?? []).forEach(ins => {
     const raw = insertValues[ins.id] ?? '';
     if (!raw) return;
-    parts.push(ins.type === 'date' ? fmtDateInsertLabel(raw, ins.label) : ins.type === 'count' ? `${raw}건` : raw);
+    parts.push(ins.type === 'date' ? fmtDateInsertLabel(raw) : ins.type === 'count' ? `${raw}건` : raw);
   });
   parts.push(message || DEFAULT_MAIL_MESSAGE);
   return parts.join(' ');
@@ -111,11 +111,11 @@ function fmtDateWithWeekday(dateStr?: string): string {
 
 // 업무명과 안내 문구 사이의 "삽입 항목"(날짜)은 표/목록과 달리 일자 없이 "M월 라벨
 // 요일요일" 형태의 자연스러운 문장으로 표시 (예: "7월 라이브 화요일")
-function fmtDateInsertLabel(dateStr: string, label?: string): string {
+function fmtDateInsertLabel(dateStr: string): string {
   const dateOnly = dateStr.slice(0, 10);
   const [, m] = dateOnly.split('-').map(Number);
   const wd = weekdayOf(dateOnly);
-  return [`${m}월`, label, wd ? `${wd}요일` : ''].filter(Boolean).join(' ');
+  return [`${m}월`, wd ? `${wd}요일` : ''].filter(Boolean).join(' ');
 }
 
 // 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나

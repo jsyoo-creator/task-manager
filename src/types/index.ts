@@ -287,6 +287,15 @@ export interface MailMessageInsert {
   label?: string; // 작성 화면에서 입력창에 보여줄 안내 텍스트(플레이스홀더) — 실제 메일 문구에는 값만 들어감
 }
 
+// 안내 문구(message) 안에 "{이름}" 형태로 표시해두는 선택적 삽입 문구 하나.
+// name은 message 안의 "{name}" 마커와 매칭되는 키, text는 체크했을 때 그 자리에 들어갈 실제 문구
+export interface MailOptionalPhrase {
+  id: string;
+  name: string;
+  text: string;
+  defaultChecked?: boolean; // 메일 작성을 새로 열었을 때 기본으로 체크되어 있을지 (없으면 false)
+}
+
 // 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의
 // tableLabelBg/tableValueBg 등 공통 기본값을 사용
 export interface MailTableCellStyle {
@@ -326,6 +335,9 @@ export interface MailFormPreset {
   to: string[];
   cc: string[];
   message?: string; // 본문 인사말 다음에 들어가는 안내 문구(탭별로 다르게 설정 가능, 없으면 기본 문구 사용)
+  // message 안에 "{이름}" 형태로 표시해둔 자리마다, 실제 메일 작성 시 체크 여부에 따라
+  // 아래 문구 중 이름이 일치하는 항목의 text가 삽입되거나(체크) 빠짐(체크 해제)
+  optionalPhrases?: MailOptionalPhrase[];
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
   messageInserts?: MailMessageInsert[]; // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목들(텍스트/날짜/건수)
   tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)

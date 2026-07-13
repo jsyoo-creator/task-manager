@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, Task } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate } from '../components/TaskDetailPanel';
 import type { MailBodyBlock } from '../components/TaskDetailPanel';
 
 interface Props {
@@ -4548,7 +4548,9 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   (preset.messageInserts ?? []).forEach(ins => { insertValues[ins.id] = sampleValue(ins.type); });
 
   const greeting = buildMailGreeting(sampleAuthor);
-  const messageLine = composeMessageLine(dummyTask, preset, preset.message || DEFAULT_MAIL_MESSAGE, insertValues);
+  const defaultPhraseChecked = Object.fromEntries((preset.optionalPhrases ?? []).map(p => [p.id, !!p.defaultChecked]));
+  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, defaultPhraseChecked);
+  const messageLine = composeMessageLine(dummyTask, preset, resolvedMessage, insertValues);
   const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
   const extraTables = (preset.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(dummyTask, cfg, manualValues) }));
   const listGroups = (preset.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(dummyTask, g, manualValues) }));
@@ -4664,6 +4666,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count'>('text');
   const msgInsertDragIdxRef = useRef<number | null>(null);
   const [msgInsertDragOverIdx, setMsgInsertDragOverIdx] = useState<number | null>(null);
+  // 안내 문구 안 "{이름}" 마커별 문구 내용 draft (이름 → 입력 중인 텍스트)
+  const [phraseTextDrafts, setPhraseTextDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -4680,6 +4684,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setSelectedExtraTableId('');
     setSelectedListGroupId('');
     setMsgInsertLabelDraft('');
+    setPhraseTextDrafts({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4715,6 +4720,27 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleSetMessage = (message: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, message } : p));
+  };
+
+  // 안내 문구 안 "{이름}" 마커에 대응하는 선택 문구의 실제 내용을 저장(없으면 새로 생성)
+  const handleSetPhraseText = (name: string, text: string) => {
+    if (!currentPreset) return;
+    const existing = currentPreset.optionalPhrases ?? [];
+    const idx = existing.findIndex(p => p.name === name);
+    const next: MailOptionalPhrase[] = idx >= 0
+      ? existing.map((p, i) => i === idx ? { ...p, text } : p)
+      : [...existing, { id: `mop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name, text }];
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
+  };
+
+  // 메일 작성 화면을 새로 열었을 때 이 문구가 기본으로 체크되어 있을지 토글
+  const handleTogglePhraseDefault = (name: string) => {
+    if (!currentPreset) return;
+    const existing = currentPreset.optionalPhrases ?? [];
+    const idx = existing.findIndex(p => p.name === name);
+    if (idx < 0) return;
+    const next = existing.map((p, i) => i === idx ? { ...p, defaultChecked: !p.defaultChecked } : p);
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
   };
 
   // 본문 미리보기에서 표/본문추가항목/목록 영역을 드래그로 재정렬했을 때 저장
@@ -5160,6 +5186,40 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
             <p className="text-[11px] text-gray-400 mt-1">
               업무 상세 메일 양식 본문의 "안녕하세요, (작성자)입니다." 인사말 다음에 들어가는 문구입니다.
             </p>
+            {(() => {
+              const phraseNames = extractPhraseMarkerNames(messageDraft);
+              if (phraseNames.length === 0) return null;
+              return (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <p className="text-[11px] font-semibold text-gray-700 mb-1">선택 문구 관리</p>
+                  <p className="text-[11px] text-gray-400 mb-1.5">
+                    안내 문구 안에 표시해둔 {'{이름}'} 자리마다, 업무 상세의 메일 작성 화면에서 체크 여부에 따라 아래 내용이 삽입되거나 빠집니다.
+                  </p>
+                  <div className="space-y-1.5">
+                    {phraseNames.map(name => {
+                      const phrase = currentPreset.optionalPhrases?.find(p => p.name === name);
+                      return (
+                        <div key={name} className="flex items-center gap-1.5 text-[11px] bg-gray-100 rounded-lg px-2 py-1.5">
+                          <span className="font-semibold text-gray-600 flex-shrink-0 max-w-[80px] truncate" title={name}>{name}</span>
+                          <input
+                            value={phraseTextDrafts[name] ?? phrase?.text ?? ''}
+                            onChange={e => setPhraseTextDrafts(prev => ({ ...prev, [name]: e.target.value }))}
+                            onBlur={e => handleSetPhraseText(name, e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            placeholder="체크하면 삽입될 문구 내용"
+                            className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none"
+                          />
+                          <label className="flex items-center gap-1 flex-shrink-0 text-gray-500 cursor-pointer select-none">
+                            <input type="checkbox" checked={!!phrase?.defaultChecked} onChange={() => handleTogglePhraseDefault(name)} />
+                            기본 체크
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
               <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${currentPreset.showTaskName ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
                 {currentPreset.showTaskName && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}

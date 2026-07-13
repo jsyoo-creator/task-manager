@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase } from '../types';
 import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
@@ -32,6 +32,33 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
   });
   parts.push(message || DEFAULT_MAIL_MESSAGE);
   return parts.join(' ');
+}
+
+const PHRASE_MARKER_RE = /\{([^{}]+)\}/g;
+
+// 안내 문구 안에서 "{이름}" 마커를 찾아, 처음 등장한 순서대로 고유한 이름 목록을 반환
+export function extractPhraseMarkerNames(message: string): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  PHRASE_MARKER_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = PHRASE_MARKER_RE.exec(message))) {
+    if (!seen.has(m[1])) { seen.add(m[1]); names.push(m[1]); }
+  }
+  return names;
+}
+
+// 안내 문구의 "{이름}" 마커를 체크 상태에 따라 실제 문구로 바꾸거나(체크) 지움(체크 해제).
+// 정의되지 않은 이름은 아직 설정이 안 된 것이므로 안전하게 마커 그대로 남겨둠(데이터 손실 방지)
+export function resolveMessageTemplate(message: string, phrases: MailOptionalPhrase[] | undefined, checked: Record<string, boolean>): string {
+  const byName = new Map((phrases ?? []).map(p => [p.name, p]));
+  const replaced = message.replace(PHRASE_MARKER_RE, (match, name) => {
+    const phrase = byName.get(name);
+    if (!phrase) return match;
+    return checked[phrase.id] ? phrase.text : '';
+  });
+  // 문구가 빠지면서 생기는 이중 공백/구두점 앞 공백 정리
+  return replaced.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim();
 }
 
 // 메일 표의 기본 제공 항목 — 설정에서 이 중 어떤 걸 보여줄지 탭별로 고를 수 있음
@@ -851,6 +878,8 @@ export default function TaskDetailPanel({
   const [mailBodyManualValues, setMailBodyManualValues] = useState<Record<string, string>>({});
   // 업무명과 안내 문구 사이에 끼워 넣은 삽입 항목(텍스트/날짜/건수)의 값 — 위와 동일하게 매번 직접 입력
   const [mailMessageInsertValues, setMailMessageInsertValues] = useState<Record<string, string>>({});
+  // 안내 문구 안 "{이름}" 자리에 실제로 넣을지 체크한 상태 (phrase id 기준)
+  const [mailPhraseChecked, setMailPhraseChecked] = useState<Record<string, boolean>>({});
   const [mailCopied, setMailCopied] = useState(false);
   const [toCopied, setToCopied] = useState(false);
   const [ccCopied, setCcCopied] = useState(false);
@@ -871,6 +900,7 @@ export default function TaskDetailPanel({
     setMailManualValues({});
     setMailBodyManualValues({});
     setMailMessageInsertValues({});
+    setMailPhraseChecked(Object.fromEntries((preset?.optionalPhrases ?? []).map(p => [p.id, !!p.defaultChecked])));
   };
 
   // 메일 양식이 열리면 본문(업무 목록 등)을 덮지 않고 옆으로 밀어내야 다른 업무를
@@ -2356,7 +2386,7 @@ export default function TaskDetailPanel({
                     <label className="text-[11px] font-medium text-gray-500 mb-1 block">메일 유형 선택</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {presets.map(p => (
-                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); }}
+                        <button key={p.id} onClick={() => { setMailPresetId(p.id); setMailMessage(p.message ?? ''); setMailManualValues({}); setMailBodyManualValues({}); setMailMessageInsertValues({}); setMailPhraseChecked(Object.fromEntries((p.optionalPhrases ?? []).map(ph => [ph.id, !!ph.defaultChecked]))); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
                             currentPreset?.id === p.id ? 'text-white border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
@@ -2491,6 +2521,37 @@ export default function TaskDetailPanel({
                 const currentPart = parts.find(p => p.name === task.category);
                 const presets = currentPart?.mailFormConfig ?? [];
                 const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
+                // 안내 문구 안에 "{이름}" 자리가 있으면, 체크 여부로 그 문구를 넣을지 뺄지 고를 수 있게 함
+                const phraseNames = extractPhraseMarkerNames(mailMessage);
+                if (phraseNames.length === 0) return null;
+                return (
+                  <div className="mt-2 space-y-1">
+                    {phraseNames.map(name => {
+                      const phrase = currentPreset?.optionalPhrases?.find(p => p.name === name);
+                      if (!phrase) return null;
+                      const checked = !!mailPhraseChecked[phrase.id];
+                      return (
+                        <label key={phrase.id} className="flex items-start gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setMailPhraseChecked(prev => ({ ...prev, [phrase.id]: !prev[phrase.id] }))}
+                            className="mt-0.5 flex-shrink-0"
+                          />
+                          <span>
+                            <span className="font-medium text-gray-500">{name}</span>
+                            {phrase.text && <span className="text-gray-400"> — {phrase.text}</span>}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              {(() => {
+                const currentPart = parts.find(p => p.name === task.category);
+                const presets = currentPart?.mailFormConfig ?? [];
+                const currentPreset = presets.find(p => p.id === mailPresetId) ?? presets[0];
                 const statusLabel = statusConfigs.find(s => s.key === task.status)?.label ?? task.status ?? '';
                 const mainTable = buildMainRenderableTable(task, statusLabel, currentPreset, mailManualValues);
                 const extraTableMap = new Map((currentPreset?.extraTables ?? []).map(cfg => [cfg.id, buildExtraRenderableTable(task, cfg, mailManualValues)]));
@@ -2581,7 +2642,8 @@ export default function TaskDetailPanel({
               const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));
               const blockKeys = resolveMailBodyBlockKeys(currentPreset);
               const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
-              const messageLine = composeMessageLine(task, currentPreset, mailMessage, mailMessageInsertValues);
+              const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseChecked);
+              const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, messageLine, blocks, signature);
               try {

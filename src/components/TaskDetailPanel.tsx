@@ -61,12 +61,22 @@ export function extractPhraseMarkerNames(message: string): string[] {
 // 정의되지 않은 이름은 아직 설정이 안 된 것이므로 안전하게 마커 그대로 남겨둠(데이터 손실 방지)
 export function resolveMessageTemplate(message: string, phrases: MailOptionalPhrase[] | undefined, selected: Record<string, string>): string {
   const byName = new Map((phrases ?? []).map(p => [p.name, p]));
-  const replaced = message.replace(/\{([^{}]+)\}/g, (match, name) => {
+  // 마커 하나를 실제 문구로 바꾸거나(선택함) 빈 문자열로(선택 안 함). 정의 안 된 이름은
+  // 마커 그대로("{name}") 돌려줘 데이터 손실을 막음
+  const resolveOne = (name: string): string => {
     const phrase = byName.get(name);
-    if (!phrase) return match;
+    if (!phrase) return `{${name}}`;
     const option = phrase.options.find(o => o.id === selected[phrase.id]);
     return option ? option.text : '';
-  });
+  };
+  // 마커가 공백 없이 여러 개 붙어 있으면({KV}{페이지}{배너}) 서로 붙어 보여 구분이 안 되므로,
+  // 그중 실제로 값이 들어간 것들만 모아 "·"로 구분해 이어붙임
+  const replaced = message
+    .replace(/(?:\{[^{}]+\}){2,}/g, group => {
+      const names = Array.from(group.matchAll(/\{([^{}]+)\}/g)).map(m => m[1]);
+      return names.map(resolveOne).filter(t => t !== '').join(' · ');
+    })
+    .replace(/\{([^{}]+)\}/g, (_match, name) => resolveOne(name));
   // 문구가 빠지면서 생기는 이중 공백/구두점 앞 공백 정리
   return replaced.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim();
 }

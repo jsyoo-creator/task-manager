@@ -304,6 +304,11 @@ export interface MailMessageInsert {
   type: 'text' | 'date' | 'count' | 'select';
   label?: string; // 작성 화면에서 입력창에 보여줄 안내 텍스트(플레이스홀더). type이 'select'면
                    // 체크박스 옆 이름이자, 체크했을 때 그대로 삽입되는 문구
+  // type이 'date'일 때 "M월 D일 요일" 중 어느 것을 조합해 보여줄지 (기본: 월+요일만,
+  // 기존에 저장된 항목과 동일하게 보이도록 하는 하위 호환 기본값)
+  dateShowMonth?: boolean;
+  dateShowDay?: boolean;
+  dateShowWeekday?: boolean;
 }
 
 // 선택 문구의 후보 하나 — text는 선택 목록에도 그대로 보여주고, 고르면 그 내용이 삽입됨

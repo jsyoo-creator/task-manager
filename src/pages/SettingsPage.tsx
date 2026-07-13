@@ -5029,6 +5029,20 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, type } : m) } : p));
   };
 
+  // 날짜 타입 삽입 항목의 "월/일/요일" 중 어느 것을 보여줄지 각각 켜고 끔 (기본값: 월+요일)
+  const handleToggleMessageInsertDatePart = (id: string, part: 'month' | 'day' | 'weekday') => {
+    if (!currentPreset) return;
+    const key = part === 'month' ? 'dateShowMonth' as const : part === 'day' ? 'dateShowDay' as const : 'dateShowWeekday' as const;
+    savePresets(presets.map(p => p.id === currentPreset.id ? {
+      ...p,
+      messageInserts: (p.messageInserts ?? []).map(m => {
+        if (m.id !== id) return m;
+        const current = m[key] ?? (part === 'day' ? false : true);
+        return { ...m, [key]: !current };
+      }),
+    } : p));
+  };
+
   const handleReorderMessageInsert = (toIdx: number) => {
     if (!currentPreset) return;
     const from = msgInsertDragIdxRef.current;
@@ -5624,6 +5638,20 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                         <option value="count">건수</option>
                         <option value="select">체크박스</option>
                       </select>
+                      {ins.type === 'date' && (
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                          {([
+                            ['month', '월', ins.dateShowMonth ?? true],
+                            ['day', '일', ins.dateShowDay ?? false],
+                            ['weekday', '요일', ins.dateShowWeekday ?? true],
+                          ] as const).map(([part, label, checked]) => (
+                            <button key={part} onClick={() => handleToggleMessageInsertDatePart(ins.id, part)}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${checked ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-400'}`}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                     </div>
                   ))}

@@ -35,7 +35,7 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
       if (raw === '1' && ins.label) insertParts.push(ins.label);
       return;
     }
-    insertParts.push(ins.type === 'date' ? fmtDateInsertLabel(raw) : ins.type === 'count' ? `${raw}건` : raw);
+    insertParts.push(ins.type === 'date' ? fmtDateInsertLabel(raw, ins) : ins.type === 'count' ? `${raw}건` : raw);
   });
   if (insertParts.length) parts.push(insertParts.join(preset?.joinMultipleWithDot === false ? ' ' : ' · '));
   parts.push(message || DEFAULT_MAIL_MESSAGE);
@@ -226,13 +226,20 @@ function fmtDateWithWeekday(dateStr?: string): string {
   return wd ? `${md}(${wd})` : md;
 }
 
-// 업무명과 안내 문구 사이의 "삽입 항목"(날짜)은 표/목록과 달리 일자 없이 "M월 라벨
-// 요일요일" 형태의 자연스러운 문장으로 표시 (예: "7월 라이브 화요일")
-function fmtDateInsertLabel(dateStr: string): string {
+// 업무명과 안내 문구 사이의 "삽입 항목"(날짜)은 표/목록과 달리 "월/일/요일" 중 설정에서
+// 고른 것만 조합해 자연스러운 문장으로 표시 (예: 월+요일만 고르면 "7월 화요일")
+function fmtDateInsertLabel(dateStr: string, ins?: MailMessageInsert): string {
   const dateOnly = dateStr.slice(0, 10);
-  const [, m] = dateOnly.split('-').map(Number);
+  const [, m, d] = dateOnly.split('-').map(Number);
   const wd = weekdayOf(dateOnly);
-  return [`${m}월`, wd ? `${wd}요일` : ''].filter(Boolean).join(' ');
+  const showMonth = ins?.dateShowMonth ?? true;
+  const showDay = ins?.dateShowDay ?? false;
+  const showWeekday = ins?.dateShowWeekday ?? true;
+  const parts: string[] = [];
+  if (showMonth) parts.push(`${m}월`);
+  if (showDay) parts.push(`${d}일`);
+  if (showWeekday && wd) parts.push(`${wd}요일`);
+  return parts.join(' ');
 }
 
 // 표 행 순서 — 저장된 순서(tableRowOrder)가 있으면 그 순서를 따르되, 새로 추가되었거나

@@ -4548,8 +4548,8 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   (preset.messageInserts ?? []).forEach(ins => { insertValues[ins.id] = sampleValue(ins.type); });
 
   const greeting = buildMailGreeting(sampleAuthor);
-  const defaultPhraseChecked = Object.fromEntries((preset.optionalPhrases ?? []).map(p => [p.id, !!p.defaultChecked]));
-  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, defaultPhraseChecked);
+  const defaultPhraseSelected = Object.fromEntries((preset.optionalPhrases ?? []).map(p => [p.id, p.defaultOptionId ?? '']));
+  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, defaultPhraseSelected);
   const messageLine = composeMessageLine(dummyTask, preset, resolvedMessage, insertValues);
   const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
   const extraTables = (preset.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(dummyTask, cfg, manualValues) }));
@@ -4666,8 +4666,8 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count'>('text');
   const msgInsertDragIdxRef = useRef<number | null>(null);
   const [msgInsertDragOverIdx, setMsgInsertDragOverIdx] = useState<number | null>(null);
-  // 안내 문구 안 "{이름}" 마커별 문구 내용 draft (이름 → 입력 중인 텍스트)
-  const [phraseTextDrafts, setPhraseTextDrafts] = useState<Record<string, string>>({});
+  // 안내 문구 안 선택 문구 옵션별 텍스트 draft (option.id → 입력 중인 텍스트)
+  const [phraseOptionDrafts, setPhraseOptionDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -4684,7 +4684,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     setSelectedExtraTableId('');
     setSelectedListGroupId('');
     setMsgInsertLabelDraft('');
-    setPhraseTextDrafts({});
+    setPhraseOptionDrafts({});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPreset?.id]);
 
@@ -4722,24 +4722,39 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, message } : p));
   };
 
-  // 안내 문구 안 "{이름}" 마커에 대응하는 선택 문구의 실제 내용을 저장(없으면 새로 생성)
-  const handleSetPhraseText = (name: string, text: string) => {
+  // 안내 문구 안 "{이름}" 마커에 옵션(선택지)을 하나 추가 — 마커가 처음 쓰였으면 새로 생성
+  const handleAddPhraseOption = (name: string) => {
     if (!currentPreset) return;
     const existing = currentPreset.optionalPhrases ?? [];
     const idx = existing.findIndex(p => p.name === name);
+    const newOption = { id: `mpo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text: '' };
     const next: MailOptionalPhrase[] = idx >= 0
-      ? existing.map((p, i) => i === idx ? { ...p, text } : p)
-      : [...existing, { id: `mop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name, text }];
+      ? existing.map((p, i) => i === idx ? { ...p, options: [...p.options, newOption] } : p)
+      : [...existing, { id: `mop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name, options: [newOption] }];
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
   };
 
-  // 메일 작성 화면을 새로 열었을 때 이 문구가 기본으로 체크되어 있을지 토글
-  const handleTogglePhraseDefault = (name: string) => {
+  const handleSetPhraseOptionText = (name: string, optionId: string, text: string) => {
     if (!currentPreset) return;
-    const existing = currentPreset.optionalPhrases ?? [];
-    const idx = existing.findIndex(p => p.name === name);
-    if (idx < 0) return;
-    const next = existing.map((p, i) => i === idx ? { ...p, defaultChecked: !p.defaultChecked } : p);
+    const next = (currentPreset.optionalPhrases ?? []).map(p =>
+      p.name === name ? { ...p, options: p.options.map(o => o.id === optionId ? { ...o, text } : o) } : p
+    );
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
+  };
+
+  const handleRemovePhraseOption = (name: string, optionId: string) => {
+    if (!currentPreset) return;
+    const next = (currentPreset.optionalPhrases ?? []).map(p => p.name === name
+      ? { ...p, options: p.options.filter(o => o.id !== optionId), defaultOptionId: p.defaultOptionId === optionId ? undefined : p.defaultOptionId }
+      : p
+    );
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
+  };
+
+  // 메일 작성 화면을 새로 열었을 때 기본으로 선택되어 있을 옵션 지정 ('' = 선택 안 함)
+  const handleSetPhraseDefaultOption = (name: string, optionId: string) => {
+    if (!currentPreset) return;
+    const next = (currentPreset.optionalPhrases ?? []).map(p => p.name === name ? { ...p, defaultOptionId: optionId || undefined } : p);
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: next } : p));
   };
 
@@ -5193,26 +5208,44 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 <div className="mt-2 pt-2 border-t border-gray-100">
                   <p className="text-[11px] font-semibold text-gray-700 mb-1">선택 문구 관리</p>
                   <p className="text-[11px] text-gray-400 mb-1.5">
-                    안내 문구 안에 표시해둔 {'{이름}'} 자리마다, 업무 상세의 메일 작성 화면에서 체크 여부에 따라 아래 내용이 삽입되거나 빠집니다.
+                    안내 문구 안에 표시해둔 {'{이름}'} 자리마다 옵션을 추가하세요. 옵션이 1개면 업무 상세의 메일 작성 화면에서 체크박스로 켜고 끄고, 2개 이상이면 그중 하나를 고르는 선택지로 나타납니다.
                   </p>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {phraseNames.map(name => {
                       const phrase = currentPreset.optionalPhrases?.find(p => p.name === name);
+                      const options = phrase?.options ?? [];
                       return (
-                        <div key={name} className="flex items-center gap-1.5 text-[11px] bg-gray-100 rounded-lg px-2 py-1.5">
-                          <span className="font-semibold text-gray-600 flex-shrink-0 max-w-[80px] truncate" title={name}>{name}</span>
-                          <input
-                            value={phraseTextDrafts[name] ?? phrase?.text ?? ''}
-                            onChange={e => setPhraseTextDrafts(prev => ({ ...prev, [name]: e.target.value }))}
-                            onBlur={e => handleSetPhraseText(name, e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                            placeholder="체크하면 삽입될 문구 내용"
-                            className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none"
-                          />
-                          <label className="flex items-center gap-1 flex-shrink-0 text-gray-500 cursor-pointer select-none">
-                            <input type="checkbox" checked={!!phrase?.defaultChecked} onChange={() => handleTogglePhraseDefault(name)} />
-                            기본 체크
-                          </label>
+                        <div key={name} className="bg-gray-100 rounded-lg px-2 py-2">
+                          <div className="flex items-center gap-1.5 text-[11px] mb-1.5">
+                            <span className="font-semibold text-gray-600 flex-shrink-0 max-w-[100px] truncate" title={name}>{name}</span>
+                            <span className="text-gray-400">{options.length > 1 ? `${options.length}개 중 선택` : '체크로 켜고 끄기'}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="flex items-center gap-1.5 pl-0.5 text-[11px] text-gray-400 cursor-pointer select-none">
+                              <input type="radio" name={`phrase-default-${name}`} checked={!phrase?.defaultOptionId}
+                                onChange={() => handleSetPhraseDefaultOption(name, '')} />
+                              기본값: 선택 안 함
+                            </label>
+                            {options.map(opt => (
+                              <div key={opt.id} className="flex items-center gap-1.5">
+                                <input type="radio" name={`phrase-default-${name}`} checked={phrase?.defaultOptionId === opt.id}
+                                  onChange={() => handleSetPhraseDefaultOption(name, opt.id)} title="기본 선택" />
+                                <input
+                                  value={phraseOptionDrafts[opt.id] ?? opt.text}
+                                  onChange={e => setPhraseOptionDrafts(prev => ({ ...prev, [opt.id]: e.target.value }))}
+                                  onBlur={e => handleSetPhraseOptionText(name, opt.id, e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                  placeholder="선택 시 삽입될 문구 내용"
+                                  className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none"
+                                />
+                                <button onClick={() => handleRemovePhraseOption(name, opt.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                              </div>
+                            ))}
+                            <button onClick={() => handleAddPhraseOption(name)}
+                              className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium pl-0.5">
+                              + 옵션 추가
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

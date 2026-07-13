@@ -287,13 +287,20 @@ export interface MailMessageInsert {
   label?: string; // 작성 화면에서 입력창에 보여줄 안내 텍스트(플레이스홀더) — 실제 메일 문구에는 값만 들어감
 }
 
-// 안내 문구(message) 안에 "{이름}" 형태로 표시해두는 선택적 삽입 문구 하나.
-// name은 message 안의 "{name}" 마커와 매칭되는 키, text는 체크했을 때 그 자리에 들어갈 실제 문구
+// 선택 문구의 후보 하나 — text는 선택 목록에도 그대로 보여주고, 고르면 그 내용이 삽입됨
+export interface MailPhraseOption {
+  id: string;
+  text: string;
+}
+
+// 안내 문구(message) 안에 "{이름}" 형태로 표시해두는 선택 문구 자리 하나.
+// name은 message 안의 "{name}" 마커와 매칭되는 키. options가 1개면 메일 작성 화면에서
+// 체크박스로 켜고 끄고, 2개 이상이면 그중 하나를 고르는 선택지로 표시된다
 export interface MailOptionalPhrase {
   id: string;
   name: string;
-  text: string;
-  defaultChecked?: boolean; // 메일 작성을 새로 열었을 때 기본으로 체크되어 있을지 (없으면 false)
+  options: MailPhraseOption[];
+  defaultOptionId?: string; // 메일 작성을 새로 열었을 때 기본으로 선택되어 있을 옵션 (없으면 선택 안 함)
 }
 
 // 표의 개별 항목(행) 하나에 대한 배경색/볼드/숨김 오버라이드 — 지정 안 하면 프리셋의

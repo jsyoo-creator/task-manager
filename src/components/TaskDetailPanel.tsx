@@ -103,6 +103,22 @@ export function extractAdjacentPhraseGroups(message: string): string[][] {
   return groups;
 }
 
+// 선택 문구(체크박스) 하나가 "선택됨" 상태인지 — resolveMessageTemplate의 resolveOne과
+// 동일한 기준(옵션 0~1개면 raw==='1', 그 외엔 유효한 옵션 id가 골라져 있어야 함)
+function isPhraseSelected(phrase: MailOptionalPhrase, selected: Record<string, string>): boolean {
+  const raw = selected[phrase.name] ?? '';
+  if (!raw) return false;
+  return phrase.options.length <= 1 ? raw === '1' : phrase.options.some(o => o.id === raw);
+}
+
+// 영역(표/목록/본문추가항목) 키가 특정 선택 문구에 의해 통제되고 있다면, 그 문구가 선택돼
+// 있을 때만 보이게 함. 어떤 문구도 이 영역을 통제하지 않으면 항상 보임(기존 동작 그대로)
+export function isBlockVisible(blockKey: string, phrases: MailOptionalPhrase[] | undefined, selected: Record<string, string>): boolean {
+  const controllers = (phrases ?? []).filter(p => p.controlsBlockKeys?.includes(blockKey));
+  if (controllers.length === 0) return true;
+  return controllers.some(p => isPhraseSelected(p, selected));
+}
+
 // 안내 문구를 "일반 텍스트 조각"과 "{이름} 자리" 조각으로 쪼갬 — 메일 작성 화면에서
 // 체크박스를 마커의 실제 위치 그대로(문장 중간이든 어디든) 인라인으로 보여주기 위함
 type MessageSegment = { type: 'text'; value: string } | { type: 'phrase'; name: string };
@@ -2672,8 +2688,10 @@ export default function TaskDetailPanel({
                 const extraTableMap = new Map((currentPreset?.extraTables ?? []).map(cfg => [cfg.id, buildExtraRenderableTable(task, cfg, mailManualValues)]));
                 const listGroupMap = new Map((currentPreset?.listGroups ?? []).map(g => [g.id, buildRenderableListGroup(task, g, mailManualValues)]));
                 // 영역(표/본문추가항목/목록) 순서 — 설정 > 메일 양식 미리보기에서 드래그로
-                // 바꾼 순서(preset.bodyBlockOrder)를 그대로 따름
-                const blockKeys = resolveMailBodyBlockKeys(currentPreset);
+                // 바꾼 순서(preset.bodyBlockOrder)를 그대로 따름. 특정 선택 문구가 이 영역을
+                // 통제하도록 지정돼 있으면, 그 문구가 선택돼 있을 때만 보이게 함
+                const blockKeys = resolveMailBodyBlockKeys(currentPreset)
+                  .filter(key => isBlockVisible(key, currentPreset?.optionalPhrases, mailPhraseSelected));
                 return (
                   <div>
                     {blockKeys.map(key => {
@@ -2755,7 +2773,8 @@ export default function TaskDetailPanel({
                 ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
               }));
               const listGroups = (currentPreset?.listGroups ?? []).map(g => ({ id: g.id, group: buildRenderableListGroup(task, g, mailManualValues) }));
-              const blockKeys = resolveMailBodyBlockKeys(currentPreset);
+              const blockKeys = resolveMailBodyBlockKeys(currentPreset)
+                .filter(key => isBlockVisible(key, currentPreset?.optionalPhrases, mailPhraseSelected));
               const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
               const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides);
               const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);

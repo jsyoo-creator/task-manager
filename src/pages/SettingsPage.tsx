@@ -8,7 +8,7 @@ import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups, isBlockVisible } from '../components/TaskDetailPanel';
 import type { MailBodyBlock } from '../components/TaskDetailPanel';
 
 interface Props {
@@ -4517,6 +4517,24 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   );
 }
 
+// 영역 key(resolveMailBodyBlockKeys가 반환하는 'table:main' 등)를 사람이 알아볼 수 있는
+// 이름으로 — "이 문구를 선택해야만 노출할 영역" 체크리스트에 씀
+function mailBlockKeyLabel(preset: MailFormPreset, key: string): string {
+  if (key === 'table:main') return preset.tableTitle || '표 설정 (메인 표)';
+  if (key === 'fields:body') return '본문 추가 항목';
+  if (key.startsWith('table:')) {
+    const id = key.slice('table:'.length);
+    const t = preset.extraTables?.find(t => t.id === id);
+    return t?.title ? `별도 표: ${t.title}` : '별도 표';
+  }
+  if (key.startsWith('list:')) {
+    const id = key.slice('list:'.length);
+    const g = preset.listGroups?.find(g => g.id === id);
+    return g?.title ? `목록: ${g.title}` : '번호 목록';
+  }
+  return key;
+}
+
 // 메일 양식 편집 중인 값(preset)을 실제 발송 로직과 동일한 함수로 렌더링해 미리보기로 보여줌.
 // 실제 업무가 없으므로 샘플 값을 채운 가짜 Task로 대체한다.
 function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
@@ -4575,7 +4593,8 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   }));
   const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
 
-  const blockKeys = resolveMailBodyBlockKeys(preset);
+  const blockKeys = resolveMailBodyBlockKeys(preset)
+    .filter(key => isBlockVisible(key, preset.optionalPhrases, previewPhraseSelected));
   const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
   // 실제 발송/복사 때와 완전히 동일한 함수로 만든 HTML 그대로 보여줘야 미리보기가
   // "진짜처럼" 보임 — 드래그 UI를 씌운다고 블록별로 쪼개 다시 감싸면 여백/정렬이 미묘하게
@@ -4776,6 +4795,28 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   };
 
   // 공백 없이 붙어 있는 마커 그룹(예: {KV}{페이지}{배너})이 전부 선택됐을 때 대신 쓸 문구 저장
+  // 이 문구가 선택돼 있을 때만 특정 영역(표/목록/본문추가항목)이 보이도록 지정/해제.
+  // 아직 phrase 자체가 없으면(옵션 없이 이름만 감지된 상태) 새로 만들면서 바로 지정함
+  const handleTogglePhraseControlsBlock = (name: string, blockKey: string) => {
+    if (!currentPreset) return;
+    const existing = currentPreset.optionalPhrases ?? [];
+    const idx = existing.findIndex(p => p.name === name);
+    if (idx < 0) {
+      const newPhrase: MailOptionalPhrase = {
+        id: `mop_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        options: [],
+        controlsBlockKeys: [blockKey],
+      };
+      savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: [...existing, newPhrase] } : p));
+      return;
+    }
+    const current = existing[idx].controlsBlockKeys ?? [];
+    const next = current.includes(blockKey) ? current.filter(k => k !== blockKey) : [...current, blockKey];
+    const updated = existing.map((p, i) => i === idx ? { ...p, controlsBlockKeys: next } : p);
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, optionalPhrases: updated } : p));
+  };
+
   const handleSetPhraseGroupOverride = (names: string[], text: string) => {
     if (!currentPreset) return;
     const existing = currentPreset.phraseGroupOverrides ?? [];
@@ -5290,6 +5331,30 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                               + 옵션 추가
                             </button>
                           </div>
+                          {(() => {
+                            // 이 문구가 선택돼 있을 때만 특정 영역(표/목록/본문추가항목)을 노출시키고
+                            // 싶으면 여기서 지정 — 아무것도 체크 안 하면 그 영역은 늘 그대로 표시됨
+                            const availableBlocks = resolveMailBodyBlockKeys(currentPreset);
+                            if (availableBlocks.length === 0) return null;
+                            const controls = phrase?.controlsBlockKeys ?? [];
+                            return (
+                              <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+                                <p className="text-[10px] text-gray-400 mb-1">이 문구를 선택해야만 노출할 영역 (선택)</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {availableBlocks.map(blockKey => (
+                                    <label key={blockKey} className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={controls.includes(blockKey)}
+                                        onChange={() => handleTogglePhraseControlsBlock(name, blockKey)}
+                                      />
+                                      {mailBlockKeyLabel(currentPreset, blockKey)}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}

@@ -302,6 +302,10 @@ export interface MailOptionalPhrase {
   name: string;
   options: MailPhraseOption[];
   defaultOptionId?: string; // 메일 작성을 새로 열었을 때 기본으로 선택되어 있을 옵션 (없으면 선택 안 함)
+  // 이 문구가 선택되어 있을 때만 본문에 노출할 영역들. 'table:main'/'table:<extraTables[].id>'/
+  // 'fields:body'/'list:<listGroups[].id>' 형식의 key(bodyBlockOrder와 동일). 비어있으면 이
+  // 문구는 영역 노출 여부에 관여하지 않음(기존처럼 항상 그 영역 자체 설정대로 표시)
+  controlsBlockKeys?: string[];
 }
 
 // 공백 없이 붙여 쓴 "{이름}" 마커 여러 개(예: "{KV}{페이지}{배너}")가 전부 선택됐을 때,

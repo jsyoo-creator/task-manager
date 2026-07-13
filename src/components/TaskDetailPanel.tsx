@@ -28,6 +28,11 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
   (preset?.messageInserts ?? []).forEach(ins => {
     const raw = insertValues[ins.id] ?? '';
     if (!raw) return;
+    if (ins.type === 'select') {
+      const text = ins.options?.find(o => o.id === raw)?.text;
+      if (text) parts.push(text);
+      return;
+    }
     parts.push(ins.type === 'date' ? fmtDateInsertLabel(raw) : ins.type === 'count' ? `${raw}건` : raw);
   });
   parts.push(message || DEFAULT_MAIL_MESSAGE);
@@ -2497,6 +2502,15 @@ export default function TaskDetailPanel({
                               placeholder="0"
                               className="inline-block w-16 align-middle text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
                             />
+                          ) : ins.type === 'select' ? (
+                            <select
+                              value={val}
+                              onChange={e => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: e.target.value }))}
+                              className="inline-block align-middle text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30 bg-white"
+                            >
+                              <option value="">{ins.label || '선택'}</option>
+                              {(ins.options ?? []).map(o => <option key={o.id} value={o.id}>{o.text}</option>)}
+                            </select>
                           ) : (
                             <input
                               value={val}

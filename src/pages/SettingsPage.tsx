@@ -4544,8 +4544,15 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   (preset.extraTables ?? []).forEach(cfg => (cfg.customFields ?? []).forEach(cf => { if (!cf.sourceKey) manualValues[cf.id] = sampleValue(cf.type); }));
   (preset.listGroups ?? []).forEach(g => (g.items ?? []).forEach(it => { if (!it.sourceKey) manualValues[it.id] = sampleValue(it.type); }));
 
+  // 삽입 항목은 항목마다 서로 다른 값처럼 보여야 미리보기에서 구분이 되므로, 공통 샘플 대신
+  // 항목 자신의 라벨(텍스트 타입) 또는 첫 옵션(선택 타입)을 사용
   const insertValues: Record<string, string> = {};
-  (preset.messageInserts ?? []).forEach(ins => { insertValues[ins.id] = sampleValue(ins.type); });
+  (preset.messageInserts ?? []).forEach(ins => {
+    insertValues[ins.id] = ins.type === 'date' ? today
+      : ins.type === 'count' ? '3'
+      : ins.type === 'select' ? (ins.options?.[0]?.id ?? '')
+      : (ins.label || '샘플 텍스트');
+  });
 
   const greeting = buildMailGreeting(sampleAuthor);
   const defaultPhraseSelected = Object.fromEntries((preset.optionalPhrases ?? []).map(p => [p.id, p.defaultOptionId ?? '']));
@@ -4663,7 +4670,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [selectedExtraTableId, setSelectedExtraTableId] = useState<string>('');
   const [selectedListGroupId, setSelectedListGroupId] = useState<string>('');
   const [msgInsertLabelDraft, setMsgInsertLabelDraft] = useState('');
-  const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count'>('text');
+  const [msgInsertType, setMsgInsertType] = useState<'text' | 'date' | 'count' | 'select'>('text');
   const msgInsertDragIdxRef = useRef<number | null>(null);
   const [msgInsertDragOverIdx, setMsgInsertDragOverIdx] = useState<number | null>(null);
   // 안내 문구 안 선택 문구 옵션별 텍스트 draft (option.id → 입력 중인 텍스트)
@@ -4784,6 +4791,32 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleRemoveMessageInsert = (id: string) => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).filter(m => m.id !== id) } : p));
+  };
+
+  const handleSetMessageInsertLabel = (id: string, label: string) => {
+    if (!currentPreset || !label.trim()) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, label: label.trim() } : m) } : p));
+  };
+
+  const handleSetMessageInsertType = (id: string, type: 'text' | 'date' | 'count' | 'select') => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, type } : m) } : p));
+  };
+
+  const handleAddMessageInsertOption = (id: string) => {
+    if (!currentPreset) return;
+    const newOption = { id: `mio_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, text: '' };
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, options: [...(m.options ?? []), newOption] } : m) } : p));
+  };
+
+  const handleSetMessageInsertOptionText = (id: string, optionId: string, text: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, options: (m.options ?? []).map(o => o.id === optionId ? { ...o, text } : o) } : m) } : p));
+  };
+
+  const handleRemoveMessageInsertOption = (id: string, optionId: string) => {
+    if (!currentPreset) return;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, messageInserts: (p.messageInserts ?? []).map(m => m.id === id ? { ...m, options: (m.options ?? []).filter(o => o.id !== optionId) } : m) } : p));
   };
 
   const handleReorderMessageInsert = (toIdx: number) => {
@@ -5274,10 +5307,44 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                       onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setMsgInsertDragOverIdx(null); }}
                       onDrop={() => handleReorderMessageInsert(i)}
                       onDragEnd={() => { msgInsertDragIdxRef.current = null; setMsgInsertDragOverIdx(null); }}
-                      className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${msgInsertDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
-                      <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                      <span className="flex-1">{ins.label} <span className="text-gray-400">({ins.type === 'date' ? '날짜' : ins.type === 'count' ? '건수' : '텍스트'})</span></span>
-                      <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                      className={`rounded-lg bg-gray-100 text-gray-600 ${msgInsertDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                      <div className="flex items-center gap-1.5 text-[11px] px-2 py-1.5">
+                        <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                        <InlineTextField
+                          value={ins.label ?? ''}
+                          onCommit={v => handleSetMessageInsertLabel(ins.id, v)}
+                          className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                        />
+                        <select value={ins.type} onChange={e => handleSetMessageInsertType(ins.id, e.target.value as 'text' | 'date' | 'count' | 'select')}
+                          className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                          <option value="text">텍스트</option>
+                          <option value="date">날짜</option>
+                          <option value="count">건수</option>
+                          <option value="select">선택</option>
+                        </select>
+                        <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                      </div>
+                      {ins.type === 'select' && (
+                        <div className="px-2 pb-1.5 space-y-1">
+                          {(ins.options ?? []).map(opt => (
+                            <div key={opt.id} className="flex items-center gap-1.5 pl-4">
+                              <input
+                                value={phraseOptionDrafts[opt.id] ?? opt.text}
+                                onChange={e => setPhraseOptionDrafts(prev => ({ ...prev, [opt.id]: e.target.value }))}
+                                onBlur={e => handleSetMessageInsertOptionText(ins.id, opt.id, e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                placeholder="선택지 내용"
+                                className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none bg-white"
+                              />
+                              <button onClick={() => handleRemoveMessageInsertOption(ins.id, opt.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                            </div>
+                          ))}
+                          <button onClick={() => handleAddMessageInsertOption(ins.id)}
+                            className="text-[11px] text-indigo-600 hover:text-indigo-700 font-medium pl-4">
+                            + 선택지 추가
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -5286,11 +5353,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                 <input value={msgInsertLabelDraft} onChange={e => setMsgInsertLabelDraft(e.target.value)}
                   placeholder="항목 이름 (예: 이벤트 대상)"
                   className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-                <select value={msgInsertType} onChange={e => setMsgInsertType(e.target.value as 'text' | 'date' | 'count')}
+                <select value={msgInsertType} onChange={e => setMsgInsertType(e.target.value as 'text' | 'date' | 'count' | 'select')}
                   className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                   <option value="text">텍스트</option>
                   <option value="date">날짜</option>
                   <option value="count">건수</option>
+                  <option value="select">선택</option>
                 </select>
                 <button onClick={handleAddMessageInsert} disabled={!msgInsertLabelDraft.trim()}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">

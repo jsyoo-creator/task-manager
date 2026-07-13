@@ -283,8 +283,9 @@ export interface MailListGroup {
 // 때마다 값을 직접 입력한다. type이 'count'면 값 뒤에 자동으로 "건"이 붙음
 export interface MailMessageInsert {
   id: string;
-  type: 'text' | 'date' | 'count';
+  type: 'text' | 'date' | 'count' | 'select';
   label?: string; // 작성 화면에서 입력창에 보여줄 안내 텍스트(플레이스홀더) — 실제 메일 문구에는 값만 들어감
+  options?: MailPhraseOption[]; // type이 'select'일 때, 드롭다운으로 고를 수 있는 선택지 목록
 }
 
 // 선택 문구의 후보 하나 — text는 선택 목록에도 그대로 보여주고, 고르면 그 내용이 삽입됨

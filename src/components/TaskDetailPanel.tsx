@@ -545,6 +545,7 @@ function renderGridCellValue(row: MailGridRow, col: EffectiveGridColumn): string
   const raw = row.values[col.id] ?? '';
   if (col.kind === 'date') return raw ? fmtGridDate(raw) : '-';
   if (col.kind === 'checkbox') return raw === '1' ? 'O' : '-';
+  if (col.kind === 'time') return raw ? `${raw}시` : '-'; // 24시간 기준 정시만 고르므로 "20시"처럼 표시
   return raw || '-';
 }
 
@@ -874,13 +875,18 @@ function MailGridTablePreview({ config, rows, setRows }: {
                           <input type="checkbox" checked={val === '1'} onChange={() => handleSetCell(row.id, c.id, val === '1' ? '' : '1')} />
                         </label>
                       ) : c.type === 'time' ? (
-                        // HTML time input의 값은 항상 24시간 기준 "HH:mm"으로 저장됨(표시만 브라우저/OS 설정에 따를 수 있음)
-                        <input
-                          type="time"
+                        // 분 단위 없이 24시간 기준 정시(0~23시)만 고르면 되는 경우가 대부분이라
+                        // 시간 피커 대신 "20시"처럼 바로 보이는 드롭다운으로 단순화
+                        <select
                           value={val}
                           onChange={e => handleSetCell(row.id, c.id, e.target.value)}
-                          className="w-full min-w-[90px] bg-transparent text-[13px] text-gray-800 focus:outline-none"
-                        />
+                          className="w-full min-w-[70px] bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                        >
+                          <option value="">선택</option>
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <option key={h} value={String(h)}>{h}시</option>
+                          ))}
+                        </select>
                       ) : c.type === 'select' ? (
                         <select
                           value={val}

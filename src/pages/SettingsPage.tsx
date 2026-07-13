@@ -4669,7 +4669,7 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
                     <option value="text">텍스트</option>
                     <option value="date">날짜</option>
                     <option value="checkbox">체크박스</option>
-                    <option value="time">시간(24시간)</option>
+                    <option value="time">시간(정시)</option>
                     <option value="select">드롭다운</option>
                   </select>
                   {c.type === 'date' && (
@@ -4705,7 +4705,7 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
             <option value="text">텍스트</option>
             <option value="date">날짜</option>
             <option value="checkbox">체크박스</option>
-            <option value="time">시간(24시간)</option>
+            <option value="time">시간(정시)</option>
             <option value="select">드롭다운</option>
           </select>
           <button onClick={handleAddColumn} disabled={!colLabelDraft.trim()}
@@ -4812,7 +4812,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
       values: Object.fromEntries(cfg.columns.map(col => [col.id,
         col.type === 'date' ? today
         : col.type === 'checkbox' ? '1'
-        : col.type === 'time' ? '14:00'
+        : col.type === 'time' ? '14'
         : col.type === 'select' ? (col.options?.[0] ?? '')
         : `샘플 ${n}`,
       ])),

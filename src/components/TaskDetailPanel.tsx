@@ -597,7 +597,10 @@ export function buildMailPlainText(greeting: string, message: string, blocks: Ma
   const blockTexts = blocks.map(blockToPlainText).filter((b): b is string => !!b);
   const parts = [greeting, ...(recipientLine ? [recipientLine] : []), message, ...blockTexts, '감사합니다.'];
   if (signature) parts.push(signature);
-  return parts.join('\n\n');
+  // 안내 문구 등 자유 입력 텍스트 끝에 빈 줄이 남아 있으면(예: 마지막에 Enter를 침) 구간
+  // 사이 기본 한 줄 띄우기(\n\n)와 합쳐져 두 줄 이상 벌어져 보이므로, 각 조각의 앞뒤
+  // 빈 줄은 제거하고 합침(조각 내부의 의도된 빈 줄은 유지)
+  return parts.map(p => p.trim()).join('\n\n');
 }
 
 // 클립보드용 HTML — 업무 정보 부분만 실제 <table>로 만들어, Outlook/Gmail 등
@@ -670,7 +673,9 @@ export function buildMailHtml(greeting: string, message: string, blocks: MailBod
   // 붙여넣는 프로그램(Gmail 등)이 자체 기본 글자 크기를 강하게 적용해 인라인
   // font-size를 덮어쓰는 경우가 있어, !important로 명시해 확실히 이기도록 함
   const FS = MAIL_BODY_FS;
-  const textBlock = (s: string, bold?: boolean) => s.split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}${bold ? 'font-weight:700;' : ''}">${escapeHtml(l)}</div>`).join('');
+  // 안내 문구 등 자유 입력 텍스트 앞뒤에 빈 줄이 남아 있으면(예: 마지막에 Enter를 침) 구간
+  // 사이 기본 한 줄 띄우기(뒤에 붙는 <br>)와 합쳐져 두 줄 이상 벌어져 보이므로 앞뒤 빈 줄은 제거
+  const textBlock = (s: string, bold?: boolean) => s.trim().split('\n').map(l => l === '' ? '<br>' : `<div style="${FS}${bold ? 'font-weight:700;' : ''}">${escapeHtml(l)}</div>`).join('');
   const blocksHtml = blocks.map(b => mailBodyBlockToHtml(b, FS)).join('');
   return (
     `<div style="${FS}">` +
@@ -832,11 +837,23 @@ function MailGridTablePreview({ config, rows, setRows }: {
           <thead>
             <tr>
               {showNo && <th style={headerStyle} className="py-1 px-3 text-gray-600 whitespace-nowrap border border-gray-300">No.</th>}
-              {config.columns.map(c => (
-                <th key={c.id} style={headerStyle} className="py-1 px-3 text-gray-600 whitespace-nowrap border border-gray-300">
-                  {c.label}{c.type === 'date' && c.showWeekday ? ' / 요일' : ''}
-                </th>
-              ))}
+              {config.columns.flatMap(c => {
+                const headers = [
+                  <th key={c.id} style={headerStyle} className="py-1 px-3 text-gray-600 whitespace-nowrap border border-gray-300">
+                    {c.label}
+                  </th>,
+                ];
+                // 실제 메일에 붙는 최종 표와 똑같이, 편집 화면에서도 "요일"을 같은 칸에 이어
+                // 붙이지 않고 별도 컬럼으로 나눠 보여줌(최종 결과와 다르게 보이던 문제 수정)
+                if (c.type === 'date' && c.showWeekday) {
+                  headers.push(
+                    <th key={`${c.id}__weekday`} style={headerStyle} className="py-1 px-3 text-gray-600 whitespace-nowrap border border-gray-300">
+                      요일
+                    </th>
+                  );
+                }
+                return headers;
+              })}
               <th style={headerStyle} className="py-1 px-1 border border-gray-300 w-8" />
             </tr>
           </thead>
@@ -844,15 +861,14 @@ function MailGridTablePreview({ config, rows, setRows }: {
             {rows.map((row, i) => (
               <tr key={row.id}>
                 {showNo && <td style={cellStyle} className="py-1 px-3 text-center border border-gray-300 text-gray-500">{i + 1}</td>}
-                {config.columns.map(c => {
+                {config.columns.flatMap(c => {
                   const val = row.values[c.id] ?? '';
-                  return (
+                  const mainCell = (
                     <td key={c.id} style={cellStyle} className="py-1 px-2 border border-gray-300">
                       {c.type === 'date' ? (
-                        <div className="flex items-center gap-1">
-                          <DatePicker compact value={val} onChange={v => handleSetCell(row.id, c.id, v)} />
-                          {c.showWeekday && weekdayOf(val) && <span className="text-xs text-gray-400 flex-shrink-0">({weekdayOf(val)})</span>}
-                        </div>
+                        // 최종 메일 표(fmtGridDate)와 동일한 "07월 01일" 형식으로 보여주되, 눌러서
+                        // 고르는 기능은 그대로 유지 — 요일은 옆에 붙이지 않고 별도 칸으로 분리
+                        <DatePicker compact value={val} onChange={v => handleSetCell(row.id, c.id, v)} displayLabel={val ? fmtGridDate(val) : undefined} />
                       ) : c.type === 'checkbox' ? (
                         <label className="flex items-center justify-center cursor-pointer select-none">
                           <input type="checkbox" checked={val === '1'} onChange={() => handleSetCell(row.id, c.id, val === '1' ? '' : '1')} />
@@ -884,6 +900,15 @@ function MailGridTablePreview({ config, rows, setRows }: {
                       )}
                     </td>
                   );
+                  const cells = [mainCell];
+                  if (c.type === 'date' && c.showWeekday) {
+                    cells.push(
+                      <td key={`${c.id}__weekday`} style={cellStyle} className="py-1 px-2 border border-gray-300 text-center text-gray-500">
+                        {weekdayOf(val) || '-'}
+                      </td>
+                    );
+                  }
+                  return cells;
                 })}
                 <td className="py-1 px-1 border border-gray-300 text-center">
                   <button onClick={() => handleRemoveRow(row.id)} className="text-gray-300 hover:text-red-500 transition-colors">×</button>

@@ -4527,7 +4527,7 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
 }) {
   const [titleDraft, setTitleDraft] = useState(table.title ?? '');
   const [colLabelDraft, setColLabelDraft] = useState('');
-  const [colTypeDraft, setColTypeDraft] = useState<'text' | 'date' | 'checkbox'>('text');
+  const [colTypeDraft, setColTypeDraft] = useState<'text' | 'date' | 'checkbox' | 'time' | 'select'>('text');
   const colDragIdxRef = useRef<number | null>(null);
   const [colDragOverIdx, setColDragOverIdx] = useState<number | null>(null);
 
@@ -4553,11 +4553,17 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
     patch({ columns: table.columns.map(c => c.id === id ? { ...c, label: label.trim() } : c) });
   };
 
-  const handleSetColumnType = (id: string, type: 'text' | 'date' | 'checkbox') =>
+  const handleSetColumnType = (id: string, type: 'text' | 'date' | 'checkbox' | 'time' | 'select') =>
     patch({ columns: table.columns.map(c => c.id === id ? { ...c, type, ...(type !== 'date' ? { showWeekday: undefined } : {}) } : c) });
 
   const handleToggleColumnWeekday = (id: string) =>
     patch({ columns: table.columns.map(c => c.id === id ? { ...c, showWeekday: !c.showWeekday } : c) });
+
+  // 드롭다운(select) 타입 컬럼의 선택지 — 쉼표로 구분해 한 번에 입력/수정
+  const handleSetColumnOptions = (id: string, optionsCsv: string) => {
+    const options = optionsCsv.split(',').map(s => s.trim()).filter(Boolean);
+    patch({ columns: table.columns.map(c => c.id === id ? { ...c, options } : c) });
+  };
 
   const handleReorderColumn = (toIdx: number) => {
     const from = colDragIdxRef.current;
@@ -4604,33 +4610,48 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
         {table.columns.length > 0 && (
           <div className="space-y-1 mb-2">
             {table.columns.map((c, i) => (
-              <div key={c.id}
-                draggable
-                onDragStart={() => { colDragIdxRef.current = i; }}
-                onDragOver={e => { e.preventDefault(); setColDragOverIdx(i); }}
-                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setColDragOverIdx(null); }}
-                onDrop={() => handleReorderColumn(i)}
-                onDragEnd={() => { colDragIdxRef.current = null; setColDragOverIdx(null); }}
-                className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${colDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
-                <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                <InlineTextField
-                  value={c.label}
-                  onCommit={v => handleSetColumnLabel(c.id, v)}
-                  className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
-                />
-                <select value={c.type} onChange={e => handleSetColumnType(c.id, e.target.value as 'text' | 'date' | 'checkbox')}
-                  className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
-                  <option value="text">텍스트</option>
-                  <option value="date">날짜</option>
-                  <option value="checkbox">체크박스</option>
-                </select>
-                {c.type === 'date' && (
-                  <label className="flex items-center gap-1 cursor-pointer select-none flex-shrink-0">
-                    <input type="checkbox" checked={!!c.showWeekday} onChange={() => handleToggleColumnWeekday(c.id)} className="w-3 h-3" />
-                    <span className="text-[10px] text-gray-500">요일 표시</span>
-                  </label>
+              <div key={c.id}>
+                <div
+                  draggable
+                  onDragStart={() => { colDragIdxRef.current = i; }}
+                  onDragOver={e => { e.preventDefault(); setColDragOverIdx(i); }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setColDragOverIdx(null); }}
+                  onDrop={() => handleReorderColumn(i)}
+                  onDragEnd={() => { colDragIdxRef.current = null; setColDragOverIdx(null); }}
+                  className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${colDragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
+                  <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                  <InlineTextField
+                    value={c.label}
+                    onCommit={v => handleSetColumnLabel(c.id, v)}
+                    className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                  />
+                  <select value={c.type} onChange={e => handleSetColumnType(c.id, e.target.value as 'text' | 'date' | 'checkbox' | 'time' | 'select')}
+                    className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                    <option value="text">텍스트</option>
+                    <option value="date">날짜</option>
+                    <option value="checkbox">체크박스</option>
+                    <option value="time">시간(24시간)</option>
+                    <option value="select">드롭다운</option>
+                  </select>
+                  {c.type === 'date' && (
+                    <label className="flex items-center gap-1 cursor-pointer select-none flex-shrink-0">
+                      <input type="checkbox" checked={!!c.showWeekday} onChange={() => handleToggleColumnWeekday(c.id)} className="w-3 h-3" />
+                      <span className="text-[10px] text-gray-500">요일 표시</span>
+                    </label>
+                  )}
+                  <button onClick={() => handleRemoveColumn(c.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                </div>
+                {c.type === 'select' && (
+                  <div className="flex items-center gap-1.5 px-2 py-1">
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">선택지</span>
+                    <InlineTextField
+                      value={(c.options ?? []).join(', ')}
+                      onCommit={v => handleSetColumnOptions(c.id, v)}
+                      placeholder="쉼표로 구분 (예: 방송 전, 방송 중, 방송 완료)"
+                      className="flex-1 min-w-0 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none"
+                    />
+                  </div>
                 )}
-                <button onClick={() => handleRemoveColumn(c.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
               </div>
             ))}
           </div>
@@ -4640,11 +4661,13 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
             placeholder="컬럼 이름 (예: 라이브 일자)"
             onKeyDown={e => { if (e.key === 'Enter') handleAddColumn(); }}
             className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none" />
-          <select value={colTypeDraft} onChange={e => setColTypeDraft(e.target.value as 'text' | 'date' | 'checkbox')}
+          <select value={colTypeDraft} onChange={e => setColTypeDraft(e.target.value as 'text' | 'date' | 'checkbox' | 'time' | 'select')}
             className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
             <option value="text">텍스트</option>
             <option value="date">날짜</option>
             <option value="checkbox">체크박스</option>
+            <option value="time">시간(24시간)</option>
+            <option value="select">드롭다운</option>
           </select>
           <button onClick={handleAddColumn} disabled={!colLabelDraft.trim()}
             className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -4746,7 +4769,13 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   const gridTables = (preset.gridTables ?? []).map(cfg => {
     const rows: MailGridRow[] = [1, 2].map(n => ({
       id: `preview-grid-row-${n}`,
-      values: Object.fromEntries(cfg.columns.map(col => [col.id, col.type === 'date' ? today : col.type === 'checkbox' ? '1' : `샘플 ${n}`])),
+      values: Object.fromEntries(cfg.columns.map(col => [col.id,
+        col.type === 'date' ? today
+        : col.type === 'checkbox' ? '1'
+        : col.type === 'time' ? '14:00'
+        : col.type === 'select' ? (col.options?.[0] ?? '')
+        : `샘플 ${n}`,
+      ])),
     }));
     return { id: cfg.id, config: cfg, rows };
   });

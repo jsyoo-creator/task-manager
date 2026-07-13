@@ -520,12 +520,12 @@ export function assembleMailBodyBlocks(
 
 // 행표의 실제 컬럼 목록 — 날짜 컬럼에 요일 표시를 켜두면 그 바로 뒤에 자동 계산되는
 // "요일" 컬럼을 하나 더 끼워 넣는다(사용자가 따로 만들 필요 없음)
-interface EffectiveGridColumn { id: string; label: string; kind: 'text' | 'date' | 'checkbox' | 'weekday'; sourceColumnId?: string }
+interface EffectiveGridColumn { id: string; label: string; kind: 'text' | 'date' | 'checkbox' | 'weekday' | 'time' | 'select'; sourceColumnId?: string; options?: string[] }
 
 function buildEffectiveGridColumns(config: MailGridTableConfig): EffectiveGridColumn[] {
   const cols: EffectiveGridColumn[] = [];
   config.columns.forEach(c => {
-    cols.push({ id: c.id, label: c.label, kind: c.type });
+    cols.push({ id: c.id, label: c.label, kind: c.type, options: c.options });
     if (c.type === 'date' && c.showWeekday) cols.push({ id: `${c.id}__weekday`, label: '요일', kind: 'weekday', sourceColumnId: c.id });
   });
   return cols;
@@ -850,6 +850,23 @@ function MailGridTablePreview({ config, rows, setRows }: {
                         <label className="flex items-center justify-center cursor-pointer select-none">
                           <input type="checkbox" checked={val === '1'} onChange={() => handleSetCell(row.id, c.id, val === '1' ? '' : '1')} />
                         </label>
+                      ) : c.type === 'time' ? (
+                        // HTML time input의 값은 항상 24시간 기준 "HH:mm"으로 저장됨(표시만 브라우저/OS 설정에 따를 수 있음)
+                        <input
+                          type="time"
+                          value={val}
+                          onChange={e => handleSetCell(row.id, c.id, e.target.value)}
+                          className="w-full min-w-[90px] bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                        />
+                      ) : c.type === 'select' ? (
+                        <select
+                          value={val}
+                          onChange={e => handleSetCell(row.id, c.id, e.target.value)}
+                          className="w-full min-w-[80px] bg-transparent text-[13px] text-gray-800 focus:outline-none"
+                        >
+                          <option value="">선택</option>
+                          {(c.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
                       ) : (
                         <input
                           value={val}

@@ -284,8 +284,9 @@ export interface MailListGroup {
 export interface MailGridColumn {
   id: string;
   label: string; // 헤더에 표시할 컬럼명
-  type: 'text' | 'date' | 'checkbox'; // checkbox는 셀에 O/- 토글로 표시
+  type: 'text' | 'date' | 'checkbox' | 'time' | 'select'; // checkbox는 셀에 O/- 토글, time은 24시간 기준 시:분, select는 등록해둔 옵션 중 드롭다운으로 선택
   showWeekday?: boolean; // type이 'date'일 때, 바로 뒤에 자동 계산된 "요일" 컬럼을 추가로 보여줌
+  options?: string[]; // type이 'select'일 때 드롭다운에 보여줄 선택지 목록
 }
 
 // 여러 행을 가로 표로 나열하는 표 하나("메인 표"와 달리 업무 하나가 아니라, 메일 작성할

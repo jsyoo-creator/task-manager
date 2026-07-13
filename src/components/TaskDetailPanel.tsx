@@ -267,10 +267,11 @@ export function buildExtraRenderableTable(task: Task, cfg: MailTableConfig, manu
 }
 
 // 번호 매긴 목록 항목 하나("N. 라벨" 다음 줄에 값) — sourceKey 없는(=사용자 입력) 항목이면
-// 값을 그 자리에서 바로 입력할 수 있어야 하므로 입력 타입/필드 id를 함께 넘김
+// 값을 그 자리에서 바로 입력할 수 있어야 하므로 입력 타입/필드 id를 함께 넘김.
+// indexLabel은 순번(numberLabel 없으면 "1.", "2." ...) 또는 직접 지정한 텍스트("A안" 등)
 interface MailListItemResolved {
   id: string;
-  index: number;
+  indexLabel: string;
   label: string;
   value: string;
   manualFieldId?: string;
@@ -285,11 +286,13 @@ interface RenderableListGroup {
 
 export function buildRenderableListGroup(task: Task, group: MailListGroup, manualValues?: Record<string, string>): RenderableListGroup {
   const items: MailListItemResolved[] = (group.items ?? []).map((it, i) => {
-    const raw = it.sourceKey ? (task.customFields?.[it.sourceKey] ?? '') : (manualValues?.[it.id] ?? '');
+    const raw = it.sourceKey
+      ? resolveCustomFieldRawValue(task, { id: it.id, label: it.label, type: it.type, source: it.source, sourceKey: it.sourceKey }, manualValues)
+      : (manualValues?.[it.id] ?? '');
     const value = it.type === 'date' ? fmtDateWithWeekday(raw) : (raw || '-');
     return {
       id: it.id,
-      index: i + 1,
+      indexLabel: it.numberLabel?.trim() || `${i + 1}.`,
       label: it.label,
       value,
       ...(it.sourceKey ? {} : { manualFieldId: it.id, manualFieldType: it.type }),
@@ -316,7 +319,7 @@ function tableToPlainText(t: RenderableTable): string | null {
 
 function listGroupToPlainText(g: RenderableListGroup): string | null {
   if (!g.visible) return null;
-  const body = g.items.map(it => `${it.index}. ${it.label}\n${it.value}`).join('\n\n');
+  const body = g.items.map(it => `${it.indexLabel} ${it.label}\n${it.value}`).join('\n\n');
   return g.title ? `[${g.title}]\n${body}` : body;
 }
 
@@ -405,7 +408,7 @@ function listGroupToHtml(g: RenderableListGroup, FS: string): string {
   if (!g.visible) return '';
   const titleHtml = g.title ? `<div style="${FS}font-weight:700;margin-bottom:4px;">[${escapeHtml(g.title)}]</div>` : '';
   const itemsHtml = g.items.map(it =>
-    `<div style="${FS}">${it.index}. ${escapeHtml(it.label)}</div>` +
+    `<div style="${FS}">${escapeHtml(it.indexLabel)} ${escapeHtml(it.label)}</div>` +
     `<div style="${FS}margin-bottom:8px;">${escapeHtml(it.value)}</div>`
   ).join('');
   return `${titleHtml}${itemsHtml}<br>`;
@@ -530,7 +533,7 @@ function MailListGroupPreview({ group, manualValues, setManualValues }: {
       {group.title && <p className="font-bold mb-1">[{group.title}]</p>}
       {group.items.map(it => (
         <div key={it.id}>
-          <p className="text-gray-700">{it.index}. {it.label}</p>
+          <p className="text-gray-700">{it.indexLabel} {it.label}</p>
           {it.manualFieldId ? (
             it.manualFieldType === 'date' ? (
               <div className="flex items-center gap-1.5 mt-0.5">

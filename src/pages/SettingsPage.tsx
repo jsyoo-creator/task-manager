@@ -4266,7 +4266,7 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
 // 등 스타일 없이, 항목 이름과 값(필드에서 가져오거나 사용자 입력)만으로 구성
 function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   group: MailListGroup;
-  candidateFields: { key: string; label: string; type: 'text' | 'date' }[];
+  candidateFields: { key: string; label: string; type: 'text' | 'date'; source: 'field' | 'subtask' }[];
   onSave: (next: MailListGroup) => void;
   onRemove: () => void;
 }) {
@@ -4286,12 +4286,18 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   }, [group.id]);
 
   const patch = (p: Partial<MailListGroup>) => onSave({ ...group, ...p });
+  const patchItem = (id: string, p: Partial<MailListItem>) =>
+    patch({ items: (group.items ?? []).map(it => it.id === id ? { ...it, ...p } : it) });
 
   const handleAddField = () => {
     if (!customSourceKey) return;
     const source = candidateFields.find(f => f.key === customSourceKey);
     if (!source) return;
-    const item: MailListItem = { id: `mli_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: source.label, type: source.type, sourceKey: source.key };
+    const item: MailListItem = {
+      id: `mli_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      label: source.label, type: source.type, sourceKey: source.key,
+      ...(source.source === 'subtask' ? { source: 'subtask' as const } : {}),
+    };
     patch({ items: [...(group.items ?? []), item] });
     setCustomSourceKey('');
   };
@@ -4304,6 +4310,18 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   };
 
   const handleRemoveItem = (id: string) => patch({ items: (group.items ?? []).filter(it => it.id !== id) });
+  const handleSetItemLabel = (id: string, label: string) => { if (label.trim()) patchItem(id, { label: label.trim() }); };
+  // 비워두면 다시 순번 자동 표시로 돌아감 ("A안" 같은 텍스트로 직접 지정도 가능)
+  const handleSetItemNumberLabel = (id: string, numberLabel: string) => patchItem(id, { numberLabel: numberLabel.trim() || undefined });
+  // 타입을 바꾸면 기존 연결은 타입이 안 맞을 수 있으니 해제하고 사용자 입력으로 되돌림
+  const handleSetItemType = (id: string, type: 'text' | 'date') => patchItem(id, { type, source: undefined, sourceKey: undefined });
+  const handleConnectItem = (id: string, key: string) => {
+    if (!key) return;
+    const source = candidateFields.find(f => f.key === key);
+    if (!source) return;
+    patchItem(id, { sourceKey: source.key, source: source.source === 'subtask' ? 'subtask' as const : 'field' as const });
+  };
+  const handleDisconnectItem = (id: string) => patchItem(id, { source: undefined, sourceKey: undefined });
 
   const handleReorder = (toIdx: number) => {
     const from = dragIdxRef.current;
@@ -4335,7 +4353,7 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
       </div>
 
       <div>
-        <p className="text-[11px] text-gray-500 mb-1.5">항목 (번호가 자동으로 매겨집니다)</p>
+        <p className="text-[11px] text-gray-500 mb-1.5">항목 (번호 칸을 비워두면 순서대로 자동으로 매겨지고, "A안"처럼 직접 입력할 수도 있습니다)</p>
         {items.length > 0 && (
           <div className="space-y-1 mb-2">
             {items.map((it, i) => (
@@ -4348,7 +4366,52 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
                 onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
                 className={`flex items-center gap-1.5 text-[11px] px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 ${dragOverIdx === i ? 'border-t-2 border-t-indigo-400' : ''}`}>
                 <GripVertical size={12} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                <span className="flex-1">{i + 1}. {it.label} <span className="text-gray-400">({it.type === 'date' ? '날짜' : '텍스트'}{!it.sourceKey ? ' · 사용자 입력' : ''})</span></span>
+                <input
+                  value={it.numberLabel ?? ''}
+                  onChange={e => handleSetItemNumberLabel(it.id, e.target.value)}
+                  placeholder={`${i + 1}.`}
+                  title='번호를 직접 지정 (예: "A안") — 비워두면 순번이 자동으로 매겨짐'
+                  className="w-12 flex-shrink-0 text-center bg-white border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                />
+                <InlineTextField
+                  value={it.label}
+                  onCommit={v => handleSetItemLabel(it.id, v)}
+                  className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
+                />
+                <select value={it.type} onChange={e => handleSetItemType(it.id, e.target.value as 'text' | 'date')}
+                  className="text-[10px] px-1 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 bg-white text-gray-500">
+                  <option value="text">텍스트</option>
+                  <option value="date">날짜</option>
+                </select>
+                {it.sourceKey ? (
+                  <>
+                    <span className="text-gray-400 flex-shrink-0">연결됨</span>
+                    <button onClick={() => handleDisconnectItem(it.id)}
+                      className="text-[10px] px-1.5 py-0.5 rounded-md bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 flex-shrink-0">
+                      연결 해제
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-gray-400 flex-shrink-0">사용자 입력</span>
+                    {candidateFields.some(cf => cf.type === it.type) && (
+                      <select value="" onChange={e => handleConnectItem(it.id, e.target.value)}
+                        className="text-[10px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0 max-w-[140px]">
+                        <option value="">필드 연결</option>
+                        {candidateFields.some(cf => cf.source === 'field' && cf.type === it.type) && (
+                          <optgroup label="필드">
+                            {candidateFields.filter(cf => cf.source === 'field' && cf.type === it.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                          </optgroup>
+                        )}
+                        {candidateFields.some(cf => cf.source === 'subtask' && cf.type === it.type) && (
+                          <optgroup label="세부 업무">
+                            {candidateFields.filter(cf => cf.source === 'subtask' && cf.type === it.type).map(cf => <option key={cf.key} value={cf.key}>{cf.label}</option>)}
+                          </optgroup>
+                        )}
+                      </select>
+                    )}
+                  </>
+                )}
                 <button onClick={() => handleRemoveItem(it.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
               </div>
             ))}
@@ -4372,7 +4435,14 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
               <select value={customSourceKey} onChange={e => setCustomSourceKey(e.target.value)}
                 className="flex-1 text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none">
                 <option value="">필드 선택</option>
-                {candidateFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                <optgroup label="필드">
+                  {candidateFields.filter(f => f.source === 'field').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                </optgroup>
+                {candidateFields.some(f => f.source === 'subtask') && (
+                  <optgroup label="세부 업무">
+                    {candidateFields.filter(f => f.source === 'subtask').map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </optgroup>
+                )}
               </select>
               <button onClick={handleAddField} disabled={!customSourceKey}
                 className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0">
@@ -5448,7 +5518,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               return (
                 <MailListGroupEditor
                   group={selectedListGroup}
-                  candidateFields={candidateFields.filter((f): f is { key: string; label: string; type: 'text' | 'date'; source: 'field' } => f.type !== 'url' && f.source !== 'subtask')}
+                  candidateFields={candidateFields.filter((f): f is { key: string; label: string; type: 'text' | 'date'; source: 'field' | 'subtask' } => f.type !== 'url')}
                   onSave={handleSaveListGroup}
                   onRemove={() => handleRemoveListGroup(selectedListGroup.id)}
                 />

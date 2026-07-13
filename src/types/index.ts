@@ -264,7 +264,9 @@ export interface MailListItem {
   id: string;
   label: string;
   type: 'text' | 'date';
+  source?: 'field' | 'subtask'; // 없으면 'field' (하위 호환)
   sourceKey?: string;
+  numberLabel?: string; // 없으면 "N."(순번) 자동 표시, 있으면 이 텍스트로 대체 (예: "A안")
 }
 
 // 표와 별개로, "[제목]" 아래 번호가 매겨진 항목들을 나열하는 목록 —

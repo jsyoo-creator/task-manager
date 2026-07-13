@@ -359,6 +359,8 @@ export interface MailFormPreset {
   optionalPhrases?: MailOptionalPhrase[];
   // 공백 없이 붙여 쓴 "{이름}" 마커 그룹이 전부 선택됐을 때 대신 쓸 문구들 (예: KV+페이지+배너 → "전소재")
   phraseGroupOverrides?: MailPhraseGroupOverride[];
+  // 삽입 항목/선택 문구가 여러 개 체크(선택)됐을 때 "·"로 구분해 이어붙일지 (없으면 true = 사용)
+  joinMultipleWithDot?: boolean;
   showTaskName?: boolean; // 안내 문구 앞에 업무명을 노출할지 (탭별 설정, 기본값 false)
   messageInserts?: MailMessageInsert[]; // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목들(텍스트/날짜/건수)
   tableHidden?: boolean; // true면 표 영역 전체(제목 포함)를 아예 표시하지 않음 (없으면 false = 표시)

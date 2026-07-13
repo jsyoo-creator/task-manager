@@ -37,7 +37,7 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
     }
     insertParts.push(ins.type === 'date' ? fmtDateInsertLabel(raw) : ins.type === 'count' ? `${raw}건` : raw);
   });
-  if (insertParts.length) parts.push(insertParts.join(' · '));
+  if (insertParts.length) parts.push(insertParts.join(preset?.joinMultipleWithDot === false ? ' ' : ' · '));
   parts.push(message || DEFAULT_MAIL_MESSAGE);
   return parts.join(' ');
 }
@@ -64,7 +64,8 @@ export function resolveMessageTemplate(
   message: string,
   phrases: MailOptionalPhrase[] | undefined,
   selected: Record<string, string>,
-  groupOverrides?: MailPhraseGroupOverride[]
+  groupOverrides?: MailPhraseGroupOverride[],
+  joinWithDot: boolean = true
 ): string {
   const byName = new Map((phrases ?? []).map(p => [p.name, p]));
   // 옵션이 0~1개면 "여러 개 중 선택"이 아니라 "이 단어를 쓸지 말지"(체크박스)이므로,
@@ -84,7 +85,7 @@ export function resolveMessageTemplate(
       const names = Array.from(group.matchAll(/\{([^{}]+)\}/g)).map(m => m[1]);
       const override = groupOverrides?.find(g => g.names.length === names.length && g.names.every((n, i) => n === names[i]));
       if (override?.text && names.every(n => resolveOne(n) !== '')) return override.text;
-      return names.map(resolveOne).filter(t => t !== '').join(' · ');
+      return names.map(resolveOne).filter(t => t !== '').join(joinWithDot ? ' · ' : ' ');
     })
     .replace(/\{([^{}]+)\}/g, (_match, name) => resolveOne(name));
   // 문구가 빠지면서 생기는 이중 공백/구두점 앞 공백 정리
@@ -2776,7 +2777,7 @@ export default function TaskDetailPanel({
               const blockKeys = resolveMailBodyBlockKeys(currentPreset)
                 .filter(key => isBlockVisible(key, currentPreset?.optionalPhrases, mailPhraseSelected));
               const blocks = assembleMailBodyBlocks(blockKeys, mainTable, extraTables, bodyExtra, listGroups);
-              const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides);
+              const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides, currentPreset?.joinMultipleWithDot !== false);
               const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);
               const signature = mailAuthor ? `${mailAuthor} 드림` : '';
               const plainText = buildMailPlainText(greeting, messageLine, blocks, signature);

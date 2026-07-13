@@ -4581,7 +4581,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
     const opts = phrase?.options ?? [];
     previewPhraseSelected[name] = opts.length <= 1 ? '1' : (phrase?.defaultOptionId ?? opts[0]?.id ?? '');
   });
-  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, previewPhraseSelected, preset.phraseGroupOverrides);
+  const resolvedMessage = resolveMessageTemplate(preset.message || DEFAULT_MAIL_MESSAGE, preset.optionalPhrases, previewPhraseSelected, preset.phraseGroupOverrides, preset.joinMultipleWithDot !== false);
   const messageLine = composeMessageLine(dummyTask, preset, resolvedMessage, insertValues);
   const mainTable = buildMainRenderableTable(dummyTask, '진행 중', preset, manualValues);
   const extraTables = (preset.extraTables ?? []).map(cfg => ({ id: cfg.id, table: buildExtraRenderableTable(dummyTask, cfg, manualValues) }));
@@ -4836,6 +4836,13 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const handleToggleShowTaskName = () => {
     if (!currentPreset) return;
     savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, showTaskName: !p.showTaskName } : p));
+  };
+
+  // 삽입 항목/선택 문구가 여러 개 체크됐을 때 "·"로 구분할지 (끄면 공백으로만 이어붙임)
+  const handleToggleJoinWithDot = () => {
+    if (!currentPreset) return;
+    const next = currentPreset.joinMultipleWithDot === false ? true : false;
+    savePresets(presets.map(p => p.id === currentPreset.id ? { ...p, joinMultipleWithDot: next } : p));
   };
 
   // 업무명과 안내 문구 사이에 끼워 넣는 입력 항목(텍스트/날짜/건수) 관리
@@ -5404,6 +5411,13 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               </div>
               <input type="checkbox" checked={!!currentPreset.showTaskName} onChange={handleToggleShowTaskName} className="hidden" />
               <span className="text-[11px] text-gray-600">안내 문구 앞에 업무명 노출</span>
+            </label>
+            <label className="flex items-center gap-2 mt-1.5 cursor-pointer select-none">
+              <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${currentPreset.joinMultipleWithDot !== false ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 bg-white'}`}>
+                {currentPreset.joinMultipleWithDot !== false && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={currentPreset.joinMultipleWithDot !== false} onChange={handleToggleJoinWithDot} className="hidden" />
+              <span className="text-[11px] text-gray-600">삽입 항목/선택 문구가 여러 개면 "·"로 구분 (끄면 공백만)</span>
             </label>
 
             <div className="mt-3 pt-3 border-t border-gray-100">

@@ -4872,7 +4872,10 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
           이 파트에는 아직 메일 양식 탭이 없습니다. "탭 추가"로 만들어보세요.
         </p>
       ) : (
-        <div className="flex items-start gap-4">
+        /* items-start면 오른쪽 컬럼이 미리보기 박스 자체 높이로만 감싸져 sticky가 붙어 있을
+           "여유 공간"이 없어 거의 안 붙는 것처럼 보임 — stretch(기본값)로 왼쪽(더 긴) 컬럼
+           높이만큼 오른쪽 컬럼도 늘려줘야 그 안에서 sticky가 끝까지 붙어있을 수 있음 */
+        <div className="flex items-stretch gap-4">
         <div className="flex-1 min-w-0 space-y-3 rounded-xl border border-gray-100 p-4">
           <div className="flex items-center gap-3">
             <input

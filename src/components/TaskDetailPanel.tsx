@@ -438,7 +438,7 @@ function listGroupToPlainText(g: RenderableListGroup): string | null {
   if (!g.visible) return null;
   const body = g.items.map(it => {
     const value = it.isUrl && it.linkText && it.value !== '-' ? `${it.linkText} (${it.value})` : it.value;
-    return `${it.indexLabel} ${it.label}\n${value}`;
+    return `${it.indexLabel} ${it.label} ${value}`;
   }).join('\n\n');
   return g.title ? `[${g.title}]\n${body}` : body;
 }
@@ -536,8 +536,7 @@ function listGroupToHtml(g: RenderableListGroup, FS: string): string {
     const valueHtml = it.isUrl && it.value !== '-'
       ? `<a href="${escapeHtml(it.value)}" style="color:#2563eb;text-decoration:underline;" target="_blank" rel="noreferrer">${escapeHtml(it.linkText || it.value)}</a>`
       : escapeHtml(it.value);
-    return `<div style="${FS}">${escapeHtml(it.indexLabel)} ${escapeHtml(it.label)}</div>` +
-      `<div style="${FS}margin-bottom:8px;">${valueHtml}</div>`;
+    return `<div style="${FS}margin-bottom:8px;">${escapeHtml(it.indexLabel)} ${escapeHtml(it.label)} ${valueHtml}</div>`;
   }).join('');
   return `${titleHtml}${itemsHtml}<br>`;
 }
@@ -665,11 +664,11 @@ function MailListGroupPreview({ group, manualValues, setManualValues }: {
     <div className="mt-3 space-y-3">
       {group.title && <p className="font-bold mb-1">[{group.title}]</p>}
       {group.items.map(it => (
-        <div key={it.id}>
-          <p className="text-gray-700">{it.indexLabel} {it.label}</p>
+        <div key={it.id} className="flex items-center gap-2 flex-wrap">
+          <span className="text-gray-700 flex-shrink-0">{it.indexLabel} {it.label}</span>
           {it.manualFieldId ? (
             it.manualFieldType === 'date' ? (
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5">
                 <DatePicker
                   value={manualValues[it.manualFieldId] ?? ''}
                   onChange={v => setManualValues(prev => ({ ...prev, [it.manualFieldId!]: v }))}
@@ -684,13 +683,13 @@ function MailListGroupPreview({ group, manualValues, setManualValues }: {
                 value={manualValues[it.manualFieldId] ?? ''}
                 onChange={e => setManualValues(prev => ({ ...prev, [it.manualFieldId!]: e.target.value }))}
                 placeholder={it.manualFieldType === 'url' ? 'URL 입력' : '입력'}
-                className="w-full mt-0.5 text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
+                className="flex-1 min-w-[100px] text-[13px] px-2.5 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/30"
               />
             )
           ) : it.isUrl && it.value !== '-' ? (
             <a href={it.value} target="_blank" rel="noreferrer" className="text-blue-600 underline">{it.linkText || it.value}</a>
           ) : (
-            <p className="text-gray-800">{it.value}</p>
+            <span className="text-gray-800">{it.value}</span>
           )}
         </div>
       ))}

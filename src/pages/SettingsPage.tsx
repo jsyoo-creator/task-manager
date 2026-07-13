@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -3582,6 +3582,20 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
     setSaving(false);
   };
 
+  // 폼설정(업무정보필드)의 현재 필드 순서를 이 대상(팀 기본/파트)의 엑셀 컬럼 순서에
+  // 한 번 그대로 적용 — 실시간으로 계속 따라가는 게 아니라 이 시점 순서를 그대로 복사해
+  // 오는 것이라, 적용한 뒤에는 평소처럼 드래그로 자유롭게 다시 순서를 바꿀 수 있음
+  const resolvedFormConfig = isTeam ? team.formConfig : mergeFormConfig(currentPart?.formConfig, team.formConfig);
+  const handleSortByFormOrder = () => {
+    const orderKeys = resolveFormFieldOrderKeys(resolvedFormConfig);
+    const rank = (key: string) => { const i = orderKeys.indexOf(key); return i === -1 ? Infinity : i; };
+    const reordered = [...fields]
+      .sort((a, b) => rank(a.key) - rank(b.key))
+      .map((f, i) => ({ ...f, order: i }));
+    setFields(reordered);
+    save(reordered);
+  };
+
   useEffect(() => { setSelectedTarget('team'); }, [team.id]);
 
   return (
@@ -3646,6 +3660,14 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
           )}
         </div>
       )}
+
+      <div className="flex items-center justify-between px-1">
+        <p className="text-[11px] text-gray-400">드래그로 순서를 바꾸거나, 폼설정에 맞춰 한 번에 정렬할 수 있습니다.</p>
+        <button onClick={handleSortByFormOrder}
+          className="flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium flex-shrink-0">
+          <ArrowDownToLine size={11} />폼 순서대로 정렬
+        </button>
+      </div>
 
       <div className="space-y-1">
         {fields.map((f, idx) => (

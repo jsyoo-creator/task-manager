@@ -578,6 +578,20 @@ export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfi
   return fields;
 }
 
+// 폼설정(업무정보필드)에서 실제로 쓰이는 필드 순서를 key(빌트인 key 또는 커스텀 필드 id)
+// 목록으로 반환 — 엑셀 관리에서 "폼 순서대로 정렬"할 때 기준으로 삼음
+export function resolveFormFieldOrderKeys(config: TeamFormConfig | undefined): string[] {
+  const builtinKeys = resolveBuiltinFields(config).filter(fc => fc.enabled).map(fc => fc.key as string);
+  const customKeys = (config?.customFields ?? []).filter(cf => cf.enabled !== false).map(cf => cf.id);
+  const fo = config?.fieldOrder;
+  if (!fo?.length) return [...builtinKeys, ...customKeys];
+  const known = new Set([...builtinKeys, ...customKeys]);
+  const result: string[] = fo.filter(k => known.has(k));
+  builtinKeys.forEach(k => { if (!fo.includes(k)) result.push(k); });
+  customKeys.forEach(k => { if (!fo.includes(k)) result.push(k); });
+  return result;
+}
+
 /** 파트 formConfig와 팀 formConfig를 병합. 파트 설정이 우선, 없는 필드는 팀에서 상속. */
 export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConfig: TeamFormConfig | undefined): TeamFormConfig | undefined {
   if (!partConfig) return teamConfig;

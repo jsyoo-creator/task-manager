@@ -42,15 +42,15 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
   return parts.join(' ');
 }
 
-const PHRASE_MARKER_RE = /\{([^{}]+)\}/g;
-
-// 안내 문구 안에서 "{이름}" 마커를 찾아, 처음 등장한 순서대로 고유한 이름 목록을 반환
+// 안내 문구 안에서 "{이름}" 마커를 찾아, 처음 등장한 순서대로 고유한 이름 목록을 반환.
+// (참고: 정규식 리터럴을 매번 새로 만들어 씀 — g 플래그 정규식을 모듈 상수로 공유하면
+// lastIndex가 호출 간에 남아 있어 간헐적으로 매칭을 건너뛰는 버그가 생길 수 있음)
 export function extractPhraseMarkerNames(message: string): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
-  PHRASE_MARKER_RE.lastIndex = 0;
+  const re = /\{([^{}]+)\}/g;
   let m: RegExpExecArray | null;
-  while ((m = PHRASE_MARKER_RE.exec(message))) {
+  while ((m = re.exec(message))) {
     if (!seen.has(m[1])) { seen.add(m[1]); names.push(m[1]); }
   }
   return names;
@@ -61,7 +61,7 @@ export function extractPhraseMarkerNames(message: string): string[] {
 // 정의되지 않은 이름은 아직 설정이 안 된 것이므로 안전하게 마커 그대로 남겨둠(데이터 손실 방지)
 export function resolveMessageTemplate(message: string, phrases: MailOptionalPhrase[] | undefined, selected: Record<string, string>): string {
   const byName = new Map((phrases ?? []).map(p => [p.name, p]));
-  const replaced = message.replace(PHRASE_MARKER_RE, (match, name) => {
+  const replaced = message.replace(/\{([^{}]+)\}/g, (match, name) => {
     const phrase = byName.get(name);
     if (!phrase) return match;
     const option = phrase.options.find(o => o.id === selected[phrase.id]);

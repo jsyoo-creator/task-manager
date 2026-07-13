@@ -5219,7 +5219,13 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               업무 상세 메일 양식 본문의 "안녕하세요, (작성자)입니다." 인사말 다음에 들어가는 문구입니다.
             </p>
             {(() => {
-              const phraseNames = extractPhraseMarkerNames(messageDraft);
+              // messageDraft(입력 중인 값)뿐 아니라 이미 저장된 currentPreset.message에서도
+              // 이름을 찾아 합침 — draft가 어떤 이유로든 저장된 값과 어긋나 있어도 이미 저장된
+              // {이름} 마커는 항상 이 관리 섹션에 나타나게 하기 위함
+              const phraseNames = Array.from(new Set([
+                ...extractPhraseMarkerNames(messageDraft),
+                ...extractPhraseMarkerNames(currentPreset.message ?? ''),
+              ]));
               if (phraseNames.length === 0) return null;
               return (
                 <div className="mt-2 pt-2 border-t border-gray-100">

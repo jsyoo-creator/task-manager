@@ -4550,7 +4550,8 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
   (preset.messageInserts ?? []).forEach(ins => {
     insertValues[ins.id] = ins.type === 'date' ? today
       : ins.type === 'count' ? '3'
-      : ins.type === 'select' ? (ins.options?.[0]?.id ?? '')
+      // 선택 타입: 옵션 1개 이하(체크박스)면 샘플로 체크된 상태(1)로, 2개 이상(드롭다운)이면 첫 옵션으로
+      : ins.type === 'select' ? ((ins.options ?? []).length <= 1 ? '1' : (ins.options?.[0]?.id ?? ''))
       : (ins.label || '샘플 텍스트');
   });
 

@@ -29,6 +29,12 @@ export function composeMessageLine(task: Task, preset: MailFormPreset | undefine
     const raw = insertValues[ins.id] ?? '';
     if (!raw) return;
     if (ins.type === 'select') {
+      // 옵션이 1개 이하면 "여러 개 중 선택"이 아니라 "이 문구를 쓸지 말지"(체크박스)라,
+      // 옵션 유무와 상관없이 체크만 하면 옵션 문구(없으면 항목 이름)를 그대로 씀
+      if ((ins.options ?? []).length <= 1) {
+        if (raw === '1') { const t = ins.options?.[0]?.text || ins.label; if (t) parts.push(t); }
+        return;
+      }
       const text = ins.options?.find(o => o.id === raw)?.text;
       if (text) parts.push(text);
       return;
@@ -2504,19 +2510,23 @@ export default function TaskDetailPanel({
                             />
                           ) : ins.type === 'select' && (ins.options ?? []).length <= 1 ? (
                             // 옵션이 1개(또는 아직 없음)면 여러 개 중 고르는 게 아니라 "이 문구를
-                            // 쓸지 말지"를 정하는 것이므로 드롭다운 대신 체크박스로 표시
+                            // 쓸지 말지"를 정하는 것이므로 드롭다운 대신 체크박스로 표시.
+                            // 옵션을 따로 안 만들어도 항목 이름을 그대로 문구로 써서 바로 동작함
                             (() => {
                               const only = ins.options?.[0];
-                              const checked = !!only && val === only.id;
+                              const insertText = only?.text || ins.label || '';
+                              const checked = val === '1';
                               return (
                                 <label className="inline-flex items-center gap-1 cursor-pointer select-none">
                                   <input
                                     type="checkbox"
                                     checked={checked}
-                                    disabled={!only}
-                                    onChange={() => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: checked ? '' : (only?.id ?? '') }))}
+                                    onChange={() => setMailMessageInsertValues(prev => ({ ...prev, [ins.id]: checked ? '' : '1' }))}
                                   />
-                                  <span className="text-xs text-gray-600">{ins.label || '체크'}</span>
+                                  <span className="text-xs text-gray-600">
+                                    {ins.label || '체크'}
+                                    {insertText && insertText !== ins.label && <span className="text-gray-400"> — {insertText}</span>}
+                                  </span>
                                 </label>
                               );
                             })()

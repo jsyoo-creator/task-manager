@@ -2137,7 +2137,18 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
                     disabled={!canManage} />
                 ) : (
-                  <span className="text-xs text-gray-700 truncate block text-center">{val || '-'}</span>
+                  <input
+                    type="text"
+                    readOnly={!canManage}
+                    value={manualFieldDrafts[cf.id] ?? val}
+                    onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                    onBlur={e => {
+                      onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                      setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                    }}
+                    placeholder="-"
+                    className="w-full text-xs text-gray-700 bg-transparent text-center truncate focus:outline-none focus:ring-1 focus:ring-blue-400/50 rounded px-1"
+                  />
                 )}
               </div>
             ];
@@ -2606,7 +2617,18 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                           onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
                           disabled={!canManage} />
                       ) : (
-                        <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate">{val || '-'}</span>
+                        <input
+                          type="text"
+                          readOnly={!canManage}
+                          value={manualFieldDrafts[cf.id] ?? val}
+                          onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                          onBlur={e => {
+                            onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                            setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                          }}
+                          placeholder="-"
+                          className="max-w-[180px] text-xs text-gray-800 font-medium bg-transparent truncate focus:outline-none focus:ring-1 focus:ring-blue-400/50 rounded px-1"
+                        />
                       )}
                     </div>
                   );

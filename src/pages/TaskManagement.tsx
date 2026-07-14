@@ -2063,7 +2063,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             })();
             const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
             return [
-              <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div key={cf.id} className="min-w-0" onClick={e => e.stopPropagation()}>
                 {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
                   <div className="flex items-center gap-1">
                     <input

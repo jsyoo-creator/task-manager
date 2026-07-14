@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink, MessagesSquare } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Sparkles, Pencil, Trash2, ExternalLink, MessagesSquare, Download, Loader2 } from 'lucide-react';
 import type { AiTool, AppUser } from '../types';
 import { useAiTools } from '../hooks/useAiTools';
 import { useComments } from '../hooks/usePosts';
@@ -244,6 +244,8 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
 }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDiscussion, setShowDiscussion] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const pdfContentRef = useRef<HTMLDivElement>(null);
   const relatedTools = (tool.relatedToolIds ?? [])
     .map(id => allTools.find(t => t.id === id))
     .filter((t): t is AiTool => !!t);
@@ -262,6 +264,32 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
 
   const scrollToHeading = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!pdfContentRef.current || generatingPdf) return;
+    setGeneratingPdf(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const canvas = await html2canvas(pdfContentRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        ignoreElements: (el) => el.getAttribute('data-pdf-exclude') === 'true',
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ unit: 'px', format: [canvas.width, canvas.height] });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.save(`${tool.name.replace(/[\\/:*?"<>|]/g, '')}.pdf`);
+    } catch (err) {
+      console.error('PDF 생성 실패:', err);
+      alert('PDF 생성에 실패했습니다.');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const hasSidebar = tool.tags.length > 0 || headings.length > 0;
@@ -290,7 +318,7 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
           )}
         </div>
 
-        <div className="px-6 pt-6 pb-6">
+        <div className="px-6 pt-6 pb-6" ref={pdfContentRef}>
           {/* 제목 영역 — 전체 너비 */}
           <div className="flex items-start gap-11">
             <ToolIcon iconUrl={tool.iconUrl} name={tool.name} size={112} />
@@ -329,13 +357,22 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
                     </span>
                   )}
                 </button>
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={generatingPdf}
+                  data-pdf-exclude="true"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border bg-white border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {generatingPdf ? '생성 중…' : 'PDF 다운로드'}
+                </button>
               </div>
             </div>
             <RecommendButton count={tool.recommendedBy.length} active={hasRecommended} onClick={onToggleRecommend} />
           </div>
 
           {showDiscussion && (
-            <div className="mt-6 pt-6 border-t border-gray-100">
+            <div className="mt-6 pt-6 border-t border-gray-100" data-pdf-exclude="true">
               <CommentSection postId={tool.id} appUser={appUser} canManageBoard={canManage} />
             </div>
           )}
@@ -348,7 +385,7 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
             />
 
             {hasSidebar && (
-              <div className="w-[300px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block">
+              <div className="w-[300px] flex-shrink-0 space-y-6 pl-6 border-l border-gray-100 sticky top-6 hidden lg:block" data-pdf-exclude="true">
                 {tool.tags.length > 0 && (
                   <div>
                     <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3">USE CASE</p>
@@ -382,7 +419,7 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
           </div>
 
           {relatedTools.length > 0 && (
-            <div className="mt-10 pt-8 border-t border-gray-100">
+            <div className="mt-10 pt-8 border-t border-gray-100" data-pdf-exclude="true">
               <p className="text-[11px] font-bold text-[#6C63FF] tracking-widest mb-1">RELATED TOOLS</p>
               <h2 className="text-2xl font-extrabold text-gray-900 mb-5">같이 보면 좋은 도구</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

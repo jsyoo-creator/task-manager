@@ -3,5 +3,6 @@ packages:
 allowBuilds:
   '@firebase/util': true
   '@tailwindcss/oxide': true
+  core-js: false
   esbuild: true
   protobufjs: true

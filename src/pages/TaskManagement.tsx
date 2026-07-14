@@ -266,7 +266,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [requestSending, setRequestSending] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupNameChoice, setGroupNameChoice] = useState('');
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('tm_collapsedGroups');
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+  useEffect(() => { localStorage.setItem('tm_collapsedGroups', JSON.stringify([...collapsedGroups])); }, [collapsedGroups]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
@@ -1117,27 +1123,18 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     ];
   });
 
-  // 업무 그룹 헤더 셀 렌더링 — renderHeaderCols와 같은 컬럼 순서/트랙에 맞춰 그룹명은 업무명
-  // 칼럼 자리에, 그룹 배지는 구분(파트) 칼럼 자리에 오도록 함(정렬만 목적, 나머지는 빈 칸)
-  const renderGroupCols = (cols: TableCol[], groupLabel: string, count: number, badgeInTitle = false) => cols.map(col => {
+  // 업무 그룹 헤더 셀 렌더링 — renderHeaderCols와 같은 컬럼 순서/트랙에 맞춰 그룹명이 업무명
+  // 칼럼 자리에 오도록 함(정렬만 목적, 나머지 칼럼은 빈 칸). 건수 배지는 그룹명 바로 앞에 표시
+  const renderGroupCols = (cols: TableCol[], groupLabel: string, count: number) => cols.map(col => {
     if (col.kind === 'custom') return <div key={col.cf.id} />;
     const fc = col.fc;
     if (fc.key === 'title') return (
       <div key="title" className="flex items-center gap-1.5 min-w-0 pl-3.5">
         <Layers size={12} className="text-violet-600 flex-shrink-0" />
-        <span className="text-[11px] font-bold text-violet-800 truncate">{groupLabel}</span>
-        {badgeInTitle && (
-          <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-            그룹 · {count}건
-          </span>
-        )}
-      </div>
-    );
-    if (fc.key === 'category') return (
-      <div key={fc.key} className="flex items-center justify-center">
-        <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+        <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
           그룹 · {count}건
         </span>
+        <span className="text-[11px] font-bold text-violet-800 truncate">{groupLabel}</span>
       </div>
     );
     return <div key={fc.key} />;
@@ -1560,7 +1557,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   });
                   const chevron = (
                     <div className="flex items-center justify-center" style={{ width: 28 }}>
-                      <ChevronDown size={13} className={`text-violet-500 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center bg-violet-200/70 hover:bg-violet-300 transition-colors flex-shrink-0">
+                        <ChevronDown size={13} className={`text-violet-700 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+                      </div>
                     </div>
                   );
                   // 체크박스는 28px, 드래그핸들은 18px 자리 — 그 뒤 칼럼(업무명/구분 등)은
@@ -1585,7 +1584,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                         {monthCol && <span style={{ width: monthColWidth }} />}
                       </div>
                       <div className="flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
-                        {renderGroupCols(line1Cols, item.label, item.tasks.length, true)}
+                        {renderGroupCols(line1Cols, item.label, item.tasks.length)}
                       </div>
                       <span className="flex-shrink-0" style={{ width: 110 }} />
                     </div>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useContext, createContext } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
@@ -132,6 +132,30 @@ function useHScroll() {
   return { ref, scroll, update, scrollBy };
 }
 
+// 각 업무 행의 2번째 줄(필드 영역)은 원래 행마다 독립된 가로 스크롤 위치를 가져서,
+// 어떤 행만 화살표로 스크롤하면 그 행만 옆으로 밀려 다른 행과 컬럼이 어긋나 보이고
+// "항목 순서가 바뀐 것" 같은 착시를 만들었다. 같은 화면의 모든 행이 항상 같은
+// 스크롤 위치를 공유하도록(스프레드시트처럼) 행들의 스크롤 컨테이너를 등록해두고
+// 한 행이 스크롤되면 나머지 행에도 같은 scrollLeft를 그대로 반영한다.
+type HScrollRegistry = {
+  register: (el: HTMLDivElement | null) => void;
+  unregister: (el: HTMLDivElement | null) => void;
+  broadcast: (source: HTMLDivElement) => void;
+};
+const Line2ScrollSyncContext = createContext<HScrollRegistry | null>(null);
+function useLine2ScrollRegistry(): HScrollRegistry {
+  const elsRef = useRef<Set<HTMLDivElement>>(new Set());
+  return useMemo(() => ({
+    register: (el) => { if (el) elsRef.current.add(el); },
+    unregister: (el) => { if (el) elsRef.current.delete(el); },
+    broadcast: (source) => {
+      elsRef.current.forEach(el => {
+        if (el !== source && el.scrollLeft !== source.scrollLeft) el.scrollLeft = source.scrollLeft;
+      });
+    },
+  }), []);
+}
+
 // 기본필드(builtin)와 커스텀필드를 fieldOrder대로 하나의 순서로 합친 컬럼 목록.
 // 목록 테이블은 헤더/행/너비 계산이 모두 이 순서를 따라야 "폼 설정"에서 기본필드
 // 사이로 옮긴 커스텀필드가 실제로도 그 위치에 표시됨.
@@ -250,6 +274,7 @@ function getColLabel(col: TableCol): string {
 
 export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, canFilterByPerson = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const line2ScrollSync = useLine2ScrollRegistry();
   const [yearFilter, setYearFilter] = useState(() => {
     const saved = localStorage.getItem('tm_yearFilter');
     return saved ? Number(saved) : now.getFullYear();
@@ -1472,6 +1497,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         {/* 아래쪽만 카드 자체의 mb-2가 이미 여백을 만들어주므로 컨테이너의 pb는 생략 —
             그렇지 않으면 목록 맨 아래(마지막 카드 밑)만 위쪽(첫 카드 위)보다 여백이
             두 배로 넓어짐 */}
+        <Line2ScrollSyncContext.Provider value={line2ScrollSync}>
         <div className={twoLineMode ? 'px-2 pt-2' : ''}>
           {displayFlat.length === 0 && (
             <div className="py-14 text-center text-sm text-gray-400">등록된 업무가 없습니다</div>
@@ -1502,6 +1528,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             </div>
           )) : filtered.map(renderTaskRow)}
         </div>
+        </Line2ScrollSyncContext.Provider>
       </div>
 
       <ConfirmDialog
@@ -1869,6 +1896,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   // 좌우 토글 버튼으로 조작할 수 있게 함
   const line2H = useHScroll();
   const line3H = useHScroll();
+  // 2번째 줄은 다른 행들과 항상 같은 스크롤 위치를 공유하도록 등록 — 등록되면
+  // 이 행이 스크롤될 때 다른 행에도, 다른 행이 스크롤될 때 이 행에도 반영됨
+  const line2Sync = useContext(Line2ScrollSyncContext);
+  useEffect(() => {
+    const el = line2H.ref.current;
+    line2Sync?.register(el);
+    return () => line2Sync?.unregister(el);
+  }, [line2Sync]);
   const filledMeta = (metaFields ?? []).filter(f => task.customFields?.[f.key]);
   const tableCfIds = new Set(tableCfs.map(cf => cf.id));
   // task.category 파트의 receiver/assignee 순서가 전체 탭(tableFields)과 반대이면 swap
@@ -2393,7 +2428,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   {/* 스크롤바 대신 좌우 화살표 버튼으로 가로 스크롤 — 스크롤바 자체는 숨김 */}
                   <div
                     ref={line2H.ref}
-                    onScroll={line2H.update}
+                    onScroll={e => { line2H.update(); line2Sync?.broadcast(e.currentTarget); }}
                     className="flex-1 min-w-0 overflow-x-auto pr-6 [&::-webkit-scrollbar]:hidden"
                     style={{ scrollbarWidth: 'none' }}
                   >

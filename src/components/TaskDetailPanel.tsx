@@ -2585,7 +2585,10 @@ export default function TaskDetailPanel({
                               </div>
                             ) : (
                               <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-gray-800 bg-black/[0.07]">
-                                <span className="truncate">{val || '-'}</span>
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                  {isNameType && <MiniAvatar name={val} photoURL={userPhotoMap?.get(val)} />}
+                                  <span className="truncate">{val || '-'}</span>
+                                </span>
                                 <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
                               </div>
                             )}

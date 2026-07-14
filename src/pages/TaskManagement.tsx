@@ -1101,21 +1101,32 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const renderHeaderCols = (cols: TableCol[]) => cols.flatMap(col => {
     if (col.kind === 'custom') {
       return [
-        <div key={col.cf.id} className="flex items-center justify-center select-none">
+        <div key={col.cf.id} className="flex items-center justify-center select-none whitespace-nowrap">
           <span>{col.cf.label}</span>
         </div>,
       ];
     }
     const fc = col.fc;
     const hLabel = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key];
+    // title/weeklyHours만 감싸는 div 없이 span만 반환하던 것을, 다른 헤더(div로 감싼 flex
+    // 중앙정렬)와 같은 구조로 통일함 — 구조가 다르면 같은 그리드 행(items-start/center) 안에서
+    // 헤더 라벨들의 세로 위치가 미묘하게 어긋나 보였음(들쭉날쭉 문제의 원인).
+    // whitespace-nowrap은 시작일/종료일처럼 컬럼 폭(DATE_COL_WIDTH=60px)이 좁은데 라벨이
+    // 긴 경우(예: "요청/작업개시일") 줄바꿈되어 세로 중앙 위치가 옆 라벨과 달라지는 것을 막음
     if (fc.key === 'title') return [
-      <span key="title" className="pl-3.5 text-gray-500">{hLabel}</span>,
+      <div key="title" className="flex items-center justify-start pl-3.5 select-none whitespace-nowrap">
+        <span className="text-gray-500">{hLabel}</span>
+      </div>,
     ];
     if (fc.key === 'weeklyHours') {
-      return [<span key="h-total" className="text-center">합계</span>];
+      return [
+        <div key="h-total" className="flex items-center justify-center select-none whitespace-nowrap">
+          <span>합계</span>
+        </div>,
+      ];
     }
     return [
-      <div key={fc.key} className="flex items-center justify-center select-none">
+      <div key={fc.key} className="flex items-center justify-center select-none whitespace-nowrap">
         <span>{hLabel}</span>
       </div>,
     ];
@@ -2051,8 +2062,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const cf = col.cf;
             const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
             const cfType = cf.type as string;
+            const isNameType = cfType === 'name' || cfType === '이름';
             const opts = (() => {
-              if (cfType === 'name' || cfType === '이름') return assignees;
+              if (isNameType) {
+                const cdepts = resolveFieldDepts(cf);
+                return cdepts && teamMembers?.length
+                  ? (teamMembers.filter(m => m.department && cdepts.includes(m.department)).map(m => m.name) || assignees)
+                  : assignees;
+              }
               const base = cf.options ?? [];
               if (!cf.dependsOn || cfType !== 'select') return base;
               const { fieldId, valueMap } = cf.dependsOn;
@@ -2061,7 +2078,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 : (task.customFields?.[fieldId] ?? '');
               return (pVal && valueMap[pVal]) ? valueMap[pVal] : base;
             })();
-            const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
+            const isSelectable = cfType === 'select' || isNameType;
             return [
               <div key={cf.id} className="min-w-0" onClick={e => e.stopPropagation()}>
                 {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
@@ -2115,8 +2132,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     </div>
                   );
                 })() : isSelectable ? (
-                  <div className="relative">
-                    <span className="text-xs text-gray-700 truncate block text-center">{val || '-'}</span>
+                  <div className="relative flex items-center justify-center gap-1 min-w-0">
+                    {isNameType && <MiniAvatar name={val} photoURL={userPhotoMap?.get(val)} />}
+                    <span className="text-xs text-gray-700 truncate">{val || '-'}</span>
                     {canManage && (
                       <select value={val}
                         onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
@@ -2526,8 +2544,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 {enabledCfs.map(cf => {
                   const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
                   const cfType = cf.type as string;
+                  const isNameType = cfType === 'name' || cfType === '이름';
                   const opts = (() => {
-                    if (cfType === 'name' || cfType === '이름') return assignees;
+                    if (isNameType) {
+                      const cdepts = resolveFieldDepts(cf);
+                      return cdepts && teamMembers?.length
+                        ? (teamMembers.filter(m => m.department && cdepts.includes(m.department)).map(m => m.name) || assignees)
+                        : assignees;
+                    }
                     const base = cf.options ?? [];
                     if (!cf.dependsOn || cfType !== 'select') return base;
                     const { fieldId, valueMap } = cf.dependsOn;
@@ -2536,7 +2560,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       : (task.customFields?.[fieldId] ?? '');
                     return (pVal && valueMap[pVal]) ? valueMap[pVal] : base;
                   })();
-                  const isSelectable = cfType === 'select' || cfType === 'name' || cfType === '이름';
+                  const isSelectable = cfType === 'select' || isNameType;
                   return (
                     <div key={cf.id} className="flex flex-col px-5 py-3 shrink-0">
                       <span className="text-[10px] text-gray-400 font-medium mb-1">{cf.label}</span>
@@ -2595,8 +2619,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                           </div>
                         );
                       })() : isSelectable ? (
-                        <div className="relative">
-                          <span className="text-xs text-gray-800 font-medium max-w-[180px] truncate block pr-4">{val || '-'}</span>
+                        <div className="relative flex items-center gap-1 max-w-[180px]">
+                          {isNameType && <MiniAvatar name={val} photoURL={userPhotoMap?.get(val)} />}
+                          <span className="text-xs text-gray-800 font-medium truncate pr-4">{val || '-'}</span>
                           {canManage && (
                             <select
                               value={val}

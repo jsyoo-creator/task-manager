@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useHolidayMap } from '../contexts/HolidaysContext';
 
 const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -166,6 +166,15 @@ export default function DatePicker({ value, onChange, compact, disabled, btnClas
               );
             })}
           </div>
+
+          {value && (
+            <div className="px-2 pb-2 pt-0.5 border-t border-gray-100">
+              <button type="button" onClick={() => { onChange(''); setOpen(false); }}
+                className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-semibold text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                <X size={11} /> 날짜 지우기
+              </button>
+            </div>
+          )}
         </div>,
         document.body
       )}

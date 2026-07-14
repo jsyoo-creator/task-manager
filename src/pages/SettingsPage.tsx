@@ -3500,8 +3500,10 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const isInherited = !isTeam && !currentPart?.excelConfig;
 
-  // formConfig의 customLabel 반영 (설정에서 명칭 변경한 경우 적용) — 파트 선택 시 파트 전용 설정(팀과 병합) 기준
-  const resolvedFormConfig = isTeam ? team.formConfig : mergeFormConfig(currentPart?.formConfig, team.formConfig);
+  // 폼 설정 화면(FormBuilder)이 파트별로 보여주는 것과 동일한 기준으로 계산 — 팀 필드를
+  // 병합(union)해서 끌어오지 않고, 파트가 자체 formConfig를 가지고 있으면 그 파트 설정만 사용.
+  // 그래야 "이 파트의 폼 설정 화면에 보이는 항목/순서" = "이 파트의 엑셀 관리 항목/순서"가 일치함.
+  const resolvedFormConfig = isTeam ? team.formConfig : (currentPart?.formConfig ?? team.formConfig);
   const resolvedBuiltins = resolveBuiltinFields(resolvedFormConfig);
   const BUILTIN_EXCEL_KEYS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
   const builtinExcelFields = BUILTIN_EXCEL_KEYS.map((key, i) => {

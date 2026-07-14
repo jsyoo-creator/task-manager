@@ -1117,6 +1117,32 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     ];
   });
 
+  // 업무 그룹 헤더 셀 렌더링 — renderHeaderCols와 같은 컬럼 순서/트랙에 맞춰 그룹명은 업무명
+  // 칼럼 자리에, 그룹 배지는 구분(파트) 칼럼 자리에 오도록 함(정렬만 목적, 나머지는 빈 칸)
+  const renderGroupCols = (cols: TableCol[], groupLabel: string, count: number, badgeInTitle = false) => cols.map(col => {
+    if (col.kind === 'custom') return <div key={col.cf.id} />;
+    const fc = col.fc;
+    if (fc.key === 'title') return (
+      <div key="title" className="flex items-center gap-1.5 min-w-0 pl-3.5">
+        <Layers size={12} className="text-violet-600 flex-shrink-0" />
+        <span className="text-[11px] font-bold text-violet-800 truncate">{groupLabel}</span>
+        {badgeInTitle && (
+          <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+            그룹 · {count}건
+          </span>
+        )}
+      </div>
+    );
+    if (fc.key === 'category') return (
+      <div key={fc.key} className="flex items-center justify-center">
+        <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+          그룹 · {count}건
+        </span>
+      </div>
+    );
+    return <div key={fc.key} />;
+  });
+
   return (
     <div>
       {/* 제목은 항상 필터탭+버튼 블록과 같은 줄(가장 왼쪽)에 고정 — 제목 자체는 절대
@@ -1526,21 +1552,45 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             const collapsed = collapsedGroups.has(item.key);
             return (
               <div key={item.key} className="bg-violet-50/60 mt-1.5 mb-1 overflow-hidden" style={{ minWidth: rowMinWidth }}>
-                <div
-                  className="flex items-center gap-2 px-3 py-3 cursor-pointer select-none hover:bg-violet-100/50 transition-colors"
-                  onClick={() => setCollapsedGroups(prev => {
+                {(() => {
+                  const toggleCollapse = () => setCollapsedGroups(prev => {
                     const next = new Set(prev);
                     if (next.has(item.key)) next.delete(item.key); else next.add(item.key);
                     return next;
-                  })}
-                >
-                  <ChevronDown size={13} className={`text-violet-500 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
-                  <Layers size={12} className="text-violet-600 flex-shrink-0" />
-                  <span className="text-[11px] font-bold text-violet-800">{item.label}</span>
-                  <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full">
-                    그룹 · {item.tasks.length}건
-                  </span>
-                </div>
+                  });
+                  const chevron = (
+                    <div className="flex items-center justify-center" style={{ width: 28 }}>
+                      <ChevronDown size={13} className={`text-violet-500 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+                    </div>
+                  );
+                  // 체크박스는 28px, 드래그핸들은 18px 자리 — 그 뒤 칼럼(업무명/구분 등)은
+                  // 실제 행/헤더와 같은 gridTemplateColumns를 그대로 써서 칼럼 위치를 맞춘다
+                  if (!twoLineMode) return (
+                    <div
+                      className="grid gap-x-3 px-3 py-3 cursor-pointer select-none hover:bg-violet-100/50 transition-colors"
+                      style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}
+                      onClick={toggleCollapse}
+                    >
+                      {chevron}
+                      <span />
+                      {renderGroupCols(tableCols, item.label, item.tasks.length)}
+                      <span />
+                    </div>
+                  );
+                  return (
+                    <div className="flex items-center gap-3 px-5 py-3 cursor-pointer select-none hover:bg-violet-100/50 transition-colors" onClick={toggleCollapse}>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        {chevron}
+                        <span style={{ width: 18 }} />
+                        {monthCol && <span style={{ width: monthColWidth }} />}
+                      </div>
+                      <div className="flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
+                        {renderGroupCols(line1Cols, item.label, item.tasks.length, true)}
+                      </div>
+                      <span className="flex-shrink-0" style={{ width: 110 }} />
+                    </div>
+                  );
+                })()}
                 {!collapsed && (
                   <div className={twoLineMode ? 'p-1.5 pt-0 space-y-0' : ''}>
                     {item.tasks.map(renderTaskRow)}

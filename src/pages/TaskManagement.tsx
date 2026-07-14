@@ -1747,10 +1747,10 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="text-sm font-bold text-gray-800">업무 그룹 지정</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  선택한 {selectedTasks.length}개 업무 중 하나의 제목을 그룹명으로 지정합니다
+                  선택한 {selectedTasks.length}개 업무 중 하나의 제목을 고르거나, 그룹명을 직접 입력합니다
                 </p>
               </div>
-              <div className="px-6 py-4 max-h-80 overflow-y-auto">
+              <div className="px-6 py-4 max-h-80 overflow-y-auto space-y-3">
                 <div className="flex flex-col gap-1.5">
                   {selectedTasks.map(t => (
                     <button key={t.id}
@@ -1761,6 +1761,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                       {t.title || '(제목 없음)'}
                     </button>
                   ))}
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">직접 입력</p>
+                  <input
+                    type="text"
+                    value={groupNameChoice}
+                    onChange={e => setGroupNameChoice(e.target.value)}
+                    placeholder="그룹명을 입력하세요"
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                  />
                 </div>
               </div>
               <div className="flex gap-2 px-6 py-4 border-t border-gray-100">

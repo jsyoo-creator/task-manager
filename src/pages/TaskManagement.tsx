@@ -2350,7 +2350,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <span className="text-[9px] text-gray-400 leading-none truncate max-w-full">
               {el.key === 'total' ? '합계' : line2LabelByKey.get(String(el.key)) ?? ''}
             </span>
-            <div className="w-full">{el}</div>
+            <div className="w-full text-center">{el}</div>
           </div>
         ));
 

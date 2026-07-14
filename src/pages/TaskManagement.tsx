@@ -2402,7 +2402,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             <span className="text-[9px] text-gray-400 leading-none truncate max-w-full">
               {el.key === 'total' ? '합계' : line2LabelByKey.get(String(el.key)) ?? ''}
             </span>
-            <div className="w-full text-center">{el}</div>
+            {/* 값 칸 높이를 아바타(20px) 기준으로 모든 필드에서 동일하게 고정하고
+                내부에서 세로 중앙 정렬해, 필드마다(아바타 유무 등) 내용 높이가 달라도
+                라벨 아래 위치가 흔들리지 않게 함 */}
+            <div className="w-full h-5 flex items-center justify-center">{el}</div>
           </div>
         ));
 

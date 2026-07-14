@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
@@ -123,7 +123,11 @@ function useHScroll() {
     const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 2;
     setScroll(prev => (prev.canLeft === canLeft && prev.canRight === canRight) ? prev : { canLeft, canRight });
   };
-  useEffect(() => { update(); });
+  // useEffect(페인트 이후 실행)는 방금 마운트/노출된 행에서 실제 스크롤 가능 여부가
+  // 반영되기 전까지 버튼이 아예 없거나 잘못된 방향을 가리키는 짧은 틈을 만들어,
+  // 그 틈에 클릭하면 아무 반응이 없는 것처럼 보인다(우측 버튼이 처음 눌릴 때 자주
+  // 겪는 위치). useLayoutEffect로 페인트 전에 동기 측정해 이 틈을 없앤다.
+  useLayoutEffect(() => { update(); });
   const scrollBy = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
   return { ref, scroll, update, scrollBy };
 }

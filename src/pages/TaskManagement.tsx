@@ -2373,12 +2373,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             </div>
           ];
           if (fc.key === 'startDate') return [
-            <div key="startDate" onClick={e => e.stopPropagation()}>
+            // h-4(=text-xs 줄 높이)로 고정해 다른 필드의 텍스트 줄과 세로 위치를 맞춤 —
+            // DatePicker의 compact 버튼은 h-full이라 감싼 div 높이에 따라 더 위로 붙어 보였음
+            <div key="startDate" className="h-4 flex items-center justify-center" onClick={e => e.stopPropagation()}>
               <DatePicker compact value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage} />
             </div>
           ];
           if (fc.key === 'endDate') return [
-            <div key="endDate" onClick={e => e.stopPropagation()}>
+            <div key="endDate" className="h-4 flex items-center justify-center" onClick={e => e.stopPropagation()}>
               <DatePicker compact value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />
             </div>
           ];

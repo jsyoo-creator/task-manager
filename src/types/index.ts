@@ -915,6 +915,7 @@ export interface Task {
   deletedAt?: string;   // 휴지통: 메인업무 소프트 삭제 시각 (있으면 휴지통에 있는 상태)
   deletedBy?: string;
   deletedSubTasks?: Record<string, DeletedSubTaskEntry>; // 휴지통: 업무는 살아있지만 개별 삭제된 세부업무들
+  groupName?: string; // 업무 목록에서 여러 업무를 묶어 접고 펼 수 있는 사용자 지정 그룹명 (빈 문자열/undefined = 그룹 없음)
   createdAt: string;
   updatedAt: string;
 }

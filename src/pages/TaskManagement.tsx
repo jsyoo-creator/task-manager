@@ -1525,22 +1525,27 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             if (item.type === 'task') return renderTaskRow(item.task);
             const collapsed = collapsedGroups.has(item.key);
             return (
-              <div key={item.key}>
+              <div key={item.key} className="rounded-xl border-2 border-violet-200 bg-violet-50/20 mb-2 overflow-hidden" style={{ minWidth: rowMinWidth }}>
                 <div
-                  className={`flex items-center gap-2 px-3 py-2 bg-violet-50/70 cursor-pointer select-none ${twoLineMode ? 'rounded-lg mb-2' : 'border-b border-black/5'}`}
-                  style={{ minWidth: rowMinWidth }}
+                  className="flex items-center gap-2 px-3 py-2 bg-violet-100/70 cursor-pointer select-none hover:bg-violet-100 transition-colors"
                   onClick={() => setCollapsedGroups(prev => {
                     const next = new Set(prev);
                     if (next.has(item.key)) next.delete(item.key); else next.add(item.key);
                     return next;
                   })}
                 >
-                  <ChevronDown size={13} className={`text-violet-400 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
-                  <Layers size={12} className="text-violet-500 flex-shrink-0" />
-                  <span className="text-[11px] font-bold text-violet-700">{item.label}</span>
-                  <span className="text-[11px] text-gray-400 ml-0.5">{item.tasks.length}건</span>
+                  <ChevronDown size={13} className={`text-violet-500 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`} />
+                  <Layers size={12} className="text-violet-600 flex-shrink-0" />
+                  <span className="text-[11px] font-bold text-violet-800">{item.label}</span>
+                  <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full">
+                    그룹 · {item.tasks.length}건
+                  </span>
                 </div>
-                {!collapsed && item.tasks.map(renderTaskRow)}
+                {!collapsed && (
+                  <div className={twoLineMode ? 'p-1.5 pt-0 space-y-0' : 'px-1 pb-1'}>
+                    {item.tasks.map(renderTaskRow)}
+                  </div>
+                )}
               </div>
             );
           }) : filtered.map(renderTaskRow)}

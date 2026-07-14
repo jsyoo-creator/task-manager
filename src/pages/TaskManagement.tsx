@@ -1525,9 +1525,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             if (item.type === 'task') return renderTaskRow(item.task);
             const collapsed = collapsedGroups.has(item.key);
             return (
-              <div key={item.key} className="rounded-xl bg-violet-50/60 mb-2 overflow-hidden" style={{ minWidth: rowMinWidth }}>
+              <div key={item.key} className="bg-violet-50/60 mt-1.5 mb-1 overflow-hidden" style={{ minWidth: rowMinWidth }}>
                 <div
-                  className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none hover:bg-violet-100/50 transition-colors"
+                  className="flex items-center gap-2 px-3 py-3 cursor-pointer select-none hover:bg-violet-100/50 transition-colors"
                   onClick={() => setCollapsedGroups(prev => {
                     const next = new Set(prev);
                     if (next.has(item.key)) next.delete(item.key); else next.add(item.key);
@@ -1542,7 +1542,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                   </span>
                 </div>
                 {!collapsed && (
-                  <div className={twoLineMode ? 'p-1.5 pt-0 space-y-0' : 'px-1 pb-1'}>
+                  <div className={twoLineMode ? 'p-1.5 pt-0 space-y-0' : ''}>
                     {item.tasks.map(renderTaskRow)}
                   </div>
                 )}

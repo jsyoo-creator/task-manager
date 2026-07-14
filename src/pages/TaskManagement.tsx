@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send, Layers, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
 import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine } from '../types';
@@ -264,15 +264,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [requestTargetPart, setRequestTargetPart] = useState('');
   const [requestTargetMonth, setRequestTargetMonth] = useState('');
   const [requestSending, setRequestSending] = useState(false);
-  const [showGroupModal, setShowGroupModal] = useState(false);
-  const [groupNameChoice, setGroupNameChoice] = useState('');
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem('tm_collapsedGroups');
-      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-    } catch { return new Set(); }
-  });
-  useEffect(() => { localStorage.setItem('tm_collapsedGroups', JSON.stringify([...collapsedGroups])); }, [collapsedGroups]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ rows: Partial<Task>[] } | null>(null);
   const [previewCats, setPreviewCats] = useState<Record<number, string>>({});
@@ -1002,28 +993,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const groupedView = personGroupedView() ?? partGroupedView();
 
-  type DisplayItem = { type: 'group'; key: string; label: string; tasks: Task[] } | { type: 'task'; task: Task };
-
-  // 체크박스 다중선택으로 직접 지정한 임의 그룹(업무 목록 "그룹 지정" 기능) — 담당자별/파트별
-  // 보기는 이미 전체 목록을 자기 방식대로 헤더 블록화하므로, 그 둘이 꺼져 있을 때만 적용한다.
-  // 그룹에 속하지 않은 업무는 원래 순서 그대로 개별 행으로 두고, 같은 그룹명을 가진 업무만
-  // (원래 위치가 떨어져 있어도) 한 곳으로 모아 접고 펼 수 있는 헤더로 묶는다.
-  const customGroupItems = (): DisplayItem[] | null => {
-    if (groupedView) return null;
-    if (!filtered.some(t => t.groupName)) return null;
-    const seen = new Set<string>();
-    const items: DisplayItem[] = [];
-    filtered.forEach(t => {
-      const g = t.groupName;
-      if (!g) { items.push({ type: 'task', task: t }); return; }
-      if (seen.has(g)) return;
-      seen.add(g);
-      items.push({ type: 'group', key: `grp:${g}`, label: g, tasks: filtered.filter(x => x.groupName === g) });
-    });
-    return items;
-  };
-  const groupItems = customGroupItems();
-
   const displayFlat = groupedView ? groupedView.flatMap(g => g.tasks) : filtered;
 
   const handleDrop = (dropOnId: string) => {
@@ -1121,23 +1090,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         <span>{hLabel}</span>
       </div>,
     ];
-  });
-
-  // 업무 그룹 헤더 셀 렌더링 — renderHeaderCols와 같은 컬럼 순서/트랙에 맞춰 그룹명이 업무명
-  // 칼럼 자리에 오도록 함(정렬만 목적, 나머지 칼럼은 빈 칸). 건수 배지는 그룹명 바로 앞에 표시
-  const renderGroupCols = (cols: TableCol[], groupLabel: string, count: number) => cols.map(col => {
-    if (col.kind === 'custom') return <div key={col.cf.id} />;
-    const fc = col.fc;
-    if (fc.key === 'title') return (
-      <div key="title" className="flex items-center gap-1.5 min-w-0 pl-3.5">
-        <Layers size={12} className="text-violet-600 flex-shrink-0" />
-        <span className="text-[10px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-          그룹 · {count}건
-        </span>
-        <span className="text-[11px] font-bold text-violet-800 truncate">{groupLabel}</span>
-      </div>
-    );
-    return <div key={fc.key} />;
   });
 
   return (
@@ -1544,60 +1496,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
               </div>
               {grpTasks.map(renderTaskRow)}
             </div>
-          )) : groupItems ? groupItems.map(item => {
-            if (item.type === 'task') return renderTaskRow(item.task);
-            const collapsed = collapsedGroups.has(item.key);
-            return (
-              <div key={item.key} className="bg-violet-50/60 mt-1.5 mb-1 overflow-hidden" style={{ minWidth: rowMinWidth }}>
-                {(() => {
-                  const toggleCollapse = () => setCollapsedGroups(prev => {
-                    const next = new Set(prev);
-                    if (next.has(item.key)) next.delete(item.key); else next.add(item.key);
-                    return next;
-                  });
-                  const chevron = (
-                    <div className="flex items-center justify-center" style={{ width: 28 }}>
-                      <div className="w-5 h-5 rounded-md flex items-center justify-center bg-violet-200/70 hover:bg-violet-300 transition-colors flex-shrink-0">
-                        <ChevronDown size={13} className={`text-violet-700 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
-                      </div>
-                    </div>
-                  );
-                  // 체크박스는 28px, 드래그핸들은 18px 자리 — 그 뒤 칼럼(업무명/구분 등)은
-                  // 실제 행/헤더와 같은 gridTemplateColumns를 그대로 써서 칼럼 위치를 맞춘다
-                  if (!twoLineMode) return (
-                    <div
-                      className="grid gap-x-3 px-3 py-3 cursor-pointer select-none hover:bg-violet-100/50 transition-colors"
-                      style={{ gridTemplateColumns: colTemplate, minWidth: colMinWidth }}
-                      onClick={toggleCollapse}
-                    >
-                      {chevron}
-                      <span />
-                      {renderGroupCols(tableCols, item.label, item.tasks.length)}
-                      <span />
-                    </div>
-                  );
-                  return (
-                    <div className="flex items-center gap-3 px-5 py-3 cursor-pointer select-none hover:bg-violet-100/50 transition-colors" onClick={toggleCollapse}>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        {chevron}
-                        <span style={{ width: 18 }} />
-                        {monthCol && <span style={{ width: monthColWidth }} />}
-                      </div>
-                      <div className="flex-1 min-w-0 grid gap-x-3 items-center" style={{ gridTemplateColumns: rowFieldsTemplate1 }}>
-                        {renderGroupCols(line1Cols, item.label, item.tasks.length)}
-                      </div>
-                      <span className="flex-shrink-0" style={{ width: 110 }} />
-                    </div>
-                  );
-                })()}
-                {!collapsed && (
-                  <div className={twoLineMode ? 'p-1.5 pt-0 space-y-0' : ''}>
-                    {item.tasks.map(renderTaskRow)}
-                  </div>
-                )}
-              </div>
-            );
-          }) : filtered.map(renderTaskRow)}
+          )) : filtered.map(renderTaskRow)}
         </div>
       </div>
 
@@ -1642,28 +1541,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
             <Copy size={13} /> 복사
           </button>
-          {canManage && <>
-            <div className="w-px h-4 bg-white/20" />
-            <button
-              onClick={() => { setGroupNameChoice(''); setShowGroupModal(true); }}
-              className="flex items-center gap-1.5 text-violet-400 hover:text-violet-300 text-sm font-semibold transition-colors">
-              <Layers size={13} /> 그룹 지정
-            </button>
-          </>}
-          {canManage && tasks.some(t => selectedIds.has(t.id) && t.groupName) && <>
-            <div className="w-px h-4 bg-white/20" />
-            <button
-              onClick={() => {
-                selectedIds.forEach(id => {
-                  const t = tasks.find(x => x.id === id);
-                  if (t?.groupName) onUpdateTask(id, { groupName: '' });
-                });
-                setSelectedIds(new Set());
-              }}
-              className="flex items-center gap-1.5 text-gray-300 hover:text-white text-sm font-semibold transition-colors">
-              <X size={13} /> 그룹 해제
-            </button>
-          </>}
           {canCreate && eligibleSupportTeams.length > 0 && <>
             <div className="w-px h-4 bg-white/20" />
             <button
@@ -1791,63 +1668,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           </div>
         </div>
       )}
-
-      {/* 업무 그룹 지정 모달 — 선택한 업무들의 제목 중 하나를 그룹명으로 골라 전부에 적용 */}
-      {showGroupModal && (() => {
-        const selectedTasks = tasks.filter(t => selectedIds.has(t.id));
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-sm font-bold text-gray-800">업무 그룹 지정</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  선택한 {selectedTasks.length}개 업무 중 하나의 제목을 고르거나, 그룹명을 직접 입력합니다
-                </p>
-              </div>
-              <div className="px-6 py-4 max-h-80 overflow-y-auto space-y-3">
-                <div className="flex flex-col gap-1.5">
-                  {selectedTasks.map(t => (
-                    <button key={t.id}
-                      onClick={() => setGroupNameChoice(t.title)}
-                      className={`px-3 py-2 rounded-lg text-sm text-left border transition-colors truncate ${
-                        groupNameChoice === t.title ? 'border-violet-400 bg-violet-50 text-violet-700 font-semibold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                      }`}>
-                      {t.title || '(제목 없음)'}
-                    </button>
-                  ))}
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">직접 입력</p>
-                  <input
-                    type="text"
-                    value={groupNameChoice}
-                    onChange={e => setGroupNameChoice(e.target.value)}
-                    placeholder="그룹명을 입력하세요"
-                    className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 px-6 py-4 border-t border-gray-100">
-                <button
-                  onClick={() => setShowGroupModal(false)}
-                  className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
-                  취소
-                </button>
-                <button
-                  disabled={!groupNameChoice}
-                  onClick={() => {
-                    selectedIds.forEach(id => onUpdateTask(id, { groupName: groupNameChoice }));
-                    setShowGroupModal(false);
-                    setSelectedIds(new Set());
-                  }}
-                  className="flex-1 py-2 rounded-lg bg-violet-500 text-white text-sm font-semibold hover:bg-violet-600 disabled:opacity-40 transition-colors">
-                  그룹 지정
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {

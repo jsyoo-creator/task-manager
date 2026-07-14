@@ -678,11 +678,33 @@ export function resolveFieldDepts(fc: { department?: Department; departments?: D
   return null;
 }
 
+export type MetaFieldKind = 'text' | 'url' | 'path' | 'select' | 'date';
+
 export interface MetaField {
   key: string;
   label: string;
   isUrl?: boolean;
   isPath?: boolean;
+  isSelect?: boolean; // 드롭다운
+  isDate?: boolean;   // 날짜
+  options?: string[]; // isSelect일 때 드롭다운 선택지
+}
+
+export function getMetaFieldKind(f: MetaField): MetaFieldKind {
+  if (f.isSelect) return 'select';
+  if (f.isDate) return 'date';
+  if (f.isUrl) return 'url';
+  if (f.isPath) return 'path';
+  return 'text';
+}
+
+export function withMetaFieldKind(f: MetaField, kind: MetaFieldKind): MetaField {
+  const next: MetaField = { ...f, isUrl: false, isPath: false, isSelect: false, isDate: false };
+  if (kind === 'url') next.isUrl = true;
+  else if (kind === 'path') next.isPath = true;
+  else if (kind === 'select') next.isSelect = true;
+  else if (kind === 'date') next.isDate = true;
+  return next;
 }
 
 export interface SubTaskMemo {

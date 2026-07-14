@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
-import { DEFAULT_META_FIELDS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
@@ -2640,39 +2640,92 @@ export default function TaskDetailPanel({
         {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
-            {metaFields.map(({ key, label, isUrl, isPath }) => {
+            {metaFields.map((mf) => {
+              const { key, label } = mf;
+              const kind = getMetaFieldKind(mf);
               const val = localMeta[key] ?? '';
-              const displayVal = isPath ? convertPath(val) : val;
+              const displayVal = kind === 'path' ? convertPath(val) : val;
+              const manualId = `meta_${key}`;
+              const opts = mf.options ?? [];
               return (
                 <div key={key} className="flex items-center gap-2">
                   <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
                   <div className="flex-1 flex items-center gap-1 min-w-0">
-                    <input
-                      type={isUrl ? 'url' : 'text'}
-                      readOnly={!canManage}
-                      placeholder={canManage ? (isUrl ? 'https://' : isPath ? '경로 입력' : '-') : '-'}
-                      value={isPath ? displayVal : val}
-                      onChange={e => {
-                        const raw = isPath ? e.target.value : e.target.value;
-                        setLocalMeta(prev => ({ ...prev, [key]: raw }));
-                      }}
-                      onBlur={e => handleMetaBlur(key, isPath ? val : e.target.value)}
-                      className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors font-mono"
-                    />
-                    {isUrl && val && (
-                      <a href={val} target="_blank" rel="noopener noreferrer"
-                        className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
-                        <ExternalLink size={13} />
-                      </a>
-                    )}
-                    {isPath && displayVal && (
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(displayVal)}
-                        title="경로 복사"
-                        className="flex-shrink-0 text-gray-400 hover:text-orange-500 transition-colors">
-                        <Copy size={13} />
-                      </button>
+                    {kind === 'select' ? (
+                      (manualCustomFields.has(manualId) || (!!val && !opts.includes(val))) ? (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <input type="text" readOnly={!canManage} value={manualFieldDrafts[manualId] ?? val}
+                            onChange={e => setManualFieldDrafts(prev => ({ ...prev, [manualId]: e.target.value }))}
+                            onBlur={e => {
+                              handleMetaBlur(key, e.target.value);
+                              setManualFieldDrafts(prev => { const next = { ...prev }; delete next[manualId]; return next; });
+                            }}
+                            placeholder="직접 입력"
+                            className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50" />
+                          {canManage && (
+                            <button type="button"
+                              onClick={() => {
+                                setManualCustomFields(prev => { const next = new Set(prev); next.delete(manualId); return next; });
+                                setManualFieldDrafts(prev => { const next = { ...prev }; delete next[manualId]; return next; });
+                                handleMetaBlur(key, '');
+                              }}
+                              className="flex-shrink-0 text-[11px] text-gray-400 hover:text-blue-400 transition-colors whitespace-nowrap">
+                              목록에서 선택
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative flex-1 min-w-0">
+                          <div className="flex w-full items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-gray-800 bg-black/[0.07]">
+                            <span className="truncate">{val || '-'}</span>
+                            <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
+                          </div>
+                          <select disabled={!canManage} value={val}
+                            onChange={e => {
+                              if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
+                                setManualCustomFields(prev => new Set(prev).add(manualId));
+                                handleMetaBlur(key, '');
+                                return;
+                              }
+                              handleMetaBlur(key, e.target.value);
+                            }}
+                            className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
+                            <option value="">-</option>
+                            {opts.map(o => <option key={o}>{o}</option>)}
+                            <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>
+                          </select>
+                        </div>
+                      )
+                    ) : kind === 'date' ? (
+                      <DatePicker value={val} onChange={v => handleMetaBlur(key, v)} disabled={!canManage}
+                        btnClassName="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50" />
+                    ) : (
+                      <>
+                        <input
+                          type={kind === 'url' ? 'url' : 'text'}
+                          readOnly={!canManage}
+                          placeholder={canManage ? (kind === 'url' ? 'https://' : kind === 'path' ? '경로 입력' : '-') : '-'}
+                          value={kind === 'path' ? displayVal : val}
+                          onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
+                          onBlur={e => handleMetaBlur(key, kind === 'path' ? val : e.target.value)}
+                          className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50 placeholder:text-gray-400 transition-colors font-mono"
+                        />
+                        {kind === 'url' && val && (
+                          <a href={val} target="_blank" rel="noopener noreferrer"
+                            className="flex-shrink-0 text-blue-400 hover:text-blue-500 transition-colors">
+                            <ExternalLink size={13} />
+                          </a>
+                        )}
+                        {kind === 'path' && displayVal && (
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard.writeText(displayVal)}
+                            title="경로 복사"
+                            className="flex-shrink-0 text-gray-400 hover:text-orange-500 transition-colors">
+                            <Copy size={13} />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1674,8 +1674,8 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [newLabel, setNewLabel] = useState('');
-  const [newIsUrl, setNewIsUrl] = useState(false);
-  const [newIsPath, setNewIsPath] = useState(false);
+  const [newKind, setNewKind] = useState<MetaFieldKind>('text');
+  const [newOptionsText, setNewOptionsText] = useState('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
@@ -1710,16 +1710,21 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
     setEditingKey(null);
   };
 
-  const toggleUrl = (key: string) => save(fields.map(f => f.key === key ? { ...f, isUrl: !f.isUrl, isPath: false } : f));
-  const togglePath = (key: string) => save(fields.map(f => f.key === key ? { ...f, isPath: !f.isPath, isUrl: false } : f));
+  const changeKind = (key: string, kind: MetaFieldKind) => save(fields.map(f => f.key === key ? withMetaFieldKind(f, kind) : f));
+  const changeOptions = (key: string, optionsText: string) => save(fields.map(f => f.key === key ? { ...f, options: optionsText.split(',').map(s => s.trim()).filter(Boolean) } : f));
   const deleteField = (key: string) => save(fields.filter(f => f.key !== key));
   const addField = () => {
     const label = newLabel.trim();
     if (!label) return;
     const key = label.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
-    save([...fields, { key, label, isUrl: newIsUrl, isPath: newIsPath }]);
-    setNewLabel(''); setNewIsUrl(false); setNewIsPath(false);
+    const field = withMetaFieldKind({ key, label }, newKind);
+    if (newKind === 'select') field.options = newOptionsText.split(',').map(s => s.trim()).filter(Boolean);
+    save([...fields, field]);
+    setNewLabel(''); setNewKind('text'); setNewOptionsText('');
   };
+
+  const kindSelectCls = "flex-shrink-0 text-[10px] px-1.5 py-1 rounded-md font-medium bg-gray-100 text-gray-500 border-none focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer";
+  const kindLabels: Record<MetaFieldKind, string> = { text: '텍스트', url: 'URL', path: '경로', select: '드롭다운', date: '날짜' };
 
   const iCls = "flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
@@ -1858,54 +1863,63 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
           <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
         </p>
         <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
-          {fields.map((f, i) => (
-            <div key={f.key} draggable
+          {fields.map((f, i) => {
+            const kind = getMetaFieldKind(f);
+            return (
+            <div key={f.key}
+              draggable
               onDragStart={() => { dragIdxRef.current = i; }}
               onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
               onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
               onDrop={() => onDrop(i)}
               onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-              className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-              <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-              {editingKey === f.key ? (
-                <input autoFocus
-                  className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                  value={labelInput} onChange={e => setLabelInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveLabel(f.key); if (e.key === 'Escape') setEditingKey(null); }}
-                  onBlur={() => saveLabel(f.key)} />
-              ) : (
-                <button type="button" title="클릭하여 이름 수정"
-                  onClick={() => { setEditingKey(f.key); setLabelInput(f.label); }}
-                  className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
-                  {f.label}
+              className={`py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+              <div className="flex items-center gap-2">
+                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                {editingKey === f.key ? (
+                  <input autoFocus
+                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                    value={labelInput} onChange={e => setLabelInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveLabel(f.key); if (e.key === 'Escape') setEditingKey(null); }}
+                    onBlur={() => saveLabel(f.key)} />
+                ) : (
+                  <button type="button" title="클릭하여 이름 수정"
+                    onClick={() => { setEditingKey(f.key); setLabelInput(f.label); }}
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                    {f.label}
+                  </button>
+                )}
+                <select value={kind} onChange={e => changeKind(f.key, e.target.value as MetaFieldKind)} className={kindSelectCls}>
+                  {(Object.keys(kindLabels) as MetaFieldKind[]).map(k => <option key={k} value={k}>{kindLabels[k]}</option>)}
+                </select>
+                <button type="button" onClick={() => deleteField(f.key)}
+                  className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                  <X size={11} />
                 </button>
+              </div>
+              {kind === 'select' && (
+                <div className="pl-5 pt-1.5">
+                  <input
+                    className="w-full text-[11px] px-2 py-1 rounded-md border border-gray-200 bg-white/60 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
+                    placeholder="옵션을 쉼표로 구분해 입력 (예: 진행중, 완료, 보류)"
+                    defaultValue={(f.options ?? []).join(', ')}
+                    onBlur={e => changeOptions(f.key, e.target.value)} />
+                </div>
               )}
-              <button type="button" onClick={() => toggleUrl(f.key)}
-                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors ${f.isUrl ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
-                URL
-              </button>
-              <button type="button" onClick={() => togglePath(f.key)}
-                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors ${f.isPath ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>
-                경로
-              </button>
-              <button type="button" onClick={() => deleteField(f.key)}
-                className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
-                <X size={11} />
-              </button>
             </div>
-          ))}
+            );
+          })}
         </div>
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           <input className={iCls} placeholder="새 항목 이름" value={newLabel}
-            onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && addField()} />
-          <button type="button" onClick={() => { setNewIsUrl(v => !v); setNewIsPath(false); }}
-            className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsUrl ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
-            URL
-          </button>
-          <button type="button" onClick={() => { setNewIsPath(v => !v); setNewIsUrl(false); }}
-            className={`flex-shrink-0 text-[10px] px-2 py-1.5 rounded-md font-medium transition-colors ${newIsPath ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>
-            경로
-          </button>
+            onChange={e => setNewLabel(e.target.value)} onKeyDown={e => e.key === 'Enter' && newKind !== 'select' && addField()} />
+          <select value={newKind} onChange={e => setNewKind(e.target.value as MetaFieldKind)} className={kindSelectCls}>
+            {(Object.keys(kindLabels) as MetaFieldKind[]).map(k => <option key={k} value={k}>{kindLabels[k]}</option>)}
+          </select>
+          {newKind === 'select' && (
+            <input className={iCls} placeholder="옵션 (쉼표로 구분)" value={newOptionsText}
+              onChange={e => setNewOptionsText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addField()} />
+          )}
           <button onClick={addField} disabled={!newLabel.trim()}
             className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
             <Plus size={11} />추가
@@ -5223,7 +5237,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   // 세부 업무는 일반 필드가 아니라 업무별 시작일/종료일을 값으로 가져오는 항목이라
   // 별도로 구분(source: 'subtask')해 관리
   const candidateFields: { key: string; label: string; type: 'text' | 'date' | 'url'; source: 'field' | 'subtask' }[] = [
-    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: (f.isUrl ? 'url' : 'text') as const, source: 'field' as const })),
+    ...partMetaFields.map(f => ({ key: f.key, label: f.label, type: (getMetaFieldKind(f) === 'url' ? 'url' : getMetaFieldKind(f) === 'date' ? 'date' : 'text') as const, source: 'field' as const })),
     ...candidateCustomFields.map(f => ({ key: f.id, label: f.label, type: (f.type === 'date' ? 'date' : f.type === 'link' ? 'url' : 'text') as const, source: 'field' as const })),
     ...partSubTaskTypes.flatMap(st => [
       { key: `${st.id}:startDate`, label: `${st.name} (시작일)`, type: 'date' as const, source: 'subtask' as const },

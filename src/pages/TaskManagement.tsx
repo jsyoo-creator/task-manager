@@ -2387,7 +2387,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             })();
             const isSelectable = cfType === 'select' || isNameType;
             return [
-              <div key={cf.id} className="min-w-0" onClick={e => e.stopPropagation()}>
+              <div key={cf.id} className="min-w-0 overflow-hidden" onClick={e => e.stopPropagation()}>
                 {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
                   <div className="flex items-center gap-1 min-w-0">
                     <input
@@ -2416,7 +2416,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 ) : cfType === 'select' ? (() => {
                   const custColor = cf.optionColors?.[val];
                   return (
-                    <div className={`relative flex items-center justify-between w-full min-w-0 rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
+                    <div className={`relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
                       style={custColor ? { backgroundColor: custColor.bg, color: custColor.text } : undefined}>
                       <span className={`flex-1 min-w-0 text-xs font-medium truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
                       {canManage && <ChevronDown size={10} className={`flex-shrink-0 ${custColor ? 'opacity-70' : 'text-gray-400'}`} />}
@@ -2584,7 +2584,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const text = custColor?.text ?? sc?.text;
             return [
               <div key="status" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full min-w-0 rounded-full pl-2.5 pr-2 py-0.5 cursor-pointer"
+                className="relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-2 py-0.5 cursor-pointer"
                 style={{ backgroundColor: bg, color: text }}>
                 <span className="flex-1 min-w-0 text-xs font-medium truncate">{effectiveStatus}</span>
                 {canManage && <ChevronDown size={10} />}
@@ -2603,7 +2603,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'receiver') {
             if (fc.customType === 'select' && fc.options?.length) {
               return [
-                <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
                   <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{task.receiver || '-'}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                   {canManage && (
@@ -2626,7 +2626,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const ropts = rbase.includes(rcvrVal) ? rbase : (rcvrVal ? [rcvrVal, ...rbase] : rbase);
             return [
-              <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+              <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
                 <span className="flex-1 min-w-0 text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
                 {canManage && (
@@ -2642,7 +2642,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (fc.key === 'assignee') {
             if (fc.customType === 'select' && fc.options?.length) {
               return [
-                <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+                <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
                   <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{task.assignee || '-'}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                   {canManage && (
@@ -2664,7 +2664,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               : assignees;
             const aopts = abase.includes(asgnVal) ? abase : (asgnVal ? [asgnVal, ...abase] : abase);
             return [
-              <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
+              <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
                 <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
                 {canManage && (

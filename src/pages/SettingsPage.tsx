@@ -7070,7 +7070,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                   {/* 엑셀 관리 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'excel' && (
                     <div className="px-5 py-4 space-y-6">
-                      <div>
+                      <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} onSavePart={onUpdatePartExcelConfig} onClearPart={onClearPartExcelConfig} />
+                      <div className="border-t border-gray-100 pt-5">
                         <p className="text-xs font-bold text-gray-700 mb-3">중복 체크 기준</p>
                         <TeamFieldPicker
                           team={team}
@@ -7081,10 +7082,6 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           onUpdateFormConfig={onUpdateFormConfig}
                           onUpdatePartFormConfig={onUpdatePartFormConfig}
                         />
-                      </div>
-                      <div className="border-t border-gray-100 pt-5">
-                        <p className="text-xs font-bold text-gray-700 mb-3">컬럼 매핑</p>
-                        <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} onSavePart={onUpdatePartExcelConfig} onClearPart={onClearPartExcelConfig} />
                       </div>
                     </div>
                   )}

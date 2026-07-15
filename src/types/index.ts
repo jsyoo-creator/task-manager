@@ -934,6 +934,7 @@ export interface Task {
   plSelectedTypes?: string[]; // PL업무에서 선택된 메인업무 타입 ID 목록
   requestedFromTeamId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 팀 ID (참고용, 동기화 없음)
   requestedFromTaskId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 ID (참고용, 동기화 없음)
+  parentTaskId?: string; // 귀속된 상위(그룹 기준) 업무 id. 있으면 assignee/startDate/endDate가 상위 업무 값으로 실시간 동기화됨
   deletedAt?: string;   // 휴지통: 메인업무 소프트 삭제 시각 (있으면 휴지통에 있는 상태)
   deletedBy?: string;
   deletedSubTasks?: Record<string, DeletedSubTaskEntry>; // 휴지통: 업무는 살아있지만 개별 삭제된 세부업무들

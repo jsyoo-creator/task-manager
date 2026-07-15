@@ -420,7 +420,7 @@ function App() {
   const menuEnabled = (path: string) => isMenuEnabled(path.replace(/^\//, ''), activeWorkplaceMenuConfig);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
-  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks } = useTasks(projectId, activeTeamId);
+  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks, groupTasks, removeFromGroup } = useTasks(projectId, activeTeamId);
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
   // 담당자 목록: 이 근무지에서의 기본 팀(defaultTeamIdByWorkplace)이 설정돼 있으면 그 기준으로,
@@ -886,6 +886,8 @@ function App() {
                 teams={teams}
                 currentTeamId={activeTeamId ?? undefined}
                 onRequestToSupportTeam={requestTasksToSupportTeam}
+                onGroupTasks={groupTasks}
+                onRemoveFromGroup={removeFromGroup}
               />
             )} />
             <Route path="/calendar" element={!menuEnabled('/calendar') ? <Navigate to="/" replace /> : (
@@ -1007,12 +1009,16 @@ function App() {
             return taskPart?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
           })();
           const resolvedRevisionSteps = resolveRevisionSteps(taskPart, selectedTeam ?? undefined);
+          const parentTask = detailTask.parentTaskId ? tasks.find(t => t.id === detailTask.parentTaskId) : undefined;
           return (
             <TaskDetailPanel
               task={detailTask}
               onClose={() => setDetailTaskId(null)}
               onUpdate={updateTask}
               onDelete={(id) => { moveTaskToTrash(id); setDetailTaskId(null); }}
+              parentTask={parentTask}
+              onRemoveFromGroup={removeFromGroup}
+              childTasks={tasks.filter(t => t.parentTaskId === detailTask.id)}
               assignees={teamAssignees}
               parts={activeParts}
               canManage={permissions.canEditTasks}

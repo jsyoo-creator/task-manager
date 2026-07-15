@@ -37,6 +37,8 @@ interface Props {
   teams?: Team[];
   currentTeamId?: string;
   onRequestToSupportTeam?: (taskIds: string[], targetTeamId: string, targetCategory: string, targetMonth: string) => Promise<void>;
+  onGroupTasks?: (childIds: string[], parentId: string) => Promise<void>;
+  onRemoveFromGroup?: (taskIds: string[]) => Promise<void>;
 }
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
@@ -272,7 +274,7 @@ function getColLabel(col: TableCol): string {
   return fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? HEADER_LABEL[fc.key] ?? fc.key;
 }
 
-export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, canFilterByPerson = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam }: Props) {
+export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDeleteTask, onOpenDetail, activeTaskId, projectId, activeCategory, onCategoryChange, canCreate, canManage, canDelete = canManage, parts, assignees = [], teamMembers, formConfig, builtinFields: propBuiltinFields, metaFields: teamMetaFields, currentUserName = '', canSeeAll = false, canFilterByPerson = false, userPhotoMap, excelConfig, allMetaFields, plMainTaskTypes, teams = [], currentTeamId, onRequestToSupportTeam, onGroupTasks, onRemoveFromGroup }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const line2ScrollSync = useLine2ScrollRegistry();
   const [yearFilter, setYearFilter] = useState(() => {
@@ -288,6 +290,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
+  const [pendingBulkUngroup, setPendingBulkUngroup] = useState(false);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [groupSearch, setGroupSearch] = useState('');
+  const [groupTargetId, setGroupTargetId] = useState('');
+  const [groupSending, setGroupSending] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestTargetTeamId, setRequestTargetTeamId] = useState('');
   const [requestTargetPart, setRequestTargetPart] = useState('');
@@ -314,6 +322,33 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     [teams, currentTeamId]
   );
   const requestTargetTeam = eligibleSupportTeams.find(t => t.id === requestTargetTeamId);
+
+  // 업무 귀속(그룹핑): parentTaskId 기준으로 상위 업무 id → 귀속된 하위 업무 목록 매핑.
+  // 1단계 계층만 허용하므로(자식이 다시 부모가 될 수 없음) 재귀 깊이는 항상 1로 유지됨
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    tasks.forEach(t => {
+      if (t.parentTaskId) {
+        const arr = map.get(t.parentTaskId) ?? [];
+        arr.push(t);
+        map.set(t.parentTaskId, arr);
+      }
+    });
+    return map;
+  }, [tasks]);
+  const toggleGroupCollapse = (id: string) => setCollapsedGroupIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  // 그룹 모달의 "귀속시킬 업무" 후보 — 이미 누군가의 하위 업무인 것은 부모가 될 수 없고(1단계 제한),
+  // 지금 선택 중인(그 자체가 자식이 될) 업무는 후보에서 제외
+  const groupParentCandidates = useMemo(() =>
+    tasks
+      .filter(t => !t.parentTaskId && !selectedIds.has(t.id))
+      .filter(t => !groupSearch.trim() || t.title.toLowerCase().includes(groupSearch.trim().toLowerCase())),
+    [tasks, selectedIds, groupSearch]
+  );
 
   const monthsWithData = useMemo(() => {
     const set = new Set<number>();
@@ -1097,6 +1132,47 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     );
   };
 
+  // 귀속(그룹) 관계 표시: 부모 업무가 현재 화면(필터 결과나 파트/담당자별 보기)에 함께
+  // 보이지 않는 위치에 있는 하위 업무 앞에 "⤷ 부모 제목" 배지를 붙여 관계를 알 수 있게 함
+  const renderGroupBadge = (task: Task) => {
+    if (!task.parentTaskId) return null;
+    const parentTask = tasks.find(t => t.id === task.parentTaskId);
+    if (!parentTask) return null;
+    return (
+      <button
+        onClick={() => onOpenDetail(parentTask.id)}
+        className="flex items-center gap-1 px-3.5 pt-1.5 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors"
+      >
+        ⤷ {parentTask.title} 업무에 귀속됨
+      </button>
+    );
+  };
+
+  // 기본(파트/담당자별 그룹핑 미적용) 목록에서 상위 업무 아래에 하위 업무를 들여쓰기해서
+  // 렌더링. 1단계 계층만 허용되므로 depth는 항상 0 또는 1.
+  const renderTaskNode = (task: Task, filteredIds: Set<string>, depth = 0) => {
+    const children = (childrenByParent.get(task.id) ?? []).filter(c => filteredIds.has(c.id));
+    const collapsed = collapsedGroupIds.has(task.id);
+    return (
+      <div key={task.id}>
+        {depth === 0 && children.length > 0 && (
+          <button
+            onClick={() => toggleGroupCollapse(task.id)}
+            className="flex items-center gap-1 px-3.5 py-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+            하위 업무 {children.length}건
+          </button>
+        )}
+        {depth > 0 && renderGroupBadge(task)}
+        <div style={depth > 0 ? { paddingLeft: 20, marginLeft: 14, borderLeft: '2px solid #eef2ff' } : undefined}>
+          {renderTaskRow(task)}
+        </div>
+        {!collapsed && children.map(c => renderTaskNode(c, filteredIds, depth + 1))}
+      </div>
+    );
+  };
+
   // 헤더 셀 렌더링 — 1줄 모드에서는 tableCols 전체, 2줄 모드에서는 line1Cols/line2Cols로 나눠 호출
   const renderHeaderCols = (cols: TableCol[]) => cols.flatMap(col => {
     if (col.kind === 'custom') {
@@ -1535,9 +1611,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 )}
                 <span className="text-[11px] text-gray-400 ml-0.5">{grpTasks.length}건</span>
               </div>
-              {grpTasks.map(renderTaskRow)}
+              {grpTasks.map(t => (
+                <div key={t.id}>
+                  {renderGroupBadge(t)}
+                  {renderTaskRow(t)}
+                </div>
+              ))}
             </div>
-          )) : filtered.map(renderTaskRow)}
+          )) : (() => {
+            const filteredIds = new Set(filtered.map(t => t.id));
+            // 부모가 같이 보이는 하위 업무는 최상위 목록에서 빼서 부모 아래 들여쓰기로만 보여줌
+            const topLevel = filtered.filter(t => !(t.parentTaskId && filteredIds.has(t.parentTaskId)));
+            return topLevel.map(t => renderTaskNode(t, filteredIds));
+          })()}
         </div>
         </Line2ScrollSyncContext.Provider>
       </div>
@@ -1564,6 +1650,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         onCancel={() => setPendingBulkDelete(false)}
       />
 
+      <ConfirmDialog
+        open={pendingBulkUngroup}
+        taskTitle={`선택한 ${selectedIds.size}개의 업무`}
+        message="그룹에서 뺄까요?"
+        subMessage="담당자·기간이 더 이상 상위 업무와 함께 바뀌지 않고 개별로 관리됩니다"
+        onConfirm={async () => {
+          await onRemoveFromGroup?.([...selectedIds]);
+          setSelectedIds(new Set());
+          setPendingBulkUngroup(false);
+        }}
+        onCancel={() => setPendingBulkUngroup(false)}
+      />
+
       {/* 다중 선택 액션 바 */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl px-5 py-3 shadow-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -1583,6 +1682,34 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
             <Copy size={13} /> 복사
           </button>
+          {canManage && (() => {
+            const selectedTasks = tasks.filter(t => selectedIds.has(t.id));
+            const allGrouped = selectedTasks.length > 0 && selectedTasks.every(t => t.parentTaskId);
+            if (allGrouped) {
+              return (
+                <>
+                  <div className="w-px h-4 bg-white/20" />
+                  <button
+                    onClick={() => setPendingBulkUngroup(true)}
+                    className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 text-sm font-semibold transition-colors">
+                    <Users size={13} /> 그룹에서 빼기
+                  </button>
+                </>
+              );
+            }
+            const groupableCount = selectedTasks.filter(t => !t.parentTaskId && !childrenByParent.has(t.id)).length;
+            if (groupableCount === 0) return null;
+            return (
+              <>
+                <div className="w-px h-4 bg-white/20" />
+                <button
+                  onClick={() => { setGroupSearch(''); setGroupTargetId(''); setShowGroupModal(true); }}
+                  className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 text-sm font-semibold transition-colors">
+                  <Users size={13} /> 그룹으로 묶기
+                </button>
+              </>
+            );
+          })()}
           {canCreate && eligibleSupportTeams.length > 0 && <>
             <div className="w-px h-4 bg-white/20" />
             <button
@@ -1705,6 +1832,67 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 }}
                 className="flex-1 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-40 transition-colors">
                 {requestSending ? '보내는 중…' : '보내기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 업무 귀속(그룹으로 묶기) 모달 */}
+      {showGroupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-800">업무 그룹으로 묶기</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                선택한 {selectedIds.size}개 업무를 어떤 업무에 귀속시킬까요? 담당자·기간이 그 업무 기준으로 맞춰지고, 이후에도 함께 바뀝니다.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <input
+                type="text"
+                value={groupSearch}
+                onChange={e => setGroupSearch(e.target.value)}
+                placeholder="업무명 검색"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              />
+              <div className="max-h-64 overflow-y-auto flex flex-col gap-1.5">
+                {groupParentCandidates.length === 0 && (
+                  <p className="text-xs text-gray-400 py-4 text-center">귀속시킬 수 있는 업무가 없습니다</p>
+                )}
+                {groupParentCandidates.map(t => (
+                  <button key={t.id}
+                    onClick={() => setGroupTargetId(t.id)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left border transition-colors ${
+                      groupTargetId === t.id ? 'border-purple-400 bg-purple-50 text-purple-700 font-semibold' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    {t.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 px-6 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setShowGroupModal(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">
+                취소
+              </button>
+              <button
+                disabled={!groupTargetId || groupSending}
+                onClick={async () => {
+                  if (!onGroupTasks) return;
+                  setGroupSending(true);
+                  try {
+                    const childIds = tasks.filter(t => selectedIds.has(t.id) && !t.parentTaskId && !childrenByParent.has(t.id)).map(t => t.id);
+                    await onGroupTasks(childIds, groupTargetId);
+                    setShowGroupModal(false);
+                    setSelectedIds(new Set());
+                  } finally {
+                    setGroupSending(false);
+                  }
+                }}
+                className="flex-1 py-2 rounded-lg bg-purple-500 text-white text-sm font-semibold hover:bg-purple-600 disabled:opacity-40 transition-colors">
+                {groupSending ? '묶는 중…' : '묶기'}
               </button>
             </div>
           </div>

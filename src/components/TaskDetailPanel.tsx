@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Trash2, ChevronDown, ExternalLink, Copy, Check } from 'lucide-react';
+import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
 import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
 import DatePicker from './DatePicker';
@@ -1092,6 +1092,7 @@ export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
   metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
+  parentTask, childTasks = [], onRemoveFromGroup,
 }: {
   task: Task;
   onClose: () => void;
@@ -1113,6 +1114,9 @@ export default function TaskDetailPanel({
   currentUserDept?: Department; // 팀 소속 여부와 무관한, 로그인 사용자 본인의 직군 (세부업무 탭 우선순위용)
   vacations?: Vacation[];
   reviewTasks?: Task[];
+  parentTask?: Task; // 이 업무가 귀속된 상위(그룹 기준) 업무 — 있으면 담당자/기간이 읽기 전용으로 잠김
+  childTasks?: Task[]; // 이 업무에 귀속된 하위 업무 목록 (이 업무가 그룹 기준일 때)
+  onRemoveFromGroup?: (taskIds: string[]) => Promise<void>;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const todayD = new Date();
@@ -1127,6 +1131,8 @@ export default function TaskDetailPanel({
       return today >= v.date && today <= endStr;
     });
   };
+  // 상위 업무에 귀속된 경우 담당자/기간은 상위 업무 값으로 실시간 동기화되므로 이 패널에서는 잠금
+  const groupLocked = !!parentTask;
   const builtinFields = resolveBuiltinFields(formConfig);
   const bfVisible = (key: BuiltinFieldKey) => {
     const fc = builtinFields.find(f => f.key === key);
@@ -1576,6 +1582,33 @@ export default function TaskDetailPanel({
           />
         </div>
 
+        {/* 귀속(그룹) 안내 */}
+        {parentTask && (
+          <div className="mx-5 mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-100">
+            <span className="text-xs text-purple-600 flex items-center gap-1">
+              <Users size={12} /> <b>{parentTask.title}</b> 업무에 귀속됨 — 담당자·기간 공유
+            </span>
+            {canManage && (
+              <button
+                onClick={() => onRemoveFromGroup?.([task.id])}
+                className="text-xs text-purple-400 hover:text-purple-700 font-medium flex-shrink-0 transition-colors"
+              >
+                그룹에서 빼기
+              </button>
+            )}
+          </div>
+        )}
+        {!parentTask && childTasks.length > 0 && (
+          <div className="mx-5 mb-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+            <p className="text-xs text-gray-500 flex items-center gap-1 mb-1">
+              <Users size={12} /> 하위 업무 {childTasks.length}건 귀속됨
+            </p>
+            <ul className="text-xs text-gray-400 list-disc list-inside">
+              {childTasks.map(c => <li key={c.id} className="truncate">{c.title}</li>)}
+            </ul>
+          </div>
+        )}
+
         {/* 속성 - 컴팩트 그리드 */}
         <div className="px-5 pb-1 border-b border-black/[0.08]">
           {/* 행 1: 월 / (유형·상태 — formConfig 순서) */}
@@ -1793,8 +1826,11 @@ export default function TaskDetailPanel({
 
             const assigneeItem = showAssigneeCol ? (
               <div key="assignee">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('assignee')}</p>
-                {canManage ? (
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                  {fieldLabel('assignee')}
+                  {groupLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                </p>
+                {canManage && !groupLocked ? (
                   isAssigneeCustomSelect ? (
                     <div className="relative flex items-center gap-1 cursor-pointer">
                       <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
@@ -1852,11 +1888,14 @@ export default function TaskDetailPanel({
           {/* 행 3: 기간 */}
           {(bfVisible('startDate') || bfVisible('endDate')) && (
             <div className="py-2.5">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">기간</p>
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                기간
+                {groupLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+              </p>
               <div className="flex items-center gap-2">
-                {bfVisible('startDate') && <DatePicker value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage} />}
+                {bfVisible('startDate') && <DatePicker value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage || groupLocked} />}
                 {bfVisible('startDate') && bfVisible('endDate') && <span className="text-gray-300 text-xs">→</span>}
-                {bfVisible('endDate') && <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage} />}
+                {bfVisible('endDate') && <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage || groupLocked} />}
               </div>
             </div>
           )}

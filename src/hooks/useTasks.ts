@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import {
   collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, query, where, writeBatch
+  doc, query, where, writeBatch, deleteField
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { Task, SubTask } from '../types';
+
+// 업무 귀속(그룹핑) 시 상위 업무와 실시간으로 동기화되는 공유 항목 — 담당자/기간만
+// 공유하고, 제목·진행상태·유형·세부업무·시간데이터는 하위 업무가 각자 독립적으로 유지
+const GROUP_SYNC_FIELDS = ['assignee', 'startDate', 'endDate'] as const;
 
 export function useTasks(projectId: string, teamId: string | null) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -46,11 +50,44 @@ export function useTasks(projectId: string, teamId: string | null) {
   };
 
   const updateTask = async (id: string, data: Partial<Task>) => {
-    await updateDoc(doc(db, 'tasks', id), { ...data, updatedAt: new Date().toISOString() });
+    const now = new Date().toISOString();
+    await updateDoc(doc(db, 'tasks', id), { ...data, updatedAt: now });
+
+    // 귀속(그룹) 공유 항목이 바뀌면 이 업무에 귀속된 하위 업무들에도 실시간으로 반영
+    if (GROUP_SYNC_FIELDS.some(f => f in data)) {
+      const children = tasks.filter(t => t.parentTaskId === id);
+      if (children.length > 0) {
+        const patch = Object.fromEntries(GROUP_SYNC_FIELDS.filter(f => f in data).map(f => [f, data[f]]));
+        const batch = writeBatch(db);
+        children.forEach(c => batch.update(doc(db, 'tasks', c.id), { ...patch, updatedAt: now }));
+        await batch.commit();
+      }
+    }
   };
 
   const deleteTask = async (id: string) => {
     await deleteDoc(doc(db, 'tasks', id));
+  };
+
+  // 선택한 업무들(childIds)을 parentId 업무에 귀속시킴 — 귀속 즉시 담당자/기간을
+  // 상위 업무 값으로 맞춰, 다음 상위 업무 수정을 기다리지 않아도 되게 함
+  const groupTasks = async (childIds: string[], parentId: string) => {
+    const parent = tasks.find(t => t.id === parentId);
+    if (!parent) return;
+    const now = new Date().toISOString();
+    const patch = Object.fromEntries(GROUP_SYNC_FIELDS.map(f => [f, parent[f]]));
+    const batch = writeBatch(db);
+    childIds.forEach(id => batch.update(doc(db, 'tasks', id), { parentTaskId: parentId, ...patch, updatedAt: now }));
+    await batch.commit();
+  };
+
+  // 귀속 해제 — parentTaskId 필드를 실제로 제거해야 하므로 deleteField() 사용
+  // (undefined는 ignoreUndefinedProperties 설정 때문에 조용히 무시되어 필드가 안 지워짐)
+  const removeFromGroup = async (taskIds: string[]) => {
+    const now = new Date().toISOString();
+    const batch = writeBatch(db);
+    taskIds.forEach(id => batch.update(doc(db, 'tasks', id), { parentTaskId: deleteField(), updatedAt: now }));
+    await batch.commit();
   };
 
   const cleanupOrphanTasks = async (validCategories: string[]): Promise<number> => {
@@ -72,7 +109,7 @@ export function useTasks(projectId: string, teamId: string | null) {
     return orphans.length;
   };
 
-  return { tasks, loading, addTask, updateTask, deleteTask, cleanupOrphanTasks };
+  return { tasks, loading, addTask, updateTask, deleteTask, cleanupOrphanTasks, groupTasks, removeFromGroup };
 }
 
 // 지원팀 위클리에서 "다른 팀 업무에 기록된 지원팀 인원의 시간"을 찾아오려면

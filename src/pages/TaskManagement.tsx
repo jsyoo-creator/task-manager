@@ -229,10 +229,7 @@ function customFieldWidth(cf: CustomFormField, actualValues: string[] = []): num
 function buildCols(tableCols: TableCol[], customValuesByFieldId: Map<string, string[]>): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
   for (const col of tableCols) {
-    if (col.kind === 'custom') {
-      cols.push(col.cf.type === 'select' ? 'minmax(100px, max-content)' : `${customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id))}px`);
-      continue;
-    }
+    if (col.kind === 'custom') { cols.push(`${customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id))}px`); continue; }
     const fc = col.fc;
     if (fc.key === 'title') {
       cols.push(`minmax(${TITLE_MIN_WIDTH}px, 1fr)`);
@@ -275,13 +272,7 @@ function fieldTrackWidth(col: TableCol, customValuesByFieldId: Map<string, strin
   return fc.width;
 }
 function fieldTrackCss(col: TableCol, customValuesByFieldId: Map<string, string[]>): string {
-  if (col.kind === 'custom') {
-    // select 타입은 JS로 폭을 추정하지 않고 max-content로 브라우저가 실제 렌더링된
-    // 내용 폭을 직접 계산하게 함 — 추정치가 실제 폰트/환경과 안 맞아 계속 어긋나던
-    // 문제를 근본적으로 없앰(100px는 옵션이 아예 없거나 값이 비어있을 때의 최소 폭).
-    if (col.cf.type === 'select') return 'minmax(100px, max-content)';
-    return `${customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id))}px`;
-  }
+  if (col.kind === 'custom') return `${customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id))}px`;
   const fc = col.fc;
   if (fc.key === 'title') return `minmax(${TITLE_MIN_WIDTH}px, 1fr)`;
   if (fc.key === 'weeklyHours') return '52px';

@@ -1149,28 +1149,42 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   };
 
   // 기본(파트/담당자별 그룹핑 미적용) 목록에서 상위 업무 아래에 하위 업무를 들여쓰기해서
-  // 렌더링. 1단계 계층만 허용되므로 depth는 항상 0 또는 1.
+  // 렌더링. 1단계 계층만 허용되므로 depth는 항상 0 또는 1. 부모+자식 전체를 옅은 색 배경의
+  // 카드로 한 번 더 감싸 "하나로 묶여있다"는 게 한눈에 보이게 함(기존 파트별 보기의 그룹
+  // 헤더 배경색 패턴과 같은 방식).
   const renderTaskNode = (task: Task, filteredIds: Set<string>, depth = 0) => {
     const children = (childrenByParent.get(task.id) ?? []).filter(c => filteredIds.has(c.id));
     const collapsed = collapsedGroupIds.has(task.id);
-    return (
-      <div key={task.id}>
-        {depth === 0 && children.length > 0 && (
+    const hasChildren = depth === 0 && children.length > 0;
+    // 부모가 이 화면에 없어(다른 필터에 걸림 등) 들여쓰기로 관계를 보여줄 수 없는 경우에만
+    // 배지를 띄움 — 정상적으로 들여써진 자식에는 배지를 또 붙이면 중복 정보라 생략
+    const isOrphanChild = depth === 0 && !!task.parentTaskId;
+    const content = (
+      <>
+        {hasChildren && (
           <button
             onClick={() => toggleGroupCollapse(task.id)}
-            className="flex items-center gap-1 px-3.5 py-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+            className="flex items-center gap-1 px-3.5 pt-2 pb-1 text-[11px] font-semibold text-indigo-500 hover:text-indigo-700 transition-colors"
           >
             {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
             하위 업무 {children.length}건
           </button>
         )}
-        {depth > 0 && renderGroupBadge(task)}
-        <div style={depth > 0 ? { paddingLeft: 20, marginLeft: 14, borderLeft: '2px solid #eef2ff' } : undefined}>
+        {isOrphanChild && renderGroupBadge(task)}
+        <div style={depth > 0 ? { paddingLeft: 16, marginLeft: 16, borderLeft: '3px solid #c7d2fe' } : undefined}>
           {renderTaskRow(task)}
         </div>
         {!collapsed && children.map(c => renderTaskNode(c, filteredIds, depth + 1))}
-      </div>
+      </>
     );
+    if (hasChildren) {
+      return (
+        <div key={task.id} className="rounded-xl bg-indigo-50/50 border border-indigo-100 mb-1.5 pb-1 overflow-hidden">
+          {content}
+        </div>
+      );
+    }
+    return <div key={task.id}>{content}</div>;
   };
 
   // 헤더 셀 렌더링 — 1줄 모드에서는 tableCols 전체, 2줄 모드에서는 line1Cols/line2Cols로 나눠 호출

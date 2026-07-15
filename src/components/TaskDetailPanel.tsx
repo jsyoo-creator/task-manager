@@ -1582,20 +1582,26 @@ export default function TaskDetailPanel({
           />
         </div>
 
-        {/* 귀속(그룹) 안내 */}
+        {/* 귀속(그룹) 안내 — 라벨 줄과 상위 업무명+액션 줄을 분리해, 제목이 길어도
+            버튼과 겹치거나 어색하게 줄바꿈되지 않게 함 */}
         {parentTask && (
-          <div className="mx-5 mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-100">
-            <span className="text-xs text-purple-600 flex items-center gap-1">
-              <Users size={12} /> <b>{parentTask.title}</b> 업무에 귀속됨 — 담당자·기간 공유
-            </span>
-            {canManage && (
-              <button
-                onClick={() => onRemoveFromGroup?.([task.id])}
-                className="text-xs text-purple-400 hover:text-purple-700 font-medium flex-shrink-0 transition-colors"
-              >
-                그룹에서 빼기
-              </button>
-            )}
+          <div className="mx-5 mb-3 rounded-lg bg-purple-50 border border-purple-100 px-3 py-2.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-400 uppercase tracking-wide mb-1">
+              <Users size={11} /> 상위 업무에 귀속됨 · 담당자·기간 공유
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-purple-700 truncate" title={parentTask.title}>
+                {parentTask.title}
+              </span>
+              {canManage && (
+                <button
+                  onClick={() => onRemoveFromGroup?.([task.id])}
+                  className="text-[11px] text-purple-400 hover:text-purple-700 font-medium flex-shrink-0 whitespace-nowrap transition-colors"
+                >
+                  그룹에서 빼기
+                </button>
+              )}
+            </div>
           </div>
         )}
         {!parentTask && childTasks.length > 0 && (

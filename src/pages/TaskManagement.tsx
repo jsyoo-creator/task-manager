@@ -194,14 +194,15 @@ const TITLE_MIN_WIDTH = 300;
 // 팀에 공통으로 줄이기 위함 (팀 설정에 너비 편집 UI 자체가 없어 안전함)
 const DATE_COL_WIDTH = 60;
 
-// 커스텀 필드 컬럼 너비 — select 타입은 옵션 중 가장 긴 문자열 기준으로 넓혀서
-// 긴 옵션 텍스트(예: "상세페이지 레이아웃 변동, 신규 영역 내용, 이미지 수정")가
-// 말줄임(...)으로만 보이지 않고 어느 정도 실제로 읽히게 함. 그 외 타입은 기존처럼 100px.
+// 커스텀 필드 컬럼 너비 — select 타입은 옵션 중 가장 긴 문자열이 잘리지 않고 전부
+// 보이도록 그 글자 수만큼 넓힘(말줄임표로 줄이는 게 아니라 실제로 커지는 방식).
+// 테이블 자체가 가로 스크롤을 지원하므로 컬럼이 넓어져도 레이아웃이 깨지지 않음.
+// 그 외 타입은 기존처럼 100px.
 function customFieldWidth(cf: CustomFormField): number {
   if (cf.type !== 'select' || !cf.options?.length) return 100;
   const longest = Math.max(...cf.options.map(o => o.length));
-  const estimated = longest * 13 + 40; // 대략 한 글자당 13px + 여백·화살표 아이콘 공간
-  return Math.min(280, Math.max(100, estimated));
+  const estimated = longest * 15 + 56; // 한글 기준 한 글자당 15px + 좌우 여백·화살표 아이콘 공간
+  return Math.max(100, estimated);
 }
 
 function buildCols(tableCols: TableCol[]): string {

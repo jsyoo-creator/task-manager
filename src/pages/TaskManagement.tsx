@@ -291,7 +291,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [pendingBulkUngroup, setPendingBulkUngroup] = useState(false);
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('tm_collapsedGroupIds');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [groupSearch, setGroupSearch] = useState('');
   const [groupTargetId, setGroupTargetId] = useState('');
@@ -908,6 +915,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   useEffect(() => { localStorage.setItem('tm_assigneeFilter', assigneeFilter); }, [assigneeFilter]);
   useEffect(() => { localStorage.setItem('tm_receiverFilter', receiverFilter); }, [receiverFilter]);
   useEffect(() => { localStorage.setItem('tm_groupByField', groupByField ?? ''); }, [groupByField]);
+  useEffect(() => { localStorage.setItem('tm_collapsedGroupIds', JSON.stringify([...collapsedGroupIds])); }, [collapsedGroupIds]);
 
   const isMyTask = (t: Task): boolean => {
     if (!currentUserName) return false;

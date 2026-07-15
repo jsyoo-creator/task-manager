@@ -2416,9 +2416,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 ) : cfType === 'select' ? (() => {
                   const custColor = cf.optionColors?.[val];
                   return (
-                    <div className={`relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
+                    <div className={`relative flex items-center justify-between gap-2 w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
                       style={custColor ? { backgroundColor: custColor.bg, color: custColor.text } : undefined}>
-                      <span className={`flex-1 min-w-0 text-xs font-medium truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
+                      <span className={`flex-1 min-w-0 text-xs font-medium text-left truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
                       {canManage && <ChevronDown size={10} className={`flex-shrink-0 ${custColor ? 'opacity-70' : 'text-gray-400'}`} />}
                       {canManage && (
                         <select value={val}

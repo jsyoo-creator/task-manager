@@ -194,15 +194,23 @@ const TITLE_MIN_WIDTH = 300;
 // 팀에 공통으로 줄이기 위함 (팀 설정에 너비 편집 UI 자체가 없어 안전함)
 const DATE_COL_WIDTH = 60;
 
-// 커스텀 필드 컬럼 너비 — select 타입은 옵션 중 가장 긴 문자열이 잘리지 않고 전부
-// 보이도록 그 글자 수만큼 넓힘(말줄임표로 줄이는 게 아니라 실제로 커지는 방식).
-// 테이블 자체가 가로 스크롤을 지원하므로 컬럼이 넓어져도 레이아웃이 깨지지 않음.
-// 그 외 타입은 기존처럼 100px.
+// 커스텀 필드 컬럼 너비 — select 타입 필드가 8자를 넘는 옵션을 가지고 있으면 그
+// 옵션이 잘리지 않을 만큼 넓힘(말줄임표 대신 실제로 커지는 방식). 8자 이하인
+// 필드는 기존 100px 그대로 유지해 다른 필드(업무구분 등)의 레이아웃에 영향 없음.
+// dependsOn(다른 필드 값에 따라 바뀌는 조건부 옵션)이 있는 필드는 valueMap 안의
+// 모든 후보 옵션까지 함께 고려 — "수정 유형"처럼 실제 긴 옵션이 valueMap에만
+// 들어있고 cf.options(기본 목록)에는 없는 경우를 놓치지 않기 위함.
+const CUSTOM_FIELD_WIDTH_NOGROW_CHARS = 8;
 function customFieldWidth(cf: CustomFormField): number {
-  if (cf.type !== 'select' || !cf.options?.length) return 100;
-  const longest = Math.max(...cf.options.map(o => o.length));
-  const estimated = longest * 15 + 56; // 한글 기준 한 글자당 15px + 좌우 여백·화살표 아이콘 공간
-  return Math.max(100, estimated);
+  if (cf.type !== 'select') return 100;
+  const allOptions = [
+    ...(cf.options ?? []),
+    ...Object.values(cf.dependsOn?.valueMap ?? {}).flat(),
+  ];
+  if (allOptions.length === 0) return 100;
+  const longest = Math.max(...allOptions.map(o => o.length));
+  if (longest <= CUSTOM_FIELD_WIDTH_NOGROW_CHARS) return 100;
+  return 100 + (longest - CUSTOM_FIELD_WIDTH_NOGROW_CHARS) * 14; // 넘는 글자 수만큼만 비례해서 확장
 }
 
 function buildCols(tableCols: TableCol[]): string {

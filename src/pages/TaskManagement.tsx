@@ -2361,7 +2361,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <div key={cf.id} className="min-w-0" onClick={e => e.stopPropagation()}>
                 {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 min-w-0">
                     <input
                       value={manualFieldDrafts[cf.id] ?? val}
                       onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
@@ -2371,7 +2371,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       }}
                       placeholder="직접 입력"
                       readOnly={!canManage}
-                      className="min-w-0 flex-1 text-xs text-gray-700 bg-gray-100 rounded-full px-2.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
+                      className="min-w-0 flex-1 truncate text-xs text-gray-700 bg-gray-100 rounded-full px-2.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
                     />
                     {canManage && (
                       <button type="button" title="목록에서 선택"

@@ -1806,6 +1806,22 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
         </div>
       )}
 
+      {configKey === 'groupSyncFields' && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" checked={keepParentIfChildIncomplete}
+              onChange={e => saveKeepParent(e.target.checked)}
+              className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span className="text-xs text-gray-700">
+              완료 숨기기 시, 하위 업무 중 완료 안 된 게 있으면 상위 업무도 계속 표시
+              <span className="block text-[11px] text-gray-400 mt-0.5">
+                꺼두면(기본) 상위 업무가 완료되는 순간 그룹째로 안 보이고, 하위 업무는 낱개로 남아 보입니다.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{heading}</p>
@@ -1832,22 +1848,6 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
         )}
         <p className="text-[11px] text-gray-400 mt-2">{description}</p>
       </div>
-
-      {configKey === 'groupSyncFields' && (
-        <div className="border-t border-gray-100 pt-4">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input type="checkbox" checked={keepParentIfChildIncomplete}
-              onChange={e => saveKeepParent(e.target.checked)}
-              className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-            <span className="text-xs text-gray-700">
-              완료 숨기기 시, 하위 업무 중 완료 안 된 게 있으면 상위 업무도 계속 표시
-              <span className="block text-[11px] text-gray-400 mt-0.5">
-                꺼두면(기본) 상위 업무가 완료되는 순간 그룹째로 안 보이고, 하위 업무는 낱개로 남아 보입니다.
-              </span>
-            </span>
-          </label>
-        </div>
-      )}
     </div>
   );
 }

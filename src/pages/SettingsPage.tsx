@@ -1694,10 +1694,20 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
   [...builtinCandidates, ...metaCandidates, ...customCandidates].forEach(c => {
     if (!seen.has(c.key)) { seen.add(c.key); candidates.push(c); }
   });
+  // 엑셀 중복 체크 항목은 엑셀 관리(컬럼 매핑) 화면과 나란히 놓고 비교하며 쓰므로,
+  // 그 화면에서 드래그로 바꾼 컬럼 순서와 똑같은 순서로 보여줌
+  if (configKey === 'dupeCheckFields') {
+    const orderKeys = resolveExcelKeyOrder(team, selectedTarget);
+    const rank = (key: string) => { const i = orderKeys.indexOf(key); return i === -1 ? Infinity : i; };
+    candidates.sort((a, b) => rank(a.key) - rank(b.key));
+  }
 
   const selectedKeys = new Set(resolveFields(effectiveConfig));
+  // 명시적으로 설정한 적이 있는지(빈 배열로 "전부 해제"한 것도 명시적 설정에 포함) —
+  // 아직 한 번도 안 건드렸으면 기본값이 그대로 적용 중이라는 뜻
+  const isExplicitlySet = effectiveConfig?.[configKey] !== undefined;
 
-  const saveKeys = (newList: string[]) => {
+  const saveKeys = (newList: string[] | undefined) => {
     const config: TeamFormConfig = {
       builtinFields: resolveBuiltinFields(effectiveConfig),
       customFields: effectiveConfig?.customFields ?? [],
@@ -1750,9 +1760,13 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{heading}</p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {!isExplicitlySet && <span className="text-[11px] text-emerald-500 font-medium">기본값 적용 중</span>}
             <button onClick={() => saveKeys(candidates.map(c => c.key))} className="text-[11px] text-blue-500 hover:text-blue-700 font-medium">전체 선택</button>
-            <button onClick={() => saveKeys([])} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">선택 해제</button>
+            <button onClick={() => saveKeys([])} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">전체 해제</button>
+            {isExplicitlySet && (
+              <button onClick={() => saveKeys(undefined)} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">기본값으로</button>
+            )}
           </div>
         </div>
         {candidates.length === 0 ? (
@@ -3619,6 +3633,45 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
   );
 }
 
+// 팀/파트의 엑셀 컬럼 기본 항목(빌트인+업무정보+추가정보, 활성/비활성 전부) 목록.
+// ExcelFieldManager(컬럼 매핑)와 TeamFieldPicker(중복 체크 항목)가 항상 같은 순서를
+// 보여줘야 해서(둘을 나란히 놓고 비교하며 씀) 공용 함수로 분리함.
+function resolveExcelDefaultFields(team: Team, selectedTarget: 'team' | string): ExcelFieldConfig[] {
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  // 폼 설정 화면(FormBuilder)이 파트별로 보여주는 것과 동일한 기준으로 계산 — 팀 필드를
+  // 병합(union)해서 끌어오지 않고, 파트가 자체 formConfig를 가지고 있으면 그 파트 설정만 사용.
+  const resolvedFormConfig = isTeam ? team.formConfig : (currentPart?.formConfig ?? team.formConfig);
+  const resolvedBuiltins = resolveBuiltinFields(resolvedFormConfig);
+  const BUILTIN_EXCEL_KEYS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
+  const builtinExcelFields = BUILTIN_EXCEL_KEYS.map((key, i) => {
+    const bf = resolvedBuiltins.find(f => f.key === key);
+    const defaultLabel = BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
+    return { key, label: bf?.customLabel ?? defaultLabel, enabled: true, order: i };
+  });
+  const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
+  const customFormFields = (resolvedFormConfig?.customFields ?? []).filter(f => f.enabled !== false);
+  return [
+    ...builtinExcelFields,
+    ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: builtinExcelFields.length + i })),
+    ...customFormFields.map((f, i) => ({ key: f.id, label: f.label, enabled: false, order: builtinExcelFields.length + metaFields.length + i })),
+  ];
+}
+
+// 실제 저장된(드래그로 바꾼) 엑셀 컬럼 순서를 반영한 전체 key 순서
+function resolveExcelKeyOrder(team: Team, selectedTarget: 'team' | string): string[] {
+  const isTeam = selectedTarget === 'team';
+  const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const defaultFields = resolveExcelDefaultFields(team, selectedTarget);
+  const saved = isTeam ? team.excelConfig : (currentPart?.excelConfig ?? team.excelConfig);
+  if (!saved?.length) return defaultFields.map(f => f.key);
+  const validKeys = new Set(defaultFields.map(f => f.key));
+  const savedKeys = new Set(saved.map(f => f.key));
+  const extra = defaultFields.filter(f => !savedKeys.has(f.key));
+  const synced = saved.filter(f => validKeys.has(f.key));
+  return [...synced, ...extra].map(f => f.key);
+}
+
 function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   team: Team;
   onSave: (teamId: string, config: ExcelFieldConfig[]) => Promise<void>;
@@ -3630,26 +3683,10 @@ function ExcelFieldManager({ team, onSave, onSavePart, onClearPart }: {
   const isTeam = selectedTarget === 'team';
   const currentPart = !isTeam ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const isInherited = !isTeam && !currentPart?.excelConfig;
-
-  // 폼 설정 화면(FormBuilder)이 파트별로 보여주는 것과 동일한 기준으로 계산 — 팀 필드를
-  // 병합(union)해서 끌어오지 않고, 파트가 자체 formConfig를 가지고 있으면 그 파트 설정만 사용.
-  // 그래야 "이 파트의 폼 설정 화면에 보이는 항목/순서" = "이 파트의 엑셀 관리 항목/순서"가 일치함.
+  // "폼 순서대로 정렬" 버튼에서 여전히 필요
   const resolvedFormConfig = isTeam ? team.formConfig : (currentPart?.formConfig ?? team.formConfig);
-  const resolvedBuiltins = resolveBuiltinFields(resolvedFormConfig);
-  const BUILTIN_EXCEL_KEYS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
-  const builtinExcelFields = BUILTIN_EXCEL_KEYS.map((key, i) => {
-    const bf = resolvedBuiltins.find(f => f.key === key);
-    const defaultLabel = BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
-    return { key, label: bf?.customLabel ?? defaultLabel, enabled: true, order: i };
-  });
-  const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
-  const customFormFields = (resolvedFormConfig?.customFields ?? []).filter(f => f.enabled !== false);
 
-  const defaultFields: ExcelFieldConfig[] = [
-    ...builtinExcelFields,
-    ...metaFields.map((f, i) => ({ key: f.key, label: f.label, enabled: false, order: builtinExcelFields.length + i })),
-    ...customFormFields.map((f, i) => ({ key: f.id, label: f.label, enabled: false, order: builtinExcelFields.length + metaFields.length + i })),
-  ];
+  const defaultFields = resolveExcelDefaultFields(team, selectedTarget);
 
   const buildFields = (saved: ExcelFieldConfig[] | undefined): ExcelFieldConfig[] => {
     if (!saved?.length) return defaultFields;

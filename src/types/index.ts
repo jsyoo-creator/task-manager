@@ -713,7 +713,16 @@ export function mergeAllPartsConfig(parts: { formConfig?: TeamFormConfig }[], te
     DEFAULT_BUILTIN_FIELD_CONFIGS.forEach((f, i) => { defaultIdx[f.key] = i; });
     mergedBuiltins.sort((a, b) => (defaultIdx[a.key] ?? Infinity) - (defaultIdx[b.key] ?? Infinity));
   }
-  return { builtinFields: mergedBuiltins, customFields: mergedCustoms, ...(fieldOrder ? { fieldOrder } : {}) };
+  // groupSyncFields/dupeCheckFields/groupKeepParentIfChildIncomplete는 "전체" 합집합
+  // 개념이 없는 팀 단위 설정값이라(파트마다 union할 대상이 아님), 팀 기본값을 그대로
+  // 전달 — 이걸 빠뜨리면 "전체" 탭에서 이 설정들이 통째로 안 보이는 것처럼 동작함
+  return {
+    builtinFields: mergedBuiltins, customFields: mergedCustoms,
+    ...(fieldOrder ? { fieldOrder } : {}),
+    ...(teamConfig?.groupSyncFields !== undefined ? { groupSyncFields: teamConfig.groupSyncFields } : {}),
+    ...(teamConfig?.dupeCheckFields !== undefined ? { dupeCheckFields: teamConfig.dupeCheckFields } : {}),
+    ...(teamConfig?.groupKeepParentIfChildIncomplete !== undefined ? { groupKeepParentIfChildIncomplete: teamConfig.groupKeepParentIfChildIncomplete } : {}),
+  };
 }
 
 /** 필드 설정에서 직군 목록을 반환. 구버전 department 단일값도 처리. */

@@ -134,8 +134,14 @@ function useHScroll() {
   // 그 틈에 클릭하면 아무 반응이 없는 것처럼 보인다(우측 버튼이 처음 눌릴 때 자주
   // 겪는 위치). useLayoutEffect로 페인트 전에 동기 측정해 이 틈을 없앤다.
   useLayoutEffect(() => { update(); });
-  const scrollBy = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
-  return { ref, scroll, update, scrollBy };
+  // 클릭 한 번에 해당 방향 끝(맨 왼쪽 0 / 맨 오른쪽 scrollWidth)까지 스크롤 —
+  // 고정폭(200px)만 이동하면 콘텐츠가 넓을 때 여러 번 눌러야 끝에 도달해서 변경함
+  const scrollToEdge = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollTo({ left: dir === 1 ? el.scrollWidth : 0, behavior: 'smooth' });
+  };
+  return { ref, scroll, update, scrollToEdge };
 }
 
 // 각 업무 행의 2번째 줄(필드 영역)은 원래 행마다 독립된 가로 스크롤 위치를 가져서,
@@ -2783,7 +2789,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   {(line2H.scroll.canRight || line2H.scroll.canLeft) && (
                     <button
                       type="button"
-                      onClick={e => { e.stopPropagation(); line2H.scrollBy(line2H.scroll.canRight ? 1 : -1); }}
+                      onClick={e => { e.stopPropagation(); line2H.scrollToEdge(line2H.scroll.canRight ? 1 : -1); }}
                       className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
                     >
                       {line2H.scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
@@ -2813,7 +2819,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               {(line3H.scroll.canRight || line3H.scroll.canLeft) && (
                 <button
                   type="button"
-                  onClick={e => { e.stopPropagation(); line3H.scrollBy(line3H.scroll.canRight ? 1 : -1); }}
+                  onClick={e => { e.stopPropagation(); line3H.scrollToEdge(line3H.scroll.canRight ? 1 : -1); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 shadow-sm hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-colors"
                 >
                   {line3H.scroll.canRight ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}

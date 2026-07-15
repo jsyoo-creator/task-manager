@@ -736,7 +736,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           if (availableStatuses.includes(s)) return s;
           const normalized = STATUS_SPACE_MAP[s] ?? s;
           if (availableStatuses.includes(normalized)) return normalized;
-          return '';
+          // 공백/대소문자 차이만 있는 경우도 매칭(예: 엑셀 셀에 앞뒤 공백이 섞여 들어온 경우)
+          const collapse = (v: string) => v.replace(/\s/g, '').toLowerCase();
+          const fuzzy = availableStatuses.find(o => collapse(o) === collapse(s));
+          if (fuzzy) return fuzzy;
+          // 팀이 등록해 둔 상태 옵션 어디에도 없는 값이면(예: 옵션엔 '오픈완료'뿐인데 엑셀엔 '완료'라고
+          // 적힌 경우), 조용히 목록의 첫 번째 옵션으로 둔갑시키지 않고 입력한 값을 그대로 저장한다.
+          // 그래야 화면에서 "착수대기"로 잘못 보이는 대신 실제 입력한 "완료"가 그대로 보여서
+          // 매칭 실수를 바로 알아차릴 수 있다.
+          return s;
         };
 
         return {
@@ -2352,9 +2360,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 ) : cfType === 'select' ? (() => {
                   const custColor = cf.optionColors?.[val];
                   return (
-                    <div className={`relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
+                    <div className={`relative flex items-center justify-between w-full min-w-0 rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${custColor ? '' : 'bg-gray-100'}`}
                       style={custColor ? { backgroundColor: custColor.bg, color: custColor.text } : undefined}>
-                      <span className={`text-xs font-medium truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
+                      <span className={`flex-1 min-w-0 text-xs font-medium truncate ${custColor ? '' : 'text-gray-600'}`}>{val || '-'}</span>
                       {canManage && <ChevronDown size={10} className={`flex-shrink-0 ${custColor ? 'opacity-70' : 'text-gray-400'}`} />}
                       {canManage && (
                         <select value={val}
@@ -2520,9 +2528,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const text = custColor?.text ?? sc?.text;
             return [
               <div key="status" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full rounded-full pl-2.5 pr-2 py-0.5 cursor-pointer"
+                className="relative flex items-center justify-between w-full min-w-0 rounded-full pl-2.5 pr-2 py-0.5 cursor-pointer"
                 style={{ backgroundColor: bg, color: text }}>
-                <span className="text-xs font-medium whitespace-nowrap">{effectiveStatus}</span>
+                <span className="flex-1 min-w-0 text-xs font-medium truncate">{effectiveStatus}</span>
                 {canManage && <ChevronDown size={10} />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -2540,7 +2548,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             if (fc.customType === 'select' && fc.options?.length) {
               return [
                 <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                  <span className="text-xs text-gray-700 truncate">{task.receiver || '-'}</span>
+                  <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{task.receiver || '-'}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                   {canManage && (
                     <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.receiver}
@@ -2564,7 +2572,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
-                <span className="text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
+                <span className="flex-1 min-w-0 text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={rcvrVal}
                     onChange={e => onUpdate(task.id, { [rcvrKey]: e.target.value })}>
@@ -2579,7 +2587,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             if (fc.customType === 'select' && fc.options?.length) {
               return [
                 <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
-                  <span className="text-xs text-gray-700 truncate">{task.assignee || '-'}</span>
+                  <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{task.assignee || '-'}</span>
                   {canManage && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                   {canManage && (
                     <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={task.assignee}
@@ -2602,7 +2610,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
-                <span className="text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
+                <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={asgnVal}
                     onChange={e => onUpdate(task.id, { [asgnKey]: e.target.value })}>

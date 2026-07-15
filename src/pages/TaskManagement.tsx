@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useContext, crea
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -43,6 +43,10 @@ interface Props {
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const TYPES: TaskType[] = ['신규', '기타', '파생', '기획'];
+
+// 엑셀 가져오기 중복 체크: key가 빌트인 필드인지(최상위 필드) customFields 안의
+// 커스텀/업무정보 필드인지 판별
+const BUILTIN_KEY_SET = new Set(BUILTIN_FIELDS_META.map(m => m.key as string));
 
 const STATUS_SPACE_MAP: Record<string, string> = {
   '진행전': '진행 전', '진행중': '진행 중',
@@ -658,6 +662,25 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setTemplateDropOpen(false);
   };
 
+  // 엑셀 가져오기 중복 체크: 팀/파트 설정(dupeCheckFields)에 따라 어떤 필드들이 전부
+  // 같아야 "같은 업무"로 볼지가 달라짐 — row가 속한 파트 기준으로 필드 목록을 정하고,
+  // 그 필드들만 값이 일치하는 기존 업무를 찾는다
+  const resolveDupeFieldsForCategory = (category: string) =>
+    resolveDupeCheckFields(mergeFormConfig(parts?.find(p => p.name === category)?.formConfig, formConfig));
+
+  const fieldsMatch = (fields: string[], row: Partial<Task>, existing: Task): boolean =>
+    fields.every(f => {
+      if (BUILTIN_KEY_SET.has(f)) {
+        return String((row as Record<string, unknown>)[f] ?? '').trim() === String((existing as Record<string, unknown>)[f] ?? '').trim();
+      }
+      return (row.customFields?.[f] ?? '') === (existing.customFields?.[f] ?? '');
+    });
+
+  const findExistingTask = (row: Partial<Task>, category: string): Task | undefined => {
+    const fields = resolveDupeFieldsForCategory(category);
+    return tasks.find(t => fieldsMatch(fields, row, t));
+  };
+
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -731,8 +754,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       }).filter(r => r.title);
 
       const currentMonth = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
-      const existingKeysInit = new Set(tasks.map(t => `${t.title.trim()}||${t.category}||${t.taskMonth}`));
-      const existingTaskMapInit = new Map(tasks.map(t => [`${t.title.trim()}||${t.category}||${t.taskMonth}`, t]));
 
       // 파트 1개 선택 시 category 없는 행에 자동 지정
       const partNameSet = new Set(parts?.map(p => p.name) ?? []);
@@ -755,10 +776,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       parsed.forEach((r, i) => {
         const cat = autoCats[i] ?? (r.category ?? '');
         const month = r.taskMonth || currentMonth;
-        const key = `${(r.title ?? '').trim()}||${cat}||${month}`;
-        if (!existingKeysInit.has(key)) return;
-        const existing = existingTaskMapInit.get(key);
-        if (!existing) { initSkips.add(i); return; }
+        const existing = findExistingTask({ ...r, category: cat as TaskCategory, taskMonth: month }, cat);
+        if (!existing) { return; }
         const hasChange = fieldsToCheck.some(f => {
           const nv = String((r as Record<string, unknown>)[f] ?? '');
           const ov = String(existing[f] ?? '');
@@ -789,7 +808,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const currentMonth = monthFilter > 0
       ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}`
       : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const existingTaskMap = new Map(tasks.map(t => [`${t.title.trim()}||${t.category}||${t.taskMonth}`, t]));
     const bottom = tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1);
     let addIdx = 0;
 
@@ -803,8 +821,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       const resolvedMonth = r.taskMonth || currentMonth;
 
       if (previewUpdateSet.has(i)) {
-        const key = `${(r.title ?? '').trim()}||${resolvedCategory}||${resolvedMonth}`;
-        const existing = existingTaskMap.get(key);
+        const existing = findExistingTask({ ...r, category: resolvedCategory as TaskCategory, taskMonth: resolvedMonth }, resolvedCategory);
         if (existing) {
           const { title: _t, category: _c, taskMonth: _m, ...updateFields } = r;
           onUpdateTask(existing.id, {
@@ -1923,12 +1940,11 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       {/* 엑셀 가져오기 미리보기 모달 */}
       {importPreview && (() => {
         const currentMonthStr = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
-        const existingKeys = new Set(tasks.map(t => `${t.title.trim()}||${t.category}||${t.taskMonth}`));
-        // 중복으로 감지된 인덱스 집합 (같은 월+파트+제목)
+        // 중복으로 감지된 인덱스 집합 (팀/파트에 설정된 중복 체크 기준 필드 기준)
         const dupeSet = new Set(importPreview.rows.map((r, i) => {
           const cat = previewCats[i] ?? r.category ?? '';
           const month = r.taskMonth || currentMonthStr;
-          return existingKeys.has(`${(r.title ?? '').trim()}||${cat}||${month}`) ? i : -1;
+          return findExistingTask({ ...r, category: cat as TaskCategory, taskMonth: month }, cat) ? i : -1;
         }).filter(i => i >= 0));
         const registerCount = importPreview.rows.length - previewSkipped.size;
         const updateCount = [...previewUpdateSet].filter(i => dupeSet.has(i)).length;

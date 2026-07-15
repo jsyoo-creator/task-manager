@@ -542,6 +542,8 @@ export interface TeamFormConfig {
   fieldOrder?: string[]; // 기본+커스텀 통합 순서 (builtin key 또는 custom field id)
   groupSyncFields?: string[]; // 업무 귀속(그룹) 시 상위 업무와 동기화할 필드 key 목록.
                                // BuiltinFieldKey 또는 customFields의 cf.id를 섞어서 저장 (fieldOrder와 동일한 패턴)
+  dupeCheckFields?: string[]; // 엑셀 가져오기 시 기존 업무와 "중복"으로 판단할 필드 key 목록.
+                               // groupSyncFields와 동일한 저장 방식(BuiltinFieldKey 또는 customFields/metaFields key)
 }
 
 // 그룹 동기화 항목을 팀/파트에서 아직 설정하지 않았을 때의 기본값 (기존 하드코딩 동작과 동일)
@@ -551,6 +553,14 @@ export function resolveGroupSyncFields(config?: TeamFormConfig): string[] {
   // groupSyncFields가 빈 배열([])인 것과 아예 설정한 적 없는 것(undefined)은 다르게 취급 —
   // 빈 배열은 "관리자가 의도적으로 전부 해제함"이므로 기본값으로 되돌리면 안 됨
   return config?.groupSyncFields !== undefined ? config.groupSyncFields : DEFAULT_GROUP_SYNC_FIELDS;
+}
+
+// 엑셀 가져오기 중복 체크 기준을 팀/파트에서 아직 설정하지 않았을 때의 기본값
+// (기존 하드코딩 동작과 동일: 제목+파트+월 조합)
+export const DEFAULT_DUPE_CHECK_FIELDS: string[] = ['title', 'category', 'taskMonth'];
+
+export function resolveDupeCheckFields(config?: TeamFormConfig): string[] {
+  return config?.dupeCheckFields !== undefined ? config.dupeCheckFields : DEFAULT_DUPE_CHECK_FIELDS;
 }
 
 export function resolveStatusConfigs(config?: TeamFormConfig): StatusConfig[] {
@@ -631,10 +641,13 @@ export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConf
   const fieldOrder = partConfig.fieldOrder ?? teamConfig.fieldOrder;
   // 파트에 그룹 동기화 항목 설정이 없으면 팀 기본값 상속
   const groupSyncFields = partConfig.groupSyncFields ?? teamConfig.groupSyncFields;
+  // 파트에 중복 체크 기준 설정이 없으면 팀 기본값 상속
+  const dupeCheckFields = partConfig.dupeCheckFields ?? teamConfig.dupeCheckFields;
   return {
     ...partConfig, builtinFields: merged, customFields: mergedCfs,
     ...(fieldOrder ? { fieldOrder } : {}),
     ...(groupSyncFields ? { groupSyncFields } : {}),
+    ...(dupeCheckFields ? { dupeCheckFields } : {}),
   };
 }
 

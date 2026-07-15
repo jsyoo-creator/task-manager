@@ -3,7 +3,7 @@ import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus,
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1657,13 +1657,18 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
 }
 
 // ──────────────────────────────────────────
-// 업무 귀속(그룹) 시 상위 업무와 동기화할 항목 편집기 (팀 탭 내)
-// 후보 항목은 폼설정(빌트인 필드) + 업무 정보(metaFields) + 추가 정보(customFields)를
-// 모두 합쳐서 보여줌 — FormBuilder/MetaFieldsEditor가 각각 관리하는 두 시스템을
+// 팀/파트별로 "폼설정(빌트인 필드) + 업무 정보(metaFields) + 추가 정보(customFields)"
+// 후보 중 일부를 체크박스로 골라 TeamFormConfig의 문자열 배열 필드 하나에 저장하는 범용
+// 편집기. 그룹 귀속 동기화 항목, 엑셀 중복 체크 기준 등 "필드 몇 개를 고른다"는 형태의
+// 설정에서 공용으로 재사용 — FormBuilder/MetaFieldsEditor가 각각 관리하는 두 시스템을
 // 가로질러 참조해야 해서 별도 컴포넌트로 분리함
 // ──────────────────────────────────────────
-function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfig }: {
+function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = [], onUpdateFormConfig, onUpdatePartFormConfig }: {
   team: Team;
+  configKey: 'groupSyncFields' | 'dupeCheckFields';
+  heading: string;
+  description: string;
+  excludeKeys?: string[];
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
 }) {
@@ -1671,14 +1676,17 @@ function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfi
   const currentPart = selectedTarget !== 'team' ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const effectiveConfig = currentPart ? mergeFormConfig(currentPart.formConfig, team.formConfig) : team.formConfig;
   const isInherited = selectedTarget !== 'team' && !currentPart?.formConfig;
+  const resolveFields = configKey === 'groupSyncFields' ? resolveGroupSyncFields : resolveDupeCheckFields;
 
+  const excludeSet = new Set(excludeKeys);
   const builtinCandidates = resolveBuiltinFields(effectiveConfig)
-    .filter(f => f.enabled && f.key !== 'title' && f.key !== 'weeklyHours' && f.key !== 'revisionLevel')
+    .filter(f => f.enabled && !excludeSet.has(f.key))
     .map(f => ({ key: f.key as string, label: f.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key }));
   const metaCandidates = (currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS)
+    .filter(f => !excludeSet.has(f.key))
     .map(f => ({ key: f.key, label: f.label }));
   const customCandidates = (effectiveConfig?.customFields ?? [])
-    .filter(cf => cf.enabled !== false)
+    .filter(cf => cf.enabled !== false && !excludeSet.has(cf.id))
     .map(cf => ({ key: cf.id, label: cf.label }));
 
   const seen = new Set<string>();
@@ -1687,7 +1695,7 @@ function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfi
     if (!seen.has(c.key)) { seen.add(c.key); candidates.push(c); }
   });
 
-  const selectedKeys = new Set(resolveGroupSyncFields(effectiveConfig));
+  const selectedKeys = new Set(resolveFields(effectiveConfig));
 
   const saveKeys = (newList: string[]) => {
     const config: TeamFormConfig = {
@@ -1695,14 +1703,16 @@ function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfi
       customFields: effectiveConfig?.customFields ?? [],
       statusConfigs: effectiveConfig?.statusConfigs,
       fieldOrder: effectiveConfig?.fieldOrder,
-      groupSyncFields: newList,
+      groupSyncFields: effectiveConfig?.groupSyncFields,
+      dupeCheckFields: effectiveConfig?.dupeCheckFields,
+      [configKey]: newList,
     };
     if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
     else onUpdatePartFormConfig(team.id, selectedTarget, config);
   };
 
   const toggle = (key: string) => {
-    const cur = resolveGroupSyncFields(effectiveConfig);
+    const cur = resolveFields(effectiveConfig);
     saveKeys(cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]);
   };
 
@@ -1727,7 +1737,7 @@ function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfi
                 }`}>
                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
                 {p.name}
-                {p.formConfig?.groupSyncFields && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                {p.formConfig?.[configKey] && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
               </button>
             ))}
           </div>
@@ -1739,7 +1749,7 @@ function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfi
 
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">그룹 귀속 시 함께 가져올 항목</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{heading}</p>
           <div className="flex gap-2">
             <button onClick={() => saveKeys(candidates.map(c => c.key))} className="text-[11px] text-blue-500 hover:text-blue-700 font-medium">전체 선택</button>
             <button onClick={() => saveKeys([])} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">선택 해제</button>
@@ -1757,9 +1767,7 @@ function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfi
             ))}
           </div>
         )}
-        <p className="text-[11px] text-gray-400 mt-2">
-          제목·세부업무·시간 데이터는 항상 개별로 유지되어 후보에 나오지 않습니다. 체크한 항목은 이 업무가 다른 업무에 귀속됐을 때 상위 업무 값으로 실시간 동기화되고, 하위 업무 상세에서는 읽기 전용으로 잠깁니다.
-        </p>
+        <p className="text-[11px] text-gray-400 mt-2">{description}</p>
       </div>
     </div>
   );
@@ -6979,8 +6987,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                   {/* 귀속(그룹) 동기화 항목 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'groupSync' && (
                     <div className="px-5 py-4">
-                      <GroupSyncFieldsEditor
+                      <TeamFieldPicker
                         team={team}
+                        configKey="groupSyncFields"
+                        heading="그룹 귀속 시 함께 가져올 항목"
+                        description="제목·세부업무·시간 데이터는 항상 개별로 유지되어 후보에 나오지 않습니다. 체크한 항목은 이 업무가 다른 업무에 귀속됐을 때 상위 업무 값으로 실시간 동기화되고, 하위 업무 상세에서는 읽기 전용으로 잠깁니다."
+                        excludeKeys={['title', 'weeklyHours', 'revisionLevel']}
                         onUpdateFormConfig={onUpdateFormConfig}
                         onUpdatePartFormConfig={onUpdatePartFormConfig}
                       />
@@ -7057,8 +7069,23 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
 
                   {/* 엑셀 관리 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'excel' && (
-                    <div className="px-5 py-4">
-                      <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} onSavePart={onUpdatePartExcelConfig} onClearPart={onClearPartExcelConfig} />
+                    <div className="px-5 py-4 space-y-6">
+                      <div>
+                        <p className="text-xs font-bold text-gray-700 mb-3">중복 체크 기준</p>
+                        <TeamFieldPicker
+                          team={team}
+                          configKey="dupeCheckFields"
+                          heading="엑셀 등록 시 중복으로 판단할 항목"
+                          description="엑셀로 업무를 가져올 때, 체크한 항목이 기존 업무와 전부 같으면 같은 업무(중복)로 판단합니다. 세부업무·시간 데이터는 후보에 나오지 않습니다."
+                          excludeKeys={['weeklyHours', 'revisionLevel']}
+                          onUpdateFormConfig={onUpdateFormConfig}
+                          onUpdatePartFormConfig={onUpdatePartFormConfig}
+                        />
+                      </div>
+                      <div className="border-t border-gray-100 pt-5">
+                        <p className="text-xs font-bold text-gray-700 mb-3">컬럼 매핑</p>
+                        <ExcelFieldManager team={team} onSave={onUpdateExcelConfig} onSavePart={onUpdatePartExcelConfig} onClearPart={onClearPartExcelConfig} />
+                      </div>
                     </div>
                   )}
 

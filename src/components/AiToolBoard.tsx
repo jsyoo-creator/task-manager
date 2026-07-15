@@ -279,6 +279,32 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
         backgroundColor: '#ffffff',
         useCORS: true,
         ignoreElements: (el) => el.getAttribute('data-pdf-exclude') === 'true',
+        onclone: async (_doc, clonedEl) => {
+          // 아이콘/본문 이미지가 사용자가 직접 붙여넣은 외부 URL이라 CORS 헤더가 없는 경우가 많음.
+          // 그대로 두면 캔버스가 오염(tainted)되어 toDataURL()이 통째로 실패하므로,
+          // 각 이미지를 데이터 URI로 미리 바꿔치기하고 실패한 이미지는 제거해 나머지는 살린다.
+          const images = Array.from(clonedEl.querySelectorAll('img'));
+          await Promise.all(images.map(async (img) => {
+            const src = img.getAttribute('src');
+            if (!src || src.startsWith('data:')) return;
+            try {
+              const sameOrigin = new URL(src, window.location.href).origin === window.location.origin;
+              if (sameOrigin) return;
+              const res = await fetch(src, { mode: 'cors' });
+              if (!res.ok) throw new Error('image fetch failed');
+              const blob = await res.blob();
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              img.src = dataUrl;
+            } catch {
+              img.remove();
+            }
+          }));
+        },
       });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ unit: 'px', format: [canvas.width, canvas.height] });

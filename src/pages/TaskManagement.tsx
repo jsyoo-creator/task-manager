@@ -194,10 +194,20 @@ const TITLE_MIN_WIDTH = 300;
 // 팀에 공통으로 줄이기 위함 (팀 설정에 너비 편집 UI 자체가 없어 안전함)
 const DATE_COL_WIDTH = 60;
 
+// 커스텀 필드 컬럼 너비 — select 타입은 옵션 중 가장 긴 문자열 기준으로 넓혀서
+// 긴 옵션 텍스트(예: "상세페이지 레이아웃 변동, 신규 영역 내용, 이미지 수정")가
+// 말줄임(...)으로만 보이지 않고 어느 정도 실제로 읽히게 함. 그 외 타입은 기존처럼 100px.
+function customFieldWidth(cf: CustomFormField): number {
+  if (cf.type !== 'select' || !cf.options?.length) return 100;
+  const longest = Math.max(...cf.options.map(o => o.length));
+  const estimated = longest * 13 + 40; // 대략 한 글자당 13px + 여백·화살표 아이콘 공간
+  return Math.min(280, Math.max(100, estimated));
+}
+
 function buildCols(tableCols: TableCol[]): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
   for (const col of tableCols) {
-    if (col.kind === 'custom') { cols.push('100px'); continue; }
+    if (col.kind === 'custom') { cols.push(`${customFieldWidth(col.cf)}px`); continue; }
     const fc = col.fc;
     if (fc.key === 'title') {
       cols.push(`minmax(${TITLE_MIN_WIDTH}px, 1fr)`);
@@ -217,7 +227,7 @@ function buildMinWidth(tableCols: TableCol[]): number {
   let w = 46; // checkbox(28) + drag handle(18)
   let colCount = 2;
   for (const col of tableCols) {
-    if (col.kind === 'custom') { w += 100; colCount++; continue; }
+    if (col.kind === 'custom') { w += customFieldWidth(col.cf); colCount++; continue; }
     const fc = col.fc;
     if (fc.key === 'title') { w += TITLE_MIN_WIDTH; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
@@ -232,7 +242,7 @@ function buildMinWidth(tableCols: TableCol[]): number {
 
 // 필드(월/업무명/유형/... /커스텀) 각 트랙의 픽셀 폭(체크박스/드래그/액션 제외)
 function fieldTrackWidth(col: TableCol): number {
-  if (col.kind === 'custom') return 100;
+  if (col.kind === 'custom') return customFieldWidth(col.cf);
   const fc = col.fc;
   if (fc.key === 'title') return TITLE_MIN_WIDTH;
   if (fc.key === 'weeklyHours') return 52;
@@ -240,7 +250,7 @@ function fieldTrackWidth(col: TableCol): number {
   return fc.width;
 }
 function fieldTrackCss(col: TableCol): string {
-  if (col.kind === 'custom') return '100px';
+  if (col.kind === 'custom') return `${customFieldWidth(col.cf)}px`;
   const fc = col.fc;
   if (fc.key === 'title') return `minmax(${TITLE_MIN_WIDTH}px, 1fr)`;
   if (fc.key === 'weeklyHours') return '52px';

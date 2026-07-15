@@ -312,7 +312,8 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
       pdf.save(`${tool.name.replace(/[\\/:*?"<>|]/g, '')}.pdf`);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
-      alert('PDF 생성에 실패했습니다.');
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      alert(`PDF 생성에 실패했습니다.\n\n${detail}`);
     } finally {
       setGeneratingPdf(false);
     }

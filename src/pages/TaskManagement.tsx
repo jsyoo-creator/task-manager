@@ -1187,6 +1187,15 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     return <div key={task.id}>{content}</div>;
   };
 
+  // 주어진 업무 목록(전체 목록이든, 파트/담당자별로 묶인 한 그룹의 목록이든) 안에서
+  // 부모-자식 관계를 찾아 부모 아래로 들여쓰기해 렌더링. groupedView(파트/담당자별 보기)의
+  // 각 그룹, 기본(그룹핑 없음) 목록 양쪽에서 공통으로 사용해 두 뷰의 표시가 항상 일치하게 함.
+  const renderTaskList = (list: Task[]) => {
+    const ids = new Set(list.map(t => t.id));
+    const topLevel = list.filter(t => !(t.parentTaskId && ids.has(t.parentTaskId)));
+    return topLevel.map(t => renderTaskNode(t, ids));
+  };
+
   // 헤더 셀 렌더링 — 1줄 모드에서는 tableCols 전체, 2줄 모드에서는 line1Cols/line2Cols로 나눠 호출
   const renderHeaderCols = (cols: TableCol[]) => cols.flatMap(col => {
     if (col.kind === 'custom') {
@@ -1625,19 +1634,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
                 )}
                 <span className="text-[11px] text-gray-400 ml-0.5">{grpTasks.length}건</span>
               </div>
-              {grpTasks.map(t => (
-                <div key={t.id}>
-                  {renderGroupBadge(t)}
-                  {renderTaskRow(t)}
-                </div>
-              ))}
+              {renderTaskList(grpTasks)}
             </div>
-          )) : (() => {
-            const filteredIds = new Set(filtered.map(t => t.id));
-            // 부모가 같이 보이는 하위 업무는 최상위 목록에서 빼서 부모 아래 들여쓰기로만 보여줌
-            const topLevel = filtered.filter(t => !(t.parentTaskId && filteredIds.has(t.parentTaskId)));
-            return topLevel.map(t => renderTaskNode(t, filteredIds));
-          })()}
+          )) : renderTaskList(filtered)}
         </div>
         </Line2ScrollSyncContext.Provider>
       </div>

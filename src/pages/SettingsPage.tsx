@@ -3,7 +3,7 @@ import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus,
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
-import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS } from '../types';
+import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -1652,6 +1652,115 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         onSaveOrder={saveOrder}
         onSaveDrag={saveDrag}
       />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
+// 업무 귀속(그룹) 시 상위 업무와 동기화할 항목 편집기 (팀 탭 내)
+// 후보 항목은 폼설정(빌트인 필드) + 업무 정보(metaFields) + 추가 정보(customFields)를
+// 모두 합쳐서 보여줌 — FormBuilder/MetaFieldsEditor가 각각 관리하는 두 시스템을
+// 가로질러 참조해야 해서 별도 컴포넌트로 분리함
+// ──────────────────────────────────────────
+function GroupSyncFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfig }: {
+  team: Team;
+  onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
+}) {
+  const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
+  const currentPart = selectedTarget !== 'team' ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const effectiveConfig = currentPart ? mergeFormConfig(currentPart.formConfig, team.formConfig) : team.formConfig;
+  const isInherited = selectedTarget !== 'team' && !currentPart?.formConfig;
+
+  const builtinCandidates = resolveBuiltinFields(effectiveConfig)
+    .filter(f => f.enabled && f.key !== 'title' && f.key !== 'weeklyHours' && f.key !== 'revisionLevel')
+    .map(f => ({ key: f.key as string, label: f.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key }));
+  const metaCandidates = (currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS)
+    .map(f => ({ key: f.key, label: f.label }));
+  const customCandidates = (effectiveConfig?.customFields ?? [])
+    .filter(cf => cf.enabled !== false)
+    .map(cf => ({ key: cf.id, label: cf.label }));
+
+  const seen = new Set<string>();
+  const candidates: { key: string; label: string }[] = [];
+  [...builtinCandidates, ...metaCandidates, ...customCandidates].forEach(c => {
+    if (!seen.has(c.key)) { seen.add(c.key); candidates.push(c); }
+  });
+
+  const selectedKeys = new Set(resolveGroupSyncFields(effectiveConfig));
+
+  const saveKeys = (newList: string[]) => {
+    const config: TeamFormConfig = {
+      builtinFields: resolveBuiltinFields(effectiveConfig),
+      customFields: effectiveConfig?.customFields ?? [],
+      statusConfigs: effectiveConfig?.statusConfigs,
+      fieldOrder: effectiveConfig?.fieldOrder,
+      groupSyncFields: newList,
+    };
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
+  };
+
+  const toggle = (key: string) => {
+    const cur = resolveGroupSyncFields(effectiveConfig);
+    saveKeys(cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]);
+  };
+
+  return (
+    <div className="space-y-4">
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSelectedTarget('team')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                selectedTarget === 'team' ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}>
+              팀 기본
+            </button>
+            {team.parts.map(p => (
+              <button key={p.id}
+                onClick={() => setSelectedTarget(p.id)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  selectedTarget === p.id ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                }`}>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${p.color}`} />
+                {p.name}
+                {p.formConfig?.groupSyncFields && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+              </button>
+            ))}
+          </div>
+          {isInherited && (
+            <p className="text-[11px] text-gray-400 mt-1.5">이 파트는 팀 기본값을 따르고 있어요. 아래에서 바꾸면 이 파트에만 별도로 적용됩니다.</p>
+          )}
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">그룹 귀속 시 함께 가져올 항목</p>
+          <div className="flex gap-2">
+            <button onClick={() => saveKeys(candidates.map(c => c.key))} className="text-[11px] text-blue-500 hover:text-blue-700 font-medium">전체 선택</button>
+            <button onClick={() => saveKeys([])} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">선택 해제</button>
+          </div>
+        </div>
+        {candidates.length === 0 ? (
+          <p className="text-xs text-gray-400 py-4 text-center">등록된 항목이 없습니다</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {candidates.map(c => (
+              <label key={c.key} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={selectedKeys.has(c.key)} onChange={() => toggle(c.key)} className="w-3.5 h-3.5" />
+                {c.label}
+              </label>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-gray-400 mt-2">
+          제목·세부업무·시간 데이터는 항상 개별로 유지되어 후보에 나오지 않습니다. 체크한 항목은 이 업무가 다른 업무에 귀속됐을 때 상위 업무 값으로 실시간 동기화되고, 하위 업무 상세에서는 읽기 전용으로 잠깁니다.
+        </p>
+      </div>
     </div>
   );
 }
@@ -6471,7 +6580,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync'>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -6712,7 +6821,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support', 'groupSync'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -6720,7 +6829,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : '지원팀'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : tab === 'support' ? '지원팀' : '귀속 동기화'}
                       </button>
                     ))}
                   </div>
@@ -6863,6 +6972,17 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onUpdateTeam={onUpdateTeam}
                         onUpdatePartTaskListTwoLine={onUpdatePartTaskListTwoLine}
                         onClearPartTaskListTwoLine={onClearPartTaskListTwoLine}
+                      />
+                    </div>
+                  )}
+
+                  {/* 귀속(그룹) 동기화 항목 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'groupSync' && (
+                    <div className="px-5 py-4">
+                      <GroupSyncFieldsEditor
+                        team={team}
+                        onUpdateFormConfig={onUpdateFormConfig}
+                        onUpdatePartFormConfig={onUpdatePartFormConfig}
                       />
                     </div>
                   )}

@@ -4,13 +4,12 @@ import {
   doc, query, where, writeBatch, deleteField
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Task, SubTask } from '../types';
+import type { Task, SubTask, Team } from '../types';
+import { BUILTIN_FIELDS_META, mergeFormConfig, resolveGroupSyncFields } from '../types';
 
-// 업무 귀속(그룹핑) 시 상위 업무와 실시간으로 동기화되는 공유 항목 — 담당자/기간만
-// 공유하고, 제목·진행상태·유형·세부업무·시간데이터는 하위 업무가 각자 독립적으로 유지
-const GROUP_SYNC_FIELDS = ['assignee', 'startDate', 'endDate'] as const;
+const BUILTIN_KEY_SET = new Set(BUILTIN_FIELDS_META.map(m => m.key as string));
 
-export function useTasks(projectId: string, teamId: string | null) {
+export function useTasks(projectId: string, teamId: string | null, team?: Team | null) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,35 +48,77 @@ export function useTasks(projectId: string, teamId: string | null) {
     await addDoc(collection(db, 'tasks'), payload);
   };
 
+  // 업무 귀속(그룹핑) 시 상위 업무와 동기화할 필드 key 목록 — 팀/파트 설정(폼설정의
+  // groupSyncFields)에서 가져오고, 설정이 없으면 기존 하드코딩 동작과 같은 기본값(담당자/기간)
+  const getSyncKeys = (task: Task): string[] => {
+    const part = team?.parts?.find(p => p.name === task.category);
+    return resolveGroupSyncFields(mergeFormConfig(part?.formConfig, team?.formConfig));
+  };
+
+  // key가 빌트인 필드면 최상위 필드로, 그 외(추가정보/업무정보 커스텀 필드 id)면
+  // customFields 맵 안에 병합해 patch 객체를 만듦
+  const buildSyncPatch = (keys: string[], source: Partial<Task>, targetCustomFields: Record<string, string> | undefined) => {
+    const patch: Record<string, unknown> = {};
+    let customPatch: Record<string, string> | null = null;
+    keys.forEach(key => {
+      if (BUILTIN_KEY_SET.has(key)) {
+        patch[key] = (source as unknown as Record<string, unknown>)[key];
+      } else {
+        if (!customPatch) customPatch = { ...(targetCustomFields ?? {}) };
+        customPatch[key] = source.customFields?.[key] ?? '';
+      }
+    });
+    if (customPatch) patch.customFields = customPatch;
+    return patch;
+  };
+
   const updateTask = async (id: string, data: Partial<Task>) => {
     const now = new Date().toISOString();
     await updateDoc(doc(db, 'tasks', id), { ...data, updatedAt: now });
 
-    // 귀속(그룹) 공유 항목이 바뀌면 이 업무에 귀속된 하위 업무들에도 실시간으로 반영
-    if (GROUP_SYNC_FIELDS.some(f => f in data)) {
-      const children = tasks.filter(t => t.parentTaskId === id);
-      if (children.length > 0) {
-        const patch = Object.fromEntries(GROUP_SYNC_FIELDS.filter(f => f in data).map(f => [f, data[f]]));
-        const batch = writeBatch(db);
-        children.forEach(c => batch.update(doc(db, 'tasks', c.id), { ...patch, updatedAt: now }));
-        await batch.commit();
-      }
-    }
+    // 귀속(그룹) 공유 항목이 바뀌면 이 업무에 귀속된 하위 업무들에도 실시간으로 반영.
+    // "무엇이 바뀌었는지"는 tasks state(지연 가능)가 아니라 방금 들어온 data 그대로 사용.
+    const changedKeys = Object.keys(data).filter(k => k !== 'updatedAt' && k !== 'customFields');
+    const changedCustomKeys = data.customFields ? Object.keys(data.customFields) : [];
+    if (changedKeys.length === 0 && changedCustomKeys.length === 0) return;
+
+    const children = tasks.filter(t => t.parentTaskId === id);
+    if (children.length === 0) return;
+
+    const batch = writeBatch(db);
+    let any = false;
+    children.forEach(child => {
+      const syncKeys = new Set(getSyncKeys(child));
+      const keysToApply = [
+        ...changedKeys.filter(k => syncKeys.has(k)),
+        ...changedCustomKeys.filter(k => syncKeys.has(k)),
+      ];
+      if (keysToApply.length === 0) return;
+      // data 자체를 소스로 patch 구성 — customFields 변경분은 data.customFields에서 값을 가져옴
+      const patch = buildSyncPatch(keysToApply, data, child.customFields);
+      any = true;
+      batch.update(doc(db, 'tasks', child.id), { ...patch, updatedAt: now });
+    });
+    if (any) await batch.commit();
   };
 
   const deleteTask = async (id: string) => {
     await deleteDoc(doc(db, 'tasks', id));
   };
 
-  // 선택한 업무들(childIds)을 parentId 업무에 귀속시킴 — 귀속 즉시 담당자/기간을
-  // 상위 업무 값으로 맞춰, 다음 상위 업무 수정을 기다리지 않아도 되게 함
+  // 선택한 업무들(childIds)을 parentId 업무에 귀속시킴 — 귀속 즉시 각 자식의 팀/파트
+  // 설정에 맞는 항목들을 상위 업무 값으로 맞춰, 다음 상위 업무 수정을 기다리지 않아도 되게 함
   const groupTasks = async (childIds: string[], parentId: string) => {
     const parent = tasks.find(t => t.id === parentId);
     if (!parent) return;
     const now = new Date().toISOString();
-    const patch = Object.fromEntries(GROUP_SYNC_FIELDS.map(f => [f, parent[f]]));
     const batch = writeBatch(db);
-    childIds.forEach(id => batch.update(doc(db, 'tasks', id), { parentTaskId: parentId, ...patch, updatedAt: now }));
+    childIds.forEach(id => {
+      const child = tasks.find(t => t.id === id);
+      const syncKeys = getSyncKeys(child ?? parent);
+      const patch = buildSyncPatch(syncKeys, parent, child?.customFields);
+      batch.update(doc(db, 'tasks', id), { parentTaskId: parentId, ...patch, updatedAt: now });
+    });
     await batch.commit();
   };
 

@@ -420,9 +420,9 @@ function App() {
   const menuEnabled = (path: string) => isMenuEnabled(path.replace(/^\//, ''), activeWorkplaceMenuConfig);
 
   const currentProject = projects.find(p => p.id === projectId) ?? null;
-  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks, groupTasks, removeFromGroup } = useTasks(projectId, activeTeamId);
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
+  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks, groupTasks, removeFromGroup } = useTasks(projectId, activeTeamId, selectedTeam);
   // 담당자 목록: 이 근무지에서의 기본 팀(defaultTeamIdByWorkplace)이 설정돼 있으면 그 기준으로,
   // 없으면 selectedTeamIds로 판단
   const getDefaultTeamId = (u: { defaultTeamIdByWorkplace?: Record<string, string> }) =>

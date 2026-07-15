@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
-import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
@@ -1131,8 +1131,9 @@ export default function TaskDetailPanel({
       return today >= v.date && today <= endStr;
     });
   };
-  // 상위 업무에 귀속된 경우 담당자/기간은 상위 업무 값으로 실시간 동기화되므로 이 패널에서는 잠금
-  const groupLocked = !!parentTask;
+  // 상위 업무에 귀속된 경우, 팀/파트에서 설정한 동기화 항목은 상위 업무 값으로 실시간
+  // 반영되므로 이 패널에서는 해당 항목만 개별적으로 읽기 전용 처리
+  const groupSyncKeys = new Set(parentTask ? resolveGroupSyncFields(formConfig) : []);
   const builtinFields = resolveBuiltinFields(formConfig);
   const bfVisible = (key: BuiltinFieldKey) => {
     const fc = builtinFields.find(f => f.key === key);
@@ -1622,7 +1623,14 @@ export default function TaskDetailPanel({
             const row1Fields = builtinFields.filter(f => (f.key === 'type' || f.key === 'status') && bfVisible(f.key));
             const showTaskMonth = bfVisible('taskMonth');
             const renderField = (fc: typeof builtinFields[0]) => {
-              const lbl = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
+              const lbl0 = fc.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === fc.key)?.label ?? fc.key;
+              const fieldLocked = groupSyncKeys.has(fc.key);
+              const lbl = (
+                <span className="flex items-center gap-1">
+                  {lbl0}
+                  {fieldLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                </span>
+              );
               if (fc.key === 'status') {
                 if (fc.customType === 'select' && fc.options?.length) {
                   const firstOpt = fc.options[0] ?? '';
@@ -1634,7 +1642,7 @@ export default function TaskDetailPanel({
                   return (
                     <div key="status">
                       <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
-                      {canManage ? (
+                      {canManage && !fieldLocked ? (
                         <div className="relative block w-full">
                           <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
                             style={{ backgroundColor: bg, color: textColor }}>
@@ -1658,7 +1666,7 @@ export default function TaskDetailPanel({
                 return (
                   <div key="status">
                     <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
-                    {canManage ? (
+                    {canManage && !fieldLocked ? (
                       <div className="relative block w-full">
                         <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
                           style={{ backgroundColor: sc?.bg, color: sc?.text }}>
@@ -1692,7 +1700,7 @@ export default function TaskDetailPanel({
               return (
                 <div key="type">
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
-                  {canManage ? (
+                  {canManage && !fieldLocked ? (
                     typeColor ? (
                       <div className="relative block w-full">
                         <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
@@ -1749,15 +1757,20 @@ export default function TaskDetailPanel({
             const showCategoryCol = (parts.length > 0 || isCustomCategory) && bfVisible('category');
             const showReceiverCol = bfVisible('receiver');
             const showAssigneeCol = bfVisible('assignee');
+            const categoryLocked = groupSyncKeys.has('category');
+            const receiverLocked = groupSyncKeys.has('receiver');
 
             const categoryItem = showCategoryCol ? (
               <div key="category">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('category')}</p>
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                  {fieldLabel('category')}
+                  {categoryLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                </p>
                 {isCustomCategory ? (
                   (() => {
                     const custColor = categoryFc!.optionColors?.[task.category];
                     const partDotColor = parts.find(p => p.name === task.category)?.color ?? 'bg-gray-300';
-                    return canManage ? (
+                    return canManage && !categoryLocked ? (
                       <div className="relative block w-full">
                         {custColor ? (
                           <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
@@ -1791,7 +1804,7 @@ export default function TaskDetailPanel({
                       )
                     );
                   })()
-                ) : canManage ? (
+                ) : canManage && !categoryLocked ? (
                   <select className="text-sm text-gray-700 bg-transparent border-none focus:outline-none cursor-pointer -ml-0.5 w-full truncate"
                     value={task.category} onChange={e => onUpdate(task.id, { category: e.target.value })}>
                     {parts.map(p => <option key={p.id}>{p.name}</option>)}
@@ -1802,8 +1815,11 @@ export default function TaskDetailPanel({
 
             const receiverItem = showReceiverCol ? (
               <div key="receiver">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{fieldLabel('receiver')}</p>
-                {canManage ? (
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                  {fieldLabel('receiver')}
+                  {receiverLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                </p>
+                {canManage && !receiverLocked ? (
                   isReceiverCustomSelect ? (
                     <div className="relative flex items-center gap-1 cursor-pointer">
                       <span className="text-sm text-gray-700 truncate">{task.receiver || '-'}</span>
@@ -1830,13 +1846,14 @@ export default function TaskDetailPanel({
               </div>
             ) : null;
 
+            const assigneeLocked = groupSyncKeys.has('assignee');
             const assigneeItem = showAssigneeCol ? (
               <div key="assignee">
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
                   {fieldLabel('assignee')}
-                  {groupLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                  {assigneeLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
                 </p>
-                {canManage && !groupLocked ? (
+                {canManage && !assigneeLocked ? (
                   isAssigneeCustomSelect ? (
                     <div className="relative flex items-center gap-1 cursor-pointer">
                       <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
@@ -1892,19 +1909,23 @@ export default function TaskDetailPanel({
           })()}
 
           {/* 행 3: 기간 */}
-          {(bfVisible('startDate') || bfVisible('endDate')) && (
-            <div className="py-2.5">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                기간
-                {groupLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
-              </p>
-              <div className="flex items-center gap-2">
-                {bfVisible('startDate') && <DatePicker value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage || groupLocked} />}
-                {bfVisible('startDate') && bfVisible('endDate') && <span className="text-gray-300 text-xs">→</span>}
-                {bfVisible('endDate') && <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage || groupLocked} />}
+          {(bfVisible('startDate') || bfVisible('endDate')) && (() => {
+            const startLocked = groupSyncKeys.has('startDate');
+            const endLocked = groupSyncKeys.has('endDate');
+            return (
+              <div className="py-2.5">
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                  기간
+                  {(startLocked || endLocked) && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                </p>
+                <div className="flex items-center gap-2">
+                  {bfVisible('startDate') && <DatePicker value={task.startDate ?? ''} onChange={v => onUpdate(task.id, { startDate: v })} disabled={!canManage || startLocked} />}
+                  {bfVisible('startDate') && bfVisible('endDate') && <span className="text-gray-300 text-xs">→</span>}
+                  {bfVisible('endDate') && <DatePicker value={task.endDate ?? ''} onChange={v => onUpdate(task.id, { endDate: v })} disabled={!canManage || endLocked} />}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 행 4: 수정단계 항목별 횟수 (활성화된 경우만, PL업무 제외) */}
           {!task.plTask && builtinFields.find(f => f.key === 'revisionLevel')?.enabled && bfVisible('revisionLevel') && (
@@ -2574,6 +2595,7 @@ export default function TaskDetailPanel({
               <div className="space-y-2">
                 {cfs.map(cf => {
                   const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const editable = canManage && !groupSyncKeys.has(cf.id);
                   const handleBlur = (v: string) => {
                     onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } });
                   };
@@ -2596,11 +2618,14 @@ export default function TaskDetailPanel({
                   }
                   return (
                     <div key={cf.id} className="flex items-center gap-2">
-                      <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{cf.label}</span>
+                      <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate flex items-center gap-1">
+                        {cf.label}
+                        {groupSyncKeys.has(cf.id) && <Lock size={9} className="text-gray-300 flex-shrink-0" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                      </span>
                       <div className="flex-1 min-w-0">
                         {cfType === 'select' && (manualCustomFields.has(cf.id) || (!!val && !opts.includes(val))) ? (
                           <div className="flex items-center gap-1.5">
-                            <input type="text" readOnly={!canManage} value={manualFieldDrafts[cf.id] ?? val}
+                            <input type="text" readOnly={!editable} value={manualFieldDrafts[cf.id] ?? val}
                               onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
                               onBlur={e => {
                                 handleBlur(e.target.value);
@@ -2608,7 +2633,7 @@ export default function TaskDetailPanel({
                               }}
                               placeholder="직접 입력"
                               className={cls} />
-                            {canManage && (
+                            {editable && (
                               <button type="button"
                                 onClick={() => {
                                   setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
@@ -2637,7 +2662,7 @@ export default function TaskDetailPanel({
                                 <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
                               </div>
                             )}
-                            <select disabled={!canManage} value={val}
+                            <select disabled={!editable} value={val}
                               onChange={e => {
                                 if (cfType === 'select' && e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
                                   setManualCustomFields(prev => new Set(prev).add(cf.id));
@@ -2646,22 +2671,22 @@ export default function TaskDetailPanel({
                                 }
                                 handleBlur(e.target.value);
                               }}
-                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
+                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: editable ? 'pointer' : 'default' }}>
                               <option value="">-</option>
                               {opts.map(o => <option key={o}>{o}</option>)}
                               {cfType === 'select' && <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>}
                             </select>
                           </div>
                         ) : cfType === 'date' ? (
-                          <DatePicker value={val} onChange={handleBlur} disabled={!canManage} btnClassName={cls} />
+                          <DatePicker value={val} onChange={handleBlur} disabled={!editable} btnClassName={cls} />
                         ) : cfType === 'number' ? (
-                          <input type="number" readOnly={!canManage} value={val}
+                          <input type="number" readOnly={!editable} value={val}
                             onChange={e => handleBlur(e.target.value)}
                             onBlur={e => handleBlur(e.target.value)}
                             className={cls} />
                         ) : cfType === 'link' ? (
                           <div className="flex items-center gap-px">
-                            <input type="url" readOnly={!canManage} value={val}
+                            <input type="url" readOnly={!editable} value={val}
                               onChange={e => handleBlur(e.target.value)}
                               onBlur={e => handleBlur(e.target.value)}
                               placeholder="https://"
@@ -2669,7 +2694,7 @@ export default function TaskDetailPanel({
                             {val && <a href={val} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-blue-400 hover:text-blue-500"><ExternalLink size={13} /></a>}
                           </div>
                         ) : (
-                          <input type="text" readOnly={!canManage} value={val}
+                          <input type="text" readOnly={!editable} value={val}
                             onChange={e => handleBlur(e.target.value)}
                             onBlur={e => handleBlur(e.target.value)}
                             placeholder="-"
@@ -2695,14 +2720,18 @@ export default function TaskDetailPanel({
               const displayVal = kind === 'path' ? convertPath(val) : val;
               const manualId = `meta_${key}`;
               const opts = mf.options ?? [];
+              const editable = canManage && !groupSyncKeys.has(key);
               return (
                 <div key={key} className="flex items-center gap-2">
-                  <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate">{label}</span>
+                  <span className="text-[11px] text-gray-600 w-[96px] flex-shrink-0 truncate flex items-center gap-1">
+                    {label}
+                    {groupSyncKeys.has(key) && <Lock size={9} className="text-gray-300 flex-shrink-0" title={`${parentTask!.title} 업무에서 상속됨`} />}
+                  </span>
                   <div className="flex-1 flex items-center gap-1 min-w-0">
                     {kind === 'select' ? (
                       (manualCustomFields.has(manualId) || (!!val && !opts.includes(val))) ? (
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <input type="text" readOnly={!canManage} value={manualFieldDrafts[manualId] ?? val}
+                          <input type="text" readOnly={!editable} value={manualFieldDrafts[manualId] ?? val}
                             onChange={e => setManualFieldDrafts(prev => ({ ...prev, [manualId]: e.target.value }))}
                             onBlur={e => {
                               handleMetaBlur(key, e.target.value);
@@ -2710,7 +2739,7 @@ export default function TaskDetailPanel({
                             }}
                             placeholder="직접 입력"
                             className="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50" />
-                          {canManage && (
+                          {editable && (
                             <button type="button"
                               onClick={() => {
                                 setManualCustomFields(prev => { const next = new Set(prev); next.delete(manualId); return next; });
@@ -2728,7 +2757,7 @@ export default function TaskDetailPanel({
                             <span className="truncate">{val || '-'}</span>
                             <ChevronDown size={11} className="flex-shrink-0 ml-1.5 text-gray-400" />
                           </div>
-                          <select disabled={!canManage} value={val}
+                          <select disabled={!editable} value={val}
                             onChange={e => {
                               if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
                                 setManualCustomFields(prev => new Set(prev).add(manualId));
@@ -2737,7 +2766,7 @@ export default function TaskDetailPanel({
                               }
                               handleMetaBlur(key, e.target.value);
                             }}
-                            className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: canManage ? 'pointer' : 'default' }}>
+                            className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default" style={{ cursor: editable ? 'pointer' : 'default' }}>
                             <option value="">-</option>
                             {opts.map(o => <option key={o}>{o}</option>)}
                             <option value={CUSTOM_FIELD_MANUAL_OPTION}>+ 직접 입력</option>
@@ -2745,14 +2774,14 @@ export default function TaskDetailPanel({
                         </div>
                       )
                     ) : kind === 'date' ? (
-                      <DatePicker value={val} onChange={v => handleMetaBlur(key, v)} disabled={!canManage}
+                      <DatePicker value={val} onChange={v => handleMetaBlur(key, v)} disabled={!editable}
                         btnClassName="flex-1 min-w-0 text-xs text-gray-800 bg-black/[0.07] rounded-lg px-2.5 py-1.5 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50" />
                     ) : (
                       <>
                         <input
                           type={kind === 'url' ? 'url' : 'text'}
-                          readOnly={!canManage}
-                          placeholder={canManage ? (kind === 'url' ? 'https://' : kind === 'path' ? '경로 입력' : '-') : '-'}
+                          readOnly={!editable}
+                          placeholder={editable ? (kind === 'url' ? 'https://' : kind === 'path' ? '경로 입력' : '-') : '-'}
                           value={kind === 'path' ? displayVal : val}
                           onChange={e => setLocalMeta(prev => ({ ...prev, [key]: e.target.value }))}
                           onBlur={e => handleMetaBlur(key, kind === 'path' ? val : e.target.value)}

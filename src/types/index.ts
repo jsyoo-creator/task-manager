@@ -540,6 +540,17 @@ export interface TeamFormConfig {
   customFields: CustomFormField[];
   statusConfigs?: StatusConfig[];
   fieldOrder?: string[]; // 기본+커스텀 통합 순서 (builtin key 또는 custom field id)
+  groupSyncFields?: string[]; // 업무 귀속(그룹) 시 상위 업무와 동기화할 필드 key 목록.
+                               // BuiltinFieldKey 또는 customFields의 cf.id를 섞어서 저장 (fieldOrder와 동일한 패턴)
+}
+
+// 그룹 동기화 항목을 팀/파트에서 아직 설정하지 않았을 때의 기본값 (기존 하드코딩 동작과 동일)
+export const DEFAULT_GROUP_SYNC_FIELDS: string[] = ['assignee', 'startDate', 'endDate'];
+
+export function resolveGroupSyncFields(config?: TeamFormConfig): string[] {
+  // groupSyncFields가 빈 배열([])인 것과 아예 설정한 적 없는 것(undefined)은 다르게 취급 —
+  // 빈 배열은 "관리자가 의도적으로 전부 해제함"이므로 기본값으로 되돌리면 안 됨
+  return config?.groupSyncFields !== undefined ? config.groupSyncFields : DEFAULT_GROUP_SYNC_FIELDS;
 }
 
 export function resolveStatusConfigs(config?: TeamFormConfig): StatusConfig[] {
@@ -618,7 +629,13 @@ export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConf
   ];
   // 파트에 fieldOrder가 없으면 팀 기본 fieldOrder 상속
   const fieldOrder = partConfig.fieldOrder ?? teamConfig.fieldOrder;
-  return { ...partConfig, builtinFields: merged, customFields: mergedCfs, ...(fieldOrder ? { fieldOrder } : {}) };
+  // 파트에 그룹 동기화 항목 설정이 없으면 팀 기본값 상속
+  const groupSyncFields = partConfig.groupSyncFields ?? teamConfig.groupSyncFields;
+  return {
+    ...partConfig, builtinFields: merged, customFields: mergedCfs,
+    ...(fieldOrder ? { fieldOrder } : {}),
+    ...(groupSyncFields ? { groupSyncFields } : {}),
+  };
 }
 
 /**

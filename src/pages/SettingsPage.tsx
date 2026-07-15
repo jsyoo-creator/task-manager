@@ -1678,9 +1678,13 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
   const isInherited = selectedTarget !== 'team' && !currentPart?.formConfig;
   const resolveFields = configKey === 'groupSyncFields' ? resolveGroupSyncFields : resolveDupeCheckFields;
 
+  // 담당자/접수자/기간/상태/유형/파트 등은 팀이 폼에서 안 보이게 꺼뒀어도 모든 업무에
+  // 실제로 존재하는 필수 필드라(Task 타입 자체가 항상 값을 가짐) 동기화/중복체크 후보에서는
+  // enabled 여부와 무관하게 항상 보여줌 — 안 그러면 이 필드들이 꺼져있는 팀은 실제로는
+  // 기본값(담당자/기간)이 그대로 동기화되고 있는데도 화면에서 아예 안 보여서 체크 해제가 불가능함
   const excludeSet = new Set(excludeKeys);
   const builtinCandidates = resolveBuiltinFields(effectiveConfig)
-    .filter(f => f.enabled && !excludeSet.has(f.key))
+    .filter(f => !excludeSet.has(f.key))
     .map(f => ({ key: f.key as string, label: f.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key }));
   const metaCandidates = (currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS)
     .filter(f => !excludeSet.has(f.key))

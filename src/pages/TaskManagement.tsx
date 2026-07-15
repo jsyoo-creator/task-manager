@@ -1081,7 +1081,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     setDragOverId(null);
   };
 
-  const renderTaskRow = (task: Task, opts?: { flattenBottom?: boolean }) => {
+  const renderTaskRow = (task: Task) => {
     const taskPart = parts?.find(p => p.name === task.category);
     const resolvedMetaFields = taskPart?.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS;
     const resolvedFormConfig = taskPart?.formConfig ? mergeFormConfig(taskPart.formConfig, formConfig) : formConfig;
@@ -1128,7 +1128,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           next.has(task.id) ? next.delete(task.id) : next.add(task.id);
           return next;
         })}
-        flattenBottom={opts?.flattenBottom}
       />
     );
   };
@@ -1173,7 +1172,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         )}
         {isOrphanChild && renderGroupBadge(task)}
         <div style={depth > 0 ? { paddingLeft: 16, marginLeft: 16, borderLeft: '3px solid #c7d2fe' } : undefined}>
-          {renderTaskRow(task, { flattenBottom: hasChildren && !collapsed })}
+          {renderTaskRow(task)}
         </div>
         {!collapsed && children.map(c => renderTaskNode(c, filteredIds, depth + 1))}
       </>
@@ -2054,7 +2053,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
     : <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">{name.slice(0, 1)}</div>;
 }
 
-function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, line2Cols, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect, flattenBottom }: {
+function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCopy, canManage, canDelete, parts, assignees, teamMembers, tableFields, tableCfs, tableCols, statusConfigs, twoLineMode, rowFieldsTemplate1, rowFieldsTemplate2, line2Cols, monthColWidth, rowMinWidth, metaFields, formConfig, isDragging, isDragOver, isActive, expanded, onToggleExpand, onDragStart, onDragOver, onDrop, onDragEnd, userPhotoMap, partColor, selected, onSelect }: {
   task: Task;
   onUpdate: (id: string, data: Partial<Task>) => void;
   onDelete: (id: string) => void;
@@ -2091,7 +2090,6 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   partColor: (cat: string) => string;
   selected?: boolean;
   onSelect?: () => void;
-  flattenBottom?: boolean; // 귀속 그룹의 상위 업무 행: 바로 아래 하위 업무가 이어지므로 아래쪽 모서리는 각지게
 }) {
   const [metaCopied, setMetaCopied] = useState(false);
   const [copiedUrlKey, setCopiedUrlKey] = useState<string | null>(null);
@@ -2193,7 +2191,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   return (
     <div
       className={twoLineMode
-        ? `${flattenBottom ? 'rounded-t-xl' : 'rounded-xl mb-2'} border overflow-hidden bg-white transition-all ${isActive ? 'border-[#6C63FF]/50' : 'border-black/8'} ${isDragOver ? 'border-t-2 border-t-[#6C63FF]' : ''}`
+        ? `rounded-xl border overflow-hidden bg-white mb-2 transition-all ${isActive ? 'border-[#6C63FF]/50' : 'border-black/8'} ${isDragOver ? 'border-t-2 border-t-[#6C63FF]' : ''}`
         : `border-b border-black/4 last:border-0 transition-all ${isDragOver ? 'border-t-2 border-[#6C63FF]' : ''} ${isActive ? 'border-l-2 border-l-[#6C63FF]' : ''}`
       }
       style={twoLineMode ? { minWidth: rowMinWidth } : undefined}

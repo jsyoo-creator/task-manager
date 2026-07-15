@@ -821,8 +821,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
   const [builtinColorPickerIdx, setBuiltinColorPickerIdx] = useState<number | null>(null);
   const [builtinDependsOnId, setBuiltinDependsOnId] = useState('');
   const [builtinValueMapInput, setBuiltinValueMapInput] = useState<Record<string, string[]>>({});
+  // status 필드 전용: 이 옵션들 중 어떤 걸 "완료"로 취급할지(완료 숨기기가 인식하도록)
+  const [builtinCompletedValuesInput, setBuiltinCompletedValuesInput] = useState<string[]>([]);
   const builtinOptionColorsRef = useRef(builtinOptionColors);
   builtinOptionColorsRef.current = builtinOptionColors;
+  const builtinCompletedValuesRef = useRef(builtinCompletedValuesInput);
+  builtinCompletedValuesRef.current = builtinCompletedValuesInput;
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -902,6 +906,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
         options: isSelect ? validOpts : undefined,
         optionColors: isSelect && Object.keys(builtinOptionColorsRef.current).length > 0 ? builtinOptionColorsRef.current : undefined,
+        completedValues: key === 'status' && isSelect && builtinCompletedValuesRef.current.length > 0
+          ? builtinCompletedValuesRef.current.filter(v => validOpts.includes(v))
+          : undefined,
         dependsOn: isSelect && builtinDependsOnId ? { fieldId: builtinDependsOnId, valueMap: cleanValueMap } : undefined,
       } : f
     );
@@ -1070,10 +1077,29 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                                   if (builtinOptionColors[old]) {
                                     setBuiltinOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
                                   }
+                                  if (builtinCompletedValuesInput.includes(old)) {
+                                    setBuiltinCompletedValuesInput(prev => next ? prev.map(v => v === old ? next : v) : prev.filter(v => v !== old));
+                                  }
                                 }}
                               />
+                              {fc.key === 'status' && opt.trim() && (
+                                <button type="button"
+                                  title="완료 숨기기에서 완료로 취급"
+                                  onClick={() => setBuiltinCompletedValuesInput(prev => prev.includes(opt) ? prev.filter(v => v !== opt) : [...prev, opt])}
+                                  className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                                    builtinCompletedValuesInput.includes(opt)
+                                      ? 'bg-emerald-500 text-white border-emerald-500'
+                                      : 'border-gray-300 text-gray-400 hover:border-gray-400'
+                                  }`}>
+                                  완료
+                                </button>
+                              )}
                               {builtinOptionsInput.length > 1 && (
-                                <button type="button" onClick={() => { setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx)); setBuiltinOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
+                                <button type="button" onClick={() => {
+                                  setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx));
+                                  setBuiltinOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; });
+                                  setBuiltinCompletedValuesInput(prev => prev.filter(v => v !== opt));
+                                }}
                                   className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
                               )}
                             </div>
@@ -1141,10 +1167,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                           setTypeInput('select');
                           setBuiltinOptionsInput([...DEFAULT_STATUS_CONFIGS.map(s => s.label), '']);
                           setBuiltinOptionColors(Object.fromEntries(DEFAULT_STATUS_CONFIGS.map(s => [s.label, { bg: s.bg, text: s.text }])));
+                          setBuiltinCompletedValuesInput(['완료']);
                         } else {
                           setTypeInput(fc.customType ?? 'default');
                           setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']);
                           setBuiltinOptionColors(fc.optionColors ?? {});
+                          setBuiltinCompletedValuesInput(fc.completedValues ?? []);
                         }
                         setBuiltinDependsOnId(fc.dependsOn?.fieldId ?? '');
                         setBuiltinValueMapInput(fc.dependsOn?.valueMap ?? {});
@@ -1730,6 +1758,23 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
     saveKeys(cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]);
   };
 
+  // 완료 숨기기 시, 하위 업무 중 미완료가 있으면 상위 업무를 계속 보여줄지 여부
+  // (groupSyncFields 화면에서만 노출 — dupeCheckFields와는 무관한 설정)
+  const keepParentIfChildIncomplete = effectiveConfig?.groupKeepParentIfChildIncomplete ?? false;
+  const saveKeepParent = (value: boolean) => {
+    const config: TeamFormConfig = {
+      builtinFields: resolveBuiltinFields(effectiveConfig),
+      customFields: effectiveConfig?.customFields ?? [],
+      statusConfigs: effectiveConfig?.statusConfigs,
+      fieldOrder: effectiveConfig?.fieldOrder,
+      groupSyncFields: effectiveConfig?.groupSyncFields,
+      dupeCheckFields: effectiveConfig?.dupeCheckFields,
+      groupKeepParentIfChildIncomplete: value,
+    };
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
+  };
+
   return (
     <div className="space-y-4">
       {team.parts.length > 0 && (
@@ -1787,6 +1832,22 @@ function TeamFieldPicker({ team, configKey, heading, description, excludeKeys = 
         )}
         <p className="text-[11px] text-gray-400 mt-2">{description}</p>
       </div>
+
+      {configKey === 'groupSyncFields' && (
+        <div className="border-t border-gray-100 pt-4">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" checked={keepParentIfChildIncomplete}
+              onChange={e => saveKeepParent(e.target.checked)}
+              className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span className="text-xs text-gray-700">
+              완료 숨기기 시, 하위 업무 중 완료 안 된 게 있으면 상위 업무도 계속 표시
+              <span className="block text-[11px] text-gray-400 mt-0.5">
+                꺼두면(기본) 상위 업무가 완료되는 순간 그룹째로 안 보이고, 하위 업무는 낱개로 남아 보입니다.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

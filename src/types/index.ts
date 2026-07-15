@@ -464,6 +464,8 @@ export interface BuiltinFieldConfig {
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   showIn?: 'both' | 'list' | 'detail'; // 표시 위치: 목록/상세/둘다
   dependsOn?: { fieldId: string; valueMap: Record<string, string[]> }; // 연결 필드
+  completedValues?: string[]; // key:'status'일 때, options 중 "완료"로 취급할 값들
+                               // (커스텀 상태 라벨이 리터럴 '완료'가 아니어도 완료 숨기기에서 인식되게 함)
 }
 
 export const BUILTIN_FIELDS_META: { key: BuiltinFieldKey; label: string }[] = [
@@ -544,6 +546,8 @@ export interface TeamFormConfig {
                                // BuiltinFieldKey 또는 customFields의 cf.id를 섞어서 저장 (fieldOrder와 동일한 패턴)
   dupeCheckFields?: string[]; // 엑셀 가져오기 시 기존 업무와 "중복"으로 판단할 필드 key 목록.
                                // groupSyncFields와 동일한 저장 방식(BuiltinFieldKey 또는 customFields/metaFields key)
+  groupKeepParentIfChildIncomplete?: boolean; // 완료 숨기기 시, 하위 업무 중 미완료가 있으면
+                                               // 상위 업무가 완료여도 그룹째로 계속 표시. 기본값 false(기존 동작)
 }
 
 // 그룹 동기화 항목을 팀/파트에서 아직 설정하지 않았을 때의 기본값 (기존 하드코딩 동작과 동일)
@@ -561,6 +565,13 @@ export const DEFAULT_DUPE_CHECK_FIELDS: string[] = ['title', 'category', 'taskMo
 
 export function resolveDupeCheckFields(config?: TeamFormConfig): string[] {
   return config?.dupeCheckFields !== undefined ? config.dupeCheckFields : DEFAULT_DUPE_CHECK_FIELDS;
+}
+
+// 상태 필드가 customType:'select'로 커스터마이징된 팀에서, options 중 어떤 값들을
+// "완료"로 취급할지. 리터럴 '완료'는 항상 완료로 취급되며(호출부에서 별도 처리), 이건
+// 그 외에 추가로 완료로 볼 커스텀 라벨(예: '오픈완료') 목록만 반환
+export function resolveCompletedStatusValues(config?: TeamFormConfig): string[] {
+  return resolveBuiltinFields(config).find(f => f.key === 'status')?.completedValues ?? [];
 }
 
 export function resolveStatusConfigs(config?: TeamFormConfig): StatusConfig[] {
@@ -628,6 +639,7 @@ export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConf
       customType: pf.customType ?? tf.customType,
       options: pf.options ?? tf.options,
       optionColors: pf.optionColors ?? tf.optionColors,
+      completedValues: pf.completedValues ?? tf.completedValues,
       ...(resolveFieldDepts(pf) ? {} : { departments: tf.departments, department: tf.department }),
     };
   });
@@ -643,11 +655,14 @@ export function mergeFormConfig(partConfig: TeamFormConfig | undefined, teamConf
   const groupSyncFields = partConfig.groupSyncFields ?? teamConfig.groupSyncFields;
   // 파트에 중복 체크 기준 설정이 없으면 팀 기본값 상속
   const dupeCheckFields = partConfig.dupeCheckFields ?? teamConfig.dupeCheckFields;
+  // boolean이라 falsy(false)도 유효한 명시적 값 — undefined일 때만 팀 기본값 상속
+  const groupKeepParentIfChildIncomplete = partConfig.groupKeepParentIfChildIncomplete ?? teamConfig.groupKeepParentIfChildIncomplete;
   return {
     ...partConfig, builtinFields: merged, customFields: mergedCfs,
     ...(fieldOrder ? { fieldOrder } : {}),
     ...(groupSyncFields ? { groupSyncFields } : {}),
     ...(dupeCheckFields ? { dupeCheckFields } : {}),
+    ...(groupKeepParentIfChildIncomplete !== undefined ? { groupKeepParentIfChildIncomplete } : {}),
   };
 }
 

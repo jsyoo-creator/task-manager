@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useContext, crea
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields, resolveCompletedStatusValues } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -1019,12 +1019,30 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory]);
 
+  // 상태값이 리터럴 '완료'이거나, 그 업무의 파트/팀에서 "완료로 취급"하도록 지정한
+  // 커스텀 상태 라벨(예: '오픈완료')이면 완료로 판단
+  const isCompletedStatus = (t: Task): boolean => {
+    const normalized = t.status?.replace(/\s/g, '') ?? '';
+    if (normalized === '완료') return true;
+    const taskPart = parts?.find(p => p.name === t.category);
+    const cfg = mergeFormConfig(taskPart?.formConfig, formConfig);
+    return resolveCompletedStatusValues(cfg).some(v => v.replace(/\s/g, '') === normalized);
+  };
+
   const filtered = tasks.filter((t: Task) => {
     if (activeCategory !== 'all' && t.category !== activeCategory) return false;
     if (myTasksOnly && !isMyTask(t)) return false;
     if (canFilterByPerson && assigneeFilter && t.assignee !== assigneeFilter) return false;
     if (canFilterByPerson && receiverFilter && t.receiver !== receiverFilter) return false;
-    if (hideCompleted && (t.status?.replace(/\s/g, '') === '완료')) return false;
+    if (hideCompleted && isCompletedStatus(t)) {
+      // 하위 업무 중 미완료가 있으면 상위 업무를 계속 보여줄지는 팀/파트 설정에 따름(기본 false)
+      const taskPart = parts?.find(p => p.name === t.category);
+      const cfg = mergeFormConfig(taskPart?.formConfig, formConfig);
+      const keepIfIncomplete = cfg?.groupKeepParentIfChildIncomplete ?? false;
+      const hasIncompleteChild = keepIfIncomplete &&
+        (childrenByParent.get(t.id) ?? []).some(c => !isCompletedStatus(c));
+      if (!hasIncompleteChild) return false;
+    }
     if (monthFilter > 0) {
       const prefix = `${yearFilter}-${String(monthFilter).padStart(2, '0')}`;
       if (t.taskMonth) return t.taskMonth === prefix;

@@ -194,13 +194,23 @@ const TITLE_MIN_WIDTH = 300;
 // 팀에 공통으로 줄이기 위함 (팀 설정에 너비 편집 UI 자체가 없어 안전함)
 const DATE_COL_WIDTH = 60;
 
-// 커스텀 필드 컬럼 너비 — select 타입 필드가 8자를 넘는 옵션을 가지고 있으면 그
-// 옵션이 잘리지 않을 만큼 넓힘(말줄임표 대신 실제로 커지는 방식). 8자 이하인
-// 필드는 기존 100px 그대로 유지해 다른 필드(업무구분 등)의 레이아웃에 영향 없음.
-// dependsOn(다른 필드 값에 따라 바뀌는 조건부 옵션)이 있는 필드는 valueMap 안의
-// 모든 후보 옵션까지 함께 고려 — "수정 유형"처럼 실제 긴 옵션이 valueMap에만
-// 들어있고 cf.options(기본 목록)에는 없는 경우를 놓치지 않기 위함.
-const CUSTOM_FIELD_WIDTH_NOGROW_CHARS = 8;
+// 글자 수 기반 추정은 한글/영문/기호가 섞이면 부정확해서 계속 어긋났음 — 브라우저가
+// 실제로 그 텍스트를 그리는 폭을 canvas로 직접 측정해 정확한 값을 구함.
+// 값 span의 실제 스타일(text-xs font-medium ≈ 12px/500)과 최대한 맞춤.
+let customFieldMeasureCtx: CanvasRenderingContext2D | null | undefined;
+function measureTextPx(text: string): number {
+  if (customFieldMeasureCtx === undefined) {
+    customFieldMeasureCtx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    if (customFieldMeasureCtx) customFieldMeasureCtx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  }
+  if (!customFieldMeasureCtx) return text.length * 13; // canvas를 못 쓰는 환경 대비 폴백
+  return customFieldMeasureCtx.measureText(text).width;
+}
+
+// 커스텀 필드 컬럼 너비 — select 타입 필드는 실제 옵션 텍스트의 측정 폭에 맞춰 넓힘
+// (말줄임표 대신 실제로 커지는 방식). dependsOn(다른 필드 값에 따라 바뀌는 조건부
+// 옵션)이 있으면 valueMap 안의 모든 후보 옵션까지 함께 고려 — "수정 유형"처럼 실제
+// 긴 옵션이 valueMap에만 들어있고 cf.options(기본 목록)에는 없는 경우를 놓치지 않기 위함.
 function customFieldWidth(cf: CustomFormField): number {
   if (cf.type !== 'select') return 100;
   const allOptions = [
@@ -208,9 +218,8 @@ function customFieldWidth(cf: CustomFormField): number {
     ...Object.values(cf.dependsOn?.valueMap ?? {}).flat(),
   ];
   if (allOptions.length === 0) return 100;
-  const longest = Math.max(...allOptions.map(o => o.length));
-  if (longest <= CUSTOM_FIELD_WIDTH_NOGROW_CHARS) return 100;
-  return 100 + (longest - CUSTOM_FIELD_WIDTH_NOGROW_CHARS) * 14; // 넘는 글자 수만큼만 비례해서 확장
+  const longestPx = Math.max(...allOptions.map(measureTextPx));
+  return Math.max(100, Math.ceil(longestPx) + 44); // 실측 폭 + 좌우 여백·화살표 아이콘 공간
 }
 
 function buildCols(tableCols: TableCol[]): string {

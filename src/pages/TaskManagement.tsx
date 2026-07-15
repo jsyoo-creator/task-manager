@@ -895,16 +895,30 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const tableCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
   const tableCols = buildTableCols(tableFields, tableCfs, formConfig?.fieldOrder);
   const statusConfigs = resolveStatusConfigs(formConfig);
-  // 커스텀 select 필드 컬럼 너비 계산용 — 옵션 목록뿐 아니라 실제 업무들에 저장된 값도
-  // 함께 재서, "직접 입력"으로 옵션 목록에 없는 긴 텍스트를 쓰는 필드도 폭 계산에 반영되게 함
+  // 커스텀 select 필드 컬럼 너비 계산용. 세 가지를 전부 합쳐서 폭을 계산함:
+  // 1) 실제 업무들에 저장된 값(직접 입력으로 옵션 목록에 없는 값을 쓰는 경우까지 커버)
+  // 2) 지금 활성화된(파트별로 다를 수 있는) formConfig의 옵션 목록
+  // 3) 팀 기본 + 다른 모든 파트의 같은 필드(id) 오버라이드 옵션 목록까지 전부.
+  // 3번이 필요한 이유: 같은 커스텀 필드라도 파트마다 옵션 목록을 각자 다르게 저장해 둘 수
+  // 있는데, 지금 보고 있는 파트의 버전만 보면 그 파트 오버라이드가 우연히 더 짧게(또는
+  // 예전 값으로) 저장돼 있을 때 실제로 표시되는 값이 그보다 길어도 폭이 좁게 계산됨.
+  // 어느 파트를 보고 있든 항상 가장 넓은 값 기준으로 계산되도록 전부 합쳐서 고려함.
   const customValuesByFieldId = useMemo(() => {
     const map = new Map<string, string[]>();
     tableCfs.forEach(cf => {
-      const values = tasks.map(t => t.customFields?.[cf.id]).filter((v): v is string => !!v);
+      const values: string[] = [];
+      tasks.forEach(t => { const v = t.customFields?.[cf.id]; if (v) values.push(v); });
+      [formConfig, ...(parts ?? []).map(p => p.formConfig)].forEach(cfg => {
+        const match = cfg?.customFields?.find(c => c.id === cf.id);
+        if (match) {
+          values.push(...(match.options ?? []));
+          values.push(...Object.values(match.dependsOn?.valueMap ?? {}).flat());
+        }
+      });
       map.set(cf.id, values);
     });
     return map;
-  }, [tasks, tableCfs]);
+  }, [tasks, tableCfs, parts, formConfig]);
 
   const currentTeam = teams.find(t => t.id === currentTeamId);
   // 2줄 구성(업무명만 1번째 줄 / 나머지 필드 2번째 줄) 사용 여부 — 파트 탭이면 그 파트 오버라이드,

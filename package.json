@@ -46,7 +46,7 @@
     "dompurify": "^3.4.11",
     "embla-carousel-react": "8.6.0",
     "firebase": "^12.15.0",
-    "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.2.4",
     "input-otp": "1.4.2",
     "jspdf": "^4.2.1",
     "lucide-react": "0.487.0",

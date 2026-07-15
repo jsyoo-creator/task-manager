@@ -271,7 +271,7 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
     setGeneratingPdf(true);
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import('html2canvas'),
+        import('html2canvas-pro'),
         import('jspdf'),
       ]);
       const canvas = await html2canvas(pdfContentRef.current, {
@@ -312,8 +312,7 @@ function ToolReadView({ tool, allTools, appUser, canManage, hasRecommended, onBa
       pdf.save(`${tool.name.replace(/[\\/:*?"<>|]/g, '')}.pdf`);
     } catch (err) {
       console.error('PDF 생성 실패:', err);
-      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-      alert(`PDF 생성에 실패했습니다.\n\n${detail}`);
+      alert('PDF 생성에 실패했습니다.');
     } finally {
       setGeneratingPdf(false);
     }

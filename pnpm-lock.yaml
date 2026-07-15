@@ -122,9 +122,9 @@ importers:
       firebase:
         specifier: ^12.15.0
         version: 12.15.0
-      html2canvas:
-        specifier: ^1.4.1
-        version: 1.4.1
+      html2canvas-pro:
+        specifier: ^2.2.4
+        version: 2.2.4
       input-otp:
         specifier: 1.4.2
         version: 1.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -2166,6 +2166,10 @@ packages:
 
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
+
+  html2canvas-pro@2.2.4:
+    resolution: {integrity: sha512-fo/VOiQZ3oWykAPvnMNHymUHzLWJE7c7C7VWPh+ydb+NquFTwqY5rHQRoxkgsaXo/iciVryPNffTvLzYg98xhg==}
+    engines: {node: '>=16.0.0'}
 
   html2canvas@1.4.1:
     resolution: {integrity: sha512-fPU6BHNpsyIhr8yyMpTLLxAbkaK8ArIBcmZIRiBLiDhjeqvXolaEmDGmELFuX9I4xDcaKKcJl+TKZLqruBbmWA==}
@@ -4821,10 +4825,16 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
+  html2canvas-pro@2.2.4:
+    dependencies:
+      css-line-break: 2.1.0
+      text-segmentation: 1.0.3
+
   html2canvas@1.4.1:
     dependencies:
       css-line-break: 2.1.0
       text-segmentation: 1.0.3
+    optional: true
 
   http-parser-js@0.5.10: {}
 

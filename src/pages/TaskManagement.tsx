@@ -207,25 +207,29 @@ function measureTextPx(text: string): number {
   return customFieldMeasureCtx.measureText(text).width;
 }
 
-// 커스텀 필드 컬럼 너비 — select 타입 필드는 실제 옵션 텍스트의 측정 폭에 맞춰 넓힘
-// (말줄임표 대신 실제로 커지는 방식). dependsOn(다른 필드 값에 따라 바뀌는 조건부
-// 옵션)이 있으면 valueMap 안의 모든 후보 옵션까지 함께 고려 — "수정 유형"처럼 실제
-// 긴 옵션이 valueMap에만 들어있고 cf.options(기본 목록)에는 없는 경우를 놓치지 않기 위함.
-function customFieldWidth(cf: CustomFormField): number {
-  if (cf.type !== 'select') return 100;
+// 커스텀 필드 컬럼 너비 — select 타입 필드는 옵션 텍스트의 측정 폭에 맞춰 넓힘(말줄임표
+// 대신 실제로 커지는 방식). 후보는 세 군데를 전부 합침:
+// 1) cf.options(기본 옵션 목록), 2) cf.dependsOn.valueMap(다른 필드 값에 따라 바뀌는
+//    조건부 옵션 전체), 3) actualValues — 실제로 업무들에 저장된 값 전체. 3번이 중요한
+// 이유: "직접 입력"으로 옵션 목록에 없는 자유 텍스트를 입력해 쓰는 필드는 1)/2)만 봐서는
+// 실제 표시되는 긴 텍스트를 전혀 알 수 없어서(옵션 목록 자체가 짧거나 비어있을 수 있음)
+// 계속 좁게 계산되는 문제가 있었음 — 실제 저장된 값까지 같이 재서 이 경우도 커버함.
+function customFieldWidth(cf: CustomFormField, actualValues: string[] = []): number {
+  if (cf.type !== 'select' && actualValues.length === 0) return 100;
   const allOptions = [
     ...(cf.options ?? []),
     ...Object.values(cf.dependsOn?.valueMap ?? {}).flat(),
+    ...actualValues,
   ];
   if (allOptions.length === 0) return 100;
   const longestPx = Math.max(...allOptions.map(measureTextPx));
   return Math.max(100, Math.ceil(longestPx) + 44); // 실측 폭 + 좌우 여백·화살표 아이콘 공간
 }
 
-function buildCols(tableCols: TableCol[]): string {
+function buildCols(tableCols: TableCol[], customValuesByFieldId: Map<string, string[]>): string {
   const cols: string[] = ['28px', '18px']; // checkbox | drag handle
   for (const col of tableCols) {
-    if (col.kind === 'custom') { cols.push(`${customFieldWidth(col.cf)}px`); continue; }
+    if (col.kind === 'custom') { cols.push(`${customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id))}px`); continue; }
     const fc = col.fc;
     if (fc.key === 'title') {
       cols.push(`minmax(${TITLE_MIN_WIDTH}px, 1fr)`);
@@ -241,11 +245,11 @@ function buildCols(tableCols: TableCol[]): string {
   return cols.join(' ');
 }
 
-function buildMinWidth(tableCols: TableCol[]): number {
+function buildMinWidth(tableCols: TableCol[], customValuesByFieldId: Map<string, string[]>): number {
   let w = 46; // checkbox(28) + drag handle(18)
   let colCount = 2;
   for (const col of tableCols) {
-    if (col.kind === 'custom') { w += customFieldWidth(col.cf); colCount++; continue; }
+    if (col.kind === 'custom') { w += customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id)); colCount++; continue; }
     const fc = col.fc;
     if (fc.key === 'title') { w += TITLE_MIN_WIDTH; colCount++; }
     else if (fc.key === 'weeklyHours') { w += 52; colCount++; }
@@ -259,38 +263,38 @@ function buildMinWidth(tableCols: TableCol[]): number {
 }
 
 // 필드(월/업무명/유형/... /커스텀) 각 트랙의 픽셀 폭(체크박스/드래그/액션 제외)
-function fieldTrackWidth(col: TableCol): number {
-  if (col.kind === 'custom') return customFieldWidth(col.cf);
+function fieldTrackWidth(col: TableCol, customValuesByFieldId: Map<string, string[]> = new Map()): number {
+  if (col.kind === 'custom') return customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id));
   const fc = col.fc;
   if (fc.key === 'title') return TITLE_MIN_WIDTH;
   if (fc.key === 'weeklyHours') return 52;
   if (fc.key === 'startDate' || fc.key === 'endDate') return DATE_COL_WIDTH;
   return fc.width;
 }
-function fieldTrackCss(col: TableCol): string {
-  if (col.kind === 'custom') return `${customFieldWidth(col.cf)}px`;
+function fieldTrackCss(col: TableCol, customValuesByFieldId: Map<string, string[]>): string {
+  if (col.kind === 'custom') return `${customFieldWidth(col.cf, customValuesByFieldId.get(col.cf.id))}px`;
   const fc = col.fc;
   if (fc.key === 'title') return `minmax(${TITLE_MIN_WIDTH}px, 1fr)`;
   if (fc.key === 'weeklyHours') return '52px';
   if (fc.key === 'startDate' || fc.key === 'endDate') return `${DATE_COL_WIDTH}px`;
   return `${fc.width}px`;
 }
-function sumFieldTracks(cols: TableCol[]): number {
+function sumFieldTracks(cols: TableCol[], customValuesByFieldId: Map<string, string[]> = new Map()): number {
   if (cols.length === 0) return 0;
-  return cols.reduce((s, c) => s + fieldTrackWidth(c), 0) + (cols.length - 1) * 12;
+  return cols.reduce((s, c) => s + fieldTrackWidth(c, customValuesByFieldId), 0) + (cols.length - 1) * 12;
 }
 
 // 업무 행(TaskRow)/헤더: 체크박스/드래그(2줄 모드에서는 월도 함께)를 그리드 밖(좌측 레일)으로
 // 빼서 2줄 전체 높이 기준으로 항상 세로 중앙에 오게 함 — 필드 영역(업무명/나머지)은 그 레일과
 // 무관하게 항상 같은 x 위치에서 시작하므로 줄 사이 들여쓰기를 따로 계산할 필요가 없음
-function buildRowFieldsCols(cols: TableCol[]): string {
-  return cols.map(fieldTrackCss).join(' ');
+function buildRowFieldsCols(cols: TableCol[], customValuesByFieldId: Map<string, string[]>): string {
+  return cols.map(col => fieldTrackCss(col, customValuesByFieldId)).join(' ');
 }
 // 행/헤더 전체(좌측 레일+필드영역+액션) 최소 폭. 2줄 모드에선 필드영역이 업무명 1개뿐이라
 // (나머지는 2번째 줄에서 자체 스크롤) railWidth만 정확하면 되고, 1줄 모드에선 레일=체크박스+
 // 드래그(46px)로 고정
-function buildRowMinWidth(fieldsCols: TableCol[], railWidth: number): number {
-  const fieldsW = sumFieldTracks(fieldsCols);
+function buildRowMinWidth(fieldsCols: TableCol[], railWidth: number, customValuesByFieldId: Map<string, string[]> = new Map()): number {
+  const fieldsW = sumFieldTracks(fieldsCols, customValuesByFieldId);
   return railWidth + 12 + fieldsW + 12 + 110 + 24; // 레일+간격+필드영역+간격+액션+좌우padding
 }
 
@@ -891,6 +895,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const tableCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail');
   const tableCols = buildTableCols(tableFields, tableCfs, formConfig?.fieldOrder);
   const statusConfigs = resolveStatusConfigs(formConfig);
+  // 커스텀 select 필드 컬럼 너비 계산용 — 옵션 목록뿐 아니라 실제 업무들에 저장된 값도
+  // 함께 재서, "직접 입력"으로 옵션 목록에 없는 긴 텍스트를 쓰는 필드도 폭 계산에 반영되게 함
+  const customValuesByFieldId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    tableCfs.forEach(cf => {
+      const values = tasks.map(t => t.customFields?.[cf.id]).filter((v): v is string => !!v);
+      map.set(cf.id, values);
+    });
+    return map;
+  }, [tasks, tableCfs]);
 
   const currentTeam = teams.find(t => t.id === currentTeamId);
   // 2줄 구성(업무명만 1번째 줄 / 나머지 필드 2번째 줄) 사용 여부 — 파트 탭이면 그 파트 오버라이드,
@@ -900,16 +914,16 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   // 2줄 모드: 체크박스/드래그와 함께 월도 좌측 레일로 빼서 항상 세로 중앙에 오게 하고,
   // 업무명만 1번째 줄, 나머지 전부 2번째 줄(가로 스크롤은 이 줄에만 걸림)에 배치
   const monthCol = twoLineMode ? tableCols.find(c => c.kind === 'builtin' && c.fc.key === 'taskMonth') : undefined;
-  const monthColWidth = monthCol ? fieldTrackWidth(monthCol) : 0;
+  const monthColWidth = monthCol ? fieldTrackWidth(monthCol, customValuesByFieldId) : 0;
   const railWidth = 28 + 12 + 18 + (monthCol ? 12 + monthColWidth : 0); // 체크박스+간격+드래그(+간격+월)
   const line1Cols = twoLineMode ? tableCols.filter(c => c.kind === 'builtin' && c.fc.key === 'title') : tableCols;
   const line2Cols = twoLineMode ? tableCols.filter(c => !(c.kind === 'builtin' && (c.fc.key === 'taskMonth' || c.fc.key === 'title'))) : [];
-  const colTemplate = buildCols(tableCols);
-  const colMinWidth = buildMinWidth(tableCols);
+  const colTemplate = buildCols(tableCols, customValuesByFieldId);
+  const colMinWidth = buildMinWidth(tableCols, customValuesByFieldId);
   // 행(TaskRow)/헤더 공용 — 체크박스/드래그(+월)를 그리드 밖으로 뺀 필드 영역 템플릿
-  const rowFieldsTemplate1 = buildRowFieldsCols(line1Cols);
-  const rowFieldsTemplate2 = buildRowFieldsCols(line2Cols);
-  const rowMinWidth = buildRowMinWidth(twoLineMode ? line1Cols : tableCols, twoLineMode ? railWidth : 46);
+  const rowFieldsTemplate1 = buildRowFieldsCols(line1Cols, customValuesByFieldId);
+  const rowFieldsTemplate2 = buildRowFieldsCols(line2Cols, customValuesByFieldId);
+  const rowMinWidth = buildRowMinWidth(twoLineMode ? line1Cols : tableCols, twoLineMode ? railWidth : 46, customValuesByFieldId);
 
   const bottomSortOrder = () =>
     tasks.reduce((max, t) => Math.max(max, t.sortOrder ?? -1), -1) + 1;

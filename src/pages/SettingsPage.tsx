@@ -7055,6 +7055,65 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     alert(`중복된 파트 id ${fixedCount}건을 새 id로 분리했습니다. 이름·색상·기존 설정은 그대로 유지됩니다.\n\n다만 이 파트들 중 "지원팀 연결"을 설정해둔 세부업무가 있다면, 세부 업무 탭에서 그 연결이 여전히 올바른지 다시 확인해주세요.`);
   };
 
+  // "다른 설정에서 복사"가 예전엔 원본과 같은 id를 그대로 재사용해서, 팀 기본/파트들이 같은 세부업무
+  // id를 공유하는 경우가 남아있을 수 있다(예: 지원팀 연결처럼 id로 저장되는 설정이 서로 겹쳐 보임).
+  // 팀 기본 및 각 파트가 가진 subTaskTypes를 스캔해 같은 id가 둘 이상의 범위에 있는지 찾는다.
+  const findDuplicateSubTaskTypeIds = (team: Team): [string, { scope: string; label: string; name: string }[]][] => {
+    const byId = new Map<string, { scope: string; label: string; name: string }[]>();
+    (team.subTaskTypes ?? []).forEach(t => {
+      const arr = byId.get(t.id) ?? []; arr.push({ scope: 'team', label: '팀 기본', name: t.name }); byId.set(t.id, arr);
+    });
+    team.parts.forEach(p => (p.subTaskTypes ?? []).forEach(t => {
+      const arr = byId.get(t.id) ?? []; arr.push({ scope: p.id, label: p.name, name: t.name }); byId.set(t.id, arr);
+    }));
+    return [...byId.entries()].filter(([, occs]) => new Set(occs.map(o => o.scope)).size > 1);
+  };
+
+  const handleFixDuplicateSubTaskTypeIds = async (team: Team) => {
+    const dupEntries = findDuplicateSubTaskTypeIds(team);
+    if (dupEntries.length === 0) return;
+    const idRemapByPart = new Map<string, Map<string, string>>();
+    const migrationLabels: string[] = [];
+    dupEntries.forEach(([id, occs]) => {
+      const hasTeamAnchor = occs.some(o => o.scope === 'team');
+      const partOccs = occs.filter(o => o.scope !== 'team');
+      const toRegenerate = hasTeamAnchor ? partOccs : partOccs.slice(1);
+      toRegenerate.forEach(o => {
+        const newId = `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        if (!idRemapByPart.has(o.scope)) idRemapByPart.set(o.scope, new Map());
+        idRemapByPart.get(o.scope)!.set(id, newId);
+        migrationLabels.push(`${o.label} - ${o.name}`);
+      });
+    });
+    if (idRemapByPart.size === 0) return;
+
+    const repairedParts = team.parts.map(p => {
+      const remap = idRemapByPart.get(p.id);
+      if (!remap || !p.subTaskTypes) return p;
+      return { ...p, subTaskTypes: p.subTaskTypes.map(t => remap.has(t.id) ? { ...t, id: remap.get(t.id)! } : t) };
+    });
+    await onSetParts(team.id, repairedParts);
+
+    // 기존 업무에 이미 입력된 담당자·시간(subTaskData)이 옛 id에 묶여 있으므로 새 id로 옮겨준다
+    for (const [partId, remap] of idRemapByPart) {
+      const part = team.parts.find(p => p.id === partId);
+      if (!part) continue;
+      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      for (const taskDoc of tasksSnap.docs) {
+        const subData = taskDoc.data().subTaskData;
+        if (!subData) continue;
+        const nextSub: Record<string, unknown> = { ...subData };
+        let changed = false;
+        remap.forEach((newId, oldId) => {
+          if (subData[oldId] !== undefined) { nextSub[newId] = subData[oldId]; delete nextSub[oldId]; changed = true; }
+        });
+        if (changed) await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+      }
+    }
+
+    alert(`세부업무 id 중복 ${migrationLabels.length}건을 새 id로 분리했습니다:\n${migrationLabels.join('\n')}\n\n기존 업무에 입력돼 있던 담당자·시간 데이터도 함께 옮겨뒀습니다. 지원팀 연결을 설정해둔 항목이 있다면 다시 확인해주세요.`);
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7149,23 +7208,39 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         </div>
       )}
 
-      {/* 파트 id 중복 전체 검사 — 팀마다 일일이 들어가서 확인하지 않아도 한 번에 보이게 함 */}
+      {/* 파트/세부업무 id 중복 전체 검사 — 팀마다 일일이 들어가서 확인하지 않아도 한 번에 보이게 함 */}
       {(() => {
-        const affected = teams.filter(t => findDuplicatePartIds(t).size > 0);
-        if (affected.length === 0) return null;
+        const partAffected = teams.filter(t => findDuplicatePartIds(t).size > 0);
+        const subTaskAffected = teams.filter(t => findDuplicateSubTaskTypeIds(t).length > 0);
+        if (partAffected.length === 0 && subTaskAffected.length === 0) return null;
         return (
-          <div className="px-5 py-3 bg-red-50 border-b border-red-200">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-red-600 font-medium">
-                ⚠ 파트 id가 중복돼 설정이 뒤섞일 수 있는 팀 {affected.length}개: {affected.map(t => t.name).join(', ')}
-              </span>
-              <button
-                type="button"
-                onClick={async () => { for (const t of affected) await handleFixDuplicatePartIds(t); }}
-                className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors">
-                전체 팀 한 번에 분리하기
-              </button>
-            </div>
+          <div className="px-5 py-3 bg-red-50 border-b border-red-200 space-y-1.5">
+            {partAffected.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-red-600 font-medium">
+                  ⚠ 파트 id가 중복돼 설정이 뒤섞일 수 있는 팀 {partAffected.length}개: {partAffected.map(t => t.name).join(', ')}
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => { for (const t of partAffected) await handleFixDuplicatePartIds(t); }}
+                  className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors">
+                  전체 팀 한 번에 분리하기
+                </button>
+              </div>
+            )}
+            {subTaskAffected.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-red-600 font-medium">
+                  ⚠ 세부업무 항목 id가 파트간에 중복된 팀 {subTaskAffected.length}개: {subTaskAffected.map(t => t.name).join(', ')}
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => { for (const t of subTaskAffected) await handleFixDuplicateSubTaskTypeIds(t); }}
+                  className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors">
+                  전체 팀 한 번에 분리하기
+                </button>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -7293,25 +7368,43 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                     ))}
                   </div>
 
+                  {/* 파트/세부업무 id 중복 경고 — 어느 탭을 보고 있든(세부업무/폼설정 등) 바로 보이도록 탭 바로 아래 고정 */}
+                  {(() => {
+                    const dupIds = findDuplicatePartIds(team);
+                    if (dupIds.size === 0) return null;
+                    const dupNames = team.parts.filter(p => dupIds.has(p.id)).map(p => p.name).join(', ');
+                    return (
+                      <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-red-50 border-b border-red-200 text-xs text-red-600">
+                        <span>⚠ 이 팀은 파트 id가 중복돼 파트별 설정(지원팀 연결 등)이 서로 뒤섞일 수 있습니다: {dupNames}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleFixDuplicatePartIds(team)}
+                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                          지금 분리하기
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const dupEntries = findDuplicateSubTaskTypeIds(team);
+                    if (dupEntries.length === 0) return null;
+                    const dupSummary = dupEntries.map(([, occs]) => `${occs[0].name}(${occs.map(o => o.label).join('/')})`).join(', ');
+                    return (
+                      <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-red-50 border-b border-red-200 text-xs text-red-600">
+                        <span>⚠ 이 팀은 세부업무 항목의 id가 여러 파트에서 겹쳐 설정이 뒤섞일 수 있습니다: {dupSummary}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleFixDuplicateSubTaskTypeIds(team)}
+                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                          지금 분리하기
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* 파트 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'parts' && (
                     <div className="px-5 py-4 space-y-3">
-                      {(() => {
-                        const dupIds = findDuplicatePartIds(team);
-                        if (dupIds.size === 0) return null;
-                        const dupNames = team.parts.filter(p => dupIds.has(p.id)).map(p => p.name).join(', ');
-                        return (
-                          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                            <span>⚠ 파트 id가 중복돼 서로 설정이 뒤섞일 수 있는 파트가 있습니다: {dupNames}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleFixDuplicatePartIds(team)}
-                              className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
-                              지금 분리하기
-                            </button>
-                          </div>
-                        );
-                      })()}
                       {team.parts.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {team.parts.map(p => (

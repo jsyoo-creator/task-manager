@@ -854,6 +854,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   const builtinCompletedValuesRef = useRef(builtinCompletedValuesInput);
   builtinCompletedValuesRef.current = builtinCompletedValuesInput;
 
+  // "같은 값 연결"(얼라이어스) 피커 — 어느 필드의 연결 설정 팝오버가 열려있는지
+  const [aliasPickerId, setAliasPickerId] = useState<string | null>(null);
+
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
   const [customLabelInput, setCustomLabelInput] = useState('');
@@ -1281,8 +1284,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
             const cf = item.data;
             const isEditingCF = editingCustomId === cf.id;
             return (
+              <div key={cf.id}>
               <div
-                key={cf.id}
                 draggable={!isEditingCF}
                 onDragStart={() => { dragIdxRef.current = i; }}
                 onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
@@ -1463,21 +1466,17 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   {(() => {
                     const otherCandidates = aliasCandidates.filter(c => c.id !== cf.id);
                     if (otherCandidates.length === 0) return null;
+                    const hasAlias = !!cf.aliasFieldId || !!Object.keys(cf.aliasFieldIdByPart ?? {}).length;
                     return (
-                      <select
-                        title="같은 값 연결 — 다른 스코프(팀 기본/전체/다른 파트)의 필드와 값을 공유. 스코프마다 같은 목적의 필드를 따로 만들어 목록에 중복 컬럼이 보일 때 사용"
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full border focus:outline-none max-w-[110px] ${
-                          cf.aliasFieldId ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-400'
-                        }`}
-                        value={cf.aliasFieldId ?? ''}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => {
-                          e.stopPropagation();
-                          onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, aliasFieldId: e.target.value || undefined } : f));
-                        }}>
-                        <option value="">같은 값 연결 안 함</option>
-                        {otherCandidates.map(c => <option key={c.id} value={c.id}>{c.label} ({c.scope})</option>)}
-                      </select>
+                      <button
+                        type="button"
+                        title="같은 값 연결 — 다른 스코프(팀 기본/전체/다른 파트)의 필드와 값을 공유. 파트마다 각자 다른 필드를 가리켜야 하면 파트별로 따로 지정 가능"
+                        onClick={e => { e.stopPropagation(); setAliasPickerId(aliasPickerId === cf.id ? null : cf.id); }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                          hasAlias ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50'
+                        }`}>
+                        같은 값 연결{hasAlias ? '됨' : ''}
+                      </button>
                     );
                   })()}
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
@@ -1485,6 +1484,46 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
                   <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                 </div>
+              </div>
+              {aliasPickerId === cf.id && (() => {
+                const otherCandidates = aliasCandidates.filter(c => c.id !== cf.id);
+                const setAlias = (patch: Partial<Pick<CustomFormField, 'aliasFieldId' | 'aliasFieldIdByPart'>>) => {
+                  onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, ...patch } : f));
+                };
+                return (
+                  <div className="px-9 pb-2 pt-1 bg-blue-50/40 border-t border-blue-100/60 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">기본값(공통)</span>
+                      <select
+                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                        value={cf.aliasFieldId ?? ''}
+                        onChange={e => setAlias({ aliasFieldId: e.target.value || undefined })}>
+                        <option value="">연결 안 함</option>
+                        {otherCandidates.map(c => <option key={c.id} value={c.id}>{c.label} ({c.scope})</option>)}
+                      </select>
+                    </div>
+                    {(team.parts ?? []).length > 0 && (
+                      <p className="text-[10px] text-gray-400">파트마다 다른 필드를 가리켜야 하면 아래에서 파트별로 따로 지정 (비워두면 위 기본값을 따름)</p>
+                    )}
+                    {(team.parts ?? []).map(p => (
+                      <div key={p.id} className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-500 w-20 flex-shrink-0 truncate">{p.name}</span>
+                        <select
+                          className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
+                          value={cf.aliasFieldIdByPart?.[p.name] ?? ''}
+                          onChange={e => {
+                            const next = { ...(cf.aliasFieldIdByPart ?? {}) };
+                            if (e.target.value) next[p.name] = e.target.value; else delete next[p.name];
+                            setAlias({ aliasFieldIdByPart: Object.keys(next).length ? next : undefined });
+                          }}>
+                          <option value="">(기본값 사용)</option>
+                          {otherCandidates.map(c => <option key={c.id} value={c.id}>{c.label} ({c.scope})</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               </div>
             );
             }

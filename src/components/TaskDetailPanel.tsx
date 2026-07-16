@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
-import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
@@ -2619,7 +2619,7 @@ export default function TaskDetailPanel({
                   // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
                   // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
                   // 위치를 그대로 읽고 씀
-                  const aliasTarget = cf.aliasFieldId;
+                  const aliasTarget = resolveAliasFieldId(cf, task.category);
                   const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
                   const effKey = aliasTarget || cf.id;
                   const rawVal = isBuiltinAliasTarget

@@ -255,7 +255,16 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     const touchesAssigneeOrStatus = data.assignee !== undefined || data.status !== undefined;
     const touchesSubTaskData = data.subTaskData !== undefined;
     const touchesBaseInfo = (['title', 'taskMonth', 'startDate', 'endDate'] as const).some(k => k in data);
-    if (!touchesAssigneeOrStatus && !touchesSubTaskData && !touchesBaseInfo) return;
+    // 세부업무를 삭제하면 (subTaskData 업데이트와 별개로) deletedSubTasks에 새 항목이
+    // 추가되는 별도의 updateTask 호출이 한 번 더 발생함 — 그 시점에 새로 삭제된
+    // 세부업무 타입 id들을 골라내, 연결된 지원팀 업무를 함께 휴지통으로 보냄
+    const newlyDeletedTypeIds = (() => {
+      if (data.deletedSubTasks === undefined) return [] as string[];
+      const before = tasks.find(t => t.id === id)?.deletedSubTasks ?? {};
+      return Object.keys(data.deletedSubTasks).filter(k => !(k in before));
+    })();
+    const touchesDeletedSubTasks = newlyDeletedTypeIds.length > 0;
+    if (!touchesAssigneeOrStatus && !touchesSubTaskData && !touchesBaseInfo && !touchesDeletedSubTasks) return;
 
     // 1) 이 업무 자신이 지원팀에서 자동 생성된 연결 업무라면 → 담당자/상태를 원본
     //    업무의 해당 세부업무 항목에 반영
@@ -270,14 +279,20 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     }
 
     // 2) 이 업무가 원본이라면 → 연결된 지원팀 업무(들)에 기본 정보(제목/월/기간)와
-    //    해당 세부업무의 담당자/상태를 반영
-    if (touchesSubTaskData || touchesBaseInfo) {
+    //    해당 세부업무의 담당자/상태를 반영. 세부업무 자체가 삭제됐다면 그 세부업무에
+    //    대응하는 지원팀 업무는 더 이상 할 일이 없는 것이므로 함께 휴지통으로 보냄
+    if (touchesSubTaskData || touchesBaseInfo || touchesDeletedSubTasks) {
       const linkedSnap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', '==', id)));
       if (linkedSnap.empty) return;
       const batch = writeBatch(db);
       let any = false;
       linkedSnap.forEach(d => {
         const linked = d.data() as Task;
+        if (touchesDeletedSubTasks && linked.linkedFromSubTaskTypeId && newlyDeletedTypeIds.includes(linked.linkedFromSubTaskTypeId) && !linked.deletedAt) {
+          any = true;
+          batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 세부업무 삭제로 자동 이동)', updatedAt: now });
+          return;
+        }
         const patch: Record<string, unknown> = {};
         if (touchesBaseInfo) {
           (['title', 'taskMonth', 'startDate', 'endDate'] as const).forEach(k => {

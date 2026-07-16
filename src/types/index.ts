@@ -444,7 +444,13 @@ export interface CustomFormField {
   aliasFieldId?: string; // 다른 스코프(팀 기본/전체/다른 파트)의 커스텀필드 id 또는
     // 빌트인 키(receiver/assignee 등)를 가리키면, 이 필드는 자기 값을 따로 저장하지
     // 않고 그 필드의 값을 그대로 읽고 씀 — 같은 목적의 필드가 스코프마다 중복
-    // 생성되어 목록에 겹쳐 보이는 문제를 해소
+    // 생성되어 목록에 겹쳐 보이는 문제를 해소. 파트가 하나뿐이 아니라 파트마다
+    // 각각 다른 필드를 가리켜야 하면 aliasFieldIdByPart를 우선 사용하고, 거기 없는
+    // 파트(또는 전체 탭처럼 파트가 없는 업무)는 이 값으로 폴백함
+  aliasFieldIdByPart?: Record<string, string>; // 파트명(Task.category) → 그 파트에서
+    // 실제 값을 저장하는 필드 id. "전체"/"팀 기본" 탭의 필드가 파트마다 서로 다른
+    // 필드와 값을 공유해야 할 때(예: 라이브/복지몰/사업자몰이 각자 "퍼블" 필드를
+    // 따로 갖고 있는 경우) 사용
   dependsOn?: {
     fieldId: string;                    // 부모 필드 ID (커스텀) 또는 builtin key
     valueMap: Record<string, string[]>; // 부모 선택값 → 이 필드의 표시 옵션
@@ -593,6 +599,14 @@ export function listAliasFieldCandidates(team: Team): { id: string; label: strin
   add(team.allFormConfig?.customFields, '전체');
   (team.parts ?? []).forEach(p => add(p.formConfig?.customFields, p.name));
   return [...seen.values()];
+}
+
+// 필드의 실제 얼라이어스 대상을 구한다 — 이 업무의 파트(category)에 대한 개별 지정이
+// aliasFieldIdByPart에 있으면 그걸 먼저 쓰고, 없으면(파트가 없는 "전체" 탭 업무 포함)
+// 공통 aliasFieldId로 폴백함
+export function resolveAliasFieldId(cf: CustomFormField, category?: string): string | undefined {
+  if (category && cf.aliasFieldIdByPart?.[category]) return cf.aliasFieldIdByPart[category];
+  return cf.aliasFieldId;
 }
 
 // 엑셀 가져오기 중복 체크 기준을 팀/파트에서 아직 설정하지 않았을 때의 기본값

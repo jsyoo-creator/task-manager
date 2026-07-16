@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields, resolveCompletedStatusValues } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields, resolveCompletedStatusValues, resolveAliasFieldId } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -2381,7 +2381,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             // 공유하도록 지정된 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는
             // 필드의 저장 위치를 그대로 읽고 씀 — 같은 목적의 필드가 스코프마다 따로
             // 만들어져 값이 어긋나 보이는 문제를 해소
-            const aliasTarget = cf.aliasFieldId;
+            const aliasTarget = resolveAliasFieldId(cf, task.category);
             const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
             const effKey = aliasTarget || cf.id;
             const updateField = (v: string) => {
@@ -2890,7 +2890,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
                   // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
                   // 위치를 그대로 읽고 씀
-                  const aliasTarget = cf.aliasFieldId;
+                  const aliasTarget = resolveAliasFieldId(cf, task.category);
                   const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
                   const effKey = aliasTarget || cf.id;
                   const updateField = (v: string) => {

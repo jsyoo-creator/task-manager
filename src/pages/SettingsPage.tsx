@@ -7213,6 +7213,20 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     alert(`전체 팀 조회 완료. 옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${allReports.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 팀별 상세 내역이 JSON으로 출력되어 있습니다. 콘솔 내용을 캡처(또는 복사)해서 보내주세요 — 확인 후 팀별로 안전하게 복구를 진행하겠습니다.`);
   };
 
+  // "목적지에 이미 데이터가 있다"를 단순히 key 존재 여부로 판단하면, id 교체 사고 이후
+  // 자동으로 채워진 "담당자만 있고 날짜·시간은 없는" 빈 항목까지 전부 충돌로 취급해
+  // 실제 복구를 대부분 건너뛰게 된다. 시작일/종료일/시간처럼 실제 내용이 있는 경우만
+  // 진짜 충돌로 본다.
+  const hasRealSubTaskData = (entry: Record<string, unknown> | undefined): boolean => {
+    if (!entry) return false;
+    if (entry.startDate || entry.endDate) return true;
+    const wh = entry.weeklyHours as Record<string, number> | undefined;
+    if (wh && Object.keys(wh).length > 0) return true;
+    const swh = entry.substituteWeeklyHours as Record<string, number> | undefined;
+    if (swh && Object.keys(swh).length > 0) return true;
+    return false;
+  };
+
   // [사고 복구용 적용] 위 진단(scanNameIdClusterOrphans)에서 확인된 것과 같은 방식으로,
   // 실제로 옛 id 밑에 남은 subTaskData를 현재 파트의 id로 옮긴다(실제 쓰기 발생).
   // 목적지 id에 이미 데이터가 있으면 실수로 덮어쓰지 않도록 건너뛰고 별도로 표시한다.
@@ -7238,7 +7252,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
             if (!subData) continue;
             const hit = otherIds.find(oid => subData[oid] !== undefined);
             if (!hit) continue;
-            if (subData[po.id] !== undefined) {
+            if (hasRealSubTaskData(subData[po.id] as Record<string, unknown>)) {
               skipped.push({ title: data.title, typeName: name, reason: '목적지 id에 이미 데이터가 있어 충돌 위험 — 건드리지 않음' });
               continue;
             }
@@ -7306,7 +7320,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
           if (!subData) continue;
           const hit = [...aliasIds].find(oid => subData[oid] !== undefined);
           if (!hit) continue;
-          if (subData[keepId] !== undefined) {
+          if (hasRealSubTaskData(subData[keepId] as Record<string, unknown>)) {
             skipped.push({ title: data.title, typeName: g.name, reason: '대표 id에 이미 데이터가 있어 충돌 위험 — 건드리지 않음' });
             continue;
           }
@@ -7377,7 +7391,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         let changed = false;
         for (const [oldId, newId] of Object.entries(idMap)) {
           if (subData[oldId] === undefined) continue;
-          if (subData[newId] !== undefined) { skipped.push({ title: data.title, oldId, newId }); continue; }
+          if (hasRealSubTaskData(subData[newId] as Record<string, unknown>)) { skipped.push({ title: data.title, oldId, newId }); continue; }
           nextSub[newId] = subData[oldId];
           delete nextSub[oldId];
           changed = true;

@@ -38,7 +38,7 @@ import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
 import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam } from '../types';
-import type { Task, TaskCategory, SubTask, TeamFormConfig } from '../types';
+import type { Task, TaskCategory, SubTask, TeamFormConfig, SubTaskType } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import { db } from '../lib/firebase';
 import { collection, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
@@ -539,19 +539,24 @@ function App() {
     : 0;
 
   // 세부업무 타입 ID별 담당자 목록 (SubTaskType.department 기준 필터)
+  // 파트마다 세부업무 타입 id가 우연히 같을 수 있으므로(예: 설정 복사) 파트명을 함께 키에 넣어 파트간 오염을 방지
   const assigneesPerSubTaskType = useMemo(() => {
     const map = new Map<string, string[]>();
-    const allTypes = [
-      ...(selectedTeam?.subTaskTypes ?? []),
-      ...activeParts.flatMap(p => p.subTaskTypes ?? []),
-    ];
-    allTypes.forEach(type => {
-      if (type.department) {
-        map.set(type.id, teamMembers.filter(m => m.department === type.department).map(m => m.name));
-      } else {
-        map.set(type.id, teamAssignees);
-      }
-    });
+    const setForTypes = (types: SubTaskType[], partName: string) => {
+      types.forEach(type => {
+        const key = `${partName}::${type.id}`;
+        if (type.department) {
+          map.set(key, teamMembers.filter(m => m.department === type.department).map(m => m.name));
+        } else {
+          map.set(key, teamAssignees);
+        }
+      });
+    };
+    if (activeParts.length === 0) {
+      setForTypes(selectedTeam?.subTaskTypes ?? [], '__team__');
+    } else {
+      activeParts.forEach(p => setForTypes(p.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [], p.name));
+    }
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeam?.subTaskTypes, activeParts, teamMembers, teamAssignees]);

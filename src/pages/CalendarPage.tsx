@@ -659,7 +659,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     onChange={e => setEditState(st => st && ({ ...st, assignee: e.target.value }))}
                                   >
                                     <option value="">선택</option>
-                                    {(assigneesPerSubTaskType?.get(expandedSubKey) ?? assignees).map(a => <option key={a}>{a}</option>)}
+                                    {(assigneesPerSubTaskType?.get(`${item.category}::${expandedSubKey}`) ?? assigneesPerSubTaskType?.get(`__team__::${expandedSubKey}`) ?? assignees).map(a => <option key={a}>{a}</option>)}
                                   </select>
                                 </div>
 

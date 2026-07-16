@@ -532,7 +532,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                                 task={editTask}
                                 subKey={subKey}
                                 reviewItemId={reviewItemId}
-                                assignees={assigneesPerSubTaskType?.get(subKey) ?? assignees}
+                                assignees={assigneesPerSubTaskType?.get(`${s.category}::${subKey}`) ?? assigneesPerSubTaskType?.get(`__team__::${subKey}`) ?? assignees}
                                 canManage={canManage}
                                 onUpdateTask={onUpdateTask}
                                 onClose={() => setEditingSubId(null)}

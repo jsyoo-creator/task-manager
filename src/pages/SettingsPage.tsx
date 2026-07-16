@@ -2422,7 +2422,9 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const executeCopySubTask = (sourceId: string) => {
     const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
     const srcTypes = sourcePart ? (sourcePart.subTaskTypes ?? (team.subTaskTypes ?? [])) : (team.subTaskTypes ?? []);
-    if (currentPart) onSavePart(team.id, currentPart.id, srcTypes);
+    // 원본과 id를 공유하면 파트간 설정이 뒤섞이므로(지원팀 연결, 담당자 목록 등) 복사 시 새 id를 발급
+    const copied = srcTypes.map(t => ({ ...t, id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }));
+    if (currentPart) onSavePart(team.id, currentPart.id, copied);
     setPendingCopySource(null);
   };
 
@@ -7146,6 +7148,27 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
           </div>
         </div>
       )}
+
+      {/* 파트 id 중복 전체 검사 — 팀마다 일일이 들어가서 확인하지 않아도 한 번에 보이게 함 */}
+      {(() => {
+        const affected = teams.filter(t => findDuplicatePartIds(t).size > 0);
+        if (affected.length === 0) return null;
+        return (
+          <div className="px-5 py-3 bg-red-50 border-b border-red-200">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-red-600 font-medium">
+                ⚠ 파트 id가 중복돼 설정이 뒤섞일 수 있는 팀 {affected.length}개: {affected.map(t => t.name).join(', ')}
+              </span>
+              <button
+                type="button"
+                onClick={async () => { for (const t of affected) await handleFixDuplicatePartIds(t); }}
+                className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors">
+                전체 팀 한 번에 분리하기
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 팀 목록 */}
       {teams.length === 0 && !creating ? (

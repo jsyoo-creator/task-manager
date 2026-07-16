@@ -1818,13 +1818,16 @@ export default function TaskDetailPanel({
               </div>
             ) : null;
 
+            // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+            const receiverLinkedTypeId = receiverFc?.linkedSubTaskTypeId;
+            const receiverDisplayVal = receiverLinkedTypeId ? (task.subTaskData?.[receiverLinkedTypeId]?.assignee ?? '') : task.receiver;
             const receiverItem = showReceiverCol ? (
               <div key="receiver">
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
                   {fieldLabel('receiver')}
                   {receiverLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
                 </p>
-                {canManage && !receiverLocked ? (
+                {canManage && !receiverLocked && !receiverLinkedTypeId ? (
                   isReceiverCustomSelect ? (
                     <div className="relative flex items-center gap-1 cursor-pointer">
                       <span className="text-sm text-gray-700 truncate">{task.receiver || '-'}</span>
@@ -1845,20 +1848,25 @@ export default function TaskDetailPanel({
                       </select>
                     </div>
                   )
-                ) : isReceiverCustomSelect
+                ) : receiverLinkedTypeId
+                  ? <span className="flex items-center gap-1"><MiniAvatar name={receiverDisplayVal} photoURL={userPhotoMap?.get(receiverDisplayVal)} /><span className="text-sm text-gray-600">{receiverDisplayVal || '-'}</span></span>
+                  : isReceiverCustomSelect
                   ? <span className="text-sm text-gray-700">{task.receiver || '-'}</span>
                   : <span className="flex items-center gap-1"><MiniAvatar name={task.receiver} photoURL={userPhotoMap?.get(task.receiver)} /><span className="text-sm text-gray-600">{task.receiver}</span></span>}
               </div>
             ) : null;
 
             const assigneeLocked = groupSyncKeys.has('assignee');
+            // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+            const assigneeLinkedTypeId = assigneeFc?.linkedSubTaskTypeId;
+            const assigneeDisplayVal = assigneeLinkedTypeId ? (task.subTaskData?.[assigneeLinkedTypeId]?.assignee ?? '') : task.assignee;
             const assigneeItem = showAssigneeCol ? (
               <div key="assignee">
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-1">
                   {fieldLabel('assignee')}
                   {assigneeLocked && <Lock size={9} className="text-gray-300" title={`${parentTask!.title} 업무에서 상속됨`} />}
                 </p>
-                {canManage && !assigneeLocked ? (
+                {canManage && !assigneeLocked && !assigneeLinkedTypeId ? (
                   isAssigneeCustomSelect ? (
                     <div className="relative flex items-center gap-1 cursor-pointer">
                       <span className="text-sm text-gray-700 truncate">{task.assignee || '-'}</span>
@@ -1879,7 +1887,9 @@ export default function TaskDetailPanel({
                       </select>
                     </div>
                   )
-                ) : isAssigneeCustomSelect
+                ) : assigneeLinkedTypeId
+                  ? <span className="flex items-center gap-1"><MiniAvatar name={assigneeDisplayVal} photoURL={userPhotoMap?.get(assigneeDisplayVal)} /><span className="text-sm text-gray-700">{assigneeDisplayVal || '-'}</span></span>
+                  : isAssigneeCustomSelect
                   ? <span className="text-sm text-gray-700">{task.assignee || '-'}</span>
                   : <span className="flex items-center gap-1"><MiniAvatar name={task.assignee} photoURL={userPhotoMap?.get(task.assignee)} /><span className="text-sm text-gray-700">{task.assignee}</span></span>}
               </div>

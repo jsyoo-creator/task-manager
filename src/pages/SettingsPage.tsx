@@ -949,6 +949,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
     onSaveFields(updated);
   };
 
+  const saveBuiltinLinkedSubTaskType = (key: BuiltinFieldKey, linkedSubTaskTypeId: string) => {
+    const updated = fields.map(f => f.key === key ? { ...f, linkedSubTaskTypeId: linkedSubTaskTypeId || undefined } : f);
+    setFields(updated);
+    onSaveFields(updated);
+  };
+
   const saveCustomField = (id: string) => {
     const newLabel = customLabelInput.trim();
     const validOpts = customOptionsInput.filter(o => o.trim());
@@ -1221,6 +1227,19 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                           );
                         })}
                       </div>
+                    )}
+                    {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && subTaskTypes.length > 0 && (
+                      <select
+                        title="세부업무 연동 — 연동하면 이 필드는 읽기전용으로 바뀌어 해당 세부업무 담당자를 그대로 보여줌"
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 focus:outline-none ${
+                          fc.linkedSubTaskTypeId ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400'
+                        }`}
+                        value={fc.linkedSubTaskTypeId ?? ''}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => { e.stopPropagation(); saveBuiltinLinkedSubTaskType(fc.key, e.target.value); }}>
+                        <option value="">세부업무 연동 안 함</option>
+                        {subTaskTypes.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                      </select>
                     )}
                     <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[116px] justify-end">
                       {(() => {

@@ -462,6 +462,8 @@ export interface BuiltinFieldConfig {
   required?: boolean; // 새업무 등록 폼에서 필수 입력 여부
   department?: Department; // 이름 타입: 해당 직군 사람만 표시 (구버전 호환)
   departments?: Department[]; // 복수 직군 선택 (신버전)
+  linkedSubTaskTypeId?: string; // 이름 타입: 연동한 세부업무(SubTaskType.id). 있으면 이
+    // 필드는 편집 불가 읽기전용으로 바뀌어 task.subTaskData[이 id].assignee 값을 그대로 보여줌
   options?: string[]; // select 타입: 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   showIn?: 'both' | 'list' | 'detail'; // 표시 위치: 목록/상세/둘다

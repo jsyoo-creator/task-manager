@@ -2640,11 +2640,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               ? (teamMembers.filter(m => m.department && rdepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
             const ropts = rbase.includes(rcvrVal) ? rbase : (rcvrVal ? [rcvrVal, ...rbase] : rbase);
+            // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+            const rcvrLinkedTypeId = rcvrFc.linkedSubTaskTypeId;
+            const rcvrDisplayVal = rcvrLinkedTypeId ? (task.subTaskData?.[rcvrLinkedTypeId]?.assignee ?? '') : rcvrVal;
             return [
               <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
-                <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
-                <span className="text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
-                {canManage && (
+                <MiniAvatar name={rcvrDisplayVal} photoURL={userPhotoMap?.get(rcvrDisplayVal)} />
+                <span className="text-xs text-gray-600 truncate">{rcvrDisplayVal || '-'}</span>
+                {canManage && !rcvrLinkedTypeId && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={rcvrVal}
                     onChange={e => onUpdate(task.id, { [rcvrKey]: e.target.value })}>
                     <option value="">-</option>
@@ -2678,11 +2681,14 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               ? (teamMembers.filter(m => m.department && adepts.includes(m.department)).map(m => m.name) || assignees)
               : assignees;
             const aopts = abase.includes(asgnVal) ? abase : (asgnVal ? [asgnVal, ...abase] : abase);
+            // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+            const asgnLinkedTypeId = asgnFc.linkedSubTaskTypeId;
+            const asgnDisplayVal = asgnLinkedTypeId ? (task.subTaskData?.[asgnLinkedTypeId]?.assignee ?? '') : asgnVal;
             return [
               <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
-                <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
-                <span className="text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
-                {canManage && (
+                <MiniAvatar name={asgnDisplayVal} photoURL={userPhotoMap?.get(asgnDisplayVal)} />
+                <span className="text-xs text-gray-700 truncate">{asgnDisplayVal || '-'}</span>
+                {canManage && !asgnLinkedTypeId && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={asgnVal}
                     onChange={e => onUpdate(task.id, { [asgnKey]: e.target.value })}>
                     <option value="">-</option>

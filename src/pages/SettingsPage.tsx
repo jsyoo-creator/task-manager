@@ -7168,6 +7168,48 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     alert(`[${team.name}] 옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${report.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 상세 내역이 JSON으로도 출력되어 있습니다. 이 내용을 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
   };
 
+  // [사고 복구용 — 더 넓은 범위 진단] 브랜드관 파트처럼 "파트 전체가 통째로 새 id로
+  // 교체돼 이름 흔적이 하나도 안 남은" 케이스는 findNameIdClusters로 못 찾는다.
+  // 그 파트의 "현재 id 목록"에 전혀 없는 subTaskData 키(=고아 데이터)를 직접 찾아
+  // 파트별로 몇 건인지, 어떤 값인지 그대로 보여준다(조회 전용, 데이터 변경 없음).
+  // 지운 세부업무(deletedSubTasks)는 정상적으로 사라진 것이므로 제외한다.
+  const scanOrphanedSubTaskDataForTeam = async (team: Team) => {
+    try {
+      alert(`${team.name}: 파트 ${team.parts.length}개를 전부 조회합니다. 업무가 많으면 시간이 걸릴 수 있습니다 — 완료되면 다시 알림이 뜹니다. (조회만 하며 데이터는 바꾸지 않습니다)`);
+      const perPart: { partName: string; orphanCount: number; taskCount: number; samples: { title: string; entries: Record<string, unknown> }[] }[] = [];
+      for (const part of team.parts) {
+        const currentIds = new Set((part.subTaskTypes ?? team.subTaskTypes ?? []).map(t => t.id));
+        if (currentIds.size === 0) continue;
+        const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+        let orphanCount = 0; let taskCount = 0;
+        const samples: { title: string; entries: Record<string, unknown> }[] = [];
+        tasksSnap.forEach(d => {
+          const data = d.data();
+          if (data.deletedAt) return;
+          const subData = data.subTaskData as Record<string, unknown> | undefined;
+          if (!subData) return;
+          const deletedKeys = new Set(Object.keys(data.deletedSubTasks ?? {}));
+          const orphanKeys = Object.keys(subData).filter(k => !currentIds.has(k) && !deletedKeys.has(k) && hasRealSubTaskData(subData[k] as Record<string, unknown>));
+          if (orphanKeys.length === 0) return;
+          taskCount++;
+          orphanCount += orphanKeys.length;
+          if (samples.length < 3) samples.push({ title: data.title, entries: Object.fromEntries(orphanKeys.map(k => [k, subData[k]])) });
+        });
+        if (orphanCount > 0) perPart.push({ partName: part.name, orphanCount, taskCount, samples });
+      }
+      console.log(`[전체 파트 고아 데이터 진단] ${team.name}`, JSON.stringify(perPart, null, 1));
+      if (perPart.length === 0) {
+        alert(`[${team.name}] 모든 파트를 조회했지만 고아 데이터를 찾지 못했습니다.`);
+        return;
+      }
+      const summary = perPart.map(p => `- ${p.partName}: 업무 ${p.taskCount}건, 고아 항목 ${p.orphanCount}개`).join('\n');
+      alert(`[${team.name}] 아래 파트에서 고아 데이터를 찾았습니다:\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 파트별 샘플 원본이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요 — 확인 후 파트별로 매핑을 확정해 복구하겠습니다.`);
+    } catch (e) {
+      console.error('[전체 파트 고아 데이터 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // 위 진단을 팀마다 따로 누르지 않아도 되도록, 영향받은 모든 팀을 한 번에 조회해 하나로 모아 보여줌
   // (이 함수도 조회 전용 — Firestore에 아무것도 쓰지 않음)
   const scanAllTeamsNameIdClusterOrphans = async (affectedTeams: Team[]) => {
@@ -7724,11 +7766,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                   })()}
                   {(() => {
                     const clusters = findNameIdClusters(team);
-                    if (clusters.length === 0) return null;
                     return (
                       <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
-                        <span>🔎 이름은 같은데 범위마다 id가 다른 세부업무 항목이 {clusters.length}건 있습니다 — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회(데이터 변경 없음)해볼 수 있습니다.</span>
-                        <div className="flex gap-1.5 flex-shrink-0">
+                        <span>{clusters.length > 0
+                          ? `🔎 이름은 같은데 범위마다 id가 다른 세부업무 항목이 ${clusters.length}건 있습니다 — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회(데이터 변경 없음)해볼 수 있습니다.`
+                          : '🔎 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회할 수 있습니다 (데이터 변경 없음).'}</span>
+                        <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
                           <button
                             type="button"
                             onClick={() => scanNameIdClusterOrphans(team)}
@@ -7773,6 +7816,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             }}
                             className="px-2.5 py-1 rounded-md bg-slate-500 text-white font-medium hover:bg-slate-600 transition-colors">
                             설정 원본 보기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => scanOrphanedSubTaskDataForTeam(team)}
+                            className="px-2.5 py-1 rounded-md bg-teal-600 text-white font-medium hover:bg-teal-700 transition-colors">
+                            전체 파트 정밀 진단 (조회 전용)
                           </button>
                           {team.name === '오픈마켓' && (
                             <button

@@ -2222,6 +2222,12 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
   const [supportPickerId, setSupportPickerId] = useState<string | null>(null);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+  // 팀 선택과 동시에 (아직 원하는 파트를 고르기도 전에) 첫 번째 파트로 즉시
+  // 저장+백필해버리면, 나중에 파트를 바꿔도 이미 첫 파트로 생성된 지원팀 업무는
+  // 그대로 남아 뒤섞여 보인다. 팀/파트를 고르는 동안은 로컬 상태에만 반영하고,
+  // "연결" 버튼을 눌러야 비로소 저장+백필이 실행되게 함
+  const [draftSupportTeamId, setDraftSupportTeamId] = useState('');
+  const [draftSupportPartName, setDraftSupportPartName] = useState('');
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2507,7 +2513,11 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
                   <button
                     type="button"
                     title={t.supportTeamId ? '지원팀 연결됨 (클릭하여 수정)' : '지원팀 연결 (클릭하여 설정)'}
-                    onClick={() => setSupportPickerId(supportPickerId === t.id ? null : t.id)}
+                    onClick={() => {
+                      const next = supportPickerId === t.id ? null : t.id;
+                      setSupportPickerId(next);
+                      if (next) { setDraftSupportTeamId(t.supportTeamId ?? ''); setDraftSupportPartName(t.supportPartName ?? ''); }
+                    }}
                     className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
                       t.supportTeamId
                         ? 'bg-violet-100 text-violet-500 hover:bg-violet-200 hover:text-violet-600'
@@ -2522,28 +2532,41 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
                 </button>
               </div>
               {supportPickerId === t.id && (() => {
-                const linkedTeam = eligibleSupportTeams.find(st => st.id === t.supportTeamId);
+                const draftTeam = eligibleSupportTeams.find(st => st.id === draftSupportTeamId);
+                const canConfirm = !!draftSupportTeamId && !!draftSupportPartName;
+                const isUnchanged = draftSupportTeamId === (t.supportTeamId ?? '') && draftSupportPartName === (t.supportPartName ?? '');
                 return (
                   <div className="px-2.5 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
                     <select
                       className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                      value={t.supportTeamId ?? ''}
+                      value={draftSupportTeamId}
                       onChange={e => {
-                        if (!e.target.value) { clearSupportLink(t); return; }
+                        if (!e.target.value) { setDraftSupportTeamId(''); setDraftSupportPartName(''); clearSupportLink(t); return; }
                         const st = eligibleSupportTeams.find(x => x.id === e.target.value);
-                        const firstPart = st?.parts?.[0]?.name ?? '';
-                        if (firstPart) saveSupportLink(t, e.target.value, firstPart);
+                        setDraftSupportTeamId(e.target.value);
+                        setDraftSupportPartName(st?.parts?.[0]?.name ?? '');
                       }}>
                       <option value="">연결 안 함</option>
                       {eligibleSupportTeams.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
                     </select>
-                    {linkedTeam && (
+                    {draftTeam && (
                       <select
                         className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                        value={t.supportPartName ?? ''}
-                        onChange={e => saveSupportLink(t, linkedTeam.id, e.target.value)}>
-                        {(linkedTeam.parts ?? []).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                        value={draftSupportPartName}
+                        onChange={e => setDraftSupportPartName(e.target.value)}>
+                        {(draftTeam.parts ?? []).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                       </select>
+                    )}
+                    {draftTeam && (
+                      <button
+                        type="button"
+                        disabled={!canConfirm || isUnchanged}
+                        onClick={() => saveSupportLink(t, draftSupportTeamId, draftSupportPartName)}
+                        className={`text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors ${
+                          !canConfirm || isUnchanged ? 'bg-gray-100 text-gray-300' : 'bg-violet-500 text-white hover:bg-violet-600'
+                        }`}>
+                        연결
+                      </button>
                     )}
                     {backfillMsg && <span className="text-[10px] text-violet-500 font-medium">{backfillMsg}</span>}
                   </div>

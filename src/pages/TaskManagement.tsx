@@ -2643,7 +2643,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <div key="receiver" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={rcvrVal} photoURL={userPhotoMap?.get(rcvrVal)} />
-                <span className="flex-1 min-w-0 text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
+                <span className="text-xs text-gray-600 truncate">{rcvrVal || '-'}</span>
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={rcvrVal}
                     onChange={e => onUpdate(task.id, { [rcvrKey]: e.target.value })}>
@@ -2681,7 +2681,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             return [
               <div key="assignee" className="relative flex items-center justify-center gap-1 min-w-0 overflow-hidden cursor-pointer" onClick={e => e.stopPropagation()}>
                 <MiniAvatar name={asgnVal} photoURL={userPhotoMap?.get(asgnVal)} />
-                <span className="flex-1 min-w-0 text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
+                <span className="text-xs text-gray-700 truncate">{asgnVal || '-'}</span>
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" value={asgnVal}
                     onChange={e => onUpdate(task.id, { [asgnKey]: e.target.value })}>

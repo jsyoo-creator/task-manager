@@ -2256,6 +2256,11 @@ export default function TaskDetailPanel({
                   );
                 }
 
+                // 지원팀에 연결된 세부업무는 담당자/대무자/상태/기간/시간이 모두 지원팀
+                // 쪽에서 관리되어 자동으로 반영되므로, 원본 팀에서는 보기만 하고 직접
+                // 수정할 수 없음(대무자는 지원팀 쪽에 대응 개념이 없어 동기화되지 않으므로
+                // 그냥 편집 자체를 막아 혼란을 방지)
+                const isSupportLinked = !!(type.supportTeamId && type.supportPartName);
                 return (
                   <div key={type.id} className="rounded-xl bg-gray-50 p-3">
                     {/* 헤더: 이름 + 직군 배지 + 상태 + 담당자 + 총시간 */}
@@ -2268,9 +2273,6 @@ export default function TaskDetailPanel({
                       {(() => {
                         const subKey = (entry.status ?? '진행 전') as TaskStatus;
                         const subSc = statusConfigs.find(s => s.key === subKey) ?? statusConfigs[0];
-                        // 지원팀에 연결된 세부업무는 상태·담당자가 지원팀 쪽에서 관리되어
-                        // 자동으로 반영되므로, 원본 팀에서는 보기만 하고 직접 수정할 수 없음
-                        const isSupportLinked = !!(type.supportTeamId && type.supportPartName);
                         return (
                           <div className="relative flex-shrink-0" title={isSupportLinked ? '지원팀에서 관리하는 상태 — 여기서는 수정할 수 없습니다' : undefined}>
                             <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium cursor-pointer"
@@ -2295,7 +2297,6 @@ export default function TaskDetailPanel({
                       })()}
                       {(() => {
                         const typeDeptLabel = '-';
-                        const isSupportLinked = !!(type.supportTeamId && type.supportPartName);
                         return (
                           <div className="relative max-w-[120px]" title={isSupportLinked ? '지원팀에서 관리하는 담당자 — 여기서는 수정할 수 없습니다' : undefined}>
                             <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">
@@ -2328,7 +2329,7 @@ export default function TaskDetailPanel({
                       {subTotal > 0 && (
                         <span className="text-xs font-semibold text-orange-400 flex-shrink-0">대무 {subTotal}h</span>
                       )}
-                      {canManage && !isVacation && !entry.substitute && !manualSubstituteIds.has(type.id) && (
+                      {canManage && !isSupportLinked && !isVacation && !entry.substitute && !manualSubstituteIds.has(type.id) && (
                         <button
                           type="button"
                           title="대무자 지정"
@@ -2354,26 +2355,28 @@ export default function TaskDetailPanel({
                     {(isVacation || entry.substitute || manualSubstituteIds.has(type.id)) && (
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-[11px] font-medium text-orange-500 flex-shrink-0">대무자</span>
-                        <div className="relative max-w-[120px]">
+                        <div className="relative max-w-[120px]" title={isSupportLinked ? '지원팀에서 관리하는 세부업무 — 여기서는 수정할 수 없습니다' : undefined}>
                           <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-orange-50 border border-orange-200">
                             <span className="truncate">{entry.substitute || '미지정'}</span>
-                            <ChevronDown size={10} className="flex-shrink-0 text-orange-300" />
+                            {!isSupportLinked && <ChevronDown size={10} className="flex-shrink-0 text-orange-300" />}
                           </div>
-                          <select
-                            disabled={!canManage}
-                            className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
-                            style={{ cursor: canManage ? 'pointer' : 'default' }}
-                            value={entry.substitute ?? ''}
-                            onChange={e => {
-                              const val = e.target.value;
-                              const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, substitute: val || undefined } };
-                              commitSubTaskData(next);
-                            }}>
-                            <option value="">미지정</option>
-                            {displayAssignees.filter(a => a !== entry.assignee).map(a => <option key={a}>{a}</option>)}
-                          </select>
+                          {!isSupportLinked && (
+                            <select
+                              disabled={!canManage}
+                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
+                              style={{ cursor: canManage ? 'pointer' : 'default' }}
+                              value={entry.substitute ?? ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, substitute: val || undefined } };
+                                commitSubTaskData(next);
+                              }}>
+                              <option value="">미지정</option>
+                              {displayAssignees.filter(a => a !== entry.assignee).map(a => <option key={a}>{a}</option>)}
+                            </select>
+                          )}
                         </div>
-                        {canManage && !isVacation && (
+                        {canManage && !isSupportLinked && !isVacation && (
                           <button
                             type="button"
                             title="대무자 지정 취소"
@@ -2398,7 +2401,7 @@ export default function TaskDetailPanel({
                     )}
 
                     {/* 시작일 / 종료일 */}
-                    <div className="flex items-center gap-2 mb-2.5">
+                    <div className="flex items-center gap-2 mb-2.5" title={isSupportLinked ? '지원팀에서 관리하는 세부업무 — 여기서는 수정할 수 없습니다' : undefined}>
                       <span className="text-[11px] text-gray-500 flex-shrink-0">{fieldLabel('startDate')}</span>
                       <DatePicker
                         value={entry.startDate ?? ''}
@@ -2410,7 +2413,7 @@ export default function TaskDetailPanel({
                           const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, startDate: newStart, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
                           commitSubTaskData(next);
                         }}
-                        disabled={!canManage}
+                        disabled={!canManage || isSupportLinked}
                       />
                       <span className="text-gray-300 flex-shrink-0">→</span>
                       <DatePicker
@@ -2423,7 +2426,7 @@ export default function TaskDetailPanel({
                           const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, endDate: newEnd, totalHours: newTotal, substituteTotalHours: newSubTotal || undefined } };
                           commitSubTaskData(next);
                         }}
-                        disabled={!canManage}
+                        disabled={!canManage || isSupportLinked}
                       />
                     </div>
 
@@ -2457,13 +2460,13 @@ export default function TaskDetailPanel({
                             const key = `w${weekNum}d${di + 1}`;
                             const rawKey = `${type.id}_${key}`;
                             const val = entry.weeklyHours[key] ?? 0;
-                            const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && entry.endDate ? di > endDayIdx : false);
+                            const dateDisabled = (wi === 0 && di < startDayIdx) || (isLastWeek && entry.endDate ? di > endDayIdx : false);
                             return (
                               <div key={di} className="flex flex-col items-center gap-0.5">
-                                <span className={`text-[8px] leading-none ${disabled ? 'text-gray-300' : 'text-gray-400'}`}>
+                                <span className={`text-[8px] leading-none ${dateDisabled ? 'text-gray-300' : 'text-gray-400'}`}>
                                   {date || ' '}
                                 </span>
-                                {canManage && !disabled ? (
+                                {canManage && !dateDisabled && !isSupportLinked ? (
                                   <input
                                     type="text"
                                     inputMode="decimal"
@@ -2495,11 +2498,11 @@ export default function TaskDetailPanel({
                                   />
                                 ) : (
                                   <span className={`w-full text-center text-[10px] rounded py-0.5 ${
-                                    disabled
+                                    dateDisabled
                                       ? 'bg-black/[0.02] text-gray-300'
                                       : 'bg-black/[0.08] text-gray-600'
                                   }`}>
-                                    {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                                    {!dateDisabled && val > 0 ? val : <span className="opacity-30">-</span>}
                                   </span>
                                 )}
                               </div>
@@ -2537,13 +2540,13 @@ export default function TaskDetailPanel({
                                 const key = `w${weekNum}d${di + 1}`;
                                 const rawKey = `${type.id}_sub_${key}`;
                                 const val = (entry.substituteWeeklyHours ?? {})[key] ?? 0;
-                                const disabled = (wi === 0 && di < startDayIdx) || (isLastWeek && entry.endDate ? di > endDayIdx : false);
+                                const dateDisabled = (wi === 0 && di < startDayIdx) || (isLastWeek && entry.endDate ? di > endDayIdx : false);
                                 return (
                                   <div key={di} className="flex flex-col items-center gap-0.5">
-                                    <span className={`text-[8px] leading-none ${disabled ? 'text-orange-100' : 'text-orange-300'}`}>
+                                    <span className={`text-[8px] leading-none ${dateDisabled ? 'text-orange-100' : 'text-orange-300'}`}>
                                       {date || ' '}
                                     </span>
-                                    {canEditSubstituteHours && !disabled ? (
+                                    {canEditSubstituteHours && !dateDisabled && !isSupportLinked ? (
                                       <input
                                         type="text"
                                         inputMode="decimal"
@@ -2575,11 +2578,11 @@ export default function TaskDetailPanel({
                                       />
                                     ) : (
                                       <span className={`w-full text-center text-[10px] rounded py-0.5 ${
-                                        disabled
+                                        dateDisabled
                                           ? 'bg-orange-50/30 text-orange-200'
                                           : 'bg-orange-50 text-orange-500'
                                       }`}>
-                                        {!disabled && val > 0 ? val : <span className="opacity-30">-</span>}
+                                        {!dateDisabled && val > 0 ? val : <span className="opacity-30">-</span>}
                                       </span>
                                     )}
                                   </div>

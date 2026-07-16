@@ -23,6 +23,8 @@ interface Props {
   reviewItemId?: string;
   assignees: string[];
   canManage: boolean;
+  /** 지원팀에 연결된 세부업무 — 지원팀 쪽 값을 받기만 해야 하므로 여기서는 편집을 막음 */
+  isSupportLinked?: boolean;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onClose: () => void;
 }
@@ -31,7 +33,8 @@ const lbl = 'block text-[10px] font-semibold text-gray-400 mb-0.5 uppercase trac
 const inp = 'w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40';
 
 // 클릭한 세부업무 바로 아래에 펼쳐지는 인라인 편집 패널 (캘린더 인라인 카드와 동일한 데이터/계산식 공유)
-export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assignees, canManage, onUpdateTask, onClose }: Props) {
+export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assignees, canManage, isSupportLinked = false, onUpdateTask, onClose }: Props) {
+  const canEdit = canManage && !isSupportLinked;
   const entry = task.subTaskData?.[subKey] ?? { weeklyHours: {}, totalHours: 0 };
   const reviewDates = reviewItemId ? (entry.reviewDates ?? {})[reviewItemId] ?? {} : undefined;
   const reviewHours = reviewItemId ? (entry.reviewWeeklyHours ?? {})[reviewItemId] ?? {} : undefined;
@@ -57,7 +60,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
   const [hoursRaw, setHoursRaw] = useState<Record<string, string>>({});
 
   const handleSave = () => {
-    if (!canManage) return;
+    if (!canEdit) return;
 
     if (reviewItemId) {
       const nextReviewDates = { ...(entry.reviewDates ?? {}), [reviewItemId]: { startDate: editState.startDate || undefined, endDate: editState.endDate || undefined } };
@@ -189,7 +192,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
           <DatePicker
             value={editState.startDate}
             onChange={v => setEditState(st => ({ ...st, startDate: v }))}
-            disabled={!canManage}
+            disabled={!canEdit}
             btnClassName={inp}
           />
         </div>
@@ -198,7 +201,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
           <DatePicker
             value={editState.endDate}
             onChange={v => setEditState(st => ({ ...st, endDate: v }))}
-            disabled={!canManage}
+            disabled={!canEdit}
             btnClassName={inp}
           />
         </div>
@@ -211,7 +214,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
             <select
               className={inp}
               value={editState.assignee}
-              disabled={!canManage}
+              disabled={!canEdit}
               onChange={e => setEditState(st => ({ ...st, assignee: e.target.value }))}
             >
               <option value="">선택</option>
@@ -224,7 +227,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
           <select
             className={inp}
             value={editState.status}
-            disabled={!canManage}
+            disabled={!canEdit}
             onChange={e => setEditState(st => ({ ...st, status: e.target.value }))}
           >
             {(reviewItemId ? REVIEW_STATUSES : STATUSES).map(s => <option key={s}>{s}</option>)}
@@ -239,7 +242,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
         ) : (
           <>
             {renderGrid(
-              editState.weeklyHours, subKey, canManage,
+              editState.weeklyHours, subKey, canEdit,
               (key, n) => setEditState(st => {
                 const next = { ...st.weeklyHours };
                 if (n === 0) delete next[key]; else next[key] = n;
@@ -259,7 +262,7 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
             대무자 시간 ({editState.substitute})
           </label>
           {renderGrid(
-            editState.substituteWeeklyHours, `${subKey}_sub`, canManage,
+            editState.substituteWeeklyHours, `${subKey}_sub`, canEdit,
             (key, n) => setEditState(st => {
               const next = { ...st.substituteWeeklyHours };
               if (n === 0) delete next[key]; else next[key] = n;
@@ -272,12 +275,15 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
         </div>
       )}
 
+      {isSupportLinked && (
+        <p className="text-[10px] text-orange-400">지원팀에서 관리하는 세부업무 — 여기서는 수정할 수 없습니다</p>
+      )}
       <div className="flex gap-1.5 mt-0.5">
         <button
           onClick={onClose}
           className="flex-1 py-1.5 rounded-lg border border-black/10 text-[11px] text-gray-500 hover:bg-black/5 transition-colors"
-        >{canManage ? '취소' : '닫기'}</button>
-        {canManage && (
+        >{canEdit ? '취소' : '닫기'}</button>
+        {canEdit && (
           <button
             onClick={handleSave}
             className="flex-1 py-1.5 rounded-lg bg-[#6C63FF] text-white text-[11px] font-semibold hover:bg-[#5b53e6] transition-colors"

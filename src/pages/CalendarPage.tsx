@@ -17,6 +17,7 @@ interface Props {
   canManage?: boolean;
   assignees?: string[];
   assigneesPerSubTaskType?: Map<string, string[]>;
+  supportLinkedSubTaskKeys?: Set<string>; // `${파트명}::${세부업무타입id}` — 지원팀에 연결돼 원본에서는 읽기만 가능한 세부업무
   currentUserName?: string;
   canSeeAll?: boolean;
   customHolidays?: CustomHoliday[];
@@ -148,7 +149,7 @@ const SUBSTITUTE_ACCENT: HoursGridAccent = {
   inputClass: 'border-orange-200 bg-orange-50/70 text-orange-700 focus:ring-orange-400/40',
 };
 
-export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, mainTaskEndDateColor, plShowInCalendar, canManage = false }: Props) {
+export default function CalendarPage({ tasks, subtasks = [], activeCategory, onCategoryChange, parts, userPhotoMap, onUpdateTask, assignees = [], assigneesPerSubTaskType, supportLinkedSubTaskKeys, currentUserName = '', canSeeAll = false, customHolidays = [], vacations = [], subTaskColorMap, teamColor, subTaskOrderMap, groupBySubtaskType = false, mainTaskEndDateShow, mainTaskEndDateLabel, mainTaskEndDateColor, plShowInCalendar, canManage = false }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -196,6 +197,11 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const taskMap = useMemo(() => new Map(tasks.map(t => [t.id, t])), [tasks]);
+
+  // 지원팀에 연결된 세부업무는 지원팀 쪽 값을 받기만 해야 하므로, 현재 펼쳐진 편집 폼이
+  // 그런 세부업무면 모든 입력을 잠금
+  const expandedTaskForLock = expandedId ? taskMap.get(expandedId.split('__')[0]) : undefined;
+  const expandedIsSupportLinked = !!(expandedTaskForLock && supportLinkedSubTaskKeys?.has(`${expandedTaskForLock.category}::${expandedSubKey}`));
 
   const filteredSubtasks = useMemo(() =>
     subtasks.filter(s => {
@@ -301,6 +307,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     const [taskId, subKey] = expandedId.split('__');
     const task = taskMap.get(taskId);
     if (!task) return;
+    // 지원팀에 연결된 세부업무는 지원팀 쪽 값을 받기만 해야 하므로 여기서 저장하지 않음
+    if (supportLinkedSubTaskKeys?.has(`${task.category}::${subKey}`)) return;
     const totalHours = editState.startDate
       ? calcHoursInRange(editState.weeklyHours, editState.startDate, editState.endDate)
       : Object.values(editState.weeklyHours).reduce((a, b) => a + b, 0);
@@ -634,7 +642,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     <DatePicker
                                       value={editState.startDate}
                                       onChange={v => setEditState(st => st && ({ ...st, startDate: v }))}
-                                      disabled={!canManage}
+                                      disabled={!canManage || expandedIsSupportLinked}
                                       btnClassName={inp}
                                     />
                                   </div>
@@ -643,7 +651,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                     <DatePicker
                                       value={editState.endDate}
                                       onChange={v => setEditState(st => st && ({ ...st, endDate: v }))}
-                                      disabled={!canManage}
+                                      disabled={!canManage || expandedIsSupportLinked}
                                       btnClassName={inp}
                                     />
                                   </div>
@@ -655,7 +663,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   <select
                                     className={inp}
                                     value={editState.assignee}
-                                    disabled={!canManage}
+                                    disabled={!canManage || expandedIsSupportLinked}
                                     onChange={e => setEditState(st => st && ({ ...st, assignee: e.target.value }))}
                                   >
                                     <option value="">선택</option>
@@ -669,7 +677,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   <select
                                     className={inp}
                                     value={editState.status}
-                                    disabled={!canManage}
+                                    disabled={!canManage || expandedIsSupportLinked}
                                     onChange={e => setEditState(st => st && ({ ...st, status: e.target.value }))}
                                   >
                                     {STATUSES.map(st => <option key={st}>{st}</option>)}
@@ -689,7 +697,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                       <>
                                         {renderHoursGrid({
                                           weeks, startDayIdx, endDayIdx, endDate: editState.endDate,
-                                          hours: editState.weeklyHours, keyPrefix: expandedSubKey, editable: canManage,
+                                          hours: editState.weeklyHours, keyPrefix: expandedSubKey, editable: canManage && !expandedIsSupportLinked,
                                           accent: PRIMARY_ACCENT,
                                           onCellChange: (key, n) => setEditState(st => {
                                             if (!st) return st;
@@ -716,7 +724,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                       </label>
                                       {renderHoursGrid({
                                         weeks, startDayIdx, endDayIdx, endDate: editState.endDate,
-                                        hours: editState.substituteWeeklyHours, keyPrefix: `${expandedSubKey}_sub`, editable: canManage,
+                                        hours: editState.substituteWeeklyHours, keyPrefix: `${expandedSubKey}_sub`, editable: canManage && !expandedIsSupportLinked,
                                         accent: SUBSTITUTE_ACCENT,
                                         onCellChange: (key, n) => setEditState(st => {
                                           if (!st) return st;
@@ -730,13 +738,16 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
                                   );
                                 })()}
 
+                                {expandedIsSupportLinked && (
+                                  <p className="text-[10px] text-orange-400 -mt-0.5">지원팀에서 관리하는 세부업무 — 여기서는 수정할 수 없습니다</p>
+                                )}
                                 {/* 저장 / 취소 */}
                                 <div className="flex gap-1.5 mt-1">
                                   <button
                                     onClick={e => { e.stopPropagation(); setExpandedId(null); setExpandedSubKey(''); setEditState(null); setHoursRaw({}); }}
                                     className="flex-1 py-1.5 rounded-lg border border-black/10 text-[11px] text-gray-500 hover:bg-black/5 transition-colors"
-                                  >{canManage ? '취소' : '닫기'}</button>
-                                  {canManage && (
+                                  >{canManage && !expandedIsSupportLinked ? '취소' : '닫기'}</button>
+                                  {canManage && !expandedIsSupportLinked && (
                                     <button
                                       onClick={handleSave}
                                       className="flex-1 py-1.5 rounded-lg bg-[#6C63FF] text-white text-[11px] font-semibold hover:bg-[#5b53e6] transition-colors"

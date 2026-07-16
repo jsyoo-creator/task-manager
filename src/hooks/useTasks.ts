@@ -277,6 +277,10 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
   // 경우 Firestore에 직접 질의한다.
   const syncSupportTaskLinks = async (id: string, data: Partial<Task>, now: string) => {
     const touchesAssigneeOrStatus = data.assignee !== undefined || data.status !== undefined;
+    // 지원팀 업무 자신의 기간·시간이 바뀌면 원본 세부업무 항목에도 반영 — 원본 쪽은
+    // 읽기 전용으로 보여주기만 하므로, 화면에 뜨는 값이 지원팀이 실제로 입력한 값과
+    // 항상 같아야 함(안 그러면 원본에서 예전 값이 멈춰있는 것처럼 보임)
+    const touchesScheduleOrHours = (['startDate', 'endDate', 'weeklyHours', 'totalHours'] as const).some(k => k in data);
     const touchesSubTaskData = data.subTaskData !== undefined;
     const touchesBaseInfo = (['title', 'taskMonth', 'startDate', 'endDate'] as const).some(k => k in data);
     // 세부업무를 삭제하면 (subTaskData 업데이트와 별개로) deletedSubTasks에 새 항목이
@@ -288,16 +292,20 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
       return Object.keys(data.deletedSubTasks).filter(k => !(k in before));
     })();
     const touchesDeletedSubTasks = newlyDeletedTypeIds.length > 0;
-    if (!touchesAssigneeOrStatus && !touchesSubTaskData && !touchesBaseInfo && !touchesDeletedSubTasks) return;
+    if (!touchesAssigneeOrStatus && !touchesScheduleOrHours && !touchesSubTaskData && !touchesBaseInfo && !touchesDeletedSubTasks) return;
 
     // 1) 이 업무 자신이 지원팀에서 자동 생성된 연결 업무라면 → 담당자/상태를 원본
     //    업무의 해당 세부업무 항목에 반영
-    if (touchesAssigneeOrStatus) {
+    if (touchesAssigneeOrStatus || touchesScheduleOrHours) {
       const self = tasks.find(t => t.id === id);
       if (self?.linkedFromTaskId && self.linkedFromSubTaskTypeId) {
         const patch: Record<string, unknown> = {};
         if (data.assignee !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.assignee`] = data.assignee;
         if (data.status !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.status`] = data.status;
+        if (data.startDate !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.startDate`] = data.startDate;
+        if (data.endDate !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.endDate`] = data.endDate;
+        if (data.weeklyHours !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.weeklyHours`] = data.weeklyHours;
+        if (data.totalHours !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.totalHours`] = data.totalHours;
         await updateDoc(doc(db, 'tasks', self.linkedFromTaskId), { ...patch, updatedAt: now });
       }
     }

@@ -6983,6 +6983,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync'>>({});
   // [사고 복구용] 팀별로 "매핑 추론" 대상 파트를 고르는 드롭다운 선택값
   const [incidentMappingPartId, setIncidentMappingPartId] = useState<Record<string, string>>({});
+  // [사고 복구용] 팀별로 "PL 매핑 추론" 대상 PL 메인업무 타입을 고르는 드롭다운 선택값
+  const [incidentMappingPLTypeId, setIncidentMappingPLTypeId] = useState<Record<string, string>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -7531,6 +7533,116 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 — PL업무 전용] PL업무는 세부업무 대신 팀 단위 plMainTaskTypes의
+  // subFields(plf_ id)를 쓴다. 위 파트 기준 도구들은 category로만 업무를 찾아
+  // PL업무(plParts 기준)를 놓쳤고, 기준 id 목록도 정규 subTaskTypes만 봐서 PL
+  // 필드 불일치를 인식하지 못했다. 같은 방식(통계적 매핑 추론)을 PL 메인업무
+  // 타입 단위로 별도 제공한다.
+  const proposePLMainTypeMapping = async (team: Team, plMainType: PLMainTaskType) => {
+    const currentIds = (plMainType.subFields ?? []).map(f => f.id);
+    const currentIdSet = new Set(currentIds);
+    const nameById = new Map((plMainType.subFields ?? []).map(f => [f.id, f.name]));
+    const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('plSelectedTypes', 'array-contains', plMainType.id)));
+    const perTask: { title: string; orphanHere: Set<string>; missingHere: Set<string>; conflictHere: Set<string> }[] = [];
+    const orphanIdSet = new Set<string>();
+    tasksSnap.forEach(d => {
+      const data = d.data();
+      if (data.deletedAt) return;
+      const subData = data.subTaskData as Record<string, unknown> | undefined;
+      if (!subData) return;
+      const deletedKeys = new Set(Object.keys(data.deletedSubTasks ?? {}));
+      const orphanHere = new Set(Object.keys(subData).filter(k => !currentIdSet.has(k) && !deletedKeys.has(k) && hasRealSubTaskData(subData[k] as Record<string, unknown>)));
+      orphanHere.forEach(o => orphanIdSet.add(o));
+      const missingHere = new Set(currentIds.filter(c => !hasRealSubTaskData(subData[c] as Record<string, unknown>)));
+      const conflictHere = new Set(currentIds.filter(c => hasRealSubTaskData(subData[c] as Record<string, unknown>)));
+      if (orphanHere.size > 0) perTask.push({ title: data.title, orphanHere, missingHere, conflictHere });
+    });
+
+    const scored: { o: string; c: string; support: number; conflict: number }[] = [];
+    orphanIdSet.forEach(o => {
+      currentIds.forEach(c => {
+        let support = 0, conflict = 0;
+        perTask.forEach(pt => {
+          if (!pt.orphanHere.has(o)) return;
+          if (pt.missingHere.has(c)) support++;
+          else if (pt.conflictHere.has(c)) conflict++;
+        });
+        if (support > 0) scored.push({ o, c, support, conflict });
+      });
+    });
+    scored.sort((a, b) => (b.support - b.conflict) - (a.support - a.conflict));
+    const usedO = new Set<string>(); const usedC = new Set<string>();
+    const mapping: { oldId: string; newId: string; newName: string; support: number; conflict: number }[] = [];
+    for (const s of scored) {
+      if (usedO.has(s.o) || usedC.has(s.c)) continue;
+      if (s.support - s.conflict <= 0) continue;
+      mapping.push({ oldId: s.o, newId: s.c, newName: nameById.get(s.c) ?? s.c, support: s.support, conflict: s.conflict });
+      usedO.add(s.o); usedC.add(s.c);
+    }
+    const unmatched = [...orphanIdSet].filter(o => !usedO.has(o));
+
+    console.log(`[PL 메인업무 id 매핑 자동 추론] ${team.name} / ${plMainType.name}`, JSON.stringify({ mapping, unmatched, taskCount: perTask.length }, null, 1));
+    const summary = mapping.map(m => `- ${m.oldId} → ${m.newName}(${m.newId})  (지지 ${m.support}건${m.conflict > 0 ? `, 충돌의심 ${m.conflict}건` : ''})`).join('\n');
+    alert(`[${team.name} / PL: ${plMainType.name}] 업무 ${perTask.length}건을 근거로 매핑 ${mapping.length}건을 추론했습니다:\n\n${summary}`
+      + (unmatched.length > 0 ? `\n\n⚠ 짝을 못 찾은 옛 id ${unmatched.length}개: ${unmatched.join(', ')}` : '')
+      + `\n\n⚠ 이건 추론일 뿐 정답이 보장되지 않습니다. 브라우저 콘솔에 상세 내역이 있으니, 확인 후 적용을 결정해주세요. (아직 데이터를 바꾸지 않았습니다)`);
+    return mapping;
+  };
+
+  const applyManualIdMappingForPLType = async (team: Team, plMainType: PLMainTaskType, idMap: Record<string, string>) => {
+    try {
+      const moved: { title: string; oldId: string; newId: string }[] = [];
+      const skipped: { title: string; oldId: string; newId: string }[] = [];
+      const failed: { title: string; error: string }[] = [];
+      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('plSelectedTypes', 'array-contains', plMainType.id)));
+      for (const taskDoc of tasksSnap.docs) {
+        const data = taskDoc.data();
+        if (data.deletedAt) continue;
+        const subData = data.subTaskData;
+        if (!subData) continue;
+        const nextSub: Record<string, unknown> = { ...subData };
+        let changed = false;
+        for (const [oldId, newId] of Object.entries(idMap)) {
+          if (subData[oldId] === undefined) continue;
+          if (hasRealSubTaskData(subData[newId] as Record<string, unknown>)) { skipped.push({ title: data.title, oldId, newId }); continue; }
+          nextSub[newId] = subData[oldId];
+          delete nextSub[oldId];
+          changed = true;
+          moved.push({ title: data.title, oldId, newId });
+        }
+        if (changed) {
+          try {
+            await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+          } catch (e) {
+            failed.push({ title: data.title, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+      }
+      console.log(`[PL 수동 매핑 복구 적용] ${team.name}/${plMainType.name}`, JSON.stringify({ moved, skipped, failed }, null, 1));
+      alert(`[${team.name} / PL: ${plMainType.name}] 총 ${moved.length}건의 세부업무 데이터를 지정한 매핑대로 옮겼습니다.`
+        + (skipped.length > 0 ? `\n\n⚠ ${skipped.length}건은 목적지에 이미 데이터가 있어 건너뛰었습니다.` : '')
+        + (failed.length > 0 ? `\n\n❌ ${failed.length}건은 저장 중 오류로 실패했습니다.` : '')
+        + `\n\n브라우저 콘솔에 상세 내역이 있습니다.`);
+    } catch (e) {
+      console.error('[PL 수동 매핑 복구 적용] 실행 중 오류', e);
+      alert(`복구 적용 중 오류가 발생해 중간에 멈췄습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)에 자세한 오류가 있습니다. 이 내용을 캡처해서 보내주세요.`);
+    }
+  };
+
+  const applyInferredPLMapping = async (team: Team, plMainType: PLMainTaskType) => {
+    try {
+      const mapping = await proposePLMainTypeMapping(team, plMainType);
+      if (mapping.length === 0) { alert('적용할 매핑이 없습니다.'); return; }
+      if (!window.confirm(`방금 알림/콘솔에 뜬 추론 매핑 ${mapping.length}건을 그대로 적용해 데이터를 옮깁니다. 확인하셨나요? 계속할까요?`)) return;
+      const idMap: Record<string, string> = {};
+      mapping.forEach(m => { idMap[m.oldId] = m.newId; });
+      await applyManualIdMappingForPLType(team, plMainType, idMap);
+    } catch (e) {
+      console.error('[PL id 매핑 자동 추론 적용] 실행 중 오류', e);
+      alert(`실행 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7907,6 +8019,33 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             추론 매핑 적용
                           </button>
                         </div>
+                        {(team.plMainTaskTypes?.length ?? 0) > 0 && (() => {
+                          const selectedPLTypeId = incidentMappingPLTypeId[team.id] ?? team.plMainTaskTypes![0].id;
+                          const selectedPLType = team.plMainTaskTypes!.find(t => t.id === selectedPLTypeId);
+                          return (
+                            <div className="flex gap-1 flex-wrap items-center pt-1 border-t border-amber-200">
+                              <span>PL업무(세부업무와 별도 체계 — 여기서 따로 진단·복구):</span>
+                              <select
+                                value={selectedPLTypeId}
+                                onChange={e => setIncidentMappingPLTypeId(prev => ({ ...prev, [team.id]: e.target.value }))}
+                                className="px-1.5 py-0.5 rounded-md border border-amber-300 bg-white text-amber-700 text-[11px]">
+                                {team.plMainTaskTypes!.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              </select>
+                              <button type="button"
+                                onClick={() => selectedPLType && proposePLMainTypeMapping(team, selectedPLType)}
+                                disabled={!selectedPLType}
+                                className={`${btn} bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-40`}>
+                                PL 매핑 추론
+                              </button>
+                              <button type="button"
+                                onClick={() => selectedPLType && applyInferredPLMapping(team, selectedPLType)}
+                                disabled={!selectedPLType}
+                                className={`${btn} bg-cyan-800 text-white hover:bg-cyan-900 disabled:opacity-40`}>
+                                PL 추론 매핑 적용
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })()}

@@ -40,12 +40,13 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     return unsub;
   }, [projectId, teamId]);
 
-  const addTask = async (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addTask = async (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     const now = new Date().toISOString();
     const payload = Object.fromEntries(
       Object.entries({ ...data, createdAt: now, updatedAt: now }).filter(([, v]) => v !== undefined)
     );
-    await addDoc(collection(db, 'tasks'), payload);
+    const ref = await addDoc(collection(db, 'tasks'), payload);
+    return ref.id;
   };
 
   // 업무 귀속(그룹핑) 시 상위 업무와 동기화할 필드 key 목록 — 팀/파트 설정(폼설정의

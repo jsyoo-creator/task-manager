@@ -10,7 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 interface Props {
   tasks: Task[];
-  onAddTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onAddTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
   onOpenDetail: (id: string) => void;
@@ -936,7 +936,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const taskPart = parts?.find(p => p.name === task.category);
     const includeDetails = resolveCopyIncludeDetails(currentTeam, taskPart);
     if (includeDetails) {
-      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = task;
+      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, parentTaskId: _parentTaskId, ...rest } = task;
       // 세부업무 항목의 담당자/대무자를 원본 그대로 복제하면, 복사 후 상단 담당자만
       // 바꿔도 내부 세부업무엔 예전 사람이 남아 "내 업무만" 필터(isMyTask)가 계속
       // 그 사람의 업무로 잡는 문제가 생긴다. 복사본은 새로 배정할 사람이 다시
@@ -944,6 +944,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       const subTaskData = rest.subTaskData && Object.fromEntries(
         Object.entries(rest.subTaskData).map(([key, entry]) => [key, { ...entry, assignee: '', substitute: '' }])
       );
+      // parentTaskId는 복사하지 않음 — 하위 업무를 복사하면 원본이 귀속된 부모에 그대로
+      // 딸려가 버리므로, 복사본은 항상 독립된 업무로 시작하고 필요하면 handleCopyTask가
+      // 새 부모-자식 관계를 다시 맺어줌
       return { ...rest, subTaskData, sortOrder };
     }
     return {
@@ -965,10 +968,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     };
   };
 
-  const handleCopyTask = (task: Task) => {
+  // 하위 업무는 부모와 독립적으로 복사할 수 없게 함(항상 부모를 복사할 때 함께
+  // 따라옴) — 부모를 복사하면 그 하위 업무들도 전부 복사해 새 부모 밑에 다시
+  // 귀속시켜, 복사 후에도 그룹 구조가 그대로 유지되게 함
+  const handleCopyTask = async (task: Task) => {
     const idx = tasks.findIndex(t => t.id === task.id);
     tasks.forEach((t, i) => { if (t.sortOrder !== i) onUpdateTask(t.id, { sortOrder: i }); });
-    onAddTask(buildCopyPayload(task, idx + 0.5));
+    const newParentId = await onAddTask(buildCopyPayload(task, idx + 0.5));
+    const children = childrenByParent.get(task.id) ?? [];
+    if (children.length > 0 && newParentId) {
+      const newChildIds = await Promise.all(
+        children.map((child, i) => onAddTask(buildCopyPayload(child, idx + 0.5 + (i + 1) * 0.01)))
+      );
+      await onGroupTasks?.(newChildIds.filter(Boolean), newParentId);
+    }
   };
 
   const handleAddTask = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -1195,7 +1208,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         onDelete={onDeleteTask}
         onDeleteRequest={(id, title) => setPendingDelete({ id, title })}
         onOpenDetail={() => onOpenDetail(task.id)}
-        onCopy={() => handleCopyTask(task)}
+        onCopy={() => handleCopyTask(task).catch((e: unknown) => {
+          alert(`업무 복사 실패: ${e instanceof Error ? e.message : String(e)}`);
+        })}
         canManage={canManage}
         canDelete={canDelete}
         assignees={assignees}
@@ -1780,21 +1795,27 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl px-5 py-3 shadow-2xl border border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <span className="text-sm font-semibold text-white">{selectedIds.size}개 선택됨</span>
-          <div className="w-px h-4 bg-white/20" />
-          <button
-            onClick={() => {
-              tasks.forEach((t, i) => { if (t.sortOrder !== i) onUpdateTask(t.id, { sortOrder: i }); });
-              filtered
-                .filter(t => selectedIds.has(t.id))
-                .forEach((t, i) => {
-                  const idx = tasks.findIndex(x => x.id === t.id);
-                  onAddTask(buildCopyPayload(t, idx + 0.5 + i * 0.01));
-                });
-              setSelectedIds(new Set());
-            }}
-            className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
-            <Copy size={13} /> 복사
-          </button>
+          {/* 하위 업무는 부모 없이 단독 복사할 수 없으므로, 선택 항목 중 최상위(귀속되지
+              않은) 업무가 하나도 없으면 복사 메뉴 자체를 숨김. 최상위 업무를 복사하면
+              handleCopyTask가 그 하위 업무까지 함께 복사해줌 */}
+          {filtered.some(t => selectedIds.has(t.id) && !t.parentTaskId) && (
+            <>
+              <div className="w-px h-4 bg-white/20" />
+              <button
+                onClick={async () => {
+                  const copyable = filtered.filter(t => selectedIds.has(t.id) && !t.parentTaskId);
+                  for (const t of copyable) {
+                    await handleCopyTask(t).catch((e: unknown) => {
+                      alert(`업무 복사 실패: ${e instanceof Error ? e.message : String(e)}`);
+                    });
+                  }
+                  setSelectedIds(new Set());
+                }}
+                className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-sm font-semibold transition-colors">
+                <Copy size={13} /> 복사
+              </button>
+            </>
+          )}
           {canManage && (() => {
             const selectedTasks = tasks.filter(t => selectedIds.has(t.id));
             const allGrouped = selectedTasks.length > 0 && selectedTasks.every(t => t.parentTaskId);
@@ -2332,9 +2353,9 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 <Info size={11} />
               </button>
             )}
-            {canManage && (
+            {canManage && !task.parentTaskId && (
               <button onClick={e => { e.stopPropagation(); onCopy(); }}
-                title="복사"
+                title="복사 (하위 업무까지 함께 복사됨)"
                 className="flex items-center justify-center px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-400 hover:text-[#6C63FF] hover:border-[#6C63FF]/30 transition-all">
                 <Copy size={11} />
               </button>

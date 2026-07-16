@@ -19,7 +19,7 @@ function buildLinkedSupportPayload(origin: Task, type: SubTaskType, now: string)
     teamId: type.supportTeamId,
     category: type.supportPartName,
     taskMonth: origin.taskMonth,
-    title: `${origin.title} - ${type.name}`,
+    title: origin.title,
     type: '신규',
     status: entry?.status ?? '진행 전',
     receiver: '',

@@ -856,6 +856,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
 
   // "같은 값 연결"(얼라이어스) 피커 — 어느 필드의 연결 설정 팝오버가 열려있는지
   const [aliasPickerId, setAliasPickerId] = useState<string | null>(null);
+  // 후보 중 두 개 이상이 같은 id를 가리킬 수 있어(예: 파트를 복사해서 만들어 id가
+  // 같은 경우), 실제로 저장되는 값(id)만으로는 사용자가 방금 어느 걸 클릭했는지
+  // 구분해 보여줄 수 없다. 이번 세션에서 실제로 클릭한 스코프를 따로 기억해두고
+  // 그 라벨을 우선 표시함(저장되는 값 자체는 항상 id 하나로 동일)
+  const [aliasChoice, setAliasChoice] = useState<Record<string, string>>({});
+  const [openAliasRow, setOpenAliasRow] = useState<string | null>(null);
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -1490,17 +1496,62 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                 const setAlias = (patch: Partial<Pick<CustomFormField, 'aliasFieldId' | 'aliasFieldIdByPart'>>) => {
                   onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, ...patch } : f));
                 };
+                // rowKey별 커스텀 드롭다운 — 후보 중 둘 이상이 같은 id를 가리켜도(예: 파트를
+                // 복사해서 만든 경우) 방금 클릭한 스코프 라벨을 그대로 보여줌
+                const renderPicker = (rowKey: string, currentId: string, onPick: (id: string) => void, noneLabel: string) => {
+                  const explicitKey = aliasChoice[rowKey];
+                  const matched = (explicitKey ? otherCandidates.find(c => `${c.scope}:${c.id}` === explicitKey) : undefined)
+                    ?? (currentId ? otherCandidates.find(c => c.id === currentId) : undefined);
+                  const isOpen = openAliasRow === rowKey;
+                  return (
+                    <div className="relative">
+                      <button type="button"
+                        onClick={() => setOpenAliasRow(isOpen ? null : rowKey)}
+                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white hover:border-blue-300 transition-colors text-left min-w-[150px] truncate">
+                        {currentId ? `${matched?.label ?? currentId} (${matched?.scope ?? '?'})` : noneLabel}
+                      </button>
+                      {isOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setOpenAliasRow(null)} />
+                          <div className="absolute left-0 top-full mt-1 min-w-[170px] max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                            <button type="button"
+                              onClick={() => {
+                                onPick('');
+                                setAliasChoice(prev => { const next = { ...prev }; delete next[rowKey]; return next; });
+                                setOpenAliasRow(null);
+                              }}
+                              className="w-full text-left px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50 transition-colors">
+                              {noneLabel}
+                            </button>
+                            {otherCandidates.map(c => {
+                              const key = `${c.scope}:${c.id}`;
+                              const checked = !!matched && `${matched.scope}:${matched.id}` === key;
+                              return (
+                                <button key={key} type="button"
+                                  onClick={() => {
+                                    onPick(c.id);
+                                    setAliasChoice(prev => ({ ...prev, [rowKey]: key }));
+                                    setOpenAliasRow(null);
+                                  }}
+                                  className={`w-full flex items-center justify-between gap-2 text-left px-3 py-1.5 text-xs transition-colors ${
+                                    checked ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                                  }`}>
+                                  <span className="truncate">{c.label} ({c.scope})</span>
+                                  {checked && <Check size={11} className="flex-shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                };
                 return (
                   <div className="px-9 pb-2 pt-1 bg-blue-50/40 border-t border-blue-100/60 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-500 w-20 flex-shrink-0">기본값(공통)</span>
-                      <select
-                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                        value={cf.aliasFieldId ?? ''}
-                        onChange={e => setAlias({ aliasFieldId: e.target.value || undefined })}>
-                        <option value="">연결 안 함</option>
-                        {otherCandidates.map(c => <option key={`${c.scope}:${c.id}`} value={c.id}>{c.label} ({c.scope})</option>)}
-                      </select>
+                      {renderPicker(`${cf.id}::__default__`, cf.aliasFieldId ?? '', id => setAlias({ aliasFieldId: id || undefined }), '연결 안 함')}
                     </div>
                     {(team.parts ?? []).length > 0 && (
                       <p className="text-[10px] text-gray-400">파트마다 다른 필드를 가리켜야 하면 아래에서 파트별로 따로 지정 (비워두면 위 기본값을 따름)</p>
@@ -1508,17 +1559,11 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                     {(team.parts ?? []).map(p => (
                       <div key={p.id} className="flex items-center gap-2">
                         <span className="text-[10px] text-gray-500 w-20 flex-shrink-0 truncate">{p.name}</span>
-                        <select
-                          className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-blue-400"
-                          value={cf.aliasFieldIdByPart?.[p.name] ?? ''}
-                          onChange={e => {
-                            const next = { ...(cf.aliasFieldIdByPart ?? {}) };
-                            if (e.target.value) next[p.name] = e.target.value; else delete next[p.name];
-                            setAlias({ aliasFieldIdByPart: Object.keys(next).length ? next : undefined });
-                          }}>
-                          <option value="">(기본값 사용)</option>
-                          {otherCandidates.map(c => <option key={`${c.scope}:${c.id}`} value={c.id}>{c.label} ({c.scope})</option>)}
-                        </select>
+                        {renderPicker(`${cf.id}::${p.name}`, cf.aliasFieldIdByPart?.[p.name] ?? '', id => {
+                          const next = { ...(cf.aliasFieldIdByPart ?? {}) };
+                          if (id) next[p.name] = id; else delete next[p.name];
+                          setAlias({ aliasFieldIdByPart: Object.keys(next).length ? next : undefined });
+                        }, '(기본값 사용)')}
                       </div>
                     ))}
                   </div>

@@ -2352,8 +2352,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
         const allFieldElements = tableCols.flatMap(col => {
           if (col.kind === 'custom') {
             const cf = col.cf;
-            const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
             const cfType = cf.type as string;
+            // 엑셀 내보내기→재가져오기 등으로 빈 값이 문자 그대로 "-"로 저장된 select
+            // 필드는 옵션과 매칭이 안 돼 "직접 입력" 모드로 보이므로, 화면에 표시할 때
+            // 빈 값으로 되돌려 정상 드롭다운으로 렌더링되게 함
+            const rawVal = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+            const val = cfType === 'select' && rawVal.trim() === '-' ? '' : rawVal;
             const isNameType = cfType === 'name' || cfType === '이름';
             const opts = (() => {
               if (isNameType) {
@@ -2834,8 +2838,12 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   );
                 })}
                 {enabledCfs.map(cf => {
-                  const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
                   const cfType = cf.type as string;
+                  // 엑셀 내보내기→재가져오기 등으로 빈 값이 문자 그대로 "-"로 저장된
+                  // select 필드는 옵션과 매칭이 안 돼 "직접 입력" 모드로 보이므로, 화면에
+                  // 표시할 때 빈 값으로 되돌려 정상 드롭다운으로 렌더링되게 함
+                  const rawVal = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const val = cfType === 'select' && rawVal.trim() === '-' ? '' : rawVal;
                   const isNameType = cfType === 'name' || cfType === '이름';
                   const opts = (() => {
                     if (isNameType) {

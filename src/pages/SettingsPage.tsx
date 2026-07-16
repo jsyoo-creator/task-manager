@@ -6928,7 +6928,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   );
 }
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -6973,6 +6973,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormPreset[]) => Promise<void>;
   onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
   allUsers: AppUser[];
+  isSuperadmin: boolean;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -7624,8 +7625,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         </div>
       )}
 
-      {/* 파트/세부업무 id 중복 전체 검사 — 팀마다 일일이 들어가서 확인하지 않아도 한 번에 보이게 함 */}
-      {(() => {
+      {/* 파트/세부업무 id 중복 전체 검사 — 팀마다 일일이 들어가서 확인하지 않아도 한 번에 보이게 함 (최고 관리자 전용) */}
+      {isSuperadmin && (() => {
         const partAffected = teams.filter(t => findDuplicatePartIds(t).size > 0);
         const subTaskAffected = teams.filter(t => findDuplicateSubTaskTypeIds(t).length > 0);
         if (partAffected.length === 0 && subTaskAffected.length === 0) return null;
@@ -7661,8 +7662,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         );
       })()}
 
-      {/* [사고 복구용] 이름은 같은데 범위마다 id가 다른 세부업무 — 전체 팀 한 번에 조회(쓰기 없음) */}
-      {(() => {
+      {/* [사고 복구용] 이름은 같은데 범위마다 id가 다른 세부업무 — 전체 팀 한 번에 조회(쓰기 없음) (최고 관리자 전용) */}
+      {isSuperadmin && (() => {
         const nameClusterAffected = teams.filter(t => findNameIdClusters(t).length > 0);
         if (nameClusterAffected.length === 0) return null;
         return (
@@ -7803,8 +7804,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                     ))}
                   </div>
 
-                  {/* 파트/세부업무 id 중복 경고 — 어느 탭을 보고 있든(세부업무/폼설정 등) 바로 보이도록 탭 바로 아래 고정 */}
-                  {(() => {
+                  {/* 파트/세부업무 id 중복 경고 — 어느 탭을 보고 있든(세부업무/폼설정 등) 바로 보이도록 탭 바로 아래 고정 (최고 관리자 전용) */}
+                  {isSuperadmin && (() => {
                     const dupIds = findDuplicatePartIds(team);
                     if (dupIds.size === 0) return null;
                     const dupNames = team.parts.filter(p => dupIds.has(p.id)).map(p => p.name).join(', ');
@@ -7820,7 +7821,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                       </div>
                     );
                   })()}
-                  {(() => {
+                  {isSuperadmin && (() => {
                     const dupEntries = findDuplicateSubTaskTypeIds(team);
                     if (dupEntries.length === 0) return null;
                     const dupSummary = dupEntries.map(([, occs]) => `${occs[0].name}(${occs.map(o => o.label).join('/')})`).join(', ');
@@ -7836,35 +7837,32 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                       </div>
                     );
                   })()}
-                  {(() => {
+                  {isSuperadmin && (() => {
                     const clusters = findNameIdClusters(team);
                     const selectedPartId = incidentMappingPartId[team.id] ?? team.parts[0]?.id ?? '';
                     const selectedPart = team.parts.find(p => p.id === selectedPartId);
+                    const btn = 'px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors';
                     return (
-                      <div className="flex flex-col gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+                      <div className="flex flex-col gap-1.5 px-5 py-2 bg-amber-50 border-b border-amber-200 text-[11px] text-amber-700">
                         <span>{clusters.length > 0
                           ? `🔎 이름은 같은데 범위마다 id가 다른 세부업무 항목이 ${clusters.length}건 있습니다 — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회(데이터 변경 없음)해볼 수 있습니다.`
                           : '🔎 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회할 수 있습니다 (데이터 변경 없음).'}</span>
-                        <div className="flex gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => scanNameIdClusterOrphans(team)}
-                            className="px-2.5 py-1 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors">
-                            이름 클러스터 진단 (조회 전용)
+                        <div className="flex gap-1 flex-wrap items-center">
+                          <button type="button" onClick={() => scanNameIdClusterOrphans(team)}
+                            className={`${btn} bg-amber-500 text-white hover:bg-amber-600`}>
+                            이름 클러스터 진단
                           </button>
                           {findWithinPartNameDuplicates(team).length > 0 && (
-                            <button
-                              type="button"
+                            <button type="button"
                               onClick={async () => {
                                 if (!window.confirm(`${team.name}: 파트 목록 안에서 이름이 중복된 세부업무를 하나로 합치고, 관련 업무 데이터를 대표 id로 옮깁니다. "설정 원본 보기"로 미리 확인하셨나요? 계속할까요?`)) return;
                                 await mergeWithinPartNameDuplicates(team);
                               }}
-                              className="px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                              className={`${btn} bg-red-500 text-white hover:bg-red-600`}>
                               파트 내 중복 병합
                             </button>
                           )}
-                          <button
-                            type="button"
+                          <button type="button"
                             onClick={() => {
                               const dump = team.parts.map(p => ({
                                 part: p.name,
@@ -7882,49 +7880,32 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                                 ? `같은 범위 안에서 이름이 중복된 세부업무를 찾았습니다:\n${[...dupNames.entries()].map(([k, ids]) => `- ${k} (id ${ids.length}개)`).join('\n')}\n\n브라우저 콘솔에 전체 설정 원본(id 목록)이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요.`
                                 : `같은 범위 안 이름 중복은 없습니다. 브라우저 콘솔에 전체 설정 원본(id 목록)이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요.`);
                             }}
-                            className="px-2.5 py-1 rounded-md bg-slate-500 text-white font-medium hover:bg-slate-600 transition-colors">
+                            className={`${btn} bg-slate-500 text-white hover:bg-slate-600`}>
                             설정 원본 보기
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => scanOrphanedSubTaskDataForTeam(team)}
-                            className="px-2.5 py-1 rounded-md bg-teal-600 text-white font-medium hover:bg-teal-700 transition-colors">
-                            전체 파트 정밀 진단 (조회 전용)
+                          <button type="button" onClick={() => scanOrphanedSubTaskDataForTeam(team)}
+                            className={`${btn} bg-teal-600 text-white hover:bg-teal-700`}>
+                            전체 파트 정밀 진단
                           </button>
-                        </div>
-                        <div className="flex gap-1.5 flex-wrap items-center pt-1 border-t border-amber-200">
-                          <span className="font-medium">파트별 매핑 추론:</span>
+                          <span className="w-px h-4 bg-amber-300 mx-0.5" />
                           <select
                             value={selectedPartId}
                             onChange={e => setIncidentMappingPartId(prev => ({ ...prev, [team.id]: e.target.value }))}
-                            className="px-2 py-1 rounded-md border border-amber-300 bg-white text-amber-700">
+                            className="px-1.5 py-0.5 rounded-md border border-amber-300 bg-white text-amber-700 text-[11px]">
                             {team.parts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
-                          <button
-                            type="button"
+                          <button type="button"
                             onClick={() => selectedPart && proposePartIdMapping(team, selectedPart)}
                             disabled={!selectedPart}
-                            className="px-2.5 py-1 rounded-md bg-cyan-600 text-white font-medium hover:bg-cyan-700 transition-colors disabled:opacity-40">
-                            매핑 추론 (조회 전용)
+                            className={`${btn} bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-40`}>
+                            매핑 추론
                           </button>
-                          <button
-                            type="button"
+                          <button type="button"
                             onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}
                             disabled={!selectedPart}
-                            className="px-2.5 py-1 rounded-md bg-cyan-800 text-white font-medium hover:bg-cyan-900 transition-colors disabled:opacity-40">
+                            className={`${btn} bg-cyan-800 text-white hover:bg-cyan-900 disabled:opacity-40`}>
                             추론 매핑 적용
                           </button>
-                          {team.name === '오픈마켓' && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!window.confirm('오픈마켓 / 브랜드관 파트: 확인된 매핑대로 옛 세부업무 데이터를 새 id로 옮깁니다. 목적지에 이미 데이터가 있으면 건너뜁니다. 계속할까요?')) return;
-                                await applyManualIdMapping(team, '브랜드관', OPENMARKET_BRAND_PART_ID_MAP);
-                              }}
-                              className="px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
-                              브랜드관 파트 복구 적용 (확인된 매핑)
-                            </button>
-                          )}
                         </div>
                       </div>
                     );
@@ -9192,6 +9173,7 @@ export default function SettingsPage({
           onUpdatePartMailFormConfig={onUpdatePartMailFormConfig}
           onClearPartMailFormConfig={onClearPartMailFormConfig}
           allUsers={users}
+          isSuperadmin={isRoleSuperadmin}
         />
       )}
 

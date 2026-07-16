@@ -1358,6 +1358,11 @@ export default function TaskDetailPanel({
     const next: Record<string, SubTaskEntry> = { ...current };
 
     subTaskTypes.forEach(type => {
+      // 검수(review) 타입은 담당자가 "이 업무 전체를 검수하는 사람"을 뜻해 부서
+      // 매칭으로 자동 갱신하면 안 됨 — 접수자 직군과 매칭되는 경우가 많아, 담당자만
+      // 바꾸고 접수자는 그대로 두면 검수 담당자가 계속 예전 사람으로 되돌아가는
+      // 문제가 있었음(복사 후 재배정해도 "내 업무만" 필터에 계속 걸리는 원인)
+      if (type.plFieldType === 'review') return;
       const typeDepts = resolveFieldDepts(type);
       if (!typeDepts) return;
       const entry = next[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };

@@ -2268,49 +2268,57 @@ export default function TaskDetailPanel({
                       {(() => {
                         const subKey = (entry.status ?? '진행 전') as TaskStatus;
                         const subSc = statusConfigs.find(s => s.key === subKey) ?? statusConfigs[0];
+                        // 지원팀에 연결된 세부업무는 상태·담당자가 지원팀 쪽에서 관리되어
+                        // 자동으로 반영되므로, 원본 팀에서는 보기만 하고 직접 수정할 수 없음
+                        const isSupportLinked = !!(type.supportTeamId && type.supportPartName);
                         return (
-                          <div className="relative flex-shrink-0">
+                          <div className="relative flex-shrink-0" title={isSupportLinked ? '지원팀에서 관리하는 상태 — 여기서는 수정할 수 없습니다' : undefined}>
                             <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium cursor-pointer"
                               style={{ backgroundColor: subSc?.bg, color: subSc?.text }}>
                               <span>{subSc?.label ?? subKey}</span>
-                              <ChevronDown size={9} />
+                              {!isSupportLinked && <ChevronDown size={9} />}
                             </div>
-                            <select
-                              disabled={!canManage}
-                              className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default"
-                              value={subKey}
-                              onChange={e => {
-                                const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
-                                commitSubTaskData(next);
-                              }}>
-                              {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                            </select>
+                            {!isSupportLinked && (
+                              <select
+                                disabled={!canManage}
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full disabled:cursor-default"
+                                value={subKey}
+                                onChange={e => {
+                                  const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, status: e.target.value as TaskStatus } };
+                                  commitSubTaskData(next);
+                                }}>
+                                {statusConfigs.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                              </select>
+                            )}
                           </div>
                         );
                       })()}
                       {(() => {
                         const typeDeptLabel = '-';
+                        const isSupportLinked = !!(type.supportTeamId && type.supportPartName);
                         return (
-                          <div className="relative max-w-[120px]">
+                          <div className="relative max-w-[120px]" title={isSupportLinked ? '지원팀에서 관리하는 담당자 — 여기서는 수정할 수 없습니다' : undefined}>
                             <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-gray-100">
                               <span className="truncate">{entry.assignee || typeDeptLabel}</span>
                               {isVacation && (
                                 <span className="text-[9px] px-1 rounded font-medium bg-orange-100 text-orange-500 flex-shrink-0">휴가</span>
                               )}
-                              <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />
+                              {!isSupportLinked && <ChevronDown size={10} className="flex-shrink-0 text-gray-400" />}
                             </div>
-                            <select
-                              disabled={!canManage}
-                              className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
-                              style={{ cursor: canManage ? 'pointer' : 'default' }}
-                              value={entry.assignee ?? ''}
-                              onChange={e => {
-                                const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
-                                commitSubTaskData(next);
-                              }}>
-                              <option value="">{typeDeptLabel}</option>
-                              {displayAssignees.map(a => <option key={a}>{a}</option>)}
-                            </select>
+                            {!isSupportLinked && (
+                              <select
+                                disabled={!canManage}
+                                className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
+                                style={{ cursor: canManage ? 'pointer' : 'default' }}
+                                value={entry.assignee ?? ''}
+                                onChange={e => {
+                                  const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, assignee: e.target.value } };
+                                  commitSubTaskData(next);
+                                }}>
+                                <option value="">{typeDeptLabel}</option>
+                                {displayAssignees.map(a => <option key={a}>{a}</option>)}
+                              </select>
+                            )}
                           </div>
                         );
                       })()}

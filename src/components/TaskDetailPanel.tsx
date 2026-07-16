@@ -1991,7 +1991,20 @@ export default function TaskDetailPanel({
 
         {/* 세부업무 & 주차별 시간 */}
         <div className="px-5 py-3 border-t border-black/[0.08]">
-          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">세부업무 & 주차별 시간</p>
+          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5 flex items-center justify-between">
+            <span>세부업무 & 주차별 시간</span>
+            {/* 임시 디버그: 세부업무 id 이전 사고 조사용 — 조사 끝나면 제거 */}
+            <button
+              type="button"
+              onClick={() => alert(JSON.stringify({
+                taskId: task.id,
+                category: task.category,
+                currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
+                subTaskData: task.subTaskData,
+              }, null, 1))}
+              className="text-[9px] font-normal normal-case text-gray-300 hover:text-red-400"
+            >디버그</button>
+          </p>
           {subTaskTypes.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-3">팀 설정 → 세부 업무 탭에서 유형을 등록해주세요</p>
           ) : (

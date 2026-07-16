@@ -7235,9 +7235,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 </span>
                 <button
                   type="button"
-                  onClick={async () => { for (const t of subTaskAffected) await handleFixDuplicateSubTaskTypeIds(t); }}
-                  className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors">
-                  전체 팀 한 번에 분리하기
+                  onClick={() => alert('이 복구 기능은 데이터 이전 중 문제가 발견되어 점검 중입니다. 잠시 사용을 중단해주세요.')}
+                  className="flex-shrink-0 px-2.5 py-1 rounded-md bg-gray-400 text-white text-xs font-medium cursor-not-allowed">
+                  점검 중 (사용 중단)
                 </button>
               </div>
             )}
@@ -7391,12 +7391,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                     const dupSummary = dupEntries.map(([, occs]) => `${occs[0].name}(${occs.map(o => o.label).join('/')})`).join(', ');
                     return (
                       <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-red-50 border-b border-red-200 text-xs text-red-600">
-                        <span>⚠ 이 팀은 세부업무 항목의 id가 여러 파트에서 겹쳐 설정이 뒤섞일 수 있습니다: {dupSummary}</span>
+                        <span>⚠ 이 팀은 세부업무 항목의 id가 여러 파트에서 겹쳐 설정이 뒤섞일 수 있습니다: {dupSummary} (복구 기능은 점검 중이라 지금은 건드리지 않는 것이 안전합니다)</span>
                         <button
                           type="button"
-                          onClick={() => handleFixDuplicateSubTaskTypeIds(team)}
-                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
-                          지금 분리하기
+                          onClick={() => alert('이 복구 기능은 데이터 이전 중 문제가 발견되어 점검 중입니다. 잠시 사용을 중단해주세요.')}
+                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-gray-400 text-white font-medium cursor-not-allowed">
+                          점검 중 (사용 중단)
                         </button>
                       </div>
                     );

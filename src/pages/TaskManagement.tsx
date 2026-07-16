@@ -2249,7 +2249,18 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
       (partAIdx < partRIdx) !== (globalAIdx < globalRIdx);
     return { taskPartFields: partFields, swapReceiverAssignee: swap };
   }, [parts, task.category, tableFields]);
-  const enabledCfs = (formConfig?.customFields ?? []).filter(cf => cf.enabled !== false && cf.showIn !== 'detail' && !tableCfIds.has(cf.id));
+  // 고정 컬럼(tableCfs) 중 이 업무의 파트에 있는 같은 라벨의 필드로 얼라이어스되는
+  // 필드가 있으면, 그 대상 필드는 이미 고정 컬럼에서 값이 보이고 있으므로 별도
+  // 컬럼으로 또 보여주지 않음 — 안 그러면 "퍼블"이 담당자 옆(고정 컬럼)과 뒤쪽
+  // (파트 자체 필드)에 두 번 나타나는 것처럼 보임
+  const aliasedTargetIds = new Set(
+    tableCfs
+      .map(cf => resolveAliasFieldId(cf, task.category, parts))
+      .filter((id): id is string => !!id && !BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(id))
+  );
+  const enabledCfs = (formConfig?.customFields ?? []).filter(cf =>
+    cf.enabled !== false && cf.showIn !== 'detail' && !tableCfIds.has(cf.id) && !aliasedTargetIds.has(cf.id)
+  );
 
   const copyMetaFields = async () => {
     const entries: { label: string; value: string; isUrl: boolean }[] = [];
@@ -2381,7 +2392,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             // 공유하도록 지정된 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는
             // 필드의 저장 위치를 그대로 읽고 씀 — 같은 목적의 필드가 스코프마다 따로
             // 만들어져 값이 어긋나 보이는 문제를 해소
-            const aliasTarget = resolveAliasFieldId(cf, task.category);
+            const aliasTarget = resolveAliasFieldId(cf, task.category, parts);
             const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
             const effKey = aliasTarget || cf.id;
             const updateField = (v: string) => {
@@ -2890,7 +2901,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
                   // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
                   // 위치를 그대로 읽고 씀
-                  const aliasTarget = resolveAliasFieldId(cf, task.category);
+                  const aliasTarget = resolveAliasFieldId(cf, task.category, parts);
                   const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
                   const effKey = aliasTarget || cf.id;
                   const updateField = (v: string) => {

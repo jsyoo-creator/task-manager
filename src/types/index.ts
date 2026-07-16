@@ -615,8 +615,25 @@ export function listAliasFieldCandidates(team: Team): { id: string; label: strin
 // 필드의 실제 얼라이어스 대상을 구한다 — 이 업무의 파트(category)에 대한 개별 지정이
 // aliasFieldIdByPart에 있으면 그걸 먼저 쓰고, 없으면(파트가 없는 "전체" 탭 업무 포함)
 // 공통 aliasFieldId로 폴백함
-export function resolveAliasFieldId(cf: CustomFormField, category?: string): string | undefined {
+export function resolveAliasFieldId(
+  cf: { id: string; label: string; aliasFieldId?: string; aliasFieldIdByPart?: Record<string, string> },
+  category?: string,
+  parts?: TeamPart[]
+): string | undefined {
+  // 1순위: 이 파트에 대해 명시적으로 지정한 연결
   if (category && cf.aliasFieldIdByPart?.[category]) return cf.aliasFieldIdByPart[category];
+  // 2순위: 명시적 지정이 없으면, 이 업무가 속한 파트 자체 설정에 같은 라벨을 가진
+  // 필드가 있는지 자동으로 찾아 그 필드 값을 씀. "전체"/"팀 기본" 탭의 필드가
+  // 파트마다 같은 이름으로 따로 만들어진 경우, 매번 파트별로 일일이 연결해주지
+  // 않아도 라벨만 같으면 저절로 맞아떨어지게 함 — 파트별 지정을 깜빡했거나(또는
+  // 다른 파트를 가리키게 잘못 지정한) 기본값 탓에 엉뚱한 파트의 빈 값이 보이는
+  // 사고를 막기 위해 아래 공통 aliasFieldId보다 우선함
+  if (category && parts) {
+    const part = parts.find(p => p.name === category);
+    const match = part?.formConfig?.customFields?.find(f => f.label === cf.label && f.id !== cf.id);
+    if (match) return match.id;
+  }
+  // 3순위: 위 둘 다 없으면(라벨이 다르거나 파트가 없는 경우 등) 공통 기본값으로 폴백
   return cf.aliasFieldId;
 }
 

@@ -2593,7 +2593,15 @@ export default function TaskDetailPanel({
 
         {/* 커스텀 폼 필드 */}
         {(() => {
-          const enabledCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
+          const allCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
+          // 다른 필드가 이 필드로 얼라이어스되어 이미 그 필드의 행에서 값이 보이고
+          // 있다면, 같은 값을 보여주는 행을 또 만들지 않음(중복 방지)
+          const aliasedTargetIds = new Set(
+            allCfs
+              .map(cf => resolveAliasFieldId(cf, task.category, parts))
+              .filter((id): id is string => !!id && !BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(id))
+          );
+          const enabledCfs = allCfs.filter(cf => !aliasedTargetIds.has(cf.id));
           const fo = formConfig?.fieldOrder;
           const cfs = fo?.length
             ? [...enabledCfs].sort((a, b) => {
@@ -2619,7 +2627,7 @@ export default function TaskDetailPanel({
                   // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
                   // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
                   // 위치를 그대로 읽고 씀
-                  const aliasTarget = resolveAliasFieldId(cf, task.category);
+                  const aliasTarget = resolveAliasFieldId(cf, task.category, parts);
                   const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
                   const effKey = aliasTarget || cf.id;
                   const rawVal = isBuiltinAliasTarget

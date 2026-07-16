@@ -1996,12 +1996,16 @@ export default function TaskDetailPanel({
             {/* 임시 디버그: 세부업무 id 이전 사고 조사용 — 조사 끝나면 제거 */}
             <button
               type="button"
-              onClick={() => alert(JSON.stringify({
-                taskId: task.id,
-                category: task.category,
-                currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
-                subTaskData: task.subTaskData,
-              }, null, 1))}
+              onClick={() => {
+                const dump = {
+                  taskId: task.id,
+                  category: task.category,
+                  subTaskData: task.subTaskData,
+                  currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
+                };
+                console.log('[세부업무 디버그]', JSON.stringify(dump, null, 1));
+                alert(JSON.stringify({ subTaskData: dump.subTaskData, currentTypeIds: dump.currentTypeIds }, null, 1) + '\n\n(같은 내용이 브라우저 콘솔(F12)에도 출력됩니다 — 스크롤 없이 보려면 콘솔을 확인해주세요)');
+              }}
               className="text-[9px] font-normal normal-case text-gray-300 hover:text-red-400"
             >디버그</button>
           </p>

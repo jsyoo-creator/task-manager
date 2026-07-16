@@ -96,6 +96,20 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
       if (keysToApply.length === 0) return;
       // data 자체를 소스로 patch 구성 — customFields 변경분은 data.customFields에서 값을 가져옴
       const patch = buildSyncPatch(keysToApply, data, child.customFields);
+      // 담당자 동기화로 바뀌는 경우, 자식의 세부업무(subTaskData) 항목 중 기존
+      // 담당자 값을 그대로 따라가던 항목도 같이 갱신 — 안 그러면 세부업무 안엔
+      // 예전 담당자가 남아 "내 업무만" 필터(isMyTask)가 계속 그 사람 업무로 인식함.
+      // 원래 비어있던(아직 배정 안 된) 항목은 건드리지 않음 — 부서 매칭 자동배정 로직이
+      // 나중에 채우도록 남겨둠
+      if (keysToApply.includes('assignee') && child.assignee && child.subTaskData) {
+        const oldAssignee = child.assignee;
+        const newAssignee = data.assignee as string;
+        patch.subTaskData = Object.fromEntries(
+          Object.entries(child.subTaskData).map(([key, entry]) =>
+            entry.assignee === oldAssignee ? [key, { ...entry, assignee: newAssignee }] : [key, entry]
+          )
+        );
+      }
       any = true;
       batch.update(doc(db, 'tasks', child.id), { ...patch, updatedAt: now });
     });

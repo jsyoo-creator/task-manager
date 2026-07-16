@@ -7348,6 +7348,60 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 — 오픈마켓/브랜드관 전용, 수동 확인된 매핑] 파트 전체가 통째로 새 id로
+  // 교체돼 이름 흔적이 전혀 남지 않은 케이스라, 담당자(기획=강지예/디자인=이주선)와
+  // 종료일 순서로 옛 id ↔ 새 id를 사용자와 함께 추정 확인한 매핑을 그대로 적용한다.
+  // 목적지에 이미 데이터가 있으면 절대 덮어쓰지 않고 건너뛴다.
+  const OPENMARKET_BRAND_PART_ID_MAP: Record<string, string> = {
+    'st_1784185355209_p4l2s8x': 'st_1784185386337_zi76ndd', // 기획전/파생배너 기획서
+    'st_1784185355209_hz19dm5': 'st_1784185386337_7rdx3ge', // 기획 전체 소재 검수
+    'st_1784185355209_eyl3lok': 'st_1784185386337_d4j3g67', // 기획전/파생배너 세팅
+    'st_1784185355209_hchjool': 'st_1784185386337_gj3wvdj', // 최종소재 전달
+    'st_1784185355209_53650qd': 'st_1784185386337_bziu10j', // 기획전 디자인 제작 (충돌 시 건너뜀)
+    'st_1784185355209_v7qzg59': 'st_1784185386337_j9plje5', // 파생배너 제작
+    'st_1784185355209_2yka2p7': 'st_1784185386337_53503vt', // 디자인 전체 소재 검수
+  };
+
+  const applyManualIdMapping = async (team: Team, partName: string, idMap: Record<string, string>) => {
+    try {
+      const moved: { title: string; oldId: string; newId: string }[] = [];
+      const skipped: { title: string; oldId: string; newId: string }[] = [];
+      const failed: { title: string; error: string }[] = [];
+      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', partName)));
+      for (const taskDoc of tasksSnap.docs) {
+        const data = taskDoc.data();
+        if (data.deletedAt) continue;
+        const subData = data.subTaskData;
+        if (!subData) continue;
+        const nextSub: Record<string, unknown> = { ...subData };
+        let changed = false;
+        for (const [oldId, newId] of Object.entries(idMap)) {
+          if (subData[oldId] === undefined) continue;
+          if (subData[newId] !== undefined) { skipped.push({ title: data.title, oldId, newId }); continue; }
+          nextSub[newId] = subData[oldId];
+          delete nextSub[oldId];
+          changed = true;
+          moved.push({ title: data.title, oldId, newId });
+        }
+        if (changed) {
+          try {
+            await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+          } catch (e) {
+            failed.push({ title: data.title, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+      }
+      console.log(`[수동 매핑 복구 적용] ${team.name}/${partName}`, JSON.stringify({ moved, skipped, failed }, null, 1));
+      alert(`[${team.name} / ${partName}] 총 ${moved.length}건의 세부업무 데이터를 지정한 매핑대로 옮겼습니다.`
+        + (skipped.length > 0 ? `\n\n⚠ ${skipped.length}건은 목적지에 이미 데이터가 있어 건너뛰었습니다.` : '')
+        + (failed.length > 0 ? `\n\n❌ ${failed.length}건은 저장 중 오류로 실패했습니다.` : '')
+        + `\n\n브라우저 콘솔에 상세 내역이 있습니다.`);
+    } catch (e) {
+      console.error('[수동 매핑 복구 적용] 실행 중 오류', e);
+      alert(`복구 적용 중 오류가 발생해 중간에 멈췄습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)에 자세한 오류가 있습니다. 이 내용을 캡처해서 보내주세요.`);
+    }
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7706,6 +7760,17 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             className="px-2.5 py-1 rounded-md bg-slate-500 text-white font-medium hover:bg-slate-600 transition-colors">
                             설정 원본 보기
                           </button>
+                          {team.name === '오픈마켓' && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm('오픈마켓 / 브랜드관 파트: 확인된 매핑대로 옛 세부업무 데이터를 새 id로 옮깁니다. 목적지에 이미 데이터가 있으면 건너뜁니다. 계속할까요?')) return;
+                                await applyManualIdMapping(team, '브랜드관', OPENMARKET_BRAND_PART_ID_MAP);
+                              }}
+                              className="px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                              브랜드관 파트 복구 적용 (확인된 매핑)
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

@@ -7213,6 +7213,44 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     alert(`전체 팀 조회 완료. 옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${allReports.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 팀별 상세 내역이 JSON으로 출력되어 있습니다. 콘솔 내용을 캡처(또는 복사)해서 보내주세요 — 확인 후 팀별로 안전하게 복구를 진행하겠습니다.`);
   };
 
+  // [사고 복구용 적용] 위 진단(scanNameIdClusterOrphans)에서 확인된 것과 같은 방식으로,
+  // 실제로 옛 id 밑에 남은 subTaskData를 현재 파트의 id로 옮긴다(실제 쓰기 발생).
+  // 목적지 id에 이미 데이터가 있으면 실수로 덮어쓰지 않도록 건너뛰고 별도로 표시한다.
+  const applyNameIdClusterFix = async (team: Team) => {
+    const clusters = findNameIdClusters(team);
+    if (clusters.length === 0) { alert('이름은 같은데 id가 갈린 항목을 찾지 못했습니다.'); return; }
+    const moved: { title: string; typeName: string; fromId: string; toId: string }[] = [];
+    const skipped: { title: string; typeName: string; reason: string }[] = [];
+    for (const [name, occs] of clusters) {
+      const partOccs = occs.filter(o => o.scope !== 'team');
+      for (const po of partOccs) {
+        const part = team.parts.find(p => p.id === po.scope);
+        if (!part) continue;
+        const otherIds = occs.filter(o => o.id !== po.id).map(o => o.id);
+        if (otherIds.length === 0) continue;
+        const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+        for (const taskDoc of tasksSnap.docs) {
+          const data = taskDoc.data();
+          if (data.deletedAt) continue;
+          const subData = data.subTaskData;
+          if (!subData) continue;
+          const hit = otherIds.find(oid => subData[oid] !== undefined);
+          if (!hit) continue;
+          if (subData[po.id] !== undefined) {
+            skipped.push({ title: data.title, typeName: name, reason: '목적지 id에 이미 데이터가 있어 충돌 위험 — 건드리지 않음' });
+            continue;
+          }
+          const nextSub: Record<string, unknown> = { ...subData, [po.id]: subData[hit] };
+          delete nextSub[hit];
+          await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+          moved.push({ title: data.title, typeName: name, fromId: hit, toId: po.id });
+        }
+      }
+    }
+    console.log(`[세부업무 id 불일치 복구 적용] ${team.name}`, JSON.stringify({ moved, skipped }, null, 1));
+    alert(`[${team.name}] 총 ${moved.length}건의 세부업무 데이터를 원래 자리로 옮겼습니다.${skipped.length > 0 ? `\n\n⚠ ${skipped.length}건은 목적지에 이미 데이터가 있어 건드리지 않고 건너뛰었습니다 — 콘솔에서 확인해 수동으로 처리해주세요.` : ''}\n\n브라우저 콘솔에 상세 내역이 있습니다.`);
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7525,12 +7563,23 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                     return (
                       <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
                         <span>🔎 이름은 같은데 범위마다 id가 다른 세부업무 항목이 {clusters.length}건 있습니다 — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회(데이터 변경 없음)해볼 수 있습니다.</span>
-                        <button
-                          type="button"
-                          onClick={() => scanNameIdClusterOrphans(team)}
-                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors">
-                          진단만 실행 (조회 전용)
-                        </button>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => scanNameIdClusterOrphans(team)}
+                            className="px-2.5 py-1 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors">
+                            진단만 실행 (조회 전용)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!window.confirm(`${team.name}: 방금 진단에서 확인된 세부업무 데이터를 실제로 원래 자리로 옮깁니다. 먼저 "진단만 실행"으로 몇 건인지 확인하셨나요? 계속할까요?`)) return;
+                              await applyNameIdClusterFix(team);
+                            }}
+                            className="px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                            복구 적용 (데이터 이동)
+                          </button>
+                        </div>
                       </div>
                     );
                   })()}

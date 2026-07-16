@@ -7159,13 +7159,58 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         });
       }
     }
-    console.log('[세부업무 id 불일치 진단]', JSON.stringify(report, null, 1));
+    console.log(`[세부업무 id 불일치 진단] ${team.name}`, JSON.stringify(report, null, 1));
     if (report.length === 0) {
-      alert('이름은 같은데 id가 갈린 항목은 있지만, 실제로 옛 id 밑에 남은 업무 데이터는 찾지 못했습니다.');
+      alert(`${team.name}: 이름은 같은데 id가 갈린 항목은 있지만, 실제로 옛 id 밑에 남은 업무 데이터는 찾지 못했습니다.`);
       return;
     }
     const summary = report.map(r => `- [${r.partName}] ${r.typeName}: ${r.taskCount}건 (예: ${r.samples.slice(0, 2).map(s => s.title).join(', ')})`).join('\n');
-    alert(`옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${report.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 상세 내역이 JSON으로도 출력되어 있습니다. 이 내용을 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+    alert(`[${team.name}] 옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${report.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 상세 내역이 JSON으로도 출력되어 있습니다. 이 내용을 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+  };
+
+  // 위 진단을 팀마다 따로 누르지 않아도 되도록, 영향받은 모든 팀을 한 번에 조회해 하나로 모아 보여줌
+  // (이 함수도 조회 전용 — Firestore에 아무것도 쓰지 않음)
+  const scanAllTeamsNameIdClusterOrphans = async (affectedTeams: Team[]) => {
+    alert(`${affectedTeams.length}개 팀을 순서대로 조회합니다. 팀이 많거나 업무가 많으면 시간이 걸릴 수 있습니다 — 완료되면 다시 알림이 뜹니다. (조회만 하며 데이터는 바꾸지 않습니다)`);
+    const allReports: { teamName: string; partName: string; typeName: string; orphanId: string; taskCount: number; samples: { id: string; title: string }[] }[] = [];
+    for (const team of affectedTeams) {
+      const clusters = findNameIdClusters(team);
+      for (const [name, occs] of clusters) {
+        const partOccs = occs.filter(o => o.scope !== 'team');
+        for (const po of partOccs) {
+          const part = team.parts.find(p => p.id === po.scope);
+          if (!part) continue;
+          const otherIds = occs.filter(o => o.id !== po.id).map(o => o.id);
+          if (otherIds.length === 0) continue;
+          const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+          const byOrphanId = new Map<string, { count: number; samples: { id: string; title: string }[] }>();
+          tasksSnap.forEach(d => {
+            if (d.data().deletedAt) return;
+            const subData = d.data().subTaskData;
+            if (!subData) return;
+            const hit = otherIds.find(oid => subData[oid] !== undefined);
+            if (!hit) return;
+            const entry = byOrphanId.get(hit) ?? { count: 0, samples: [] };
+            entry.count++;
+            if (entry.samples.length < 5) entry.samples.push({ id: d.id, title: d.data().title });
+            byOrphanId.set(hit, entry);
+          });
+          byOrphanId.forEach((v, orphanId) => {
+            allReports.push({ teamName: team.name, partName: part.name, typeName: name, orphanId, taskCount: v.count, samples: v.samples });
+          });
+        }
+      }
+      console.log(`[전체 팀 진단] ${team.name} 완료`);
+    }
+    console.log('[전체 팀 진단 최종 결과]', JSON.stringify(allReports, null, 1));
+    if (allReports.length === 0) {
+      alert('전체 팀을 조회했지만, 옛 id 밑에 남은 업무 데이터는 찾지 못했습니다.');
+      return;
+    }
+    const byTeam = new Map<string, number>();
+    allReports.forEach(r => byTeam.set(r.teamName, (byTeam.get(r.teamName) ?? 0) + r.taskCount));
+    const summary = [...byTeam.entries()].map(([t, c]) => `- ${t}: ${c}건`).join('\n');
+    alert(`전체 팀 조회 완료. 옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${allReports.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 팀별 상세 내역이 JSON으로 출력되어 있습니다. 콘솔 내용을 캡처(또는 복사)해서 보내주세요 — 확인 후 팀별로 안전하게 복구를 진행하겠습니다.`);
   };
 
   const handleSavePartEdit = async (team: Team) => {
@@ -7295,6 +7340,25 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 </button>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* [사고 복구용] 이름은 같은데 범위마다 id가 다른 세부업무 — 전체 팀 한 번에 조회(쓰기 없음) */}
+      {(() => {
+        const nameClusterAffected = teams.filter(t => findNameIdClusters(t).length > 0);
+        if (nameClusterAffected.length === 0) return null;
+        return (
+          <div className="flex items-center justify-between gap-2 px-5 py-3 bg-amber-50 border-b border-amber-200">
+            <span className="text-xs text-amber-700 font-medium">
+              🔎 이름은 같은데 범위마다 id가 다른 세부업무가 있는 팀 {nameClusterAffected.length}개: {nameClusterAffected.map(t => t.name).join(', ')} — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 전체 조회 가능 (데이터 변경 없음)
+            </span>
+            <button
+              type="button"
+              onClick={() => scanAllTeamsNameIdClusterOrphans(nameClusterAffected)}
+              className="flex-shrink-0 px-2.5 py-1 rounded-md bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition-colors">
+              전체 팀 진단 실행 (조회 전용)
+            </button>
           </div>
         );
       })()}

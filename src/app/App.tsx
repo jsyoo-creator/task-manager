@@ -476,8 +476,13 @@ function App() {
     const partsUnion = activeParts.length > 0
       ? mergeAllPartsConfig(activeParts, selectedTeam?.formConfig)
       : selectedTeam?.formConfig;
+    // "전체" 탭이 자체 설정(allFormConfig)을 갖고 있으면 그 설정의 customFields를 그대로
+    // 우선 적용해야 하는데, 팀 기본 config가 아니라 파트 합집합(partsUnion)을 기본값으로
+    // 병합해버리면 mergeFormConfig가 customFields를 유니온(합집합)하는 방식이라 "전체" 탭에
+    // 없는 각 파트만의 커스텀필드(예: 파트마다 따로 만든 "퍼블")까지 슬그머니 다시 섞여
+    // 들어온다. allFormConfig가 있을 때는 진짜 팀 기본값만 보충해야 이런 오염을 막는다
     const base = selectedTeam?.allFormConfig
-      ? mergeFormConfig(selectedTeam.allFormConfig, partsUnion)
+      ? mergeFormConfig(selectedTeam.allFormConfig, selectedTeam?.formConfig)
       : partsUnion;
     // 팀 config에 status customType이 없으면 activeParts에서 찾아 보충
     const baseBuiltins = resolveBuiltinFields(base);

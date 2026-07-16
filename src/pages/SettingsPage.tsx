@@ -7210,6 +7210,76 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
+  // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
+  // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
+  // 찾아 자동으로 짝을 추론한다(정답을 보장하진 않으므로 적용 전 반드시 결과를 검토해야 함).
+  const proposePartIdMapping = async (team: Team, part: TeamPart) => {
+    const currentTypes = part.subTaskTypes ?? team.subTaskTypes ?? [];
+    const currentIds = currentTypes.map(t => t.id);
+    const currentIdSet = new Set(currentIds);
+    const nameById = new Map(currentTypes.map(t => [t.id, t.name]));
+    const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+    const perTask: { title: string; orphanHere: Set<string>; missingHere: Set<string>; conflictHere: Set<string> }[] = [];
+    const orphanIdSet = new Set<string>();
+    tasksSnap.forEach(d => {
+      const data = d.data();
+      if (data.deletedAt) return;
+      const subData = data.subTaskData as Record<string, unknown> | undefined;
+      if (!subData) return;
+      const deletedKeys = new Set(Object.keys(data.deletedSubTasks ?? {}));
+      const orphanHere = new Set(Object.keys(subData).filter(k => !currentIdSet.has(k) && !deletedKeys.has(k) && hasRealSubTaskData(subData[k] as Record<string, unknown>)));
+      orphanHere.forEach(o => orphanIdSet.add(o));
+      const missingHere = new Set(currentIds.filter(c => !hasRealSubTaskData(subData[c] as Record<string, unknown>)));
+      const conflictHere = new Set(currentIds.filter(c => hasRealSubTaskData(subData[c] as Record<string, unknown>)));
+      if (orphanHere.size > 0) perTask.push({ title: data.title, orphanHere, missingHere, conflictHere });
+    });
+
+    const scored: { o: string; c: string; support: number; conflict: number }[] = [];
+    orphanIdSet.forEach(o => {
+      currentIds.forEach(c => {
+        let support = 0, conflict = 0;
+        perTask.forEach(pt => {
+          if (!pt.orphanHere.has(o)) return;
+          if (pt.missingHere.has(c)) support++;
+          else if (pt.conflictHere.has(c)) conflict++;
+        });
+        if (support > 0) scored.push({ o, c, support, conflict });
+      });
+    });
+    scored.sort((a, b) => (b.support - b.conflict) - (a.support - a.conflict));
+    const usedO = new Set<string>(); const usedC = new Set<string>();
+    const mapping: { oldId: string; newId: string; newName: string; support: number; conflict: number }[] = [];
+    for (const s of scored) {
+      if (usedO.has(s.o) || usedC.has(s.c)) continue;
+      if (s.support - s.conflict <= 0) continue;
+      mapping.push({ oldId: s.o, newId: s.c, newName: nameById.get(s.c) ?? s.c, support: s.support, conflict: s.conflict });
+      usedO.add(s.o); usedC.add(s.c);
+    }
+    const unmatched = [...orphanIdSet].filter(o => !usedO.has(o));
+
+    console.log(`[파트 id 매핑 자동 추론] ${team.name} / ${part.name}`, JSON.stringify({ mapping, unmatched, taskCount: perTask.length }, null, 1));
+    const summary = mapping.map(m => `- ${m.oldId} → ${m.newName}(${m.newId})  (지지 ${m.support}건${m.conflict > 0 ? `, 충돌의심 ${m.conflict}건` : ''})`).join('\n');
+    alert(`[${team.name} / ${part.name}] 업무 ${perTask.length}건을 근거로 매핑 ${mapping.length}건을 추론했습니다:\n\n${summary}`
+      + (unmatched.length > 0 ? `\n\n⚠ 짝을 못 찾은 옛 id ${unmatched.length}개: ${unmatched.join(', ')}` : '')
+      + `\n\n⚠ 이건 추론일 뿐 정답이 보장되지 않습니다. 브라우저 콘솔에 상세 내역이 있으니, 확인 후 적용을 결정해주세요. (아직 데이터를 바꾸지 않았습니다)`);
+    return mapping;
+  };
+
+  const applyInferredPartIdMapping = async (team: Team, part: TeamPart) => {
+    try {
+      const mapping = await proposePartIdMapping(team, part);
+      if (mapping.length === 0) { alert('적용할 매핑이 없습니다.'); return; }
+      if (!window.confirm(`방금 알림/콘솔에 뜬 추론 매핑 ${mapping.length}건을 그대로 적용해 데이터를 옮깁니다. 확인하셨나요? 계속할까요?`)) return;
+      const idMap: Record<string, string> = {};
+      mapping.forEach(m => { idMap[m.oldId] = m.newId; });
+      await applyManualIdMapping(team, part.name, idMap);
+    } catch (e) {
+      console.error('[파트 id 매핑 자동 추론 적용] 실행 중 오류', e);
+      alert(`실행 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // 위 진단을 팀마다 따로 누르지 않아도 되도록, 영향받은 모든 팀을 한 번에 조회해 하나로 모아 보여줌
   // (이 함수도 조회 전용 — Firestore에 아무것도 쓰지 않음)
   const scanAllTeamsNameIdClusterOrphans = async (affectedTeams: Team[]) => {
@@ -7823,6 +7893,22 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             className="px-2.5 py-1 rounded-md bg-teal-600 text-white font-medium hover:bg-teal-700 transition-colors">
                             전체 파트 정밀 진단 (조회 전용)
                           </button>
+                          {team.parts.map(p => (
+                            <div key={p.id} className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => proposePartIdMapping(team, p)}
+                                className="px-2 py-1 rounded-md bg-cyan-600 text-white font-medium hover:bg-cyan-700 transition-colors">
+                                {p.name} 매핑 추론 (조회 전용)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyInferredPartIdMapping(team, p)}
+                                className="px-2 py-1 rounded-md bg-cyan-800 text-white font-medium hover:bg-cyan-900 transition-colors">
+                                {p.name} 추론 매핑 적용
+                              </button>
+                            </div>
+                          ))}
                           {team.name === '오픈마켓' && (
                             <button
                               type="button"

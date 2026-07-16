@@ -730,11 +730,17 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
         // 다양한 날짜 형식 → YYYY-MM-DD 정규화
         const parseDate = (raw: unknown): string => parseExcelDateValue(raw, yearFilter);
 
+        // 화면에서 빈 값은 항상 "-"로 표시하므로, 목록을 엑셀로 내보내 편집 후 다시
+        // 들여오면 원래 비어있던 셀이 문자 그대로 "-"로 채워져 있는 경우가 흔하다.
+        // 이걸 실제 선택지 값으로 취급하면 select 필드가 옵션과 매칭이 안 돼 "직접
+        // 입력" 상태로 폴백돼버리므로, 가져올 때 미리 빈 값으로 되돌림
+        const normalizeDashPlaceholder = (raw: string): string => (raw.trim() === '-' ? '' : raw);
+
         const customFields: Record<string, string> = {};
         if (importFields.length > 0) {
           importFields.forEach(f => {
             if (!builtinLabels[f.key]) {
-              const raw = row[f.label] ?? '';
+              const raw = normalizeDashPlaceholder(String(row[f.label] ?? ''));
               customFields[f.key] = importDateFieldIds.has(f.key) ? parseDate(raw) : raw;
             }
           });
@@ -745,7 +751,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           ? statusFc.options
           : statusConfigs.map(s => s.key);
         const parseStatus = (raw: string): string => {
-          const s = raw.trim();
+          const s = normalizeDashPlaceholder(raw.trim());
           if (!s) return '';
           if (availableStatuses.includes(s)) return s;
           const normalized = STATUS_SPACE_MAP[s] ?? s;
@@ -767,8 +773,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           category: String(keyMap.category ?? get('파트') ?? '').trim() as TaskCategory,
           type: String(keyMap.type ?? get('유형') ?? '신규').trim() as TaskType,
           status: parseStatus(String(keyMap.status ?? get('상태') ?? '')) as TaskStatus,
-          receiver: String(keyMap.receiver ?? get(importBuiltinLabels.receiver) ?? '').trim(),
-          assignee: String(keyMap.assignee ?? get(importBuiltinLabels.assignee) ?? '').trim(),
+          receiver: normalizeDashPlaceholder(String(keyMap.receiver ?? get(importBuiltinLabels.receiver) ?? '').trim()),
+          assignee: normalizeDashPlaceholder(String(keyMap.assignee ?? get(importBuiltinLabels.assignee) ?? '').trim()),
           startDate: parseDate(keyMap.startDate ?? get('시작일') ?? ''),
           endDate: parseDate(keyMap.endDate ?? get('종료일') ?? ''),
           ...(Object.keys(customFields).length > 0 ? { customFields } : {}),

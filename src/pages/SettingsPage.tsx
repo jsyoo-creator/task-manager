@@ -7217,38 +7217,51 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   // 실제로 옛 id 밑에 남은 subTaskData를 현재 파트의 id로 옮긴다(실제 쓰기 발생).
   // 목적지 id에 이미 데이터가 있으면 실수로 덮어쓰지 않도록 건너뛰고 별도로 표시한다.
   const applyNameIdClusterFix = async (team: Team) => {
-    const clusters = findNameIdClusters(team);
-    if (clusters.length === 0) { alert('이름은 같은데 id가 갈린 항목을 찾지 못했습니다.'); return; }
-    const moved: { title: string; typeName: string; fromId: string; toId: string }[] = [];
-    const skipped: { title: string; typeName: string; reason: string }[] = [];
-    for (const [name, occs] of clusters) {
-      const partOccs = occs.filter(o => o.scope !== 'team');
-      for (const po of partOccs) {
-        const part = team.parts.find(p => p.id === po.scope);
-        if (!part) continue;
-        const otherIds = occs.filter(o => o.id !== po.id).map(o => o.id);
-        if (otherIds.length === 0) continue;
-        const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
-        for (const taskDoc of tasksSnap.docs) {
-          const data = taskDoc.data();
-          if (data.deletedAt) continue;
-          const subData = data.subTaskData;
-          if (!subData) continue;
-          const hit = otherIds.find(oid => subData[oid] !== undefined);
-          if (!hit) continue;
-          if (subData[po.id] !== undefined) {
-            skipped.push({ title: data.title, typeName: name, reason: '목적지 id에 이미 데이터가 있어 충돌 위험 — 건드리지 않음' });
-            continue;
+    try {
+      const clusters = findNameIdClusters(team);
+      if (clusters.length === 0) { alert('이름은 같은데 id가 갈린 항목을 찾지 못했습니다.'); return; }
+      const moved: { title: string; typeName: string; fromId: string; toId: string }[] = [];
+      const skipped: { title: string; typeName: string; reason: string }[] = [];
+      const failed: { title: string; typeName: string; error: string }[] = [];
+      for (const [name, occs] of clusters) {
+        const partOccs = occs.filter(o => o.scope !== 'team');
+        for (const po of partOccs) {
+          const part = team.parts.find(p => p.id === po.scope);
+          if (!part) continue;
+          const otherIds = occs.filter(o => o.id !== po.id).map(o => o.id);
+          if (otherIds.length === 0) continue;
+          const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+          for (const taskDoc of tasksSnap.docs) {
+            const data = taskDoc.data();
+            if (data.deletedAt) continue;
+            const subData = data.subTaskData;
+            if (!subData) continue;
+            const hit = otherIds.find(oid => subData[oid] !== undefined);
+            if (!hit) continue;
+            if (subData[po.id] !== undefined) {
+              skipped.push({ title: data.title, typeName: name, reason: '목적지 id에 이미 데이터가 있어 충돌 위험 — 건드리지 않음' });
+              continue;
+            }
+            const nextSub: Record<string, unknown> = { ...subData, [po.id]: subData[hit] };
+            delete nextSub[hit];
+            try {
+              await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+              moved.push({ title: data.title, typeName: name, fromId: hit, toId: po.id });
+            } catch (e) {
+              failed.push({ title: data.title, typeName: name, error: e instanceof Error ? e.message : String(e) });
+            }
           }
-          const nextSub: Record<string, unknown> = { ...subData, [po.id]: subData[hit] };
-          delete nextSub[hit];
-          await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
-          moved.push({ title: data.title, typeName: name, fromId: hit, toId: po.id });
         }
       }
+      console.log(`[세부업무 id 불일치 복구 적용] ${team.name}`, JSON.stringify({ moved, skipped, failed }, null, 1));
+      alert(`[${team.name}] 총 ${moved.length}건의 세부업무 데이터를 원래 자리로 옮겼습니다.`
+        + (skipped.length > 0 ? `\n\n⚠ ${skipped.length}건은 목적지에 이미 데이터가 있어 건너뛰었습니다.` : '')
+        + (failed.length > 0 ? `\n\n❌ ${failed.length}건은 저장 중 오류로 실패했습니다 — 콘솔에서 오류 내용을 확인해주세요.` : '')
+        + `\n\n브라우저 콘솔에 상세 내역이 있습니다.`);
+    } catch (e) {
+      console.error('[세부업무 id 불일치 복구 적용] 실행 중 오류', e);
+      alert(`복구 적용 중 오류가 발생해 중간에 멈췄습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)에 자세한 오류가 있습니다. 이 내용을 캡처해서 보내주세요.`);
     }
-    console.log(`[세부업무 id 불일치 복구 적용] ${team.name}`, JSON.stringify({ moved, skipped }, null, 1));
-    alert(`[${team.name}] 총 ${moved.length}건의 세부업무 데이터를 원래 자리로 옮겼습니다.${skipped.length > 0 ? `\n\n⚠ ${skipped.length}건은 목적지에 이미 데이터가 있어 건드리지 않고 건너뛰었습니다 — 콘솔에서 확인해 수동으로 처리해주세요.` : ''}\n\n브라우저 콘솔에 상세 내역이 있습니다.`);
   };
 
   const handleSavePartEdit = async (team: Team) => {

@@ -861,7 +861,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   // 구분해 보여줄 수 없다. 이번 세션에서 실제로 클릭한 스코프를 따로 기억해두고
   // 그 라벨을 우선 표시함(저장되는 값 자체는 항상 id 하나로 동일)
   const [aliasChoice, setAliasChoice] = useState<Record<string, string>>({});
-  const [openAliasRow, setOpenAliasRow] = useState<string | null>(null);
+  // absolute 위치는 필드 목록 컨테이너의 overflow-hidden에 잘려 아래쪽 후보가 안 보이는
+  // 문제가 있어(스크롤도 안 됨), 화면 좌표 기준 fixed 위치로 띄움
+  const [openAliasRow, setOpenAliasRow] = useState<{ key: string; top: number; left: number } | null>(null);
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -1502,18 +1504,24 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   const explicitKey = aliasChoice[rowKey];
                   const matched = (explicitKey ? otherCandidates.find(c => `${c.scope}:${c.id}` === explicitKey) : undefined)
                     ?? (currentId ? otherCandidates.find(c => c.id === currentId) : undefined);
-                  const isOpen = openAliasRow === rowKey;
+                  const isOpen = openAliasRow?.key === rowKey;
                   return (
                     <div className="relative">
                       <button type="button"
-                        onClick={() => setOpenAliasRow(isOpen ? null : rowKey)}
+                        onClick={e => {
+                          if (isOpen) { setOpenAliasRow(null); return; }
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setOpenAliasRow({ key: rowKey, top: rect.bottom + 4, left: rect.left });
+                        }}
                         className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white hover:border-blue-300 transition-colors text-left min-w-[150px] truncate">
                         {currentId ? `${matched?.label ?? currentId} (${matched?.scope ?? '?'})` : noneLabel}
                       </button>
-                      {isOpen && (
+                      {isOpen && openAliasRow && (
                         <>
-                          <div className="fixed inset-0 z-10" onClick={() => setOpenAliasRow(null)} />
-                          <div className="absolute left-0 top-full mt-1 min-w-[170px] max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                          <div className="fixed inset-0 z-40" onClick={() => setOpenAliasRow(null)} />
+                          <div
+                            className="fixed min-w-[170px] max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+                            style={{ top: openAliasRow.top, left: openAliasRow.left }}>
                             <button type="button"
                               onClick={() => {
                                 onPick('');

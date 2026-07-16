@@ -7114,6 +7114,60 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     alert(`세부업무 id 중복 ${migrationLabels.length}건을 새 id로 분리했습니다:\n${migrationLabels.join('\n')}\n\n기존 업무에 입력돼 있던 담당자·시간 데이터도 함께 옮겨뒀습니다. 지원팀 연결을 설정해둔 항목이 있다면 다시 확인해주세요.`);
   };
 
+  // [사고 복구용 진단] 오늘 "세부업무 id 분리" 도구가 설정(id)만 바꾸고 업무 데이터 이전은
+  // 끝까지 못 간 경우, "이름은 같은데 범위(팀 기본/파트)마다 id가 다른" 상태가 남는다.
+  // 이런 이름 묶음을 찾고, 그중 각 파트의 "현재 id"가 아닌 "묶음 내 다른 id"로 남아있는
+  // 업무별 subTaskData를 찾아 몇 건이나 있는지 미리 보여주기만 하는 조회 전용 진단 도구.
+  // (실제 데이터 쓰기는 하지 않음 — 결과를 확인한 뒤 별도로 복구를 적용)
+  const findNameIdClusters = (team: Team): [string, { scope: string; label: string; id: string }[]][] => {
+    const byName = new Map<string, { scope: string; label: string; id: string }[]>();
+    (team.subTaskTypes ?? []).forEach(t => {
+      const arr = byName.get(t.name) ?? []; arr.push({ scope: 'team', label: '팀 기본', id: t.id }); byName.set(t.name, arr);
+    });
+    team.parts.forEach(p => (p.subTaskTypes ?? []).forEach(t => {
+      const arr = byName.get(t.name) ?? []; arr.push({ scope: p.id, label: p.name, id: t.id }); byName.set(t.name, arr);
+    }));
+    return [...byName.entries()].filter(([, occs]) => new Set(occs.map(o => o.id)).size > 1);
+  };
+
+  const scanNameIdClusterOrphans = async (team: Team) => {
+    const clusters = findNameIdClusters(team);
+    if (clusters.length === 0) { alert('이름은 같은데 id가 갈린 세부업무 항목을 찾지 못했습니다.'); return; }
+    const report: { partName: string; typeName: string; currentId: string; orphanId: string; taskCount: number; samples: { id: string; title: string }[] }[] = [];
+    for (const [name, occs] of clusters) {
+      const partOccs = occs.filter(o => o.scope !== 'team');
+      for (const po of partOccs) {
+        const part = team.parts.find(p => p.id === po.scope);
+        if (!part) continue;
+        const otherIds = occs.filter(o => o.id !== po.id).map(o => o.id);
+        if (otherIds.length === 0) continue;
+        const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+        const byOrphanId = new Map<string, { count: number; samples: { id: string; title: string }[] }>();
+        tasksSnap.forEach(d => {
+          if (d.data().deletedAt) return;
+          const subData = d.data().subTaskData;
+          if (!subData) return;
+          const hit = otherIds.find(oid => subData[oid] !== undefined);
+          if (!hit) return;
+          const entry = byOrphanId.get(hit) ?? { count: 0, samples: [] };
+          entry.count++;
+          if (entry.samples.length < 5) entry.samples.push({ id: d.id, title: d.data().title });
+          byOrphanId.set(hit, entry);
+        });
+        byOrphanId.forEach((v, orphanId) => {
+          report.push({ partName: part.name, typeName: name, currentId: po.id, orphanId, taskCount: v.count, samples: v.samples });
+        });
+      }
+    }
+    console.log('[세부업무 id 불일치 진단]', JSON.stringify(report, null, 1));
+    if (report.length === 0) {
+      alert('이름은 같은데 id가 갈린 항목은 있지만, 실제로 옛 id 밑에 남은 업무 데이터는 찾지 못했습니다.');
+      return;
+    }
+    const summary = report.map(r => `- [${r.partName}] ${r.typeName}: ${r.taskCount}건 (예: ${r.samples.slice(0, 2).map(s => s.title).join(', ')})`).join('\n');
+    alert(`옛 id 밑에 남아있는 것으로 보이는 세부업무 데이터를 찾았습니다 (총 ${report.reduce((a, r) => a + r.taskCount, 0)}건):\n\n${summary}\n\n브라우저 콘솔(F12 → Console)에 상세 내역이 JSON으로도 출력되어 있습니다. 이 내용을 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7397,6 +7451,21 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           onClick={() => alert('이 복구 기능은 데이터 이전 중 문제가 발견되어 점검 중입니다. 잠시 사용을 중단해주세요.')}
                           className="flex-shrink-0 px-2.5 py-1 rounded-md bg-gray-400 text-white font-medium cursor-not-allowed">
                           점검 중 (사용 중단)
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const clusters = findNameIdClusters(team);
+                    if (clusters.length === 0) return null;
+                    return (
+                      <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+                        <span>🔎 이름은 같은데 범위마다 id가 다른 세부업무 항목이 {clusters.length}건 있습니다 — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회(데이터 변경 없음)해볼 수 있습니다.</span>
+                        <button
+                          type="button"
+                          onClick={() => scanNameIdClusterOrphans(team)}
+                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors">
+                          진단만 실행 (조회 전용)
                         </button>
                       </div>
                     );

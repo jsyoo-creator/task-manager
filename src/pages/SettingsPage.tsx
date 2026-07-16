@@ -1499,7 +1499,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                         value={cf.aliasFieldId ?? ''}
                         onChange={e => setAlias({ aliasFieldId: e.target.value || undefined })}>
                         <option value="">연결 안 함</option>
-                        {otherCandidates.map(c => <option key={c.id} value={c.id}>{c.label} ({c.scope})</option>)}
+                        {otherCandidates.map(c => <option key={`${c.scope}:${c.id}`} value={c.id}>{c.label} ({c.scope})</option>)}
                       </select>
                     </div>
                     {(team.parts ?? []).length > 0 && (
@@ -1517,7 +1517,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                             setAlias({ aliasFieldIdByPart: Object.keys(next).length ? next : undefined });
                           }}>
                           <option value="">(기본값 사용)</option>
-                          {otherCandidates.map(c => <option key={c.id} value={c.id}>{c.label} ({c.scope})</option>)}
+                          {otherCandidates.map(c => <option key={`${c.scope}:${c.id}`} value={c.id}>{c.label} ({c.scope})</option>)}
                         </select>
                       </div>
                     ))}

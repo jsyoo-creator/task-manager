@@ -591,14 +591,25 @@ export function resolveTeamWideSubTaskTypes(team: Team): SubTaskType[] {
 // 같은 빌트인 키)의 값을 그대로 읽고 쓰게 만들어 이 중복을 해소한다. 이 함수는
 // 얼라이어스 연결 대상으로 고를 수 있는 후보 목록(모든 스코프의 커스텀필드)을 모음
 export function listAliasFieldCandidates(team: Team): { id: string; label: string; scope: string }[] {
-  const seen = new Map<string, { id: string; label: string; scope: string }>();
+  // 스코프(팀 기본/전체/각 파트)별로 전부 나열함 — id 기준으로 중복 제거하면, "다른
+  // 설정에서 복사" 기능으로 여러 파트가 같은 id의 필드를 물려받은 경우 먼저 나온
+  // 파트만 후보로 남고 나머지 파트는 조용히 사라져버린다(예: 사업자몰에 분명히
+  // "퍼블" 필드가 있는데 후보 목록엔 안 보이는 문제). (scope, id) 조합으로만
+  // 중복을 제거해 같은 스코프 안에서만 겹치는 것을 걸러냄
+  const seen = new Set<string>();
+  const result: { id: string; label: string; scope: string }[] = [];
   const add = (fields: CustomFormField[] | undefined, scope: string) => {
-    (fields ?? []).forEach(f => { if (!seen.has(f.id)) seen.set(f.id, { id: f.id, label: f.label, scope }); });
+    (fields ?? []).forEach(f => {
+      const key = `${scope}:${f.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push({ id: f.id, label: f.label, scope });
+    });
   };
   add(team.formConfig?.customFields, '팀 기본');
   add(team.allFormConfig?.customFields, '전체');
   (team.parts ?? []).forEach(p => add(p.formConfig?.customFields, p.name));
-  return [...seen.values()];
+  return result;
 }
 
 // 필드의 실제 얼라이어스 대상을 구한다 — 이 업무의 파트(category)에 대한 개별 지정이

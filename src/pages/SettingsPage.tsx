@@ -7264,6 +7264,90 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 — 2단계] "설정 원본 보기"로 확인된, 파트 "안에서" 이름이 중복된
+  // 세부업무를 하나로 합친다. 같은 이름의 여러 id(파트 내부 중복 + 팀 기본/다른 곳의
+  // 같은 이름 id까지 전부) 중 하나를 "대표 id"로 정하고, 그 파트의 업무들이 가진
+  // 대표 id 이외의 별칭 id 데이터를 대표 id로 옮긴 다음, 파트 설정에서 중복 항목을
+  // 제거한다. 데이터 이전을 먼저 끝내고 나서 설정을 정리하는 순서라, 중간에 멈춰도
+  // 데이터가 사라지지 않는다(설정에 중복이 남는 것뿐).
+  const findWithinPartNameDuplicates = (team: Team) => {
+    const groups: { part: TeamPart; name: string; ids: string[] }[] = [];
+    team.parts.forEach(p => {
+      if (!p.subTaskTypes) return;
+      const byName = new Map<string, string[]>();
+      p.subTaskTypes.forEach(t => { const arr = byName.get(t.name) ?? []; arr.push(t.id); byName.set(t.name, arr); });
+      byName.forEach((ids, name) => { if (ids.length > 1) groups.push({ part: p, name, ids }); });
+    });
+    return groups;
+  };
+
+  const mergeWithinPartNameDuplicates = async (team: Team) => {
+    try {
+      const groups = findWithinPartNameDuplicates(team);
+      if (groups.length === 0) { alert('파트 안에서 이름이 중복된 세부업무를 찾지 못했습니다.'); return; }
+      const moved: { title: string; typeName: string; fromId: string; toId: string }[] = [];
+      const skipped: { title: string; typeName: string; reason: string }[] = [];
+      const failed: { title: string; typeName: string; error: string }[] = [];
+      const partsToUpdate = new Map<string, TeamPart>();
+
+      for (const g of groups) {
+        const keepId = g.ids[0];
+        // 파트 내부 중복 id들 + 팀 기본/다른 파트에 같은 이름으로 남아있는 id까지 전부 별칭으로 취급
+        const aliasIds = new Set<string>(g.ids.slice(1));
+        (team.subTaskTypes ?? []).forEach(t => { if (t.name === g.name && t.id !== keepId) aliasIds.add(t.id); });
+        team.parts.forEach(op => { if (op.id === g.part.id) return; (op.subTaskTypes ?? []).forEach(t => { if (t.name === g.name && t.id !== keepId) aliasIds.add(t.id); }); });
+        if (aliasIds.size === 0) continue;
+
+        const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', g.part.name)));
+        for (const taskDoc of tasksSnap.docs) {
+          const data = taskDoc.data();
+          if (data.deletedAt) continue;
+          const subData = data.subTaskData;
+          if (!subData) continue;
+          const hit = [...aliasIds].find(oid => subData[oid] !== undefined);
+          if (!hit) continue;
+          if (subData[keepId] !== undefined) {
+            skipped.push({ title: data.title, typeName: g.name, reason: '대표 id에 이미 데이터가 있어 충돌 위험 — 건드리지 않음' });
+            continue;
+          }
+          const nextSub: Record<string, unknown> = { ...subData, [keepId]: subData[hit] };
+          delete nextSub[hit];
+          try {
+            await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+            moved.push({ title: data.title, typeName: g.name, fromId: hit, toId: keepId });
+          } catch (e) {
+            failed.push({ title: data.title, typeName: g.name, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+        // 파트 내부의 중복 항목(첫 번째 제외)은 설정에서 제거 — 데이터 이전이 끝난 뒤에만 반영
+        if (!partsToUpdate.has(g.part.id)) partsToUpdate.set(g.part.id, g.part);
+      }
+
+      if (failed.length > 0) {
+        console.log(`[파트 내부 세부업무 이름 중복 병합] ${team.name} — 실패 있어 설정 정리는 건너뜀`, JSON.stringify({ moved, skipped, failed }, null, 1));
+        alert(`[${team.name}] 데이터 이전 중 ${failed.length}건이 실패해, 안전을 위해 설정(중복 제거)은 반영하지 않았습니다. 콘솔에서 실패 내역을 확인해주세요.`);
+        return;
+      }
+
+      const dupIdsByPart = new Map<string, Set<string>>();
+      groups.forEach(g => { const s = dupIdsByPart.get(g.part.id) ?? new Set<string>(); g.ids.slice(1).forEach(id => s.add(id)); dupIdsByPart.set(g.part.id, s); });
+      const repairedParts = team.parts.map(p => {
+        const dupIds = dupIdsByPart.get(p.id);
+        if (!dupIds || !p.subTaskTypes) return p;
+        return { ...p, subTaskTypes: p.subTaskTypes.filter(t => !dupIds.has(t.id)) };
+      });
+      await onSetParts(team.id, repairedParts);
+
+      console.log(`[파트 내부 세부업무 이름 중복 병합] ${team.name}`, JSON.stringify({ moved, skipped }, null, 1));
+      alert(`[${team.name}] 세부업무 목록 안 중복 ${groups.length}종류를 하나로 합쳤습니다. 업무 데이터 ${moved.length}건을 대표 id로 옮겼습니다.`
+        + (skipped.length > 0 ? `\n\n⚠ ${skipped.length}건은 대표 id에 이미 데이터가 있어 건너뛰었습니다 — 콘솔 확인 필요.` : '')
+        + `\n\n브라우저 콘솔에 상세 내역이 있습니다.`);
+    } catch (e) {
+      console.error('[파트 내부 세부업무 이름 중복 병합] 실행 중 오류', e);
+      alert(`병합 중 오류가 발생해 중간에 멈췄습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)에 자세한 오류가 있습니다. 이 내용을 캡처해서 보내주세요.`);
+    }
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7585,10 +7669,21 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           </button>
                           <button
                             type="button"
-                            onClick={() => alert('반복 적용해도 해결되지 않는 사례가 발견되어 "복구 적용"은 다시 점검 중입니다. 대신 "설정 원본 보기"로 원인을 먼저 확인해주세요.')}
+                            onClick={() => alert('이 버튼은 원인 분석 후 "파트 내 중복 병합"으로 대체됐습니다. 그 버튼을 사용해주세요.')}
                             className="px-2.5 py-1 rounded-md bg-gray-400 text-white font-medium cursor-not-allowed">
-                            복구 적용 (점검 중)
+                            복구 적용 (교체됨)
                           </button>
+                          {findWithinPartNameDuplicates(team).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!window.confirm(`${team.name}: 파트 목록 안에서 이름이 중복된 세부업무를 하나로 합치고, 관련 업무 데이터를 대표 id로 옮깁니다. "설정 원본 보기"로 미리 확인하셨나요? 계속할까요?`)) return;
+                                await mergeWithinPartNameDuplicates(team);
+                              }}
+                              className="px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                              파트 내 중복 병합
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {

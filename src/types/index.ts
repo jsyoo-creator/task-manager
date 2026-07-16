@@ -563,6 +563,17 @@ export function resolveGroupSyncFields(config?: TeamFormConfig): string[] {
   return config?.groupSyncFields !== undefined ? config.groupSyncFields : DEFAULT_GROUP_SYNC_FIELDS;
 }
 
+// "팀 기본"/"전체" 탭처럼 특정 파트에 종속되지 않는 화면에서 세부업무 연동 후보를
+// 고를 때 쓸 목록. 팀 레벨 세부업무 목록이 있으면 그대로 쓰고, 없으면(세부업무를
+// 파트별로만 관리하는 팀도 많음) 모든 파트의 세부업무를 id 기준으로 합쳐 보여줘서
+// "이름" 필드 편집 화면이 어느 탭에서 열든 항상 연동 후보가 보이게 함
+export function resolveTeamWideSubTaskTypes(team: Team): SubTaskType[] {
+  if (team.subTaskTypes?.length) return team.subTaskTypes;
+  const seen = new Map<string, SubTaskType>();
+  (team.parts ?? []).forEach(p => (p.subTaskTypes ?? []).forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t); }));
+  return [...seen.values()];
+}
+
 // 엑셀 가져오기 중복 체크 기준을 팀/파트에서 아직 설정하지 않았을 때의 기본값
 // (기존 하드코딩 동작과 동일: 제목+파트+월 조합)
 export const DEFAULT_DUPE_CHECK_FIELDS: string[] = ['title', 'category', 'taskMonth'];

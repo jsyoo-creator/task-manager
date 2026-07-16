@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -1728,7 +1728,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         fields={fields}
         customFields={customFields}
         fieldOrder={rawConfig?.fieldOrder}
-        subTaskTypes={currentPart?.subTaskTypes ?? team.subTaskTypes ?? []}
+        subTaskTypes={currentPart?.subTaskTypes ?? resolveTeamWideSubTaskTypes(team)}
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
         onSaveOrder={saveOrder}

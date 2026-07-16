@@ -955,7 +955,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const includeDetails = resolveCopyIncludeDetails(currentTeam, taskPart);
     if (includeDetails) {
       const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = task;
-      return { ...rest, sortOrder };
+      // 세부업무 항목의 담당자/대무자를 원본 그대로 복제하면, 복사 후 상단 담당자만
+      // 바꿔도 내부 세부업무엔 예전 사람이 남아 "내 업무만" 필터(isMyTask)가 계속
+      // 그 사람의 업무로 잡는 문제가 생긴다. 복사본은 새로 배정할 사람이 다시
+      // 정해지도록 세부업무 담당자/대무자를 비워서 시작함
+      const subTaskData = rest.subTaskData && Object.fromEntries(
+        Object.entries(rest.subTaskData).map(([key, entry]) => [key, { ...entry, assignee: '', substitute: '' }])
+      );
+      return { ...rest, subTaskData, sortOrder };
     }
     return {
       projectId: task.projectId,

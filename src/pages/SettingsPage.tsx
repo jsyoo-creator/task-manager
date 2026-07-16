@@ -7026,6 +7026,33 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     await onSetParts(team.id, team.parts.filter(p => p.id !== partId));
   };
 
+  // 예전 파트 id 생성(Date.now()만 사용)이 충돌하면, 같은 id를 가진 파트 두 개가
+  // 생겨서 "파트별 설정 저장"이 id로만 매칭돼 한 파트를 고치면 같은 id의 다른
+  // 파트까지 같이 바뀌는 심각한 오염이 생길 수 있었다(현재는 랜덤 문자열을 덧붙여
+  // 새로 생성되는 파트는 안전하지만, 이전에 이미 충돌한 파트는 그대로 남아있음).
+  // 중복된 id를 찾아 이름/색/설정은 그대로 두고 id만 새로 발급해 분리한다
+  const findDuplicatePartIds = (team: Team): Set<string> => {
+    const counts = new Map<string, number>();
+    team.parts.forEach(p => counts.set(p.id, (counts.get(p.id) ?? 0) + 1));
+    return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([id]) => id));
+  };
+
+  const handleFixDuplicatePartIds = async (team: Team) => {
+    const seen = new Set<string>();
+    let fixedCount = 0;
+    const repaired = team.parts.map(p => {
+      if (seen.has(p.id)) {
+        fixedCount++;
+        return { ...p, id: `part_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` };
+      }
+      seen.add(p.id);
+      return p;
+    });
+    if (fixedCount === 0) return;
+    await onSetParts(team.id, repaired);
+    alert(`중복된 파트 id ${fixedCount}건을 새 id로 분리했습니다. 이름·색상·기존 설정은 그대로 유지됩니다.\n\n다만 이 파트들 중 "지원팀 연결"을 설정해둔 세부업무가 있다면, 세부 업무 탭에서 그 연결이 여전히 올바른지 다시 확인해주세요.`);
+  };
+
   const handleSavePartEdit = async (team: Team) => {
     if (!editingPartId || !editingPartName.trim()) return;
     const oldName = team.parts.find(p => p.id === editingPartId)?.name;
@@ -7246,6 +7273,22 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                   {/* 파트 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'parts' && (
                     <div className="px-5 py-4 space-y-3">
+                      {(() => {
+                        const dupIds = findDuplicatePartIds(team);
+                        if (dupIds.size === 0) return null;
+                        const dupNames = team.parts.filter(p => dupIds.has(p.id)).map(p => p.name).join(', ');
+                        return (
+                          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                            <span>⚠ 파트 id가 중복돼 서로 설정이 뒤섞일 수 있는 파트가 있습니다: {dupNames}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleFixDuplicatePartIds(team)}
+                              className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                              지금 분리하기
+                            </button>
+                          </div>
+                        );
+                      })()}
                       {team.parts.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {team.parts.map(p => (

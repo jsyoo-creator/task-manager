@@ -441,6 +441,10 @@ export interface CustomFormField {
   departments?: Department[]; // 복수 직군 선택 (신버전)
   linkedSubTaskTypeId?: string; // name 타입: 연동한 세부업무(SubTaskType.id). 있으면 이
     // 필드는 편집 불가 읽기전용으로 바뀌어 task.subTaskData[이 id].assignee 값을 그대로 보여줌
+  aliasFieldId?: string; // 다른 스코프(팀 기본/전체/다른 파트)의 커스텀필드 id 또는
+    // 빌트인 키(receiver/assignee 등)를 가리키면, 이 필드는 자기 값을 따로 저장하지
+    // 않고 그 필드의 값을 그대로 읽고 씀 — 같은 목적의 필드가 스코프마다 중복
+    // 생성되어 목록에 겹쳐 보이는 문제를 해소
   dependsOn?: {
     fieldId: string;                    // 부모 필드 ID (커스텀) 또는 builtin key
     valueMap: Record<string, string[]>; // 부모 선택값 → 이 필드의 표시 옵션
@@ -571,6 +575,23 @@ export function resolveTeamWideSubTaskTypes(team: Team): SubTaskType[] {
   if (team.subTaskTypes?.length) return team.subTaskTypes;
   const seen = new Map<string, SubTaskType>();
   (team.parts ?? []).forEach(p => (p.subTaskTypes ?? []).forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t); }));
+  return [...seen.values()];
+}
+
+// "팀 기본"/"전체"/각 파트가 저마다 독립된 폼 설정을 가질 수 있어, 같은 목적의
+// 커스텀 필드를 스코프마다 따로 만들면(예: "퍼블") id가 달라 값이 공유되지 않고
+// 목록에 중복 컬럼으로 나타난다. 필드에 aliasFieldId를 지정하면 그 필드는 자기
+// 자신의 값을 갖지 않고, 가리키는 필드(다른 스코프의 커스텀필드 또는 접수자/담당자
+// 같은 빌트인 키)의 값을 그대로 읽고 쓰게 만들어 이 중복을 해소한다. 이 함수는
+// 얼라이어스 연결 대상으로 고를 수 있는 후보 목록(모든 스코프의 커스텀필드)을 모음
+export function listAliasFieldCandidates(team: Team): { id: string; label: string; scope: string }[] {
+  const seen = new Map<string, { id: string; label: string; scope: string }>();
+  const add = (fields: CustomFormField[] | undefined, scope: string) => {
+    (fields ?? []).forEach(f => { if (!seen.has(f.id)) seen.set(f.id, { id: f.id, label: f.label, scope }); });
+  };
+  add(team.formConfig?.customFields, '팀 기본');
+  add(team.allFormConfig?.customFields, '전체');
+  (team.parts ?? []).forEach(p => add(p.formConfig?.customFields, p.name));
   return [...seen.values()];
 }
 

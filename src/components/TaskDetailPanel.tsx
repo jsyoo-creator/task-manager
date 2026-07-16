@@ -22,6 +22,9 @@ const DEFAULT_MAIL_MESSAGE = '아래 업무 관련하여 안내드립니다.';
 // 드롭다운(select) 타입 커스텀 필드의 옵션 목록 맨 끝에 붙여, 목록 대신 자유 텍스트를
 // 직접 입력하는 모드로 전환할 수 있게 하는 특수 선택지
 const CUSTOM_FIELD_MANUAL_OPTION = '__manual_input__';
+// 커스텀필드의 aliasFieldId가 이 목록에 있는 값이면 task.customFields가 아니라
+// task[그 키] (빌트인 필드)를 직접 읽고 써야 함
+const BUILTIN_FIELD_KEYS_FOR_ALIAS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
 
 // 인사말 다음 줄 — (업무명 노출 시) 업무명, (설정된) 삽입 항목 값들, 안내 문구 순으로
 // 한 줄에 이어 붙임. 업무명/삽입 항목은 항상 최신 값으로 다시 만들어지는 고정 표시라
@@ -2613,11 +2616,20 @@ export default function TaskDetailPanel({
                   const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
                   // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
                   const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
-                  const rawVal = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
+                  // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
+                  // 위치를 그대로 읽고 씀
+                  const aliasTarget = cf.aliasFieldId;
+                  const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
+                  const effKey = aliasTarget || cf.id;
+                  const rawVal = isBuiltinAliasTarget
+                    ? String((task as Record<string, unknown>)[effKey] ?? '')
+                    : ((task.customFields as Record<string, string> | undefined)?.[effKey] ?? '');
                   const val = linkedTypeId ? (task.subTaskData?.[linkedTypeId]?.assignee ?? '') : rawVal;
                   const editable = canManage && !groupSyncKeys.has(cf.id) && !linkedTypeId;
                   const handleBlur = (v: string) => {
-                    onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } });
+                    if (isBuiltinAliasTarget) onUpdate(task.id, { [effKey]: v } as Partial<Task>);
+                    else onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [effKey]: v } });
                   };
                   const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
                   let opts = isNameType
@@ -2626,9 +2638,8 @@ export default function TaskDetailPanel({
                         : assignees)
                     : (cf.options ?? []);
                   if (cf.dependsOn && cfType === 'select') {
-                    const builtinKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
                     const pid = cf.dependsOn.fieldId;
-                    const pVal = builtinKeys.includes(pid)
+                    const pVal = BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(pid)
                       ? String((task as Record<string, unknown>)[pid] ?? '')
                       : (task.customFields?.[pid] ?? '');
                     const mapped = pVal ? cf.dependsOn.valueMap[pVal] : undefined;

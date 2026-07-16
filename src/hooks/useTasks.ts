@@ -59,8 +59,15 @@ export async function backfillSupportTaskLinks(params: {
     getDocs(query(collection(db, 'tasks'), where('teamId', '==', teamId))),
     getDocs(query(collection(db, 'tasks'), where('linkedFromSubTaskTypeId', '==', subTaskType.id))),
   ]);
+  // 휴지통으로 보낸(소프트 삭제, deletedAt 있음) 지원팀 업무는 "이미 연결됨"으로 치지
+  // 않음 — 안 그러면 사용자가 지원팀 업무를 삭제하고 다시 연결해도 "이미 있음"으로
+  // 판단해 새로 만들어주지 않는 문제가 생김
   const alreadyLinkedOriginIds = new Set(
-    linkedSnap.docs.map(d => (d.data() as Task).linkedFromTaskId).filter((v): v is string => !!v)
+    linkedSnap.docs
+      .map(d => d.data() as Task)
+      .filter(t => !t.deletedAt)
+      .map(t => t.linkedFromTaskId)
+      .filter((v): v is string => !!v)
   );
 
   const targets = taskSnap.docs

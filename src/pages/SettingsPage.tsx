@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, listAliasFieldCandidates } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -811,16 +811,24 @@ function DependsOnEditor({ dependsOnId, setDependsOnId, valueMapInput, setValueM
 }
 
 // ── 필드 설정 빌더 (드래그 앤 드롭 + 너비 조절) ──
-function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTaskTypes = [], onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
+function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTaskTypes = [], team, onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
   fields: BuiltinFieldConfig[];
   customFields: CustomFormField[];
   fieldOrder?: string[];
   subTaskTypes?: SubTaskType[];
+  team: Team;
   onSaveFields: (f: BuiltinFieldConfig[]) => void;
   onSaveCustom: (f: CustomFormField[]) => void;
   onSaveOrder?: (order: string[]) => void;
   onSaveDrag?: (fields: BuiltinFieldConfig[], customFields: CustomFormField[], order: string[]) => void;
 }) {
+  // 다른 스코프(팀 기본/전체/다른 파트)의 커스텀필드 중 "같은 값 연결"(aliasFieldId) 대상으로
+  // 고를 수 있는 후보 — 빌트인 이름 필드(접수자/담당자)도 항상 후보에 포함
+  const aliasCandidates = [
+    { id: 'receiver', label: fieldsProp.find(f => f.key === 'receiver')?.customLabel ?? '접수자', scope: '빌트인' },
+    { id: 'assignee', label: fieldsProp.find(f => f.key === 'assignee')?.customLabel ?? '담당자', scope: '빌트인' },
+    ...listAliasFieldCandidates(team),
+  ];
   const [fields, setFields] = useState(fieldsProp);
   useEffect(() => { setFields(fieldsProp); }, [fieldsProp]);
 
@@ -1452,6 +1460,26 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                       {subTaskTypes.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
                     </select>
                   )}
+                  {(() => {
+                    const otherCandidates = aliasCandidates.filter(c => c.id !== cf.id);
+                    if (otherCandidates.length === 0) return null;
+                    return (
+                      <select
+                        title="같은 값 연결 — 다른 스코프(팀 기본/전체/다른 파트)의 필드와 값을 공유. 스코프마다 같은 목적의 필드를 따로 만들어 목록에 중복 컬럼이 보일 때 사용"
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full border focus:outline-none max-w-[110px] ${
+                          cf.aliasFieldId ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-400'
+                        }`}
+                        value={cf.aliasFieldId ?? ''}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => {
+                          e.stopPropagation();
+                          onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, aliasFieldId: e.target.value || undefined } : f));
+                        }}>
+                        <option value="">같은 값 연결 안 함</option>
+                        {otherCandidates.map(c => <option key={c.id} value={c.id}>{c.label} ({c.scope})</option>)}
+                      </select>
+                    );
+                  })()}
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                   {cf.dependsOn && <span className="text-[10px] text-violet-400 font-medium">연결됨</span>}
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
@@ -1729,6 +1757,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         customFields={customFields}
         fieldOrder={rawConfig?.fieldOrder}
         subTaskTypes={currentPart?.subTaskTypes ?? resolveTeamWideSubTaskTypes(team)}
+        team={team}
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
         onSaveOrder={saveOrder}

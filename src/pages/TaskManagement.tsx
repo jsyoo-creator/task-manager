@@ -71,6 +71,9 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 // 드롭다운(select) 타입 커스텀 필드의 옵션 목록 맨 끝에 붙여, 목록 대신 자유 텍스트를
 // 직접 입력하는 모드로 전환할 수 있게 하는 특수 선택지
 const CUSTOM_FIELD_MANUAL_OPTION = '__manual_input__';
+// 커스텀필드의 aliasFieldId가 이 목록에 있는 값이면 task.customFields가 아니라
+// task[그 키] (빌트인 필드)를 직접 읽고 써야 함
+const BUILTIN_FIELD_KEYS_FOR_ALIAS = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
 
 // 다양한 날짜 형식(엑셀 직렬 숫자 포함) → YYYY-MM-DD 정규화. 엑셀 가져오기와
 // 이미 잘못 저장된 데이터 일괄 복구 양쪽에서 공용으로 사용.
@@ -2374,10 +2377,23 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
           if (col.kind === 'custom') {
             const cf = col.cf;
             const cfType = cf.type as string;
+            // 얼라이어스(aliasFieldId): 다른 스코프(팀 기본/전체/다른 파트)의 필드와 값을
+            // 공유하도록 지정된 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는
+            // 필드의 저장 위치를 그대로 읽고 씀 — 같은 목적의 필드가 스코프마다 따로
+            // 만들어져 값이 어긋나 보이는 문제를 해소
+            const aliasTarget = cf.aliasFieldId;
+            const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
+            const effKey = aliasTarget || cf.id;
+            const updateField = (v: string) => {
+              if (isBuiltinAliasTarget) onUpdate(task.id, { [effKey]: v } as Partial<Task>);
+              else onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [effKey]: v } });
+            };
             // 엑셀 내보내기→재가져오기 등으로 빈 값이 문자 그대로 "-"로 저장된 select
             // 필드는 옵션과 매칭이 안 돼 "직접 입력" 모드로 보이므로, 화면에 표시할 때
             // 빈 값으로 되돌려 정상 드롭다운으로 렌더링되게 함
-            const rawVal = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+            const rawVal = isBuiltinAliasTarget
+              ? String((task as Record<string, unknown>)[effKey] ?? '')
+              : ((task.customFields as Record<string, string> | undefined)?.[effKey] ?? '');
             const val = cfType === 'select' && rawVal.trim() === '-' ? '' : rawVal;
             const isNameType = cfType === 'name' || cfType === '이름';
             const opts = (() => {
@@ -2404,7 +2420,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       value={manualFieldDrafts[cf.id] ?? val}
                       onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
                       onBlur={e => {
-                        onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                        updateField(e.target.value);
                         setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                       }}
                       placeholder="직접 입력"
@@ -2416,7 +2432,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                         onClick={() => {
                           setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
                           setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
-                          onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                          updateField('');
                         }}
                         className="flex-shrink-0 text-gray-300 hover:text-blue-400 transition-colors">
                         <ChevronDown size={12} />
@@ -2435,10 +2451,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                           onChange={e => {
                             if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
                               setManualCustomFields(prev => new Set(prev).add(cf.id));
-                              onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                              updateField('');
                               return;
                             }
-                            onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                            updateField(e.target.value);
                           }}
                           className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
                           <option value="">-</option>
@@ -2458,7 +2474,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       <span className="text-xs text-gray-700 truncate">{displayVal || '-'}</span>
                       {canManage && !linkedTypeId && (
                         <select value={val}
-                          onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                          onChange={e => updateField(e.target.value)}
                           className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
                           <option value="">-</option>
                           {opts.map(o => <option key={o}>{o}</option>)}
@@ -2474,7 +2490,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     : <span className="text-xs text-gray-400 block text-center">-</span>
                 ) : cfType === 'date' ? (
                   <DatePicker compact value={val}
-                    onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
+                    onChange={v => updateField(v)}
                     disabled={!canManage} />
                 ) : (
                   <input
@@ -2483,7 +2499,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                     value={manualFieldDrafts[cf.id] ?? val}
                     onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
                     onBlur={e => {
-                      onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                      updateField(e.target.value);
                       setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                     }}
                     placeholder="-"
@@ -2871,10 +2887,22 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 })}
                 {enabledCfs.map(cf => {
                   const cfType = cf.type as string;
+                  // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
+                  // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
+                  // 위치를 그대로 읽고 씀
+                  const aliasTarget = cf.aliasFieldId;
+                  const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
+                  const effKey = aliasTarget || cf.id;
+                  const updateField = (v: string) => {
+                    if (isBuiltinAliasTarget) onUpdate(task.id, { [effKey]: v } as Partial<Task>);
+                    else onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [effKey]: v } });
+                  };
                   // 엑셀 내보내기→재가져오기 등으로 빈 값이 문자 그대로 "-"로 저장된
                   // select 필드는 옵션과 매칭이 안 돼 "직접 입력" 모드로 보이므로, 화면에
                   // 표시할 때 빈 값으로 되돌려 정상 드롭다운으로 렌더링되게 함
-                  const rawVal = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const rawVal = isBuiltinAliasTarget
+                    ? String((task as Record<string, unknown>)[effKey] ?? '')
+                    : ((task.customFields as Record<string, string> | undefined)?.[effKey] ?? '');
                   const val = cfType === 'select' && rawVal.trim() === '-' ? '' : rawVal;
                   const isNameType = cfType === 'name' || cfType === '이름';
                   const opts = (() => {
@@ -2902,7 +2930,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                             value={manualFieldDrafts[cf.id] ?? val}
                             onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
                             onBlur={e => {
-                              onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                              updateField(e.target.value);
                               setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                             }}
                             placeholder="직접 입력"
@@ -2914,7 +2942,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                               onClick={() => {
                                 setManualCustomFields(prev => { const next = new Set(prev); next.delete(cf.id); return next; });
                                 setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
-                                onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                                updateField('');
                               }}
                               className="flex-shrink-0 text-gray-300 hover:text-blue-400 transition-colors">
                               <ChevronDown size={12} />
@@ -2936,10 +2964,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                                 onChange={e => {
                                   if (e.target.value === CUSTOM_FIELD_MANUAL_OPTION) {
                                     setManualCustomFields(prev => new Set(prev).add(cf.id));
-                                    onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: '' } });
+                                    updateField('');
                                     return;
                                   }
-                                  onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                                  updateField(e.target.value);
                                 }}
                                 className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                               >
@@ -2961,7 +2989,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                             {canManage && !linkedTypeId && (
                               <select
                                 value={val}
-                                onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                                onChange={e => updateField(e.target.value)}
                                 className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                               >
                                 <option value="">-</option>
@@ -2981,7 +3009,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                           : <span className="text-xs text-gray-400">-</span>
                       ) : cfType === 'date' ? (
                         <DatePicker compact value={val}
-                          onChange={v => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } })}
+                          onChange={v => updateField(v)}
                           disabled={!canManage} />
                       ) : (
                         <input
@@ -2990,7 +3018,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                           value={manualFieldDrafts[cf.id] ?? val}
                           onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
                           onBlur={e => {
-                            onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } });
+                            updateField(e.target.value);
                             setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
                           }}
                           placeholder="-"

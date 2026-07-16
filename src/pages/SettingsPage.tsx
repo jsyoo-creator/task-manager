@@ -2348,7 +2348,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   // 그대로 남아 뒤섞여 보인다. 팀/파트를 고르는 동안은 로컬 상태에만 반영하고,
   // "연결" 버튼을 눌러야 비로소 저장+백필이 실행되게 함
   const [draftSupportTeamId, setDraftSupportTeamId] = useState('');
-  const [draftSupportPartName, setDraftSupportPartName] = useState('');
+  const [draftSupportPartId, setDraftSupportPartId] = useState('');
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2368,11 +2368,13 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   };
 
   // 세부업무에 지원팀·파트를 연결(또는 변경)하면 즉시 저장하고, 이미 등록된 업무들에도
-  // 소급 적용되도록 지원팀 업무를 일괄 생성함
-  const saveSupportLink = async (subTaskType: SubTaskType, supportTeamId: string, supportPartName: string) => {
-    const next = types.map(x => x.id === subTaskType.id ? { ...x, supportTeamId, supportPartName } : x);
+  // 소급 적용되도록 지원팀 업무를 일괄 생성함. 파트는 고정 id(supportPartId)로 저장해
+  // 지원팀이 나중에 파트 이름을 바꿔도 연결이 깨지지 않게 하고, supportPartName은
+  // 화면 표시용 캐시로만 같이 저장함
+  const saveSupportLink = async (subTaskType: SubTaskType, supportTeamId: string, supportPartId: string, supportPartName: string) => {
+    const next = types.map(x => x.id === subTaskType.id ? { ...x, supportTeamId, supportPartId, supportPartName } : x);
     await save(next);
-    const created = await backfillSupportTaskLinks({ teamId: team.id, team, subTaskType: { ...subTaskType, supportTeamId, supportPartName } });
+    const created = await backfillSupportTaskLinks({ teamId: team.id, team, subTaskType: { ...subTaskType, supportTeamId, supportPartId, supportPartName } });
     setBackfillMsg(created > 0 ? `기존 업무 ${created}건에도 지원팀 업무를 생성했습니다` : '연결됨 (소급 적용할 기존 업무 없음)');
     setTimeout(() => setBackfillMsg(null), 3000);
   };
@@ -2380,7 +2382,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const clearSupportLink = (subTaskType: SubTaskType) => {
     const next = types.map(x => {
       if (x.id !== subTaskType.id) return x;
-      const { supportTeamId: _s, supportPartName: _p, ...rest } = x;
+      const { supportTeamId: _s, supportPartId: _pid, supportPartName: _p, ...rest } = x;
       return rest;
     });
     save(next);
@@ -2637,7 +2639,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
                     onClick={() => {
                       const next = supportPickerId === t.id ? null : t.id;
                       setSupportPickerId(next);
-                      if (next) { setDraftSupportTeamId(t.supportTeamId ?? ''); setDraftSupportPartName(t.supportPartName ?? ''); }
+                      if (next) { setDraftSupportTeamId(t.supportTeamId ?? ''); setDraftSupportPartId(t.supportPartId ?? ''); }
                     }}
                     className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
                       t.supportTeamId
@@ -2654,18 +2656,17 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
               </div>
               {supportPickerId === t.id && (() => {
                 const draftTeam = eligibleSupportTeams.find(st => st.id === draftSupportTeamId);
-                const canConfirm = !!draftSupportTeamId && !!draftSupportPartName;
-                const isUnchanged = draftSupportTeamId === (t.supportTeamId ?? '') && draftSupportPartName === (t.supportPartName ?? '');
+                const canConfirm = !!draftSupportTeamId && !!draftSupportPartId;
                 return (
                   <div className="px-2.5 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
                     <select
                       className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
                       value={draftSupportTeamId}
                       onChange={e => {
-                        if (!e.target.value) { setDraftSupportTeamId(''); setDraftSupportPartName(''); clearSupportLink(t); return; }
+                        if (!e.target.value) { setDraftSupportTeamId(''); setDraftSupportPartId(''); clearSupportLink(t); return; }
                         const st = eligibleSupportTeams.find(x => x.id === e.target.value);
                         setDraftSupportTeamId(e.target.value);
-                        setDraftSupportPartName(st?.parts?.[0]?.name ?? '');
+                        setDraftSupportPartId(st?.parts?.[0]?.id ?? '');
                       }}>
                       <option value="">연결 안 함</option>
                       {eligibleSupportTeams.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
@@ -2673,22 +2674,26 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
                     {draftTeam && (
                       <select
                         className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                        value={draftSupportPartName}
-                        onChange={e => setDraftSupportPartName(e.target.value)}>
-                        {(draftTeam.parts ?? []).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                        value={draftSupportPartId}
+                        onChange={e => setDraftSupportPartId(e.target.value)}>
+                        {(draftTeam.parts ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     )}
-                    {draftTeam && (
-                      <button
-                        type="button"
-                        disabled={!canConfirm || isUnchanged}
-                        onClick={() => saveSupportLink(t, draftSupportTeamId, draftSupportPartName)}
-                        className={`text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors ${
-                          !canConfirm || isUnchanged ? 'bg-gray-100 text-gray-300' : 'bg-violet-500 text-white hover:bg-violet-600'
-                        }`}>
-                        연결
-                      </button>
-                    )}
+                    {draftTeam && (() => {
+                      const draftPart = draftTeam.parts?.find(p => p.id === draftSupportPartId);
+                      return (
+                        <button
+                          type="button"
+                          title="이미 같은 팀·파트로 연결돼 있어도 다시 눌러서 재백필할 수 있습니다(예: 지원팀 쪽 업무를 지우고 다시 만들고 싶을 때)"
+                          disabled={!canConfirm}
+                          onClick={() => draftPart && saveSupportLink(t, draftSupportTeamId, draftPart.id, draftPart.name)}
+                          className={`text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors ${
+                            !canConfirm ? 'bg-gray-100 text-gray-300' : 'bg-violet-500 text-white hover:bg-violet-600'
+                          }`}>
+                          연결
+                        </button>
+                      );
+                    })()}
                     {backfillMsg && <span className="text-[10px] text-violet-500 font-medium">{backfillMsg}</span>}
                   </div>
                 );

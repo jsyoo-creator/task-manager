@@ -870,7 +870,10 @@ export interface SubTaskType {
   showInDetail?: boolean;   // undefined = true, 업무 상세 화면에 노출할지 여부
   plFieldType?: PLSubTaskFieldType; // PL세부업무 필드 타입 (text|review)
   supportTeamId?: string;   // 이 세부업무를 자동으로 지원 요청할 지원팀 id (있으면 연결 활성화)
-  supportPartName?: string; // 지원팀 내 어느 파트로 보낼지 (지원팀에 파트가 여럿이면 필수)
+  supportPartId?: string;   // 지원팀 내 어느 파트로 보낼지 — 파트의 고정 id로 저장해, 지원팀이
+    // 나중에 파트 이름을 바꿔도 연결이 깨지지 않게 함(생성 시점에 이 id로 현재 파트명을 다시 조회)
+  supportPartName?: string; // 구버전 호환/표시용 캐시(설정 UI 라벨). supportPartId가 없을 때만
+    // 폴백으로 사용 — 새로 저장할 때는 항상 supportPartId를 함께 채움
 }
 
 export type PLSubTaskFieldType = 'text' | 'review'; // 텍스트, 검수

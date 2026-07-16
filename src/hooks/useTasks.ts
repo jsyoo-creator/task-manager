@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs,
+  collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs, getDoc,
   doc, query, where, writeBatch, deleteField
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -41,6 +41,23 @@ function buildLinkedSupportPayload(origin: Task, type: SubTaskType, now: string)
   return Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
 }
 
+// 지원팀 파트는 이름이 아니라 고정 id(supportPartId)로 저장해두고, 실제로 업무를
+// 생성하는 시점마다 지원팀 문서를 다시 읽어 "현재" 파트명을 구한다. 이렇게 하면
+// 지원팀이 나중에 파트 이름을 바꿔도, 이미 연결된 업무(담당자·상태 동기화)는
+// 업무 id 기준으로 계속 동작하고, 새로 생성되는 지원팀 업무도 존재하지 않는
+// 옛 파트명으로 만들어져 고아가 되는 일이 없음. supportPartId가 없는(마이그레이션
+// 전) 세부업무 타입은 예전처럼 supportPartName을 그대로 씀
+async function resolveCurrentSupportPartName(type: SubTaskType): Promise<string | undefined> {
+  if (type.supportTeamId && type.supportPartId) {
+    const teamSnap = await getDoc(doc(db, 'teams', type.supportTeamId));
+    const teamData = teamSnap.data() as Team | undefined;
+    const part = teamData?.parts?.find(p => p.id === type.supportPartId);
+    if (part) return part.name;
+    return undefined; // 파트가 삭제된 등의 경우 — 생성하지 않고 건너뜀
+  }
+  return type.supportPartName;
+}
+
 // 세부업무 타입에 지원팀 연결을 새로 설정(또는 변경)했을 때, 이미 등록되어 있던
 // 업무들에도 즉시 적용되도록 지원팀 업무를 일괄 생성한다. 이미 이 세부업무 타입으로
 // 연결된 업무는 건너뛰어 중복 생성을 막음. 설정 화면(팀 관리 > 세부 업무)에서 저장
@@ -52,7 +69,10 @@ export async function backfillSupportTaskLinks(params: {
   subTaskType: SubTaskType;
 }): Promise<number> {
   const { teamId, team, subTaskType } = params;
-  if (!subTaskType.supportTeamId || !subTaskType.supportPartName) return 0;
+  if (!subTaskType.supportTeamId || !(subTaskType.supportPartId || subTaskType.supportPartName)) return 0;
+  const supportPartName = await resolveCurrentSupportPartName(subTaskType);
+  if (!supportPartName) return 0; // 지정한 파트가 지원팀에 더 이상 없음
+  const effectiveType = { ...subTaskType, supportPartName };
   const now = new Date().toISOString();
 
   const [taskSnap, linkedSnap] = await Promise.all([
@@ -82,7 +102,7 @@ export async function backfillSupportTaskLinks(params: {
     });
   if (targets.length === 0) return 0;
 
-  await Promise.all(targets.map(origin => addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, subTaskType, now))));
+  await Promise.all(targets.map(origin => addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, effectiveType, now))));
   return targets.length;
 }
 
@@ -167,10 +187,14 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     if (!data.linkedFromTaskId && !data.plTask) {
       const part = team?.parts?.find(p => p.name === data.category);
       const types = part?.subTaskTypes ?? team?.subTaskTypes ?? [];
-      const linkable = types.filter(t => t.supportTeamId && t.supportPartName);
+      const linkable = types.filter(t => t.supportTeamId && (t.supportPartId || t.supportPartName));
       if (linkable.length > 0) {
         const origin = { ...data, id: ref.id } as Task;
-        await Promise.all(linkable.map(type => addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, type, now))));
+        await Promise.all(linkable.map(async type => {
+          const supportPartName = await resolveCurrentSupportPartName(type);
+          if (!supportPartName) return; // 지정한 파트가 지원팀에 더 이상 없음
+          await addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, { ...type, supportPartName }, now));
+        }));
       }
     }
 

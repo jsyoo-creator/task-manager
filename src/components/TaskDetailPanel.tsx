@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
-import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
@@ -2622,12 +2622,15 @@ export default function TaskDetailPanel({
                 {cfs.map(cf => {
                   const cfType = cf.type as string;
                   const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
-                  // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
-                  const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
                   // 얼라이어스(aliasFieldId): 다른 스코프의 필드와 값을 공유하도록 지정된
                   // 필드는 자기 자신의 customFields[cf.id]가 아니라 가리키는 필드의 저장
                   // 위치를 그대로 읽고 씀
                   const aliasTarget = resolveAliasFieldId(cf, task.category, parts);
+                  // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로
+                  // 보여줌. 얼라이어스로 가리키는 대상 필드 자체가 세부업무 연동이라면
+                  // 이 필드도 그 연동을 따라감(대상 필드는 customFields에 값을 저장하지
+                  // 않으므로, 얼라이어스만으로는 값을 못 가져오고 세부업무 연동까지 봐야 함)
+                  const linkedTypeId = isNameType ? (findLinkedSubTaskTypeForFieldId(aliasTarget, parts) ?? cf.linkedSubTaskTypeId) : undefined;
                   const isBuiltinAliasTarget = !!aliasTarget && BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(aliasTarget);
                   const effKey = aliasTarget || cf.id;
                   const rawVal = isBuiltinAliasTarget

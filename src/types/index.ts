@@ -637,6 +637,21 @@ export function resolveAliasFieldId(
   return cf.aliasFieldId;
 }
 
+// 이름 필드가 얼라이어스로 다른 필드(주로 다른 파트의 같은 라벨 필드)를 가리킬 때,
+// 그 "가리키는 대상" 필드가 세부업무에 연동(linkedSubTaskTypeId)되어 있으면 읽기전용
+// 값도 그 대상 필드 기준으로 가져와야 한다. 안 그러면 대상 필드는 세부업무 담당자를
+// 읽기전용으로 보여주는 필드인데도 이 필드는 (세부업무 연동이 없는) 빈
+// customFields 저장칸을 읽어서 값이 안 나온다. parts 안의 커스텀필드에서 해당 id를
+// 찾아 그 필드의 linkedSubTaskTypeId를 대신 반환함
+export function findLinkedSubTaskTypeForFieldId(id: string | undefined, parts: TeamPart[] | undefined): string | undefined {
+  if (!id) return undefined;
+  for (const p of parts ?? []) {
+    const f = p.formConfig?.customFields?.find(x => x.id === id);
+    if (f) return f.linkedSubTaskTypeId;
+  }
+  return undefined;
+}
+
 // 엑셀 가져오기 중복 체크 기준을 팀/파트에서 아직 설정하지 않았을 때의 기본값
 // (기존 하드코딩 동작과 동일: 제목+파트+월 조합)
 export const DEFAULT_DUPE_CHECK_FIELDS: string[] = ['title', 'category', 'taskMonth'];

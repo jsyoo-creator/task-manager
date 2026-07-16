@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2, GripVertical, Copy, Check, Info, Upload, Download, FileDown, User, Users, EyeOff, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Task, SubTask, TaskStatus, TaskCategory, TaskType, TeamPart, BuiltinFieldConfig, TeamFormConfig, Department, StatusConfig, MetaField, ExcelFieldConfig, PLMainTaskType, CustomFormField, Team } from '../types';
-import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields, resolveCompletedStatusValues, resolveAliasFieldId } from '../types';
+import { TABLE_FIELD_KEYS, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, DEFAULT_META_FIELDS, resolveFieldDepts, mergeFormConfig, partBadgeCls, resolveCopyIncludeDetails, resolveTaskListTwoLine, resolveDupeCheckFields, resolveCompletedStatusValues, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId } from '../types';
 import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
@@ -2477,7 +2477,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                   );
                 })() : isSelectable ? (() => {
                   // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
-                  const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
+                  const linkedTypeId = isNameType ? (findLinkedSubTaskTypeForFieldId(aliasTarget, parts) ?? cf.linkedSubTaskTypeId) : undefined;
                   const displayVal = linkedTypeId ? (task.subTaskData?.[linkedTypeId]?.assignee ?? '') : val;
                   return (
                     <div className="relative flex items-center justify-center gap-1 min-w-0">
@@ -2991,7 +2991,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                         );
                       })() : isSelectable ? (() => {
                         // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
-                        const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
+                        const linkedTypeId = isNameType ? (findLinkedSubTaskTypeForFieldId(aliasTarget, parts) ?? cf.linkedSubTaskTypeId) : undefined;
                         const displayVal = linkedTypeId ? (task.subTaskData?.[linkedTypeId]?.assignee ?? '') : val;
                         return (
                           <div className="relative flex items-center gap-1 max-w-[180px]">

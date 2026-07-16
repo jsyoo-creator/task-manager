@@ -63,6 +63,7 @@ export async function backfillSupportTaskLinks(params: {
     .map(d => ({ id: d.id, ...d.data() } as Task))
     .filter(t => {
       if (t.linkedFromTaskId) return false; // 지원팀 연결 업무 자신은 대상 아님
+      if (t.plTask) return false; // PL업무는 세부업무 목록을 쓰지 않으므로 대상 아님
       if (alreadyLinkedOriginIds.has(t.id)) return false;
       const part = team.parts?.find(p => p.name === t.category);
       const types = part?.subTaskTypes ?? team.subTaskTypes ?? [];
@@ -113,9 +114,10 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     const ref = await addDoc(collection(db, 'tasks'), payload);
 
     // 세부업무 타입에 지원팀이 연결되어 있으면, 새 업무가 등록되는 즉시 그 세부업무에
-    // 대응하는 지원팀 업무를 자동으로 만들어준다(지원팀 연결 업무 자신은 대상에서 제외 —
-    // 연결이 연쇄로 계속 생기는 것을 막음)
-    if (!data.linkedFromTaskId) {
+    // 대응하는 지원팀 업무를 자동으로 만들어준다(지원팀 연결 업무 자신과 PL업무는
+    // 대상에서 제외 — PL업무는 세부업무 목록 자체를 쓰지 않는데도 소속 파트의 전체
+    // 세부업무 목록 기준으로 걸려 잘못 전달되는 문제가 있었음)
+    if (!data.linkedFromTaskId && !data.plTask) {
       const part = team?.parts?.find(p => p.name === data.category);
       const types = part?.subTaskTypes ?? team?.subTaskTypes ?? [];
       const linkable = types.filter(t => t.supportTeamId && t.supportPartName);

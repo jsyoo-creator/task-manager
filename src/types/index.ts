@@ -439,6 +439,8 @@ export interface CustomFormField {
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
   department?: Department; // name 타입: 해당 직군 사람만 표시 (구버전 호환)
   departments?: Department[]; // 복수 직군 선택 (신버전)
+  linkedSubTaskTypeId?: string; // name 타입: 연동한 세부업무(SubTaskType.id). 있으면 이
+    // 필드는 편집 불가 읽기전용으로 바뀌어 task.subTaskData[이 id].assignee 값을 그대로 보여줌
   dependsOn?: {
     fieldId: string;                    // 부모 필드 ID (커스텀) 또는 builtin key
     valueMap: Record<string, string[]>; // 부모 선택값 → 이 필드의 표시 옵션

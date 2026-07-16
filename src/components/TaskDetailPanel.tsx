@@ -2599,13 +2599,16 @@ export default function TaskDetailPanel({
               <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">추가 정보</p>
               <div className="space-y-2">
                 {cfs.map(cf => {
-                  const val = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
-                  const editable = canManage && !groupSyncKeys.has(cf.id);
+                  const cfType = cf.type as string;
+                  const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
+                  // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+                  const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
+                  const rawVal = (task.customFields as Record<string, string> | undefined)?.[cf.id] ?? '';
+                  const val = linkedTypeId ? (task.subTaskData?.[linkedTypeId]?.assignee ?? '') : rawVal;
+                  const editable = canManage && !groupSyncKeys.has(cf.id) && !linkedTypeId;
                   const handleBlur = (v: string) => {
                     onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: v } });
                   };
-                  const cfType = cf.type as string;
-                  const isNameType = cfType === 'name' || cfType === 'textarea' || cfType === '이름';
                   const cfDepts = isNameType ? resolveFieldDepts(cf) : null;
                   let opts = isNameType
                     ? (cfDepts && teamMembers?.length

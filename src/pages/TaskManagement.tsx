@@ -2448,20 +2448,25 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                       )}
                     </div>
                   );
-                })() : isSelectable ? (
-                  <div className="relative flex items-center justify-center gap-1 min-w-0">
-                    {isNameType && <MiniAvatar name={val} photoURL={userPhotoMap?.get(val)} />}
-                    <span className="text-xs text-gray-700 truncate">{val || '-'}</span>
-                    {canManage && (
-                      <select value={val}
-                        onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
-                        <option value="">-</option>
-                        {opts.map(o => <option key={o}>{o}</option>)}
-                      </select>
-                    )}
-                  </div>
-                ) : cfType === 'link' ? (
+                })() : isSelectable ? (() => {
+                  // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+                  const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
+                  const displayVal = linkedTypeId ? (task.subTaskData?.[linkedTypeId]?.assignee ?? '') : val;
+                  return (
+                    <div className="relative flex items-center justify-center gap-1 min-w-0">
+                      {isNameType && <MiniAvatar name={displayVal} photoURL={userPhotoMap?.get(displayVal)} />}
+                      <span className="text-xs text-gray-700 truncate">{displayVal || '-'}</span>
+                      {canManage && !linkedTypeId && (
+                        <select value={val}
+                          onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer">
+                          <option value="">-</option>
+                          {opts.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })() : cfType === 'link' ? (
                   val
                     ? <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
@@ -2939,22 +2944,27 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                             )}
                           </div>
                         );
-                      })() : isSelectable ? (
-                        <div className="relative flex items-center gap-1 max-w-[180px]">
-                          {isNameType && <MiniAvatar name={val} photoURL={userPhotoMap?.get(val)} />}
-                          <span className="text-xs text-gray-800 font-medium truncate pr-4">{val || '-'}</span>
-                          {canManage && (
-                            <select
-                              value={val}
-                              onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
-                              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                            >
-                              <option value="">-</option>
-                              {opts.map(o => <option key={o}>{o}</option>)}
-                            </select>
-                          )}
-                        </div>
-                      ) : cfType === 'link' ? (
+                      })() : isSelectable ? (() => {
+                        // 세부업무에 연동된 이름 필드는 편집 불가 — 해당 세부업무 담당자를 그대로 보여줌
+                        const linkedTypeId = isNameType ? cf.linkedSubTaskTypeId : undefined;
+                        const displayVal = linkedTypeId ? (task.subTaskData?.[linkedTypeId]?.assignee ?? '') : val;
+                        return (
+                          <div className="relative flex items-center gap-1 max-w-[180px]">
+                            {isNameType && <MiniAvatar name={displayVal} photoURL={userPhotoMap?.get(displayVal)} />}
+                            <span className="text-xs text-gray-800 font-medium truncate pr-4">{displayVal || '-'}</span>
+                            {canManage && !linkedTypeId && (
+                              <select
+                                value={val}
+                                onChange={e => onUpdate(task.id, { customFields: { ...(task.customFields ?? {}), [cf.id]: e.target.value } })}
+                                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                              >
+                                <option value="">-</option>
+                                {opts.map(o => <option key={o}>{o}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })() : cfType === 'link' ? (
                         val
                           ? <div className="flex items-center gap-1">
                               <a href={val.startsWith('http') ? val : `https://${val}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:text-blue-700 max-w-[200px] truncate">{val}</a>

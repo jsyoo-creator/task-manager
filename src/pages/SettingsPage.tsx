@@ -5,7 +5,7 @@ import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, res
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
-import { backfillSupportTaskLinks } from '../hooks/useTasks';
+import { backfillSupportTaskLinks, repairLinkedSupportTaskOrder } from '../hooks/useTasks';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
@@ -595,8 +595,9 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function AddFieldForm({ onAdd, parentSelectFields = [] }: {
+function AddFieldForm({ onAdd, subTaskTypes = [], parentSelectFields = [] }: {
   onAdd: (f: Omit<CustomFormField, 'id'>) => void;
+  subTaskTypes?: SubTaskType[];
   parentSelectFields?: { id: string; label: string; options: string[] }[];
 }) {
   const [open, setOpen] = useState(false);
@@ -607,6 +608,7 @@ function AddFieldForm({ onAdd, parentSelectFields = [] }: {
   const [optionColors, setOptionColors] = useState<Record<string, { bg: string; text: string }>>({});
   const [colorPickerIdx, setColorPickerIdx] = useState<number | null>(null);
   const [dept, setDept] = useState<Department | ''>('');
+  const [linkedSubTaskTypeId, setLinkedSubTaskTypeId] = useState('');
   const [dependsOnId, setDependsOnId] = useState('');
   const [valueMapInput, setValueMapInput] = useState<Record<string, string[]>>({});
 
@@ -621,9 +623,11 @@ function AddFieldForm({ onAdd, parentSelectFields = [] }: {
       options: type === 'select' && !dependsOnId ? options.filter(o => o.trim()) : undefined,
       optionColors: type === 'select' && !dependsOnId && Object.keys(optionColors).length > 0 ? optionColors : undefined,
       department: type === 'name' && dept ? dept : undefined,
+      linkedSubTaskTypeId: type === 'name' && linkedSubTaskTypeId ? linkedSubTaskTypeId : undefined,
       dependsOn: type === 'select' && dependsOnId ? { fieldId: dependsOnId, valueMap: cleanValueMap } : undefined,
     });
     setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setOptionColors({}); setDept('');
+    setLinkedSubTaskTypeId('');
     setDependsOnId(''); setValueMapInput({}); setOpen(false);
   };
 
@@ -706,6 +710,18 @@ function AddFieldForm({ onAdd, parentSelectFields = [] }: {
             <option value="">전체 (직군 무관)</option>
             {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
           </select>
+        </div>
+      )}
+      {type === 'name' && subTaskTypes.length > 0 && (
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-500 font-medium flex-shrink-0">세부업무 연동</span>
+          <select className={cls} value={linkedSubTaskTypeId} onChange={e => setLinkedSubTaskTypeId(e.target.value)}>
+            <option value="">연동 안 함</option>
+            {subTaskTypes.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+          </select>
+          {linkedSubTaskTypeId && (
+            <span className="text-[10px] text-gray-400">연동하면 읽기전용으로 바뀝니다</span>
+          )}
         </div>
       )}
       {type === 'select' && (
@@ -795,10 +811,11 @@ function DependsOnEditor({ dependsOnId, setDependsOnId, valueMapInput, setValueM
 }
 
 // ── 필드 설정 빌더 (드래그 앤 드롭 + 너비 조절) ──
-function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
+function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTaskTypes = [], onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
   fields: BuiltinFieldConfig[];
   customFields: CustomFormField[];
   fieldOrder?: string[];
+  subTaskTypes?: SubTaskType[];
   onSaveFields: (f: BuiltinFieldConfig[]) => void;
   onSaveCustom: (f: CustomFormField[]) => void;
   onSaveOrder?: (order: string[]) => void;
@@ -1400,6 +1417,22 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
                       </button>
                     );
                   })}
+                  {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && subTaskTypes.length > 0 && (
+                    <select
+                      title="세부업무 연동 — 연동하면 이 필드는 읽기전용으로 바뀌어 해당 세부업무 담당자를 그대로 보여줌"
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full border focus:outline-none ${
+                        cf.linkedSubTaskTypeId ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400'
+                      }`}
+                      value={cf.linkedSubTaskTypeId ?? ''}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => {
+                        e.stopPropagation();
+                        onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, linkedSubTaskTypeId: e.target.value || undefined } : f));
+                      }}>
+                      <option value="">세부업무 연동 안 함</option>
+                      {subTaskTypes.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                    </select>
+                  )}
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                   {cf.dependsOn && <span className="text-[10px] text-violet-400 font-medium">연결됨</span>}
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
@@ -1415,7 +1448,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, onSav
       {/* 커스텀 필드 추가 */}
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">커스텀 필드</p>
-        <AddFieldForm onAdd={addCustomField} parentSelectFields={[
+        <AddFieldForm onAdd={addCustomField} subTaskTypes={subTaskTypes} parentSelectFields={[
           ...fields.filter(f => f.customType === 'select' && f.enabled && (f.options?.length ?? 0) > 0)
             .map(f => ({ id: f.key, label: f.customLabel ?? (BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key), options: f.options! })),
           ...customFields.filter(f => f.type === 'select' && f.enabled !== false && (f.options?.length ?? 0) > 0)
@@ -1676,6 +1709,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         fields={fields}
         customFields={customFields}
         fieldOrder={rawConfig?.fieldOrder}
+        subTaskTypes={currentPart?.subTaskTypes ?? team.subTaskTypes ?? []}
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
         onSaveOrder={saveOrder}
@@ -2366,9 +2400,23 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
       )}
 
       <div>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
         세부 업무 목록
-        <span className="text-gray-300 font-normal normal-case ml-1">드래그로 순서 · 이름 클릭으로 수정</span>
+        <span className="text-gray-300 font-normal normal-case">드래그로 순서 · 이름 클릭으로 수정</span>
+        {eligibleSupportTeams.length > 0 && (
+          <button
+            type="button"
+            title="sortOrder 없이 생성된(수정 이전) 지원팀 연결 업무들을 원본 업무 순서에 맞춰 정렬 복구"
+            onClick={async () => {
+              const fixed = await repairLinkedSupportTaskOrder(team.id);
+              setBackfillMsg(fixed > 0 ? `지원팀 업무 ${fixed}건의 순서를 복구했습니다` : '순서가 어긋난 지원팀 업무 없음');
+              setTimeout(() => setBackfillMsg(null), 3000);
+            }}
+            className="ml-auto normal-case font-normal text-[11px] text-violet-400 hover:text-violet-600 transition-colors">
+            지원팀 업무 순서 복구
+          </button>
+        )}
+        {backfillMsg && <span className="normal-case font-normal text-[10px] text-violet-500">{backfillMsg}</span>}
       </p>
       {types.length > 0 ? (
         <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">

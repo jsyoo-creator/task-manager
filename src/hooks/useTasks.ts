@@ -29,6 +29,10 @@ function buildLinkedSupportPayload(origin: Task, type: SubTaskType, now: string)
     weeklyHours: {},
     totalHours: 0,
     revisionLevel: 0,
+    // sortOrder를 안 넣으면 지원팀 쪽에서 생성 시각 역순으로만 섞여 원본 팀의 업무
+    // 순서와 무관하게 뒤죽박죽으로 보임 — 원본 업무의 순서를 그대로 물려받아, 최소한
+    // 자동 생성된 지원팀 업무들끼리는 원본과 같은 상대 순서를 유지하게 함
+    sortOrder: origin.sortOrder,
     linkedFromTaskId: origin.id,
     linkedFromSubTaskTypeId: type.id,
     createdAt: now,
@@ -73,6 +77,42 @@ export async function backfillSupportTaskLinks(params: {
 
   await Promise.all(targets.map(origin => addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, subTaskType, now))));
   return targets.length;
+}
+
+// sortOrder 없이 생성됐던(수정 이전) 지원팀 연결 업무들을 원본 업무 순서에 맞춰
+// 일괄 복구한다. teamId 팀의 업무들을 원본으로 두고, 그 업무들을 가리키는
+// linkedFromTaskId를 가진 지원팀 업무를 찾아 sortOrder를 원본과 맞춤
+export async function repairLinkedSupportTaskOrder(teamId: string): Promise<number> {
+  const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', teamId)));
+  const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
+  if (origins.length === 0) return 0;
+  const originById = new Map(origins.map(o => [o.id, o]));
+
+  // Firestore 'in' 쿼리는 최대 30개까지만 지원 — 원본 id들을 30개씩 나눠 조회
+  const originIds = origins.map(o => o.id);
+  const linked: Task[] = [];
+  for (let i = 0; i < originIds.length; i += 30) {
+    const chunk = originIds.slice(i, i + 30);
+    const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+    snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+  }
+
+  const toFix = linked.filter(l => {
+    const origin = originById.get(l.linkedFromTaskId as string);
+    return !!origin && l.sortOrder !== origin.sortOrder;
+  });
+  if (toFix.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  for (let i = 0; i < toFix.length; i += 400) {
+    const batch = writeBatch(db);
+    toFix.slice(i, i + 400).forEach(l => {
+      const origin = originById.get(l.linkedFromTaskId as string)!;
+      batch.update(doc(db, 'tasks', l.id), { sortOrder: origin.sortOrder, updatedAt: now });
+    });
+    await batch.commit();
+  }
+  return toFix.length;
 }
 
 export function useTasks(projectId: string, teamId: string | null, team?: Team | null) {

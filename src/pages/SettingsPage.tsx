@@ -5,6 +5,7 @@ import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, res
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
+import { backfillSupportTaskLinks } from '../hooks/useTasks';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
@@ -2148,8 +2149,9 @@ const SUBTASK_CALENDAR_COLORS = [
   '#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6',
 ];
 
-function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
+function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   team: Team;
+  teams: Team[];
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onSavePart: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPart: (teamId: string, partId: string) => Promise<void>;
@@ -2165,6 +2167,8 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   const dragIdxRef = useRef<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
+  const [supportPickerId, setSupportPickerId] = useState<string | null>(null);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2174,9 +2178,32 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
   const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
   const types: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
 
+  // 이 팀이 업무 요청을 보낼 수 있는 지원팀 목록 — 업무관리 페이지의 "지원팀에 요청"과
+  // 동일한 화이트리스트 조건(팀 관리 > 지원팀 탭에서 설정)
+  const eligibleSupportTeams = teams.filter(t => t.isSupportTeam && t.supportSourceTeamIds?.includes(team.id));
+
   const save = (next: SubTaskType[]) => {
     if (isTeam) onSave(team.id, next);
     else if (currentPart) onSavePart(team.id, currentPart.id, next);
+  };
+
+  // 세부업무에 지원팀·파트를 연결(또는 변경)하면 즉시 저장하고, 이미 등록된 업무들에도
+  // 소급 적용되도록 지원팀 업무를 일괄 생성함
+  const saveSupportLink = async (subTaskType: SubTaskType, supportTeamId: string, supportPartName: string) => {
+    const next = types.map(x => x.id === subTaskType.id ? { ...x, supportTeamId, supportPartName } : x);
+    await save(next);
+    const created = await backfillSupportTaskLinks({ teamId: team.id, team, subTaskType: { ...subTaskType, supportTeamId, supportPartName } });
+    setBackfillMsg(created > 0 ? `기존 업무 ${created}건에도 지원팀 업무를 생성했습니다` : '연결됨 (소급 적용할 기존 업무 없음)');
+    setTimeout(() => setBackfillMsg(null), 3000);
+  };
+
+  const clearSupportLink = (subTaskType: SubTaskType) => {
+    const next = types.map(x => {
+      if (x.id !== subTaskType.id) return x;
+      const { supportTeamId: _s, supportPartName: _p, ...rest } = x;
+      return rest;
+    });
+    save(next);
   };
 
   const onDrop = (toIdx: number) => {
@@ -2406,11 +2433,55 @@ function SubTaskTypesEditor({ team, onSave, onSavePart, onClearPart }: {
                   }`}>
                   <FileText size={11} />
                 </button>
+                {/* 지원팀 연결 토글 — 연결해두면 이 세부업무가 있는 업무가 생성되는
+                    즉시 지정한 지원팀·파트에 자동으로 업무가 만들어지고, 담당자·상태가
+                    양방향으로 동기화됨 */}
+                {eligibleSupportTeams.length > 0 && (
+                  <button
+                    type="button"
+                    title={t.supportTeamId ? '지원팀 연결됨 (클릭하여 수정)' : '지원팀 연결 (클릭하여 설정)'}
+                    onClick={() => setSupportPickerId(supportPickerId === t.id ? null : t.id)}
+                    className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                      t.supportTeamId
+                        ? 'bg-violet-100 text-violet-500 hover:bg-violet-200 hover:text-violet-600'
+                        : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                    }`}>
+                    <Users size={11} />
+                  </button>
+                )}
                 <button type="button" onClick={() => deleteType(t.id)}
                   className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                   <X size={11} />
                 </button>
               </div>
+              {supportPickerId === t.id && (() => {
+                const linkedTeam = eligibleSupportTeams.find(st => st.id === t.supportTeamId);
+                return (
+                  <div className="px-2.5 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
+                    <select
+                      className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                      value={t.supportTeamId ?? ''}
+                      onChange={e => {
+                        if (!e.target.value) { clearSupportLink(t); return; }
+                        const st = eligibleSupportTeams.find(x => x.id === e.target.value);
+                        const firstPart = st?.parts?.[0]?.name ?? '';
+                        if (firstPart) saveSupportLink(t, e.target.value, firstPart);
+                      }}>
+                      <option value="">연결 안 함</option>
+                      {eligibleSupportTeams.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                    </select>
+                    {linkedTeam && (
+                      <select
+                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                        value={t.supportPartName ?? ''}
+                        onChange={e => saveSupportLink(t, linkedTeam.id, e.target.value)}>
+                        {(linkedTeam.parts ?? []).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                      </select>
+                    )}
+                    {backfillMsg && <span className="text-[10px] text-violet-500 font-medium">{backfillMsg}</span>}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -7118,6 +7189,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                     <div className="px-5 py-4">
                       <SubTaskTypesEditor
                         team={team}
+                        teams={teams}
                         onSave={onUpdateSubTaskTypes}
                         onSavePart={onUpdatePartSubTaskTypes}
                         onClearPart={onClearPartSubTaskTypes}

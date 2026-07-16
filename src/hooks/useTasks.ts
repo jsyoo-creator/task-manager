@@ -1,13 +1,78 @@
 import { useState, useEffect } from 'react';
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc,
+  collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDocs,
   doc, query, where, writeBatch, deleteField
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import type { Task, SubTask, Team } from '../types';
+import type { Task, SubTask, Team, SubTaskType } from '../types';
 import { BUILTIN_FIELDS_META, mergeFormConfig, resolveGroupSyncFields } from '../types';
 
 const BUILTIN_KEY_SET = new Set(BUILTIN_FIELDS_META.map(m => m.key as string));
+
+// 세부업무-지원팀 연결 업무 생성 시 채우는 필드. 원본 업무의 해당 세부업무 항목에
+// 이미 담당자/기간/상태가 입력돼 있으면 그 값을 그대로 이어받고, 없으면 원본 업무
+// 자체의 값(기간)이나 빈 값(담당자/상태 기본값)으로 시작함
+function buildLinkedSupportPayload(origin: Task, type: SubTaskType, now: string): Record<string, unknown> {
+  const entry = origin.subTaskData?.[type.id];
+  const payload: Record<string, unknown> = {
+    projectId: origin.projectId,
+    teamId: type.supportTeamId,
+    category: type.supportPartName,
+    taskMonth: origin.taskMonth,
+    title: `${origin.title} - ${type.name}`,
+    type: '신규',
+    status: entry?.status ?? '진행 전',
+    receiver: '',
+    assignee: entry?.assignee ?? '',
+    startDate: entry?.startDate ?? origin.startDate,
+    endDate: entry?.endDate ?? origin.endDate,
+    weeklyHours: {},
+    totalHours: 0,
+    revisionLevel: 0,
+    linkedFromTaskId: origin.id,
+    linkedFromSubTaskTypeId: type.id,
+    createdAt: now,
+    updatedAt: now,
+  };
+  return Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
+}
+
+// 세부업무 타입에 지원팀 연결을 새로 설정(또는 변경)했을 때, 이미 등록되어 있던
+// 업무들에도 즉시 적용되도록 지원팀 업무를 일괄 생성한다. 이미 이 세부업무 타입으로
+// 연결된 업무는 건너뛰어 중복 생성을 막음. 설정 화면(팀 관리 > 세부 업무)에서 저장
+// 시점에 호출 — 어떤 팀을 보고 있는 중이든 상관없이 동작해야 해서 useTasks 훅
+// 상태에 기대지 않고 직접 조회한다
+export async function backfillSupportTaskLinks(params: {
+  teamId: string;
+  team: Team;
+  subTaskType: SubTaskType;
+}): Promise<number> {
+  const { teamId, team, subTaskType } = params;
+  if (!subTaskType.supportTeamId || !subTaskType.supportPartName) return 0;
+  const now = new Date().toISOString();
+
+  const [taskSnap, linkedSnap] = await Promise.all([
+    getDocs(query(collection(db, 'tasks'), where('teamId', '==', teamId))),
+    getDocs(query(collection(db, 'tasks'), where('linkedFromSubTaskTypeId', '==', subTaskType.id))),
+  ]);
+  const alreadyLinkedOriginIds = new Set(
+    linkedSnap.docs.map(d => (d.data() as Task).linkedFromTaskId).filter((v): v is string => !!v)
+  );
+
+  const targets = taskSnap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Task))
+    .filter(t => {
+      if (t.linkedFromTaskId) return false; // 지원팀 연결 업무 자신은 대상 아님
+      if (alreadyLinkedOriginIds.has(t.id)) return false;
+      const part = team.parts?.find(p => p.name === t.category);
+      const types = part?.subTaskTypes ?? team.subTaskTypes ?? [];
+      return types.some(ty => ty.id === subTaskType.id);
+    });
+  if (targets.length === 0) return 0;
+
+  await Promise.all(targets.map(origin => addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, subTaskType, now))));
+  return targets.length;
+}
 
 export function useTasks(projectId: string, teamId: string | null, team?: Team | null) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -46,6 +111,20 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
       Object.entries({ ...data, createdAt: now, updatedAt: now }).filter(([, v]) => v !== undefined)
     );
     const ref = await addDoc(collection(db, 'tasks'), payload);
+
+    // 세부업무 타입에 지원팀이 연결되어 있으면, 새 업무가 등록되는 즉시 그 세부업무에
+    // 대응하는 지원팀 업무를 자동으로 만들어준다(지원팀 연결 업무 자신은 대상에서 제외 —
+    // 연결이 연쇄로 계속 생기는 것을 막음)
+    if (!data.linkedFromTaskId) {
+      const part = team?.parts?.find(p => p.name === data.category);
+      const types = part?.subTaskTypes ?? team?.subTaskTypes ?? [];
+      const linkable = types.filter(t => t.supportTeamId && t.supportPartName);
+      if (linkable.length > 0) {
+        const origin = { ...data, id: ref.id } as Task;
+        await Promise.all(linkable.map(type => addDoc(collection(db, 'tasks'), buildLinkedSupportPayload(origin, type, now))));
+      }
+    }
+
     return ref.id;
   };
 
@@ -81,40 +160,92 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     // "무엇이 바뀌었는지"는 tasks state(지연 가능)가 아니라 방금 들어온 data 그대로 사용.
     const changedKeys = Object.keys(data).filter(k => k !== 'updatedAt' && k !== 'customFields');
     const changedCustomKeys = data.customFields ? Object.keys(data.customFields) : [];
-    if (changedKeys.length === 0 && changedCustomKeys.length === 0) return;
+    const children = (changedKeys.length > 0 || changedCustomKeys.length > 0)
+      ? tasks.filter(t => t.parentTaskId === id)
+      : [];
 
-    const children = tasks.filter(t => t.parentTaskId === id);
-    if (children.length === 0) return;
+    if (children.length > 0) {
+      const batch = writeBatch(db);
+      let any = false;
+      children.forEach(child => {
+        const syncKeys = new Set(getSyncKeys(child));
+        const keysToApply = [
+          ...changedKeys.filter(k => syncKeys.has(k)),
+          ...changedCustomKeys.filter(k => syncKeys.has(k)),
+        ];
+        if (keysToApply.length === 0) return;
+        // data 자체를 소스로 patch 구성 — customFields 변경분은 data.customFields에서 값을 가져옴
+        const patch = buildSyncPatch(keysToApply, data, child.customFields);
+        // 담당자 동기화로 바뀌는 경우, 자식의 세부업무(subTaskData) 항목 중 기존
+        // 담당자 값을 그대로 따라가던 항목도 같이 갱신 — 안 그러면 세부업무 안엔
+        // 예전 담당자가 남아 "내 업무만" 필터(isMyTask)가 계속 그 사람 업무로 인식함.
+        // 원래 비어있던(아직 배정 안 된) 항목은 건드리지 않음 — 부서 매칭 자동배정 로직이
+        // 나중에 채우도록 남겨둠
+        if (keysToApply.includes('assignee') && child.assignee && child.subTaskData) {
+          const oldAssignee = child.assignee;
+          const newAssignee = data.assignee as string;
+          patch.subTaskData = Object.fromEntries(
+            Object.entries(child.subTaskData).map(([key, entry]) =>
+              entry.assignee === oldAssignee ? [key, { ...entry, assignee: newAssignee }] : [key, entry]
+            )
+          );
+        }
+        any = true;
+        batch.update(doc(db, 'tasks', child.id), { ...patch, updatedAt: now });
+      });
+      if (any) await batch.commit();
+    }
 
-    const batch = writeBatch(db);
-    let any = false;
-    children.forEach(child => {
-      const syncKeys = new Set(getSyncKeys(child));
-      const keysToApply = [
-        ...changedKeys.filter(k => syncKeys.has(k)),
-        ...changedCustomKeys.filter(k => syncKeys.has(k)),
-      ];
-      if (keysToApply.length === 0) return;
-      // data 자체를 소스로 patch 구성 — customFields 변경분은 data.customFields에서 값을 가져옴
-      const patch = buildSyncPatch(keysToApply, data, child.customFields);
-      // 담당자 동기화로 바뀌는 경우, 자식의 세부업무(subTaskData) 항목 중 기존
-      // 담당자 값을 그대로 따라가던 항목도 같이 갱신 — 안 그러면 세부업무 안엔
-      // 예전 담당자가 남아 "내 업무만" 필터(isMyTask)가 계속 그 사람 업무로 인식함.
-      // 원래 비어있던(아직 배정 안 된) 항목은 건드리지 않음 — 부서 매칭 자동배정 로직이
-      // 나중에 채우도록 남겨둠
-      if (keysToApply.includes('assignee') && child.assignee && child.subTaskData) {
-        const oldAssignee = child.assignee;
-        const newAssignee = data.assignee as string;
-        patch.subTaskData = Object.fromEntries(
-          Object.entries(child.subTaskData).map(([key, entry]) =>
-            entry.assignee === oldAssignee ? [key, { ...entry, assignee: newAssignee }] : [key, entry]
-          )
-        );
+    await syncSupportTaskLinks(id, data, now);
+  };
+
+  // 세부업무-지원팀 연결 양방향 동기화. 로컬 tasks state는 "현재 보고 있는 팀"으로만
+  // 필터돼 있어 상대편(원본 팀 또는 지원팀) 업무는 그 안에 없을 수 있으므로, 필요한
+  // 경우 Firestore에 직접 질의한다.
+  const syncSupportTaskLinks = async (id: string, data: Partial<Task>, now: string) => {
+    const touchesAssigneeOrStatus = data.assignee !== undefined || data.status !== undefined;
+    const touchesSubTaskData = data.subTaskData !== undefined;
+    const touchesBaseInfo = (['title', 'taskMonth', 'startDate', 'endDate'] as const).some(k => k in data);
+    if (!touchesAssigneeOrStatus && !touchesSubTaskData && !touchesBaseInfo) return;
+
+    // 1) 이 업무 자신이 지원팀에서 자동 생성된 연결 업무라면 → 담당자/상태를 원본
+    //    업무의 해당 세부업무 항목에 반영
+    if (touchesAssigneeOrStatus) {
+      const self = tasks.find(t => t.id === id);
+      if (self?.linkedFromTaskId && self.linkedFromSubTaskTypeId) {
+        const patch: Record<string, unknown> = {};
+        if (data.assignee !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.assignee`] = data.assignee;
+        if (data.status !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.status`] = data.status;
+        await updateDoc(doc(db, 'tasks', self.linkedFromTaskId), { ...patch, updatedAt: now });
       }
-      any = true;
-      batch.update(doc(db, 'tasks', child.id), { ...patch, updatedAt: now });
-    });
-    if (any) await batch.commit();
+    }
+
+    // 2) 이 업무가 원본이라면 → 연결된 지원팀 업무(들)에 기본 정보(제목/월/기간)와
+    //    해당 세부업무의 담당자/상태를 반영
+    if (touchesSubTaskData || touchesBaseInfo) {
+      const linkedSnap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', '==', id)));
+      if (linkedSnap.empty) return;
+      const batch = writeBatch(db);
+      let any = false;
+      linkedSnap.forEach(d => {
+        const linked = d.data() as Task;
+        const patch: Record<string, unknown> = {};
+        if (touchesBaseInfo) {
+          (['title', 'taskMonth', 'startDate', 'endDate'] as const).forEach(k => {
+            if (k in data) patch[k] = data[k];
+          });
+        }
+        if (touchesSubTaskData && linked.linkedFromSubTaskTypeId) {
+          const entry = data.subTaskData?.[linked.linkedFromSubTaskTypeId];
+          if (entry) {
+            if (entry.assignee !== undefined) patch.assignee = entry.assignee;
+            if (entry.status !== undefined) patch.status = entry.status;
+          }
+        }
+        if (Object.keys(patch).length > 0) { any = true; batch.update(d.ref, { ...patch, updatedAt: now }); }
+      });
+      if (any) await batch.commit();
+    }
   };
 
   const deleteTask = async (id: string) => {

@@ -776,6 +776,8 @@ export interface SubTaskType {
   calendarColor?: string;   // undefined = 기본색
   showInDetail?: boolean;   // undefined = true, 업무 상세 화면에 노출할지 여부
   plFieldType?: PLSubTaskFieldType; // PL세부업무 필드 타입 (text|review)
+  supportTeamId?: string;   // 이 세부업무를 자동으로 지원 요청할 지원팀 id (있으면 연결 활성화)
+  supportPartName?: string; // 지원팀 내 어느 파트로 보낼지 (지원팀에 파트가 여럿이면 필수)
 }
 
 export type PLSubTaskFieldType = 'text' | 'review'; // 텍스트, 검수
@@ -988,6 +990,8 @@ export interface Task {
   plSelectedTypes?: string[]; // PL업무에서 선택된 메인업무 타입 ID 목록
   requestedFromTeamId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 팀 ID (참고용, 동기화 없음)
   requestedFromTaskId?: string; // 지원팀 요청으로 생성된 경우, 원본 업무의 ID (참고용, 동기화 없음)
+  linkedFromTaskId?: string;         // 세부업무-지원팀 연결로 자동 생성된 경우, 원본 업무 id (담당자/상태 양방향 동기화)
+  linkedFromSubTaskTypeId?: string;  // 원본 업무의 어느 세부업무 타입에 대응하는지 (SubTaskType.id)
   parentTaskId?: string; // 귀속된 상위(그룹 기준) 업무 id. 있으면 assignee/startDate/endDate가 상위 업무 값으로 실시간 동기화됨
   deletedAt?: string;   // 휴지통: 메인업무 소프트 삭제 시각 (있으면 휴지통에 있는 상태)
   deletedBy?: string;

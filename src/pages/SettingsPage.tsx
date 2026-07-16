@@ -6980,6 +6980,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync'>>({});
+  // [사고 복구용] 팀별로 "매핑 추론" 대상 파트를 고르는 드롭다운 선택값
+  const [incidentMappingPartId, setIncidentMappingPartId] = useState<Record<string, string>>({});
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
@@ -7836,23 +7838,19 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                   })()}
                   {(() => {
                     const clusters = findNameIdClusters(team);
+                    const selectedPartId = incidentMappingPartId[team.id] ?? team.parts[0]?.id ?? '';
+                    const selectedPart = team.parts.find(p => p.id === selectedPartId);
                     return (
-                      <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+                      <div className="flex flex-col gap-2 px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
                         <span>{clusters.length > 0
                           ? `🔎 이름은 같은데 범위마다 id가 다른 세부업무 항목이 ${clusters.length}건 있습니다 — 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회(데이터 변경 없음)해볼 수 있습니다.`
                           : '🔎 오늘 사고로 업무 데이터가 옛 id 밑에 남아있는지 조회할 수 있습니다 (데이터 변경 없음).'}</span>
-                        <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                        <div className="flex gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() => scanNameIdClusterOrphans(team)}
                             className="px-2.5 py-1 rounded-md bg-amber-500 text-white font-medium hover:bg-amber-600 transition-colors">
-                            진단만 실행 (조회 전용)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => alert('이 버튼은 원인 분석 후 "파트 내 중복 병합"으로 대체됐습니다. 그 버튼을 사용해주세요.')}
-                            className="px-2.5 py-1 rounded-md bg-gray-400 text-white font-medium cursor-not-allowed">
-                            복구 적용 (교체됨)
+                            이름 클러스터 진단 (조회 전용)
                           </button>
                           {findWithinPartNameDuplicates(team).length > 0 && (
                             <button
@@ -7893,22 +7891,29 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             className="px-2.5 py-1 rounded-md bg-teal-600 text-white font-medium hover:bg-teal-700 transition-colors">
                             전체 파트 정밀 진단 (조회 전용)
                           </button>
-                          {team.parts.map(p => (
-                            <div key={p.id} className="flex gap-1">
-                              <button
-                                type="button"
-                                onClick={() => proposePartIdMapping(team, p)}
-                                className="px-2 py-1 rounded-md bg-cyan-600 text-white font-medium hover:bg-cyan-700 transition-colors">
-                                {p.name} 매핑 추론 (조회 전용)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => applyInferredPartIdMapping(team, p)}
-                                className="px-2 py-1 rounded-md bg-cyan-800 text-white font-medium hover:bg-cyan-900 transition-colors">
-                                {p.name} 추론 매핑 적용
-                              </button>
-                            </div>
-                          ))}
+                        </div>
+                        <div className="flex gap-1.5 flex-wrap items-center pt-1 border-t border-amber-200">
+                          <span className="font-medium">파트별 매핑 추론:</span>
+                          <select
+                            value={selectedPartId}
+                            onChange={e => setIncidentMappingPartId(prev => ({ ...prev, [team.id]: e.target.value }))}
+                            className="px-2 py-1 rounded-md border border-amber-300 bg-white text-amber-700">
+                            {team.parts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => selectedPart && proposePartIdMapping(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className="px-2.5 py-1 rounded-md bg-cyan-600 text-white font-medium hover:bg-cyan-700 transition-colors disabled:opacity-40">
+                            매핑 추론 (조회 전용)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className="px-2.5 py-1 rounded-md bg-cyan-800 text-white font-medium hover:bg-cyan-900 transition-colors disabled:opacity-40">
+                            추론 매핑 적용
+                          </button>
                           {team.name === '오픈마켓' && (
                             <button
                               type="button"

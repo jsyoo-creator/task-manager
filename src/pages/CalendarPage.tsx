@@ -404,7 +404,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     if (!task) return;
     const prevMemos: SubTaskMemo[] = task.subTaskData?.[subKey]?.memos ?? [];
     const newMemo: SubTaskMemo = {
-      id: `m_${Date.now()}`,
+      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       text: newMemoText.trim(),
       author: currentUserName,
       createdAt: new Date().toISOString(),

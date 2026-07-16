@@ -1009,7 +1009,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   };
 
   const addCustomField = (field: Omit<CustomFormField, 'id'>) => {
-    onSaveCustom([...customFields, { ...field, id: `cf_${Date.now()}` }]);
+    onSaveCustom([...customFields, { ...field, id: `cf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }]);
   };
 
   return (
@@ -2087,7 +2087,7 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   const addField = () => {
     const label = newLabel.trim();
     if (!label) return;
-    const key = label.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
+    const key = label.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
     const field = withMetaFieldKind({ key, label }, newKind);
     if (newKind === 'select') field.options = newOptionsText.split(',').map(s => s.trim()).filter(Boolean);
     save([...fields, field]);
@@ -2413,7 +2413,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const addType = () => {
     const name = newName.trim();
     if (!name) return;
-    save([...types, { id: `st_${Date.now()}`, name, department: newDept || undefined }]);
+    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: newDept || undefined }]);
     setNewName(''); setNewDept('');
   };
 
@@ -3315,7 +3315,7 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
   const addField = () => {
     const name = newName.trim();
     if (!name) return;
-    save([...fields, { id: `plf_${Date.now()}`, name, fieldType: newFieldType, departments: newDepts.length ? newDepts : undefined }]);
+    save([...fields, { id: `plf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, fieldType: newFieldType, departments: newDepts.length ? newDepts : undefined }]);
     setNewName(''); setNewDepts([]);
   };
   const onDrop = (toIdx: number) => {
@@ -3451,7 +3451,7 @@ function PLMainTaskTypesEditor({ team, onSave }: {
   const addType = () => {
     const name = newName.trim();
     if (!name) return;
-    const newId = `pl_${Date.now()}`;
+    const newId = `pl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
     save([...types, { id: newId, name, departments: newDepts.length ? newDepts : undefined }]);
     setNewName(''); setNewDepts([]);
     setExpandedId(newId);
@@ -3576,7 +3576,7 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
     const date = dateInput.trim();
     const name = nameInput.trim();
     if (!date || !name) return;
-    const newH: CustomHoliday = { id: `h_${Date.now()}`, date, name, createdAt: new Date().toISOString() };
+    const newH: CustomHoliday = { id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, date, name, createdAt: new Date().toISOString() };
     onSave([...customHolidays, newH]);
     setDateInput(''); setNameInput('');
   };
@@ -6983,6 +6983,11 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
+  // Enter 연타/더블클릭으로 handleAddPart가 겹쳐 실행되면 같은 밀리초에 Date.now()를
+  // 읽어 완전히 같은 id를 가진 파트가 두 개 생길 수 있었음(파트별 설정 저장이
+  // id 기준 매칭이라, 이러면 한 파트만 바꿔도 같은 id의 다른 파트까지 같이 바뀌는
+  // 심각한 오염이 발생함) — 진행 중이면 추가 요청을 막는 가드
+  const [addingPart, setAddingPart] = useState(false);
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
   const [editingPartName, setEditingPartName] = useState('');
   const [editingPartColor, setEditingPartColor] = useState(PART_COLORS[0].cls);
@@ -7000,14 +7005,21 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   };
 
   const handleAddPart = async (team: Team) => {
-    if (!partName.trim()) return;
-    const newPart: TeamPart = {
-      id: `${Date.now()}`,
-      name: partName.trim(),
-      color: partColor,
-    };
-    await onSetParts(team.id, [...team.parts, newPart]);
-    setPartName('');
+    if (!partName.trim() || addingPart) return;
+    setAddingPart(true);
+    try {
+      // 타임스탬프만으로는 같은 밀리초에 두 번 호출되면 충돌할 수 있어 랜덤 문자열을
+      // 덧붙여 실질적으로 항상 고유하게 만듦
+      const newPart: TeamPart = {
+        id: `part_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        name: partName.trim(),
+        color: partColor,
+      };
+      await onSetParts(team.id, [...team.parts, newPart]);
+      setPartName('');
+    } finally {
+      setAddingPart(false);
+    }
   };
 
   const handleDeletePart = async (team: Team, partId: string) => {
@@ -7296,10 +7308,11 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         <input
                           value={partName} onChange={e => setPartName(e.target.value)}
                           onKeyDown={e => e.key === 'Enter' && handleAddPart(team)}
+                          disabled={addingPart}
                           placeholder="파트 이름"
                           className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                         />
-                        <button onClick={() => handleAddPart(team)} disabled={!partName.trim()}
+                        <button onClick={() => handleAddPart(team)} disabled={!partName.trim() || addingPart}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
                           <Plus size={11} />추가
                         </button>
@@ -7762,7 +7775,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
       return;
     }
     const newField: ProfileFieldDef = {
-      id: `pf_${Date.now()}`,
+      id: `pf_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       label,
       required: newRequired,
       order: profileFields.length,

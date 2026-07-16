@@ -7585,12 +7585,31 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           </button>
                           <button
                             type="button"
-                            onClick={async () => {
-                              if (!window.confirm(`${team.name}: 방금 진단에서 확인된 세부업무 데이터를 실제로 원래 자리로 옮깁니다. 먼저 "진단만 실행"으로 몇 건인지 확인하셨나요? 계속할까요?`)) return;
-                              await applyNameIdClusterFix(team);
+                            onClick={() => alert('반복 적용해도 해결되지 않는 사례가 발견되어 "복구 적용"은 다시 점검 중입니다. 대신 "설정 원본 보기"로 원인을 먼저 확인해주세요.')}
+                            className="px-2.5 py-1 rounded-md bg-gray-400 text-white font-medium cursor-not-allowed">
+                            복구 적용 (점검 중)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dump = team.parts.map(p => ({
+                                part: p.name,
+                                types: (p.subTaskTypes ?? []).map(t => ({ id: t.id, name: t.name })),
+                              }));
+                              const teamDump = { team: '팀 기본', types: (team.subTaskTypes ?? []).map(t => ({ id: t.id, name: t.name })) };
+                              console.log(`[설정 원본] ${team.name}`, JSON.stringify([teamDump, ...dump], null, 1));
+                              const dupNames = new Map<string, string[]>();
+                              [teamDump, ...dump].forEach(scope => {
+                                const seen = new Map<string, number>();
+                                scope.types.forEach(t => seen.set(t.name, (seen.get(t.name) ?? 0) + 1));
+                                seen.forEach((c, name) => { if (c > 1) dupNames.set(`${scope.part ?? scope.team}::${name}`, scope.types.filter(t => t.name === name).map(t => t.id)); });
+                              });
+                              alert(dupNames.size > 0
+                                ? `같은 범위 안에서 이름이 중복된 세부업무를 찾았습니다:\n${[...dupNames.entries()].map(([k, ids]) => `- ${k} (id ${ids.length}개)`).join('\n')}\n\n브라우저 콘솔에 전체 설정 원본(id 목록)이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요.`
+                                : `같은 범위 안 이름 중복은 없습니다. 브라우저 콘솔에 전체 설정 원본(id 목록)이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요.`);
                             }}
-                            className="px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
-                            복구 적용 (데이터 이동)
+                            className="px-2.5 py-1 rounded-md bg-slate-500 text-white font-medium hover:bg-slate-600 transition-colors">
+                            설정 원본 보기
                           </button>
                         </div>
                       </div>

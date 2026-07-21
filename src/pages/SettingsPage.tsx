@@ -7265,6 +7265,71 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 진단] 위 진단은 "id 자체가 어긋난" 경우만 잡는다. id는 정상인데
+  // 특정 필드(예: 담당자는 오는데 시작일/종료일만 안 오는 경우)만 어긋나는 것은
+  // 별개 문제이므로, 파트를 하나 골라 그 파트의 지원팀 연결 세부업무 전체에 대해
+  // 원본 subTaskData 값과 실제 지원팀 업무 문서의 현재 값을 필드 단위로 직접
+  // 비교해 보여준다. 데이터는 전혀 바꾸지 않는다.
+  const scanSupportLinkFieldMismatch = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
+      if (types.length === 0) {
+        alert(`[${part.name}] 지원팀 연결이 설정된 세부업무가 없습니다.`);
+        return;
+      }
+      const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt);
+      const originIds = origins.map(o => o.id);
+      if (originIds.length === 0) {
+        alert(`[${part.name}] 업무가 없습니다.`);
+        return;
+      }
+      const linked: Task[] = [];
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+        snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+      }
+      const linkedByOriginAndType = new Map<string, Task>();
+      linked.forEach(l => {
+        if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
+        linkedByOriginAndType.set(`${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`, l);
+      });
+
+      const FIELDS = ['assignee', 'status', 'startDate', 'endDate'] as const;
+      const mismatches: { originTitle: string; typeName: string; field: string; originValue: unknown; supportValue: unknown }[] = [];
+      let checkedCount = 0;
+      origins.forEach(origin => {
+        types.forEach(type => {
+          const entry = origin.subTaskData?.[type.id];
+          const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
+          if (!entry || !linkedTask) return;
+          checkedCount++;
+          FIELDS.forEach(f => {
+            const a = entry[f as keyof typeof entry] ?? '';
+            const b = (linkedTask as unknown as Record<string, unknown>)[f] ?? '';
+            if (JSON.stringify(a) !== JSON.stringify(b)) {
+              mismatches.push({ originTitle: origin.title, typeName: type.name, field: f, originValue: a, supportValue: b });
+            }
+          });
+        });
+      });
+      console.log(`[지원팀 연결 필드값 진단] ${team.name} / ${part.name}`, JSON.stringify({ checkedCount, mismatches }, null, 1));
+      if (mismatches.length === 0) {
+        alert(`[${part.name}] 지원팀 연결 세부업무 ${checkedCount}건을 필드 단위(담당자/상태/시작일/종료일)로 비교했지만 어긋난 값을 찾지 못했습니다.`);
+        return;
+      }
+      const byField = new Map<string, number>();
+      mismatches.forEach(m => byField.set(m.field, (byField.get(m.field) ?? 0) + 1));
+      const fieldSummary = [...byField.entries()].map(([f, c]) => `${f}: ${c}건`).join(', ');
+      const sampleSummary = mismatches.slice(0, 8).map(m => `- [${m.typeName}] ${m.originTitle} · ${m.field}: 원본="${m.originValue}" / 지원팀="${m.supportValue}"`).join('\n');
+      alert(`[${part.name}] 지원팀 연결 ${checkedCount}건 중 값이 어긋난 필드를 ${mismatches.length}건 찾았습니다 (${fieldSummary}):\n\n${sampleSummary}${mismatches.length > 8 ? `\n...외 ${mismatches.length - 8}건` : ''}\n\n브라우저 콘솔(F12 → Console)에 전체 내역이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요 — 확인 후 원인을 확정하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+    } catch (e) {
+      console.error('[지원팀 연결 필드값 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
   // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
   // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
@@ -8065,6 +8130,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             disabled={!selectedPart}
                             className={`${btn} bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-40`}>
                             매핑 추론
+                          </button>
+                          <button type="button"
+                            onClick={() => selectedPart && scanSupportLinkFieldMismatch(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-fuchsia-600 text-white hover:bg-fuchsia-700 disabled:opacity-40`}>
+                            지원팀 필드값 진단
                           </button>
                           <button type="button"
                             onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}

@@ -15,10 +15,20 @@ function winToMac(raw: string): PathConvertResult {
 
   if (WIN_UNC.test(path)) {
     const parts = path.replace(/^\\\\/, '').split(/\\+/).filter(Boolean);
-    const [, share, ...rest] = parts; // parts[0] = server
-    if (!share) return { direction: 'win-to-mac', output: '/Volumes/' };
-    const output = '/Volumes/' + [share, ...rest].join('/');
-    return { direction: 'win-to-mac', output, note: '공유 폴더명이 실제 맥 마운트명과 다를 수 있어요.' };
+    const [server, share, ...rest] = parts;
+    if (!server) return { direction: 'win-to-mac', output: 'smb://' };
+    if (!share) return { direction: 'win-to-mac', output: `smb://${server}` };
+    const restPath = rest.length ? '/' + rest.join('/') : '';
+    const smbUrl = `smb://${server}/${share}${restPath}`;
+    const volumesPath = `/Volumes/${share}${restPath}`;
+    // /Volumes/... 경로는 이미 그 서버에 접속(마운트)되어 있어야만 유효함 — 아직 연결 안 된
+    // 상태에서 이 경로만 주면 "서버를 찾을 수 없음" 오류가 남. 처음 접속할 때 쓸 smb:// 주소를
+    // 기본값으로 주고, 이미 마운트돼 있다면 쓸 수 있는 경로는 참고용으로 note에 남긴다.
+    return {
+      direction: 'win-to-mac',
+      output: smbUrl,
+      note: `Finder에서 Cmd+K(서버에 연결)로 위 주소를 입력해 접속하세요. 이미 연결된 상태라면 ${volumesPath} 로도 접근할 수 있어요.`,
+    };
   }
 
   if (WIN_DRIVE.test(path)) {

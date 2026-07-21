@@ -3,6 +3,7 @@
 // 앱 메뉴/네비게이션에는 의도적으로 노출하지 않음.
 export default function PrivacyPolicyPage() {
   return (
+    <div style={{ minHeight: '100vh', width: '100%', background: '#ffffff' }}>
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px 96px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif', color: '#1f2937', lineHeight: 1.7 }}>
       <header style={{ marginBottom: 40 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>Privacy Policy</h1>
@@ -74,6 +75,7 @@ export default function PrivacyPolicyPage() {
         <h2 style={{ fontSize: 16, fontWeight: 700, marginTop: 32, marginBottom: 10 }}>5. 문의</h2>
         <p>피벗크리에이티브 — <a href="mailto:js.yoo@pivot-inc.com">js.yoo@pivot-inc.com</a></p>
       </section>
+    </div>
     </div>
   );
 }

@@ -12,8 +12,18 @@ const MAIL_PANEL_W = 420;
 // 메일 양식 — 인사말/안내 문구는 자유 편집 텍스트, 업무 정보는 항상 업무 데이터로부터
 // 다시 만들어지는(수정 불가) 표. 발송 기능은 없고 복사해서 Outlook/Gmail 등에
 // 붙여넣어 쓰는 용도라, 복사 시 표가 실제 HTML 표로 붙여넣어지도록 별도 처리한다.
+
+// 담당자 표시 이름(displayName)에 "정소희 PL"처럼 직책이 붙어있는 경우가 있어, 메일
+// 인사말/서명에는 이름만 나오도록 흔한 직책 접미사를 제거한다. 작성자 선택 목록 등
+// 다른 화면은 원래 표시 이름을 그대로 쓰고, 메일 본문 텍스트에만 적용됨
+const NAME_TITLE_SUFFIX_RE = /\s+(PL|PM|TL|팀장|파트장|매니저|실장|이사|대표|부장|차장|과장|대리|주임|사원)$/i;
+export function stripNameTitleSuffix(name: string): string {
+  return name.replace(NAME_TITLE_SUFFIX_RE, '').trim();
+}
+
 export function buildMailGreeting(author: string): string {
-  return author ? `안녕하세요, ${author} 입니다.` : '안녕하세요,';
+  const name = stripNameTitleSuffix(author);
+  return name ? `안녕하세요, ${name} 입니다.` : '안녕하세요,';
 }
 
 // 메일 유형(탭)에서 안내 문구를 따로 설정하지 않았을 때 쓰는 기본값
@@ -3245,7 +3255,7 @@ export default function TaskDetailPanel({
                 );
               })()}
               <p className="mt-3">감사합니다.</p>
-              {mailAuthor && <p className="mt-1">{mailAuthor} 드림</p>}
+              {mailAuthor && <p className="mt-1">{stripNameTitleSuffix(mailAuthor)} 드림</p>}
             </div>
           </div>
         </div>
@@ -3273,7 +3283,7 @@ export default function TaskDetailPanel({
               const resolvedMessage = resolveMessageTemplate(mailMessage, currentPreset?.optionalPhrases, mailPhraseSelected, currentPreset?.phraseGroupOverrides, currentPreset?.joinMultipleWithDot !== false);
               const messageLine = composeMessageLine(task, currentPreset, resolvedMessage, mailMessageInsertValues);
               const recipientLine = resolveRecipientLine(currentPreset, mailRecipientId);
-              const signature = mailAuthor ? `${mailAuthor} 드림` : '';
+              const signature = mailAuthor ? `${stripNameTitleSuffix(mailAuthor)} 드림` : '';
               const plainText = buildMailPlainText(greeting, messageLine, blocks, signature, recipientLine);
               try {
                 const html = buildMailHtml(greeting, messageLine, blocks, signature, recipientLine, currentPreset?.recipientLineBold);

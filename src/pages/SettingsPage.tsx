@@ -10,7 +10,7 @@ import { collection, getDocs, updateDoc, doc, writeBatch, query, where, document
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
 import type { MailGridRow } from '../components/TaskDetailPanel';
-import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups, isBlockVisible } from '../components/TaskDetailPanel';
+import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, stripNameTitleSuffix, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups, isBlockVisible } from '../components/TaskDetailPanel';
 import type { MailBodyBlock } from '../components/TaskDetailPanel';
 
 interface Props {
@@ -5351,7 +5351,7 @@ function MailBodyPreview({ part, preset, members, onReorderBlocks }: {
     hideTitle: f.hideTitle,
     ...(f.type === 'url' ? { isUrl: true, linkText: f.linkText } : {}),
   }));
-  const signature = sampleAuthor ? `${sampleAuthor} 드림` : '';
+  const signature = sampleAuthor ? `${stripNameTitleSuffix(sampleAuthor)} 드림` : '';
   // 수신인은 실제로는 메일 작성할 때마다 고르는 값이라 미리보기에는 등록된 후보 중
   // 첫 번째를 골랐다고 가정하고 보여줌 (등록된 게 없으면 그 줄 자체가 안 보임)
   const recipientLine = preset.recipients?.[0] ? `수신: ${preset.recipients[0].label}` : '';

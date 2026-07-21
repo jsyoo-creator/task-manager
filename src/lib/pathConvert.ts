@@ -9,6 +9,7 @@ const WIN_UNC = /^\\\\/;
 const WIN_DRIVE = /^[A-Za-z]:[\\/]/;
 const MAC_HOME = /^~(\/|$)/;
 const MAC_ABS = /^\//;
+const MAC_SMB = /^smb:\/\//i;
 
 function winToMac(raw: string): PathConvertResult {
   const path = raw.trim();
@@ -56,6 +57,16 @@ function winToMac(raw: string): PathConvertResult {
 function macToWin(raw: string): PathConvertResult {
   const path = raw.trim();
 
+  if (MAC_SMB.test(path)) {
+    const parts = path.replace(MAC_SMB, '').split('/').filter(Boolean);
+    const [server, share, ...rest] = parts;
+    if (!server) return { direction: 'mac-to-win', output: '\\\\' };
+    if (!share) return { direction: 'mac-to-win', output: `\\\\${server}` };
+    const output = '\\\\' + server + '\\' + share + (rest.length ? '\\' + rest.join('\\') : '');
+    // smb:// 주소는 서버 주소를 그대로 담고 있어 추측 없이 UNC 경로로 정확히 변환됨
+    return { direction: 'mac-to-win', output };
+  }
+
   if (MAC_HOME.test(path)) {
     const rest = path.slice(1).replace(/^\//, '');
     const output = 'C:\\Users\\<사용자명>' + (rest ? '\\' + rest.replace(/\//g, '\\') : '');
@@ -92,7 +103,7 @@ export function convertPath(raw: string): PathConvertResult {
   if (!path) return { direction: 'none' };
 
   const looksWindows = WIN_UNC.test(path) || WIN_DRIVE.test(path) || (path.includes('\\') && !path.includes('/'));
-  const looksMac = MAC_HOME.test(path) || MAC_ABS.test(path);
+  const looksMac = MAC_HOME.test(path) || MAC_ABS.test(path) || MAC_SMB.test(path);
 
   if (looksWindows) return winToMac(path);
   if (looksMac) return macToWin(path);

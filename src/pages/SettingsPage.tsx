@@ -7330,6 +7330,76 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 적용] 지원팀 연결 기능이 생기기 전에 이미 날짜 등이 입력돼 있던 옛날
+  // 업무는, 그 이후로 지원팀이 다시 그 값을 안 건드리는 한 앞으로도 영원히 원본에
+  // 반영될 기회가 없다(동기화는 "값이 바뀌는 시점"에만 실행됨). 위 진단
+  // (scanSupportLinkFieldMismatch)에서 확인된 값을 그대로 한 번 복사해준다.
+  // 원본에 이미 값이 들어있는 칸은 절대 덮어쓰지 않고, 완전히 빈 칸만 채운다.
+  const applySupportLinkFieldSync = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
+      if (types.length === 0) { alert(`[${part.name}] 지원팀 연결이 설정된 세부업무가 없습니다.`); return; }
+      const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt);
+      const originIds = origins.map(o => o.id);
+      if (originIds.length === 0) { alert(`[${part.name}] 업무가 없습니다.`); return; }
+      const linked: Task[] = [];
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+        snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+      }
+      const linkedByOriginAndType = new Map<string, Task>();
+      linked.forEach(l => {
+        if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
+        linkedByOriginAndType.set(`${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`, l);
+      });
+
+      const FIELDS = ['assignee', 'status', 'startDate', 'endDate'] as const;
+      const plan: { originId: string; originTitle: string; typeId: string; typeName: string; patch: Record<string, unknown> }[] = [];
+      origins.forEach(origin => {
+        types.forEach(type => {
+          const entry = origin.subTaskData?.[type.id];
+          const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
+          if (!entry || !linkedTask) return;
+          const fieldPatch: Record<string, unknown> = {};
+          FIELDS.forEach(f => {
+            const a = entry[f as keyof typeof entry];
+            const b = (linkedTask as unknown as Record<string, unknown>)[f];
+            // 원본에 이미 값이 있으면(빈 문자열이 아니면) 절대 덮어쓰지 않음 — 빈 칸만 채움
+            if ((a === undefined || a === '') && b !== undefined && b !== '') {
+              fieldPatch[`subTaskData.${type.id}.${f}`] = b;
+            }
+          });
+          if (Object.keys(fieldPatch).length > 0) {
+            plan.push({ originId: origin.id, originTitle: origin.title, typeId: type.id, typeName: type.name, patch: fieldPatch });
+          }
+        });
+      });
+
+      if (plan.length === 0) {
+        alert(`[${part.name}] 빈 칸을 채울 대상이 없습니다. (이미 값이 있는 칸은 건드리지 않으므로, 위 진단에서 값이 있는데 서로 다른 경우는 이 버튼으로 적용되지 않습니다)`);
+        return;
+      }
+      const preview = plan.slice(0, 8).map(p => `- [${p.typeName}] ${p.originTitle}: ${Object.keys(p.patch).map(k => k.split('.').pop()).join(', ')}`).join('\n');
+      if (!window.confirm(`[${part.name}] 원본의 빈 칸 ${plan.length}건에 지원팀 값을 채워 넣습니다 (이미 값이 있는 칸은 그대로 둡니다):\n\n${preview}${plan.length > 8 ? `\n...외 ${plan.length - 8}건` : ''}\n\n계속할까요?`)) return;
+
+      const now = new Date().toISOString();
+      for (let i = 0; i < plan.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.slice(i, i + 400).forEach(p => {
+          batch.update(doc(db, 'tasks', p.originId), { ...p.patch, updatedAt: now });
+        });
+        await batch.commit();
+      }
+      console.log(`[지원팀 연결 필드값 적용] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      alert(`[${part.name}] ${plan.length}건의 빈 칸을 지원팀 값으로 채웠습니다. 브라우저 콘솔에 적용 내역이 남아있습니다.`);
+    } catch (e) {
+      console.error('[지원팀 연결 필드값 적용] 실행 중 오류', e);
+      alert(`적용 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
   // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
   // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
@@ -8136,6 +8206,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             disabled={!selectedPart}
                             className={`${btn} bg-fuchsia-600 text-white hover:bg-fuchsia-700 disabled:opacity-40`}>
                             지원팀 필드값 진단
+                          </button>
+                          <button type="button"
+                            onClick={() => selectedPart && applySupportLinkFieldSync(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-fuchsia-800 text-white hover:bg-fuchsia-900 disabled:opacity-40`}>
+                            빈 칸 채우기 적용
                           </button>
                           <button type="button"
                             onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}

@@ -6,7 +6,7 @@ import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
 import { backfillSupportTaskLinks, repairLinkedSupportTaskOrder } from '../hooks/useTasks';
-import { collection, getDocs, updateDoc, doc, writeBatch, query, where } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, writeBatch, query, where, documentId } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
 import type { MailGridRow } from '../components/TaskDetailPanel';
@@ -1247,7 +1247,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                         })}
                       </div>
                     )}
-                    {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && subTaskTypes.length > 0 && (
+                    {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (subTaskTypes.length > 0 || fc.linkedSubTaskTypeId) && (
                       <select
                         title="세부업무 연동 — 연동하면 이 필드는 읽기전용으로 바뀌어 해당 세부업무 담당자를 그대로 보여줌"
                         className={`text-[10px] px-1.5 py-0.5 rounded-full border flex-shrink-0 focus:outline-none ${
@@ -1258,6 +1258,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                         onChange={e => { e.stopPropagation(); saveBuiltinLinkedSubTaskType(fc.key, e.target.value); }}>
                         <option value="">세부업무 연동 안 함</option>
                         {subTaskTypes.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                        {fc.linkedSubTaskTypeId && !subTaskTypes.some(st => st.id === fc.linkedSubTaskTypeId) && (
+                          <option value={fc.linkedSubTaskTypeId}>⚠ 알 수 없는 세부업무(연동 끊김)</option>
+                        )}
                       </select>
                     )}
                     <div className="flex items-center gap-1.5 flex-shrink-0 min-w-[116px] justify-end">
@@ -1455,7 +1458,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                       </button>
                     );
                   })}
-                  {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && subTaskTypes.length > 0 && (
+                  {((FIELD_TYPE_LABELS[cf.type as FormFieldType] ?? String(cf.type)) === '이름') && (subTaskTypes.length > 0 || cf.linkedSubTaskTypeId) && (
                     <select
                       title="세부업무 연동 — 연동하면 이 필드는 읽기전용으로 바뀌어 해당 세부업무 담당자를 그대로 보여줌"
                       className={`text-[10px] px-1.5 py-0.5 rounded-full border focus:outline-none ${
@@ -1469,6 +1472,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                       }}>
                       <option value="">세부업무 연동 안 함</option>
                       {subTaskTypes.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                      {cf.linkedSubTaskTypeId && !subTaskTypes.some(st => st.id === cf.linkedSubTaskTypeId) && (
+                        <option value={cf.linkedSubTaskTypeId}>⚠ 알 수 없는 세부업무(연동 끊김)</option>
+                      )}
                     </select>
                   )}
                   {(() => {
@@ -7215,6 +7221,50 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 진단] 세부업무 id를 재발급(위 "세부업무 id 분리" 등)하면, 그 세부업무에
+  // 걸려있던 지원팀 연결 업무 문서의 linkedFromSubTaskTypeId는 옛 id를 그대로 가리킨 채
+  // 남는다. 그러면 지원팀에서 담당자·기간을 바꿔도 원본 업무의 subTaskData는 항상 옛 id
+  // 밑에만 쓰이고, 화면은 현재 id 기준으로 읽으므로 지원팀 값이 영원히 반영되지 않는다.
+  // 이 진단은 그 상태(연결은 있는데 가리키는 id가 이미 없어진 경우)를 찾아 보여주기만
+  // 하고, 데이터는 전혀 바꾸지 않는다.
+  const scanSupportLinkIdMismatch = async (team: Team) => {
+    try {
+      const teamTasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id)));
+      const linked = teamTasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt && t.linkedFromTaskId && t.linkedFromSubTaskTypeId);
+      if (linked.length === 0) {
+        alert(`[${team.name}] 이 팀이 받는 지원팀 연결 업무 자체가 없습니다.`);
+        return;
+      }
+      const originIds = [...new Set(linked.map(l => l.linkedFromTaskId as string))];
+      const originById = new Map<string, Task>();
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where(documentId(), 'in', chunk)));
+        snap.forEach(d => originById.set(d.id, { id: d.id, ...d.data() } as Task));
+      }
+      const report: { originTitle: string; originPart: string; supportTaskTitle: string; pointsToId: string }[] = [];
+      linked.forEach(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        if (!origin) return; // 원본 업무 자체가 삭제된 경우는 별개 사안이라 여기선 제외
+        const originPart = team.parts.find(p => p.name === origin.category);
+        const currentIds = new Set((originPart?.subTaskTypes ?? team.subTaskTypes ?? []).map(t => t.id));
+        if (!currentIds.has(l.linkedFromSubTaskTypeId as string)) {
+          report.push({ originTitle: origin.title, originPart: origin.category, supportTaskTitle: l.title, pointsToId: l.linkedFromSubTaskTypeId as string });
+        }
+      });
+      console.log(`[지원팀 연결 id 불일치 진단] ${team.name}`, JSON.stringify(report, null, 1));
+      if (report.length === 0) {
+        alert(`[${team.name}]: 지원팀 연결 업무 ${linked.length}건을 확인했지만, 가리키는 세부업무 id가 끊어진 경우는 찾지 못했습니다.`);
+        return;
+      }
+      const summary = report.slice(0, 10).map(r => `- [${r.originPart}] ${r.originTitle} → ${r.supportTaskTitle} (끊긴 id: ${r.pointsToId})`).join('\n');
+      alert(`[${team.name}] 지원팀에서 값을 바꿔도 원본에 반영되지 않는 연결을 ${report.length}건 찾았습니다:\n\n${summary}${report.length > 10 ? `\n...외 ${report.length - 10}건` : ''}\n\n브라우저 콘솔(F12 → Console)에 전체 내역이 JSON으로 출력되어 있습니다. 이 내용을 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+    } catch (e) {
+      console.error('[지원팀 연결 id 불일치 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
   // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
   // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
@@ -7998,6 +8048,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           <button type="button" onClick={() => scanOrphanedSubTaskDataForTeam(team)}
                             className={`${btn} bg-teal-600 text-white hover:bg-teal-700`}>
                             전체 파트 정밀 진단
+                          </button>
+                          <button type="button" onClick={() => scanSupportLinkIdMismatch(team)}
+                            className={`${btn} bg-orange-600 text-white hover:bg-orange-700`}>
+                            지원팀 연결 끊김 진단
                           </button>
                           <span className="w-px h-4 bg-amber-300 mx-0.5" />
                           <select

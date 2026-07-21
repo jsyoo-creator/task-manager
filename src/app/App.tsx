@@ -40,6 +40,7 @@ import { HolidaysContext } from '../contexts/HolidaysContext';
 import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig, SubTaskType } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
+import PathConverterWidget from '../components/PathConverterWidget';
 import { db } from '../lib/firebase';
 import { collection, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
 import { Star } from 'lucide-react';
@@ -848,6 +849,8 @@ function App() {
           onFinished={() => setLoadingDone(true)}
         />
       )}
+
+      <PathConverterWidget />
 
       <BrowserRouter>
         <RouteWatcher onRouteChange={path => { if (path !== '/tasks') setDetailTaskId(null); }} />

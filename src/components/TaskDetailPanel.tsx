@@ -2629,8 +2629,8 @@ export default function TaskDetailPanel({
           )}
         </div>
 
-        {/* 커스텀 폼 필드 */}
-        {(() => {
+        {/* 커스텀 폼 필드 (PL업무 제외) */}
+        {!task.plTask && (() => {
           const allCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
           // 다른 필드가 이 필드로 얼라이어스되어 이미 그 필드의 행에서 값이 보이고
           // 있다면, 같은 값을 보여주는 행을 또 만들지 않음(중복 방지)

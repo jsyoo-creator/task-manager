@@ -869,9 +869,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   // 문제가 있어(스크롤도 안 됨), 화면 좌표 기준 fixed 위치로 띄움
   const [openAliasRow, setOpenAliasRow] = useState<{ key: string; top: number; left: number } | null>(null);
 
-  // 옵션별 세부업무 그룹 연결 팝오버 — 어느 select 필드의 팝오버가 열려있는지
-  const [groupMapPickerId, setGroupMapPickerId] = useState<string | null>(null);
-
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
   const [customLabelInput, setCustomLabelInput] = useState('');
@@ -885,6 +882,10 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   const [customColorPickerIdx, setCustomColorPickerIdx] = useState<number | null>(null);
   const customOptionColorsRef = useRef(customOptionColors);
   customOptionColorsRef.current = customOptionColors;
+  // 옵션값 → 세부업무 그룹(id). 드롭다운 전체가 아니라 옵션 하나하나마다 따로 연결함
+  const [customOptionGroupMap, setCustomOptionGroupMap] = useState<Record<string, string>>({});
+  const customOptionGroupMapRef = useRef(customOptionGroupMap);
+  customOptionGroupMapRef.current = customOptionGroupMap;
 
   const isTableField = (key: BuiltinFieldKey) => TABLE_FIELD_KEYS.includes(key);
 
@@ -998,6 +999,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
         department: customTypeInput === 'name' && customDeptInput ? customDeptInput : undefined,
         options: customTypeInput === 'select' ? validOpts : cf.options,
         optionColors: customTypeInput === 'select' && Object.keys(customOptionColorsRef.current).length > 0 ? customOptionColorsRef.current : undefined,
+        optionGroupMap: customTypeInput === 'select' && Object.keys(customOptionGroupMapRef.current).length > 0 ? customOptionGroupMapRef.current : undefined,
         dependsOn: customTypeInput === 'select' && customDependsOnId
           ? { fieldId: customDependsOnId, valueMap: cleanValueMap }
           : undefined,
@@ -1359,10 +1361,35 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                                   if (customOptionColors[old]) {
                                     setCustomOptionColors(prev => { const { [old]: c, ...rest } = prev; return next ? { ...rest, [next]: c } : rest; });
                                   }
+                                  if (customOptionGroupMap[old]) {
+                                    setCustomOptionGroupMap(prev => { const { [old]: g, ...rest } = prev; return next ? { ...rest, [next]: g } : rest; });
+                                  }
                                 }}
                               />
+                              {subTaskGroups.length > 0 && (
+                                <select
+                                  title="이 옵션에 연결할 세부업무 그룹 — 업무상세에서 이 옵션이 선택된 업무는 그 그룹의 세부업무만 추가로 노출됨"
+                                  className={`text-[10px] px-1 py-0.5 rounded-md border focus:outline-none flex-shrink-0 max-w-[90px] ${
+                                    customOptionGroupMap[opt] ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400'
+                                  }`}
+                                  value={customOptionGroupMap[opt] ?? ''}
+                                  onChange={e => {
+                                    setCustomOptionGroupMap(prev => {
+                                      const next = { ...prev };
+                                      if (e.target.value) next[opt] = e.target.value; else delete next[opt];
+                                      return next;
+                                    });
+                                  }}>
+                                  <option value="">그룹 없음</option>
+                                  {subTaskGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                </select>
+                              )}
                               {customOptionsInput.length > 1 && (
-                                <button type="button" onClick={() => { setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx)); setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; }); }}
+                                <button type="button" onClick={() => {
+                                  setCustomOptionsInput(prev => prev.filter((_, j) => j !== idx));
+                                  setCustomOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; });
+                                  setCustomOptionGroupMap(prev => { const { [opt]: _, ...rest } = prev; return rest; });
+                                }}
                                   className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
                               )}
                             </div>
@@ -1418,7 +1445,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   <button
                     type="button"
                     title="클릭하여 이름 · 속성 수정"
-                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomRequiredInput(cf.required ?? false); setCustomDeptInput(cf.department ?? ''); setCustomDependsOnId(cf.dependsOn?.fieldId ?? ''); setCustomValueMapInput(cf.dependsOn?.valueMap ?? {}); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomColorPickerIdx(null); }}
+                    onClick={() => { setEditingCustomId(cf.id); setCustomLabelInput(cf.label); const t = cf.type as string; setCustomTypeInput((t === '이름' || t === 'textarea' ? 'name' : t) as FormFieldType); setCustomRequiredInput(cf.required ?? false); setCustomDeptInput(cf.department ?? ''); setCustomDependsOnId(cf.dependsOn?.fieldId ?? ''); setCustomValueMapInput(cf.dependsOn?.valueMap ?? {}); setCustomOptionsInput(cf.options?.length ? [...cf.options, ''] : ['', '']); setCustomOptionColors(cf.optionColors ?? {}); setCustomOptionGroupMap(cf.optionGroupMap ?? {}); setCustomColorPickerIdx(null); }}
                     className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
                     {cf.label}
                   </button>
@@ -1500,20 +1527,11 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                       </button>
                     );
                   })()}
-                  {cf.type === 'select' && !cf.dependsOn && (cf.options?.length ?? 0) > 0 && subTaskGroups.length > 0 && (() => {
-                    const mappedCount = Object.keys(cf.optionGroupMap ?? {}).length;
-                    return (
-                      <button
-                        type="button"
-                        title="옵션별 세부업무 그룹 연결 — 매핑된 옵션이 선택된 업무는 업무상세에서 그 그룹의 세부업무만 추가로 노출됨"
-                        onClick={e => { e.stopPropagation(); setGroupMapPickerId(groupMapPickerId === cf.id ? null : cf.id); }}
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
-                          mappedCount > 0 ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50'
-                        }`}>
-                        그룹 연결{mappedCount > 0 ? `됨(${mappedCount})` : ''}
-                      </button>
-                    );
-                  })()}
+                  {cf.type === 'select' && (cf.options?.length ?? 0) > 0 && subTaskGroups.length > 0 && Object.keys(cf.optionGroupMap ?? {}).length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-600" title="옵션별 세부업무 그룹 연결 — 편집(이름 클릭)해서 옵션마다 다시 지정 가능">
+                      그룹 연결됨({Object.keys(cf.optionGroupMap ?? {}).length})
+                    </span>
+                  )}
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                   {cf.dependsOn && <span className="text-[10px] text-violet-400 font-medium">연결됨</span>}
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
@@ -1604,26 +1622,6 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   </div>
                 );
               })()}
-              {groupMapPickerId === cf.id && (
-                <div className="px-9 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 space-y-1">
-                  {(cf.options ?? []).map(opt => (
-                    <div key={opt} className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-500 w-28 flex-shrink-0 truncate">{opt}</span>
-                      <select
-                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                        value={cf.optionGroupMap?.[opt] ?? ''}
-                        onChange={e => {
-                          const next = { ...(cf.optionGroupMap ?? {}) };
-                          if (e.target.value) next[opt] = e.target.value; else delete next[opt];
-                          onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, optionGroupMap: Object.keys(next).length ? next : undefined } : f));
-                        }}>
-                        <option value="">연결 안 함</option>
-                        {subTaskGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              )}
               </div>
             );
             }

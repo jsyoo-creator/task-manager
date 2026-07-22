@@ -38,30 +38,7 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'teams'), snap => {
-      const teams = snap.docs.map(d => ({ id: d.id, ...d.data() } as Team));
-      setAllTeams(teams);
-
-      // TEMP DIAGNOSTIC (2026-07-22) — 엑셀 관리 탭 파트별 metaFields 버그 영향 범위 확인용.
-      // 확인 끝나면 이 블록 전체를 삭제할 것.
-      const rows = teams.flatMap(t => (t.parts ?? []).map(p => {
-        const teamMetaKeys = (t.metaFields ?? []).map(f => f.key);
-        const partMetaKeys = p.metaFields ? p.metaFields.map(f => f.key) : null;
-        const overridesMeta = partMetaKeys !== null && JSON.stringify(partMetaKeys) !== JSON.stringify(teamMetaKeys);
-        return {
-          workplaceId: t.workplaceId,
-          team: t.name,
-          part: p.name,
-          '파트가 metaFields 별도 저장': partMetaKeys !== null,
-          '팀값과 다름(버그 영향 대상)': overridesMeta,
-          '파트 metaFields': partMetaKeys?.join(', ') ?? '(팀 상속)',
-          '팀 metaFields': teamMetaKeys.join(', '),
-          '파트 excelConfig 저장 여부': !!p.excelConfig?.length,
-        };
-      }));
-      const affected = rows.filter(r => r['팀값과 다름(버그 영향 대상)']);
-      console.log(`[TEMP DIAGNOSTIC] 전체 파트 ${rows.length}개 중 metaFields를 팀과 다르게 저장한(버그 영향 가능) 파트 ${affected.length}개`);
-      console.table(rows);
-      if (affected.length) console.table(affected);
+      setAllTeams(snap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
     });
     return unsub;
   }, []);

@@ -1702,14 +1702,45 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
   const saveDrag = (newFields: BuiltinFieldConfig[], newCustom: CustomFormField[], newOrder: string[]) =>
     saveConfig({ ...makeConfig({}), builtinFields: newFields, customFields: newCustom, fieldOrder: newOrder });
 
+  // 세부업무 그룹은 팀/파트 스코프마다 서로 다른 id로 저장돼 있어(같은 이름이라도 id가 다름),
+  // 폼설정을 그대로 복사하면 필드의 optionGroupMap이 원본 스코프의 그룹 id를 그대로 가리켜
+  // 대상 스코프에는 존재하지 않는 그룹을 참조하게 된다. 그룹 "이름"으로 다시 매칭해서
+  // 대상 스코프에 같은 이름의 그룹이 있으면 그 id로 바꿔주고, 없으면 매핑을 버림(끊긴 채로
+  // 남기지 않음) — 미리 같은 이름의 그룹을 만들어두거나 세부업무 탭에서 먼저 복사해두면 됨
+  const groupsForTarget = (target: 'team' | 'all' | string): SubTaskGroup[] => {
+    if (target === 'team' || target === 'all') return team.subTaskGroups ?? [];
+    const part = team.parts.find(p => p.id === target);
+    return part?.subTaskGroups ?? team.subTaskGroups ?? [];
+  };
+  const remapOptionGroupMapByName = (config: TeamFormConfig, sourceTarget: string): TeamFormConfig => {
+    const srcGroups = groupsForTarget(sourceTarget);
+    const dstGroups = groupsForTarget(selectedTarget);
+    if (srcGroups.length === 0 && dstGroups.length === 0) return config;
+    const remap = <T extends { optionGroupMap?: Record<string, string> }>(f: T): T => {
+      if (!f.optionGroupMap) return f;
+      const next: Record<string, string> = {};
+      Object.entries(f.optionGroupMap).forEach(([opt, gid]) => {
+        const srcName = srcGroups.find(g => g.id === gid)?.name;
+        const dstMatch = srcName ? dstGroups.find(g => g.name === srcName) : undefined;
+        if (dstMatch) next[opt] = dstMatch.id;
+      });
+      return { ...f, optionGroupMap: Object.keys(next).length > 0 ? next : undefined };
+    };
+    return {
+      ...config,
+      builtinFields: config.builtinFields?.map(remap),
+      customFields: config.customFields?.map(remap),
+    };
+  };
+
   const executeCopyForm = (sourceId: string) => {
     if (sourceId === 'all') {
       const srcConfig = team.allFormConfig ?? team.formConfig;
-      if (srcConfig) saveConfig(srcConfig);
+      if (srcConfig) saveConfig(remapOptionGroupMapByName(srcConfig, sourceId));
     } else {
       const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
       const srcConfig = sourcePart ? (sourcePart.formConfig ?? team.formConfig) : team.formConfig;
-      if (srcConfig) saveConfig(srcConfig);
+      if (srcConfig) saveConfig(remapOptionGroupMapByName(srcConfig, sourceId));
     }
     setPendingCopySource(null);
   };

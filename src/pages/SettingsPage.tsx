@@ -2768,10 +2768,11 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
         )}
         {backfillMsg && <span className="normal-case font-normal text-[10px] text-violet-500">{backfillMsg}</span>}
       </p>
-      {[
-        ...groups.map(g => ({ key: g.id, name: g.name })),
-        { key: UNGROUPED_KEY, name: groups.length > 0 ? '미분류' : '전체' },
-      ].map(section => {
+      {(() => {
+        // 미분류는 보통 기본으로 대부분의 세부업무가 몰려 있어 목록이 길다. 그룹이
+        // 하나라도 있으면 미분류(길다)를 왼쪽, 나머지 그룹들(대개 짧다)을 오른쪽에
+        // 나란히 둬서 세로로 늘어지지 않게 함 — 그룹이 없으면 기존처럼 단일 목록
+        const renderSection = (section: { key: string; name: string }) => {
         const items = types.filter(t => sectionKeyOf(t) === section.key);
         return (
           <div key={section.key} className="mb-3 last:mb-0">
@@ -2952,7 +2953,17 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
             </div>
           </div>
         );
-      })}
+        };
+
+        const ungroupedSection = renderSection({ key: UNGROUPED_KEY, name: groups.length > 0 ? '미분류' : '전체' });
+        if (groups.length === 0) return ungroupedSection;
+        return (
+          <div className="grid grid-cols-2 gap-4 items-start">
+            <div>{ungroupedSection}</div>
+            <div>{groups.map(g => renderSection({ key: g.id, name: g.name }))}</div>
+          </div>
+        );
+      })()}
       </div>
     </div>
   );

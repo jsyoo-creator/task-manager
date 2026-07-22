@@ -254,6 +254,7 @@ function Card({ title, action, children, className = '' }: {
 
 export default function Dashboard({ tasks, subtasks, project, teamName, parts, assignees = [], formConfig, teamFormConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS, crossTeamTasks = [], crossTeamSubtasks = [] }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
 
   const statusConfigs = resolveStatusConfigs(formConfig);
 
@@ -476,6 +477,18 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
     () => monthKeys.filter(mk => assigneeStats.some(a => (a.monthCounts[mk] ?? 0) > 0)),
     [monthKeys, assigneeStats]
   );
+
+  // 담당자 가나다순 정렬 (미배정은 항상 맨 마지막)
+  const sortedAssigneeStats = useMemo(() => {
+    const named = assigneeStats.filter(a => a.name !== '미배정')
+      .slice().sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    const unassigned = assigneeStats.find(a => a.name === '미배정');
+    return unassigned ? [...named, unassigned] : named;
+  }, [assigneeStats]);
+
+  const displayedAssigneeStats = assigneeFilter === 'all'
+    ? sortedAssigneeStats
+    : sortedAssigneeStats.filter(a => a.name === assigneeFilter);
 
   const legendItems = statusBarData.map(s => ({ l: s.label, v: s.count, c: s.color }));
 
@@ -703,22 +716,34 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
           <Card
             title={`${assigneeLabel}별 세부업무 현황`}
             action={
-              <div className="flex gap-0.5 p-0.5 rounded-lg bg-gray-100">
-                {(['count', 'hours'] as const).map((v, i) => (
-                  <button key={v} onClick={() => setAssigneeView(v)}
-                    className={`text-xs px-2.5 py-0.5 rounded-md transition-all ${
-                      assigneeView === v
-                        ? 'bg-white text-blue-600 shadow-sm font-semibold'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}>
-                    {['업무 건수', '업무 시간'][i]}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <select
+                  value={assigneeFilter}
+                  onChange={e => setAssigneeFilter(e.target.value)}
+                  className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-600 border-none focus:outline-none focus:ring-1 focus:ring-blue-400/50"
+                >
+                  <option value="all">전체 {assigneeLabel}</option>
+                  {sortedAssigneeStats.map(a => (
+                    <option key={a.name} value={a.name}>{a.name}</option>
+                  ))}
+                </select>
+                <div className="flex gap-0.5 p-0.5 rounded-lg bg-gray-100">
+                  {(['count', 'hours'] as const).map((v, i) => (
+                    <button key={v} onClick={() => setAssigneeView(v)}
+                      className={`text-xs px-2.5 py-0.5 rounded-md transition-all ${
+                        assigneeView === v
+                          ? 'bg-white text-blue-600 shadow-sm font-semibold'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}>
+                      {['업무 건수', '업무 시간'][i]}
+                    </button>
+                  ))}
+                </div>
               </div>
             }
           >
             <div className="p-4">
-              {assigneeStats.length > 0 ? (
+              {displayedAssigneeStats.length > 0 ? (
                 <>
                   <div
                     className="grid text-[10px] font-semibold text-gray-400 pb-2 mb-1 border-b border-black/5"
@@ -728,7 +753,7 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
                     {activeMonthKeys.map(k => <span key={k} className="text-center">{k}</span>)}
                     <span className="text-center">합계</span>
                   </div>
-                  {assigneeStats.map(({ name, monthCounts, total, totalH }) => (
+                  {displayedAssigneeStats.map(({ name, monthCounts, total, totalH }) => (
                     <div key={name}
                       className="grid items-center py-1.5 rounded-lg hover:bg-gray-50 -mx-1 px-1 transition-colors"
                       style={{ gridTemplateColumns: `1fr repeat(${activeMonthKeys.length}, 64px) 44px` }}
@@ -765,6 +790,31 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
   );
 }
 
+// 조각별 비율대로 나눈 길이가 minLen(최소 확보 길이)보다 짧으면, 그 부족분만큼 나머지
+// 큰 조각들에서 비례적으로 덜어내 채워준다. 값이 아주 작은 조각(1~2건)은 strokeLinecap="round"
+// 때문에 실제로는 점(dot) 형태로 그려지는데, 그 점의 지름(sw)만큼 공간을 미리 비워두지 않으면
+// 이웃 조각의 호와 겹쳐 보이는 문제가 있어 최소 길이를 강제로 보장한다.
+function allocateDonutLens(rawLens: number[], circ: number, minLen: number): number[] {
+  if (minLen * rawLens.length >= circ) return rawLens.map(() => circ / rawLens.length);
+  let lens = [...rawLens];
+  for (let iter = 0; iter < rawLens.length; iter++) {
+    let smallSum = 0, bigSum = 0;
+    const isSmall = lens.map(l => l < minLen);
+    lens.forEach((l, i) => { if (isSmall[i]) smallSum += minLen; else bigSum += l; });
+    if (smallSum === 0 || bigSum <= 0) break;
+    const scale = (circ - smallSum) / bigSum;
+    let changed = false;
+    lens = lens.map((l, i) => {
+      if (isSmall[i]) return minLen;
+      const next = l * scale;
+      if (Math.abs(next - l) > 0.01) changed = true;
+      return next;
+    });
+    if (!changed) break;
+  }
+  return lens;
+}
+
 /* ─── DonutChart ─── */
 function DonutChart({ data, colorMap, label = '전체' }: {
   data: { name: string; value: number }[];
@@ -779,12 +829,14 @@ function DonutChart({ data, colorMap, label = '전체' }: {
   const cx = 70, cy = 70, r = 56, sw = 12;
   const circ = 2 * Math.PI * r;
   const gap = sw + 3; // round 끝(sw/2 × 2) + 시각적 여백 3px
+  const rawLens = chartData.map(d => (d.value / total) * circ);
+  const reservedLens = allocateDonutLens(rawLens, circ, gap);
   let offset = 0;
-  const slices = chartData.map(d => {
-    const len = (d.value / total) * circ;
-    const drawLen = Math.max(0, len - gap);
+  const slices = chartData.map((d, i) => {
+    const reserved = reservedLens[i];
+    const drawLen = Math.max(0, reserved - gap);
     const slice = { name: d.name, len: drawLen, offset: offset + gap / 2 };
-    offset += len;
+    offset += reserved;
     return slice;
   });
 

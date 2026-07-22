@@ -1510,9 +1510,11 @@ export default function TaskDetailPanel({
 
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
 
-  // 폼설정 드롭다운(옵션→세부업무 그룹) 매핑 기반 허용 그룹 집합 — 그룹 미지정 세부업무는
-  // 항상 노출되고, 그룹이 지정된 세부업무는 이 업무의 해당 드롭다운 값이 그 그룹으로
-  // 연결돼 있을 때만 노출됨(직군 미지정 세부업무가 모든 탭에 보이는 것과 동일한 패턴)
+  // 폼설정 드롭다운(옵션→세부업무 그룹) 매핑 기반 허용 그룹 집합. 이 업무의 드롭다운
+  // 값이 어떤 그룹과도 연결돼 있지 않으면(설정 안 한 상태) 필터를 걸지 않고 전부 노출.
+  // 하나라도 연결돼 있으면 그 순간부터는 그 그룹(들)에 속한 세부업무만 노출하고,
+  // 그룹 미지정 세부업무까지 포함해서 나머지는 전부 숨김 — "이 값은 배너 그룹" 이라고
+  // 지정해놓고 미분류 항목까지 같이 보이면 필터링이 안 된 것처럼 보이기 때문
   const allowedSubTaskGroupIds = (() => {
     const ids = new Set<string>();
     const builtinVal = (key: string): string | undefined => {
@@ -1544,12 +1546,16 @@ export default function TaskDetailPanel({
     return ids;
   })();
 
+  // 이 업무의 드롭다운 값이 그룹과 연결돼 있는 경우에만 그룹 필터를 활성화 —
+  // 연결된 게 하나도 없으면(=설정 안 한 상태) 모든 세부업무를 그대로 보여줌
+  const hasActiveSubTaskGroupFilter = allowedSubTaskGroupIds.size > 0;
+
   // 세부업무 & 주차별 시간: 권한/삭제/숨김/그룹 기준으로 실제 노출 대상만 추림
   const visibleSubTaskTypes = subTaskTypes.filter(type => {
     if (deletedSubTaskIds.has(type.id)) return false;
     if (type.showInDetail === false) return false;
     if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
-    if (type.groupId && !allowedSubTaskGroupIds.has(type.groupId)) return false;
+    if (hasActiveSubTaskGroupFilter && (!type.groupId || !allowedSubTaskGroupIds.has(type.groupId))) return false;
     if (canSeeAll) return true;
     const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
     return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;

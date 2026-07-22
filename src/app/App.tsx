@@ -459,6 +459,9 @@ function App() {
   const vacTeamMembers = selectedTeam ? allUsers.filter(u => isBaseMemberOfTeam(u, selectedTeam.id)) : [];
   const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
   const teamVacations = vacations.filter(v => vacMemberNames.has(v.memberName));
+  // 대시보드도 휴가 현황과 같은 이유로 기본(우선선택) 팀 소속만 인정 — 지원팀 인원이
+  // 다른 팀 대시보드의 "담당자별 세부업무 현황"에 섞여 나오는 문제 방지
+  const dashboardTeamMembers = vacTeamMembers.map(u => ({ name: u.displayName, department: u.department, email: u.email }));
 
   // 활성 카테고리에 해당하는 파트 (없으면 undefined → 팀 기본 설정 사용)
   const activePart = activeCategory !== 'all'
@@ -887,7 +890,7 @@ function App() {
         >
           <Routes>
             <Route path="/" element={
-              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} teamName={selectedTeam?.name} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamFormConfig={selectedTeam?.formConfig} teamMembers={teamMembers} revisionSteps={effectiveRevisionSteps} />
+              <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} teamName={selectedTeam?.name} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamFormConfig={selectedTeam?.formConfig} teamMembers={dashboardTeamMembers} revisionSteps={effectiveRevisionSteps} crossTeamTasks={supportCrossTeamData.tasks} crossTeamSubtasks={supportCrossTeamData.subtasks} />
             } />
             <Route path="/tasks" element={!menuEnabled('/tasks') ? <Navigate to="/" replace /> : (
               <TaskManagement

@@ -14,6 +14,10 @@ interface Props {
   teamFormConfig?: TeamFormConfig;
   teamMembers?: { name: string; department?: Department }[];
   revisionSteps?: RevisionStep[];
+  // 지원팀 자신의 대시보드에서 "담당자별 세부업무 현황" 카드에만 반영할 크로스팀(다른 팀 지원) 데이터.
+  // 다른 카드(메인 업무/분류별 완료율 등)는 이 팀 소속 tasks 기준을 유지해야 하므로 별도 prop으로 분리.
+  crossTeamTasks?: Task[];
+  crossTeamSubtasks?: SubTask[];
 }
 
 // tailwind bg class → hex 변환 (파트 색상용)
@@ -248,7 +252,7 @@ function Card({ title, action, children, className = '' }: {
   );
 }
 
-export default function Dashboard({ tasks, subtasks, project, teamName, parts, assignees = [], formConfig, teamFormConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS }: Props) {
+export default function Dashboard({ tasks, subtasks, project, teamName, parts, assignees = [], formConfig, teamFormConfig, teamMembers, revisionSteps = DEFAULT_REVISION_STEPS, crossTeamTasks = [], crossTeamSubtasks = [] }: Props) {
   const [assigneeView, setAssigneeView] = useState<'count' | 'hours'>('count');
 
   const statusConfigs = resolveStatusConfigs(formConfig);
@@ -428,7 +432,9 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
     sum + Object.values(t.revisionCounts ?? {}).reduce((a, b) => a + b, 0), 0);
 
   const assigneeStats = useMemo(() => {
-    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    // 지원팀 자신의 대시보드에서는 다른 팀 업무를 지원한 시간도 담당자 실적에 포함해야 함
+    const allSubtasks = crossTeamSubtasks.length > 0 ? [...subtasks, ...crossTeamSubtasks] : subtasks;
+    const taskMap = new Map([...tasks, ...crossTeamTasks].map(t => [t.id, t]));
     // 대무자(substitute)가 입력한 시간은 원 담당자의 weeklyHours가 아니라 별도
     // substituteWeeklyHours에 저장되므로, subTaskData에서 대무자 이름을 역참조해야 함
     const substituteNameOf = (s: SubTask) => {
@@ -451,8 +457,8 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
     };
     const result = (teamMembers ?? [])
       .map(({ name }) => {
-        const mine = subtasks.filter(s => s.assignee === name).map(sub => ({ sub, hours: sub.totalHours ?? 0 }));
-        const substituted = subtasks
+        const mine = allSubtasks.filter(s => s.assignee === name).map(sub => ({ sub, hours: sub.totalHours ?? 0 }));
+        const substituted = allSubtasks
           .filter(s => substituteNameOf(s) === name)
           .map(sub => ({ sub, hours: sub.substituteTotalHours ?? 0 }));
         return buildEntry(name, [...mine, ...substituted]);
@@ -463,7 +469,7 @@ export default function Dashboard({ tasks, subtasks, project, teamName, parts, a
       result.push(buildEntry('미배정', unassigned.map(sub => ({ sub, hours: sub.totalHours ?? 0 }))));
     }
     return result;
-  }, [subtasks, tasks, monthKeys, teamMembers]);
+  }, [subtasks, tasks, monthKeys, teamMembers, crossTeamSubtasks, crossTeamTasks]);
 
   // 실제 데이터가 있는 월만 표시
   const activeMonthKeys = useMemo(

@@ -97,6 +97,37 @@ function CaseStudy({ n, title, said, misread, actual, fix }: {
   );
 }
 
+// GitHub · Vercel · Firebase 역할 설명표
+function RoleTable() {
+  const rows: [string, string, string][] = [
+    ['GitHub', '창고/보관함', '클로드가 만든 코드를 저장하고, 언제 누가 무엇을 바꿨는지 기록해두는 곳. 코드 자체는 여기 있지만, 이것만으로는 사이트가 인터넷에 뜨지 않음'],
+    ['Vercel', '무대/전시장 (서버)', 'GitHub에 저장된 코드를 가져다 실제로 인터넷에서 볼 수 있는 웹사이트로 띄워주는 곳. GitHub에 새 코드가 올라올 때마다 자동으로 다시 띄워줌(자동 배포)'],
+    ['Firebase', '데이터 창고 + 출입증 확인소', '업무·사용자처럼 실제로 저장·조회되는 데이터(데이터베이스)와 "누가 로그인했는지" 확인하는 기능을 담당'],
+  ];
+  return (
+    <div style={{ overflowX: 'auto', margin: '14px 0 20px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+        <thead>
+          <tr style={{ background: '#f1f5f9' }}>
+            <th style={{ textAlign: 'left', padding: '9px 12px', fontWeight: 700, color: '#475569', border: '1px solid #e2e8f0', width: '15%' }}>서비스</th>
+            <th style={{ textAlign: 'left', padding: '9px 12px', fontWeight: 700, color: '#475569', border: '1px solid #e2e8f0', width: '20%' }}>비유하면</th>
+            <th style={{ textAlign: 'left', padding: '9px 12px', fontWeight: 700, color: '#475569', border: '1px solid #e2e8f0' }}>실제로 하는 일</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([a, b, c]) => (
+            <tr key={a}>
+              <td style={{ padding: '9px 12px', border: '1px solid #e2e8f0', fontWeight: 700, color: '#4338ca' }}>{a}</td>
+              <td style={{ padding: '9px 12px', border: '1px solid #e2e8f0', color: '#334155' }}>{b}</td>
+              <td style={{ padding: '9px 12px', border: '1px solid #e2e8f0', color: '#334155' }}>{c}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function CompareTable() {
   const rows: [string, string, string][] = [
     ['설치', '터미널에 명령어 한 줄', '앱 다운로드 후 더블클릭'],
@@ -477,6 +508,15 @@ export default function ClaudeGuidePage() {
               <li>Vercel 계정 (vercel.com) — GitHub으로 가입하면 편함, 웹사이트를 실제로 띄워주는 서버 역할</li>
               <li>Firebase(구글) 계정 — 데이터베이스·로그인 기능이 필요한 경우에만 (구글 계정 있으면 바로 가능)</li>
             </ul>
+
+            <H3>GitHub · Vercel · Firebase, 각각 무슨 역할일까</H3>
+            <P>이름이 낯설어서 어렵게 느껴지지만, 역할을 나눠보면 간단합니다.</P>
+            <RoleTable />
+            <Callout tone="tip" title="전체 흐름 한 줄 요약">
+              <b>클로드가 코드를 작성 → GitHub에 저장 → Vercel이 그 코드를 가져다 실제 웹사이트로 띄움 → 그 웹사이트가 필요할 때 Firebase에서 데이터를 읽고 씀.</b>
+              &nbsp;셋 다 필요 없는 아주 간단한 페이지(예: 이 강의자료 같은 정적인 안내문)라면 Firebase 없이 GitHub + Vercel만으로도 충분합니다.
+            </Callout>
+
             <Callout tone="tip" title="이 가이드가 다루는 범위">
               이 문서는 지금 이 Task Manager와 같은 구조 — React + Vercel(배포) + Firebase(데이터베이스·로그인) —
               를 클로드에게 요청해서 만드는 과정을 다룹니다. 코드를 직접 작성하는 법이 아니라, <b>무엇을 준비하고, 클로드에게 어떻게 말해야 오해 없이 전달되는지, 문제가 생겼을 때 어떻게 찾는지</b>에 집중합니다.

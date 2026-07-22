@@ -2,6 +2,10 @@
 // 개인정보처리방침 페이지(PrivacyPolicyPage)와 동일한 패턴 — 로그인 게이트 없이 URL로만 접근,
 // 앱 메뉴/네비게이션에는 의도적으로 노출하지 않음.
 
+import { useState } from 'react';
+
+type Method = 'app' | 'cli';
+
 const CODE_STYLE: React.CSSProperties = {
   display: 'block',
   background: '#0f172a',
@@ -125,6 +129,43 @@ function CompareTable() {
   );
 }
 
+// 진행 방식(데스크탑 앱/터미널)에 따라 내용이 갈리는 곳에서 선택된 방식의 콘텐츠만 보여줌
+function MethodOnly({ current, when, children }: { current: Method; when: Method; children: React.ReactNode }) {
+  if (current !== when) return null;
+  return <>{children}</>;
+}
+
+function MethodTabs({ method, onChange }: { method: Method; onChange: (m: Method) => void }) {
+  const tabs: { id: Method; label: string }[] = [
+    { id: 'app', label: '🖥️ 데스크탑 앱으로 진행' },
+    { id: 'cli', label: '⌨️ 터미널로 진행' },
+  ];
+  return (
+    <div style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc', paddingTop: 4, paddingBottom: 10, marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 5, boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            style={{
+              flex: 1, padding: '10px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
+              background: method === t.id ? '#4f46e5' : 'transparent',
+              color: method === t.id ? '#fff' : '#64748b',
+              transition: 'background .15s, color .15s',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8, textAlign: 'center' }}>
+        아래 <b>1. 시작하는 방법</b>과 <b>2. 새 프로젝트 시작하기</b>의 설치/실행 안내가 선택한 방식에 맞춰 바뀝니다. 나머지 내용은 두 방식 모두 동일합니다.
+      </p>
+    </div>
+  );
+}
+
 const TOC = [
   ['prep', '0. 준비물 체크리스트'],
   ['ways', '1. 시작하는 두 가지 방법 — 터미널 vs 데스크탑 앱'],
@@ -139,11 +180,12 @@ const TOC = [
 ] as const;
 
 export default function ClaudeGuidePage() {
+  const [method, setMethod] = useState<Method>('app');
   return (
     <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '48px 24px 120px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif', color: '#1f2937', lineHeight: 1.75 }}>
 
-        <header style={{ marginBottom: 32 }}>
+        <header style={{ marginBottom: 20 }}>
           <p style={{ fontSize: 12.5, fontWeight: 700, color: '#6366f1', letterSpacing: 0.5, marginBottom: 8, textTransform: 'uppercase' }}>PIVOT CREATIVE · 내부 강의자료</p>
           <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 10, color: '#0f172a' }}>클로드에게 업무 시스템을 만들어달라고 요청하는 법</h1>
           <p style={{ fontSize: 14, color: '#64748b' }}>
@@ -151,6 +193,8 @@ export default function ClaudeGuidePage() {
             · 최종 수정일: 2026-07-22
           </p>
         </header>
+
+        <MethodTabs method={method} onChange={setMethod} />
 
         <nav style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '18px 20px', marginBottom: 8 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: '#475569', marginBottom: 10 }}>목차</div>
@@ -181,43 +225,61 @@ export default function ClaudeGuidePage() {
 
         <section>
           <H2 id="ways">1. 시작하는 두 가지 방법 — 터미널 vs 데스크탑 앱</H2>
-          <P>클로드에게 코드를 직접 만들고 고쳐달라고 요청하는 프로그램이 "Claude Code"입니다. 두 가지 방식으로 쓸 수 있습니다 — 검은 화면(터미널)이 낯설다면 <b>데스크탑 앱</b>으로 시작하는 것을 추천합니다.</P>
+          <P>클로드에게 코드를 직접 만들고 고쳐달라고 요청하는 프로그램이 "Claude Code"입니다. 두 가지 방식으로 쓸 수 있습니다 — 위 탭에서 원하는 방식을 선택하면 아래 안내가 그에 맞춰 바뀝니다.</P>
           <CompareTable />
 
-          <H3>1-1. 터미널(CLI) 방식</H3>
-          <P>터미널 앱을 열고 아래 명령어를 입력합니다.</P>
-          <Code>{`curl -fsSL https://claude.ai/install.sh | bash`}</Code>
-          <P>설치가 끝나면 새 터미널 창을 열고 잘 설치됐는지 확인합니다.</P>
-          <Code>{`claude --version`}</Code>
-          <P>작업할 폴더로 이동한 뒤 <IC>claude</IC>만 입력하면 대화가 시작되고, 처음 실행 시 브라우저가 열리며 로그인 화면이 뜹니다.</P>
-          <Code>{`cd ~/Desktop/my-new-tool\nclaude`}</Code>
+          <MethodOnly current={method} when="cli">
+            <H3>터미널(CLI) 방식 설치</H3>
+            <P>터미널 앱을 열고 아래 명령어를 입력합니다.</P>
+            <Code>{`curl -fsSL https://claude.ai/install.sh | bash`}</Code>
+            <P>설치가 끝나면 새 터미널 창을 열고 잘 설치됐는지 확인합니다.</P>
+            <Code>{`claude --version`}</Code>
+            <P>작업할 폴더로 이동한 뒤 <IC>claude</IC>만 입력하면 대화가 시작되고, 처음 실행 시 브라우저가 열리며 로그인 화면이 뜹니다.</P>
+            <Code>{`cd ~/Desktop/my-new-tool\nclaude`}</Code>
+            <Callout tone="tip" title="터미널을 쓰다가 앱으로 바꿔도 됨">
+              두 방식은 같은 엔진을 쓰고 설정(로그인, 프로젝트 규칙 등)도 공유합니다. 반복 작업이나 자동화가 필요할 때 터미널을, 평소엔 앱으로 눈으로 확인하며 진행하는 식으로 섞어 써도 문제없습니다.
+            </Callout>
+          </MethodOnly>
 
-          <H3>1-2. 데스크탑 앱 방식 (터미널 없이)</H3>
-          <ol style={{ paddingLeft: 20, marginBottom: 16, color: '#334155' }}>
-            <li>claude.ai에서 데스크탑 앱을 다운로드해 설치 (Mac/Windows/Linux 모두 지원) 후 실행, 계정으로 로그인</li>
-            <li>상단 가운데의 <b>Code</b> 탭 클릭 (유료 플랜 가입 안내가 뜨면 먼저 구독)</li>
-            <li><b>Local</b> 선택 → <b>Select folder</b>로 작업할 프로젝트 폴더 선택 (윈도우는 Git 설치가 필요, 맥은 대부분 기본 내장)</li>
-            <li>화면 하단 채팅창에 원하는 작업을 문장으로 입력 (예: "업무 등록 화면에 마감일 필드를 추가해줘")</li>
-            <li>클로드가 수정한 내용이 <b>변경 전/후 비교 화면(diff)</b>으로 뜨면, 파일별로 <b>수락(Accept)</b>/<b>거절(Reject)</b> 버튼으로 확인하며 진행</li>
-          </ol>
-          <Callout tone="tip" title="권한 모드(자동 승인 여부)">
-            데스크탑 앱은 기본적으로 <b>Manual</b> 모드라 파일을 고칠 때마다 승인을 받습니다. 익숙해지면 <b>Accept edits</b>(자동 승인) 모드로 바꿔 속도를 낼 수 있고,
-            큰 변경 전에는 <b>Plan</b> 모드(코드는 안 고치고 계획만 먼저 보여줌)로 방향부터 확인하는 것도 유용합니다.
-          </Callout>
-          <Callout tone="tip" title="터미널과 앱을 같이 써도 됨">
-            두 방식은 같은 엔진을 쓰고 설정(로그인, 프로젝트 규칙 등)도 공유합니다. 평소엔 데스크탑 앱으로 눈으로 확인하며 진행하고,
-            반복 작업이나 자동화가 필요할 때만 터미널을 쓰는 식으로 섞어 써도 문제없습니다.
-          </Callout>
+          <MethodOnly current={method} when="app">
+            <H3>데스크탑 앱 설치 &amp; 사용법 (터미널 없이)</H3>
+            <ol style={{ paddingLeft: 20, marginBottom: 16, color: '#334155' }}>
+              <li>claude.ai에서 데스크탑 앱을 다운로드해 설치 (Mac/Windows/Linux 모두 지원) 후 실행, 계정으로 로그인</li>
+              <li>상단 가운데의 <b>Code</b> 탭 클릭 (유료 플랜 가입 안내가 뜨면 먼저 구독)</li>
+              <li><b>Local</b> 선택 → <b>Select folder</b>로 작업할 프로젝트 폴더 선택 (윈도우는 Git 설치가 필요, 맥은 대부분 기본 내장)</li>
+              <li>화면 하단 채팅창에 원하는 작업을 문장으로 입력 (예: "업무 등록 화면에 마감일 필드를 추가해줘")</li>
+              <li>클로드가 수정한 내용이 <b>변경 전/후 비교 화면(diff)</b>으로 뜨면, 파일별로 <b>수락(Accept)</b>/<b>거절(Reject)</b> 버튼으로 확인하며 진행</li>
+            </ol>
+            <Callout tone="tip" title="권한 모드(자동 승인 여부)">
+              데스크탑 앱은 기본적으로 <b>Manual</b> 모드라 파일을 고칠 때마다 승인을 받습니다. 익숙해지면 <b>Accept edits</b>(자동 승인) 모드로 바꿔 속도를 낼 수 있고,
+              큰 변경 전에는 <b>Plan</b> 모드(코드는 안 고치고 계획만 먼저 보여줌)로 방향부터 확인하는 것도 유용합니다.
+            </Callout>
+            <Callout tone="tip" title="필요할 때는 터미널도 같이 쓸 수 있음">
+              두 방식은 같은 엔진을 쓰고 설정을 공유합니다. 나중에 반복 작업·자동화가 필요해지면 터미널(CLI)도 병행할 수 있습니다.
+            </Callout>
+          </MethodOnly>
         </section>
 
         <section>
           <H2 id="start">2. 새 프로젝트 시작하기 (Git · GitHub)</H2>
-          <H3>2-1. 프로젝트 폴더 만들기 (터미널 기준)</H3>
-          <Code>{`mkdir my-new-tool\ncd my-new-tool\ngit init`}</Code>
-          <P>데스크탑 앱을 쓴다면, Finder에서 새 폴더를 만든 뒤 앱의 "Select folder"에서 그 폴더를 선택하고, 클로드에게 "이 폴더에 새 프로젝트를 시작해줘, git도 초기화해줘"라고 요청하면 됩니다.</P>
-          <H3>2-2. GitHub 저장소 만들고 연결하기</H3>
-          <P>github.com에서 New repository로 빈 저장소를 하나 만든 뒤(예: <IC>my-new-tool</IC>, Private 권장), 아래처럼 로컬 폴더와 연결합니다. (클로드에게 "GitHub 저장소 만들었어, 이 주소로 연결해줘"라고 요청해도 됩니다.)</P>
-          <Code>{`git remote add origin https://github.com/내계정/my-new-tool.git\ngit branch -M main`}</Code>
+
+          <MethodOnly current={method} when="cli">
+            <H3>2-1. 프로젝트 폴더 만들기 (터미널)</H3>
+            <Code>{`mkdir my-new-tool\ncd my-new-tool\ngit init`}</Code>
+            <H3>2-2. GitHub 저장소 만들고 연결하기</H3>
+            <P>github.com에서 New repository로 빈 저장소를 하나 만든 뒤(예: <IC>my-new-tool</IC>, Private 권장), 아래처럼 로컬 폴더와 연결합니다.</P>
+            <Code>{`git remote add origin https://github.com/내계정/my-new-tool.git\ngit branch -M main`}</Code>
+          </MethodOnly>
+
+          <MethodOnly current={method} when="app">
+            <H3>2-1. 프로젝트 폴더 만들기 (데스크탑 앱)</H3>
+            <P>Finder(맥) 또는 탐색기(윈도우)에서 새 폴더를 만든 뒤, 앱의 <b>Select folder</b>에서 그 폴더를 선택합니다. 그 다음 채팅창에 이렇게 요청하면 됩니다.</P>
+            <Code>{`"이 폴더에 새 프로젝트를 시작해줘, git도 초기화해줘"`}</Code>
+            <H3>2-2. GitHub 저장소 만들고 연결하기</H3>
+            <P>github.com에서 New repository로 빈 저장소를 하나 만든 뒤(예: <IC>my-new-tool</IC>, Private 권장), 채팅창에 아래처럼 요청합니다.</P>
+            <Code>{`"GitHub 저장소를 만들었어. 주소는 https://github.com/내계정/my-new-tool.git 이야, 이 프로젝트랑 연결해줘"`}</Code>
+          </MethodOnly>
+
           <Callout tone="tip" title="이 순서가 왜 먼저인가요">
             GitHub 저장소를 미리 연결해두면, 클로드가 코드를 수정할 때마다 <IC>git push</IC>만으로 바로 배포까지 이어집니다(6번 참고).
             이 프로젝트도 <IC>jsyoo-creator/task-manager</IC> Private 저장소로 관리되고 있고, main 브랜치에 push하면 자동 배포됩니다.
@@ -405,7 +467,7 @@ VITE_FIREBASE_APP_ID`}</Code>
           <H2 id="checklist">9. 요약 체크리스트</H2>
           <ul style={{ paddingLeft: 20, marginBottom: 8, color: '#334155' }}>
             <li>☐ Claude Pro/Max, GitHub, Vercel, Firebase(구글) 계정 준비</li>
-            <li>☐ 터미널이 편하면 CLI(<IC>curl -fsSL https://claude.ai/install.sh | bash</IC>), 아니면 데스크탑 앱 설치</li>
+            <li>☐ 위 탭에서 방식 선택 후 Claude Code 설치 (데스크탑 앱 또는 터미널)</li>
             <li>☐ 프로젝트 폴더 생성 → <IC>git init</IC> → GitHub 저장소 연결</li>
             <li>☐ 요청할 때 "어디서, 무엇이, 어떻게" 다른지 구체적으로 + 애매하면 스크린샷 첨부</li>
             <li>☐ 화면/기능 단위로 요청 → 직접 확인 → 구체적으로 피드백 → 반복</li>

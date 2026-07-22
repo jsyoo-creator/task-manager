@@ -420,20 +420,6 @@ export default function ClaudeGuidePage() {
   const [stickyHeaderH, setStickyHeaderH] = useState(0);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => { if (entry.isIntersecting) setActive(entry.target.id); });
-      },
-      { rootMargin: '-15% 0px -75% 0px', threshold: 0 }
-    );
-    TOC.forEach(([id]) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     const el = stickyHeaderRef.current;
     if (!el) return;
     const update = () => setStickyHeaderH(el.getBoundingClientRect().height);
@@ -442,6 +428,23 @@ export default function ClaudeGuidePage() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    // 고정 헤더(제목+탭) 아래로 가려지는 영역은 "지금 보고 있는 섹션" 판정에서 제외해야
+    // 퀵메뉴 하이라이트가 실제로 화면에 보이는 위치와 맞음 — 헤더 실측 높이가 바뀔 때마다 재계산.
+    const topOffset = stickyHeaderH + 24;
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => { if (entry.isIntersecting) setActive(entry.target.id); });
+      },
+      { rootMargin: `-${topOffset}px 0px -60% 0px`, threshold: 0 }
+    );
+    TOC.forEach(([id]) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [stickyHeaderH]);
 
   return (
     <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>

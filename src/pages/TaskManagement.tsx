@@ -389,13 +389,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     return set;
   }, [tasks, yearFilter]);
 
-  // 현재 팀에서 유효한 엑셀 키 목록 (builtin + metaFields + customFields)
-  const validExcelKeys = useMemo(() => {
+  // 유효한 엑셀 키 목록 (builtin + metaFields + customFields) — 대상 파트가 있으면
+  // 파트별 오버라이드(metaFields/formConfig.customFields)를 우선 참조, 없으면 팀 기본값으로 폴백.
+  // (파트가 팀과 다른 자체 metaFields를 쓰는 경우, 팀 값만 보면 파트 고유 필드가 전부 걸러지는 버그가 있었음)
+  const computeValidExcelKeys = (targetParts: TeamPart[]): Set<string> => {
     const builtinKeys = ['taskMonth', 'title', 'category', 'type', 'status', 'receiver', 'assignee', 'startDate', 'endDate'];
-    const metaKeys = (teamMetaFields ?? DEFAULT_META_FIELDS).map(f => f.key);
-    const customKeys = (formConfig?.customFields ?? []).map(f => f.id);
+    const metaKeys = targetParts.length > 0
+      ? targetParts.flatMap(p => (p.metaFields ?? teamMetaFields ?? DEFAULT_META_FIELDS).map(f => f.key))
+      : (teamMetaFields ?? DEFAULT_META_FIELDS).map(f => f.key);
+    const customKeys = targetParts.length > 0
+      ? targetParts.flatMap(p => ((p.formConfig ?? formConfig)?.customFields ?? []).map(f => f.id))
+      : (formConfig?.customFields ?? []).map(f => f.id);
     return new Set([...builtinKeys, ...metaKeys, ...customKeys]);
-  }, [teamMetaFields, formConfig?.customFields]);
+  };
 
   // 파트별 유효 헤더 계산 (customLabel 반영)
   const getPartHeaders = (part: TeamPart): string[] => {
@@ -412,7 +418,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       startDate: pBLabel('startDate', '시작일'),
       endDate:   pBLabel('endDate', '종료일'),
     };
-    const ec = (part.excelConfig ?? excelConfig)?.filter(f => f.enabled && validExcelKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [];
+    const pValidKeys = computeValidExcelKeys([part]);
+    const ec = (part.excelConfig ?? excelConfig)?.filter(f => f.enabled && pValidKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [];
     if (ec.length > 0) return ec.map(f => pLabels[f.key] ?? f.label);
     return Object.values(pLabels);
   };
@@ -518,7 +525,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       endDate:   pb('endDate', '종료일'),
     };
   })();
-  const importFields = (effectiveImportConfig?.filter(f => f.enabled && validExcelKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [])
+  const importSelectedParts = parts?.filter(p => importParts.has(p.name)) ?? [];
+  const importValidKeys = computeValidExcelKeys(importSelectedParts);
+  const importFields = (effectiveImportConfig?.filter(f => f.enabled && importValidKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [])
     .map(f => ({ ...f, label: importBuiltinLabels[f.key] ?? f.label }));
   // 선택된 파트의 커스텀 필드 중 'date' 타입인 필드 id 집합 — 엑셀 가져오기 시 날짜 정규화 대상 판별용
   const importDateFieldIds = (() => {

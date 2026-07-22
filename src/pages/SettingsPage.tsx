@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, listAliasFieldCandidates } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -2445,11 +2445,13 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     setEditingGroupId(null);
   };
 
-  // 그룹을 지우면 그 그룹을 참조하던 세부업무들의 groupId도 함께 해제 —
-  // 안 그러면 존재하지 않는 그룹을 가리키는 채로 남아 "항상 노출" 취급을 못 받고 사라진 것처럼 보임
+  // 그룹을 지우면 그 그룹을 참조하던 세부업무들의 태그도 함께 해제 —
+  // 안 그러면 존재하지 않는 그룹을 가리키는 채로 남아 데이터가 지저분해짐
   const deleteGroup = (id: string) => {
     saveGroups(groups.filter(g => g.id !== id));
-    save(types.map(t => t.groupId === id ? { ...t, groupId: undefined } : t));
+    save(types.map(t => resolveSubTaskGroupIds(t).includes(id)
+      ? { ...t, groupId: undefined, groupIds: resolveSubTaskGroupIds(t).filter(gid => gid !== id) }
+      : t));
     setBulkSelectedIds(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; });
     if (bulkTargetGroupId === id) setBulkTargetGroupId('');
   };
@@ -2462,11 +2464,11 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     });
   };
 
-  // 체크한 세부업무들을 고른 그룹으로 한 번에 배정 — 기존 항목을 복제하는 게 아니라
-  // groupId만 그 그룹으로 바꿔 다는 것(세부업무 자체는 여전히 하나만 존재)
+  // 체크한 세부업무들에 고른 그룹을 태그로 추가 — 기존에 다른 그룹에 속해 있어도
+  // 그대로 유지한 채(대체 아님) 이 그룹만 더해짐. "전체" 목록에서도 그대로 남아있음
   const applyBulkAssign = () => {
     if (!bulkTargetGroupId || bulkSelectedIds.size === 0) return;
-    save(types.map(t => bulkSelectedIds.has(t.id) ? { ...t, groupId: bulkTargetGroupId } : t));
+    save(types.map(t => bulkSelectedIds.has(t.id) ? { ...t, groupId: undefined, groupIds: Array.from(new Set([...resolveSubTaskGroupIds(t), bulkTargetGroupId])) } : t));
     setBulkSelectedIds(new Set());
   };
 
@@ -2491,20 +2493,29 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     save(next);
   };
 
-  // 세부업무는 그룹별 섹션으로 나눠서 보여줌 — 같은 섹션 안에서 드래그하면 순서만
-  // 바뀌고, 다른 섹션으로 드래그하면 그 그룹으로 옮겨감(순서는 놓은 위치 기준)
-  const UNGROUPED_KEY = '__ungrouped__';
-  const sectionKeyOf = (t: SubTaskType) => t.groupId && groups.some(g => g.id === t.groupId) ? t.groupId : UNGROUPED_KEY;
-  const groupIdForSectionKey = (key: string) => key === UNGROUPED_KEY ? undefined : key;
+  // "전체"는 항상 모든 세부업무를 보여주는 고정 목록 — 그룹은 태그처럼 여러 개
+  // 동시에 붙일 수 있고, 태그를 붙이거나 떼도 전체 목록에서는 사라지지 않음
+  const ALL_KEY = '__all__';
+  const addTag = (typeId: string, groupId: string) => {
+    save(types.map(t => t.id === typeId
+      ? { ...t, groupId: undefined, groupIds: Array.from(new Set([...resolveSubTaskGroupIds(t), groupId])) }
+      : t));
+  };
+  const removeTag = (typeId: string, groupId: string) => {
+    save(types.map(t => t.id === typeId
+      ? { ...t, groupId: undefined, groupIds: resolveSubTaskGroupIds(t).filter(g => g !== groupId) }
+      : t));
+  };
 
-  const moveType = (draggedId: string, targetId: string | null, targetSectionKey: string) => {
+  // "전체" 목록 안에서의 순서 변경(드래그) — 그룹 소속과 무관하게 전체 순서만 바뀜
+  const reorderAll = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
     const dragged = types.find(t => t.id === draggedId);
-    if (!dragged || draggedId === targetId) return;
+    if (!dragged) return;
     const rest = types.filter(t => t.id !== draggedId);
-    const targetIdx = targetId ? rest.findIndex(t => t.id === targetId) : -1;
-    const updated = { ...dragged, groupId: groupIdForSectionKey(targetSectionKey) };
+    const targetIdx = rest.findIndex(t => t.id === targetId);
     const next = [...rest];
-    next.splice(targetIdx === -1 ? next.length : targetIdx, 0, updated);
+    next.splice(targetIdx === -1 ? next.length : targetIdx, 0, dragged);
     save(next);
   };
 
@@ -2520,11 +2531,13 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
 
   const deleteType = (id: string) => save(types.filter(t => t.id !== id));
 
+  // sectionKey: ALL_KEY면 태그 없이 생성(전체 목록 전용 추가), 그룹 id면 그 그룹으로 태그해서 생성
   const addTypeTo = (sectionKey: string) => {
     const name = (sectionNewName[sectionKey] ?? '').trim();
     if (!name) return;
     const dept = sectionNewDept[sectionKey] || undefined;
-    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: dept, groupId: groupIdForSectionKey(sectionKey) }]);
+    const groupIds = sectionKey === ALL_KEY ? undefined : [sectionKey];
+    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: dept, groupIds }]);
     setSectionNewName(prev => ({ ...prev, [sectionKey]: '' }));
     setSectionNewDept(prev => ({ ...prev, [sectionKey]: '' }));
   };
@@ -2536,13 +2549,14 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     const srcTypes = sourcePart ? (sourcePart.subTaskTypes ?? (team.subTaskTypes ?? [])) : (team.subTaskTypes ?? []);
     const srcGroups = sourcePart ? (sourcePart.subTaskGroups ?? (team.subTaskGroups ?? [])) : (team.subTaskGroups ?? []);
     // 원본과 id를 공유하면 파트간 설정이 뒤섞이므로(지원팀 연결, 담당자 목록 등) 복사 시 새 id를 발급.
-    // 그룹도 마찬가지로 새 id를 발급하고, 세부업무의 groupId 참조를 새 id로 맞춰줌
+    // 그룹도 마찬가지로 새 id를 발급하고, 세부업무의 groupIds 참조를 새 id로 맞춰줌
     const groupIdMap = new Map(srcGroups.map(g => [g.id, `stg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`]));
     const copiedGroups = srcGroups.map(g => ({ ...g, id: groupIdMap.get(g.id)! }));
     const copied = srcTypes.map(t => ({
       ...t,
       id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      groupId: t.groupId ? groupIdMap.get(t.groupId) : undefined,
+      groupId: undefined,
+      groupIds: resolveSubTaskGroupIds(t).map(gid => groupIdMap.get(gid)).filter((x): x is string => !!x),
     }));
     if (currentPart) { onSavePart(team.id, currentPart.id, copied); onSaveGroupsPart(team.id, currentPart.id, copiedGroups); }
     setPendingCopySource(null);
@@ -2707,25 +2721,29 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
         </div>
       </div>
 
-      {/* 여러 세부업무를 한 번에 그룹으로 배정 — 왼쪽에서 체크, 오른쪽에서 그룹 선택 후 적용 */}
+      {/* 여러 세부업무에 그룹 태그를 한 번에 추가 — 왼쪽에서 체크, 오른쪽에서 그룹 선택 후 적용.
+          태그만 추가되는 것이라 전체 목록에서는 그대로 남아있고, 다른 그룹에 이미 속해 있어도 유지됨 */}
       {groups.length > 0 && types.length > 0 && (
         <div className="rounded-xl border border-gray-200 p-3">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">여러 개 한 번에 그룹 배정</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">여러 개에 그룹 태그 한 번에 추가</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="min-w-0">
               <p className="text-[10px] text-gray-400 mb-1">세부업무 선택</p>
               <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-100 divide-y divide-gray-50">
-                {types.map(t => (
-                  <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-gray-50">
-                    <input type="checkbox" checked={bulkSelectedIds.has(t.id)} onChange={() => toggleBulkSelect(t.id)} />
-                    <span className="flex-1 truncate">{t.name}</span>
-                    <span className="text-[10px] text-gray-300 flex-shrink-0">{groups.find(g => g.id === t.groupId)?.name ?? '미분류'}</span>
-                  </label>
-                ))}
+                {types.map(t => {
+                  const tagNames = resolveSubTaskGroupIds(t).map(gid => groups.find(g => g.id === gid)?.name).filter(Boolean);
+                  return (
+                    <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-gray-50">
+                      <input type="checkbox" checked={bulkSelectedIds.has(t.id)} onChange={() => toggleBulkSelect(t.id)} />
+                      <span className="flex-1 truncate">{t.name}</span>
+                      <span className="text-[10px] text-gray-300 flex-shrink-0 truncate max-w-[80px]">{tagNames.length ? tagNames.join(', ') : '태그 없음'}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] text-gray-400 mb-1">배정할 그룹</p>
+              <p className="text-[10px] text-gray-400 mb-1">추가할 그룹</p>
               <div className="max-h-52 overflow-y-auto space-y-1">
                 {groups.map(g => (
                   <button key={g.id} type="button" onClick={() => setBulkTargetGroupId(g.id)}
@@ -2742,15 +2760,15 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
             onClick={applyBulkAssign}
             disabled={bulkSelectedIds.size === 0 || !bulkTargetGroupId}
             className="w-full mt-2.5 py-1.5 rounded-lg text-xs font-medium bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-            선택한 {bulkSelectedIds.size}개를 {bulkTargetGroupId ? `'${groups.find(g => g.id === bulkTargetGroupId)?.name}' 그룹으로` : '그룹으로'} 배정
+            선택한 {bulkSelectedIds.size}개에 {bulkTargetGroupId ? `'${groups.find(g => g.id === bulkTargetGroupId)?.name}' 태그` : '태그'} 추가
           </button>
         </div>
       )}
 
       <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
-        세부 업무 목록
-        <span className="text-gray-300 font-normal normal-case">드래그로 순서·그룹 이동 · 이름 클릭으로 수정</span>
+        세부 업무 목록 (전체)
+        <span className="text-gray-300 font-normal normal-case">드래그로 순서 변경 · 이름 클릭으로 수정 · 그룹 태그는 오른쪽으로 드래그해서 추가</span>
         {eligibleSupportTeams.length > 0 && (
           <button
             type="button"
@@ -2767,31 +2785,30 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
         {backfillMsg && <span className="normal-case font-normal text-[10px] text-violet-500">{backfillMsg}</span>}
       </p>
       {(() => {
-        // 미분류는 보통 기본으로 대부분의 세부업무가 몰려 있어 목록이 길다. 그룹이
-        // 하나라도 있으면 미분류(길다)를 왼쪽, 나머지 그룹들(대개 짧다)을 오른쪽에
-        // 나란히 둬서 세로로 늘어지지 않게 함 — 그룹이 없으면 기존처럼 단일 목록
-        const renderSection = (section: { key: string; name: string }) => {
-        const items = types.filter(t => sectionKeyOf(t) === section.key);
-        return (
-          <div key={section.key} className="mb-3 last:mb-0">
+        // "전체"는 항상 모든 세부업무를 보여주는 고정 목록 — 여기서 이름 변경/직군/캘린더·상세
+        // 노출/지원팀 연결/삭제 등 실제 편집을 함. 그룹은 태그처럼 붙이는 것이라, 태그를
+        // 추가해도(오른쪽 그룹 섹션에 드래그) 이 목록에서는 사라지지 않음.
+        const renderAllSection = () => (
+          <div>
             {groups.length > 0 && (
               <p className="text-[10px] font-semibold text-gray-400 mb-1 flex items-center gap-1.5">
-                <span className={`w-1.5 h-1.5 rounded-full ${section.key === UNGROUPED_KEY ? 'bg-gray-300' : 'bg-violet-400'}`} />
-                {section.name}
-                <span className="text-gray-300 font-normal">{items.length}개</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                전체
+                <span className="text-gray-300 font-normal">{types.length}개</span>
               </p>
             )}
-            {items.length > 0 && (
-              <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 mb-1.5"
-                onDragOver={e => e.preventDefault()}
-                onDrop={() => { if (dragIdRef.current) moveType(dragIdRef.current, null, section.key); dragIdRef.current = null; setDragOverId(null); }}>
-                {items.map(t => (
+            {types.length > 0 ? (
+              <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 mb-1.5">
+                {types.map(t => {
+                  const tagIds = resolveSubTaskGroupIds(t);
+                  const untaggedGroups = groups.filter(g => !tagIds.includes(g.id));
+                  return (
                   <div key={t.id}>
                     <div draggable
                       onDragStart={() => { dragIdRef.current = t.id; }}
                       onDragOver={(e) => { e.preventDefault(); setDragOverId(t.id); }}
                       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null); }}
-                      onDrop={(e) => { e.stopPropagation(); if (dragIdRef.current) moveType(dragIdRef.current, t.id, section.key); dragIdRef.current = null; setDragOverId(null); }}
+                      onDrop={(e) => { e.stopPropagation(); if (dragIdRef.current) reorderAll(dragIdRef.current, t.id); dragIdRef.current = null; setDragOverId(null); }}
                       onDragEnd={() => { dragIdRef.current = null; setDragOverId(null); }}
                       className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverId === t.id ? 'border-t-2 border-blue-400' : ''}`}>
                       <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
@@ -2822,6 +2839,31 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                           </button>
                         ))}
                       </div>
+                      {/* 그룹 태그 — 칩으로 표시, x로 제거, +로 추가 */}
+                      {groups.length > 0 && (
+                        <div className="flex items-center gap-1 flex-shrink-0 flex-wrap max-w-[160px] justify-end">
+                          {tagIds.map(gid => {
+                            const g = groups.find(x => x.id === gid);
+                            if (!g) return null;
+                            return (
+                              <span key={gid} className="flex items-center gap-0.5 text-[10px] pl-1.5 pr-1 py-0.5 rounded-full bg-violet-50 border border-violet-100 text-violet-600">
+                                {g.name}
+                                <button type="button" onClick={() => removeTag(t.id, gid)} className="text-violet-300 hover:text-red-400"><X size={9} /></button>
+                              </span>
+                            );
+                          })}
+                          {untaggedGroups.length > 0 && (
+                            <select
+                              title="그룹 태그 추가"
+                              className="text-[10px] px-1 py-0.5 rounded-md border border-gray-200 bg-white text-gray-400 focus:outline-none"
+                              value=""
+                              onChange={e => { if (e.target.value) addTag(t.id, e.target.value); }}>
+                              <option value="">+ 태그</option>
+                              {untaggedGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      )}
                       {/* 캘린더 표시 토글 */}
                       <button
                         type="button"
@@ -2916,27 +2958,25 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                       );
                     })()}
                   </div>
-                ))}
+                  );
+                })}
               </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">등록된 세부 업무가 없습니다</p>
             )}
-            {items.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-2">
-                {groups.length > 0 ? '이 그룹에 세부업무 없음 — 아래에서 추가' : '등록된 세부 업무가 없습니다'}
-              </p>
-            )}
-            {/* 섹션별 추가 폼 */}
+            {/* 추가 폼 — 태그 없이 생성 */}
             <div className="flex items-center gap-2">
               <input className={`${iCls} flex-1 min-w-0`}
                 placeholder="세부업무명 입력"
-                value={sectionNewName[section.key] ?? ''}
-                onChange={e => setSectionNewName(prev => ({ ...prev, [section.key]: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && addTypeTo(section.key)} />
+                value={sectionNewName[ALL_KEY] ?? ''}
+                onChange={e => setSectionNewName(prev => ({ ...prev, [ALL_KEY]: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && addTypeTo(ALL_KEY)} />
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
                   <button key={d} type="button"
-                    onClick={() => setSectionNewDept(prev => ({ ...prev, [section.key]: prev[section.key] === d ? '' : d }))}
+                    onClick={() => setSectionNewDept(prev => ({ ...prev, [ALL_KEY]: prev[ALL_KEY] === d ? '' : d }))}
                     className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
-                      sectionNewDept[section.key] === d
+                      sectionNewDept[ALL_KEY] === d
                         ? SUBTASK_DEPT_COLOR[d]
                         : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
                     }`}>
@@ -2944,21 +2984,80 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                   </button>
                 ))}
               </div>
-              <button onClick={() => addTypeTo(section.key)} disabled={!(sectionNewName[section.key] ?? '').trim()}
+              <button onClick={() => addTypeTo(ALL_KEY)} disabled={!(sectionNewName[ALL_KEY] ?? '').trim()}
                 className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
                 <Plus size={11} />추가
               </button>
             </div>
           </div>
         );
+
+        // 그룹 섹션 — 그 그룹 태그가 붙은 세부업무만 걸러 보여주는 뷰. 여기서 지우면(x)
+        // 세부업무 자체가 아니라 이 그룹 태그만 떨어짐(전체 목록엔 그대로 남음).
+        // "전체"의 항목을 이 섹션 위로 드래그해서 놓으면 태그가 추가됨(복사 개념)
+        const renderGroupSection = (g: SubTaskGroup) => {
+          const items = types.filter(t => resolveSubTaskGroupIds(t).includes(g.id));
+          return (
+            <div key={g.id} className="mb-3 last:mb-0"
+              onDragOver={e => e.preventDefault()}
+              onDrop={() => { if (dragIdRef.current) addTag(dragIdRef.current, g.id); dragIdRef.current = null; setDragOverId(null); }}>
+              <p className="text-[10px] font-semibold text-gray-400 mb-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                {g.name}
+                <span className="text-gray-300 font-normal">{items.length}개</span>
+              </p>
+              {items.length > 0 ? (
+                <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 mb-1.5">
+                  {items.map(t => (
+                    <div key={t.id} className="flex items-center gap-2 py-1.5 px-2.5">
+                      <span className="flex-1 text-xs text-gray-700 truncate">{t.name}</span>
+                      {t.department && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${SUBTASK_DEPT_COLOR[t.department]}`}>{t.department}</span>
+                      )}
+                      <button type="button" title="이 그룹에서 제거(세부업무 자체는 삭제 안 됨)" onClick={() => removeTag(t.id, g.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={11} /></button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 text-center py-2 rounded-xl border border-dashed border-gray-200 mb-1.5">
+                  왼쪽 전체 목록에서 여기로 드래그하거나, 아래에서 새로 추가
+                </p>
+              )}
+              {/* 추가 폼 — 이 그룹 태그를 붙여서 생성(전체 목록에도 그대로 나타남) */}
+              <div className="flex items-center gap-2">
+                <input className={`${iCls} flex-1 min-w-0`}
+                  placeholder="세부업무명 입력"
+                  value={sectionNewName[g.id] ?? ''}
+                  onChange={e => setSectionNewName(prev => ({ ...prev, [g.id]: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && addTypeTo(g.id)} />
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                    <button key={d} type="button"
+                      onClick={() => setSectionNewDept(prev => ({ ...prev, [g.id]: prev[g.id] === d ? '' : d }))}
+                      className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                        sectionNewDept[g.id] === d
+                          ? SUBTASK_DEPT_COLOR[d]
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                      }`}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => addTypeTo(g.id)} disabled={!(sectionNewName[g.id] ?? '').trim()}
+                  className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+                  <Plus size={11} />추가
+                </button>
+              </div>
+            </div>
+          );
         };
 
-        const ungroupedSection = renderSection({ key: UNGROUPED_KEY, name: groups.length > 0 ? '미분류' : '전체' });
-        if (groups.length === 0) return ungroupedSection;
+        if (groups.length === 0) return renderAllSection();
         return (
           <div className="grid grid-cols-2 gap-4 items-start">
-            <div>{ungroupedSection}</div>
-            <div>{groups.map(g => renderSection({ key: g.id, name: g.name }))}</div>
+            <div>{renderAllSection()}</div>
+            <div>{groups.map(g => renderGroupSection(g))}</div>
           </div>
         );
       })()}

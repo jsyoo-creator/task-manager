@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
-import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
@@ -1555,7 +1555,7 @@ export default function TaskDetailPanel({
     if (deletedSubTaskIds.has(type.id)) return false;
     if (type.showInDetail === false) return false;
     if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
-    if (hasActiveSubTaskGroupFilter && (!type.groupId || !allowedSubTaskGroupIds.has(type.groupId))) return false;
+    if (hasActiveSubTaskGroupFilter && !resolveSubTaskGroupIds(type).some(gid => allowedSubTaskGroupIds.has(gid))) return false;
     if (canSeeAll) return true;
     const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
     return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;

@@ -888,9 +888,17 @@ export interface SubTaskType {
     // 나중에 파트 이름을 바꿔도 연결이 깨지지 않게 함(생성 시점에 이 id로 현재 파트명을 다시 조회)
   supportPartName?: string; // 구버전 호환/표시용 캐시(설정 UI 라벨). supportPartId가 없을 때만
     // 폴백으로 사용 — 새로 저장할 때는 항상 supportPartId를 함께 채움
-  groupId?: string; // 소속 세부업무 그룹(SubTaskGroup.id). 미지정이면 직군 미지정과 동일하게
-    // 항상 노출됨 — 특정 드롭다운 옵션에서만 보이게 하려면 그룹을 지정하고, 폼설정에서
-    // 그 드롭다운의 옵션을 이 그룹에 연결해야 함
+  /** @deprecated groupIds로 대체됨. 예전에 저장된 단일 그룹 데이터 호환용으로만 남겨둠 — resolveSubTaskGroupIds로 읽을 것 */
+  groupId?: string;
+  groupIds?: string[]; // 소속 세부업무 그룹(SubTaskGroup.id) 목록 — 태그처럼 여러 그룹에 동시에
+    // 속할 수 있고, 세부업무 목록(전체)에서 사라지지 않음. 폼설정 드롭다운 옵션이 이
+    // 그룹으로 연결돼 있으면(그 옵션이 선택된 업무에서) 업무상세에서 노출됨
+}
+
+// SubTaskType의 그룹 목록 반환 — 구버전 단일 groupId 데이터도 함께 처리
+export function resolveSubTaskGroupIds(t: { groupId?: string; groupIds?: string[] }): string[] {
+  if (t.groupIds?.length) return t.groupIds;
+  return t.groupId ? [t.groupId] : [];
 }
 
 export interface SubTaskGroup {

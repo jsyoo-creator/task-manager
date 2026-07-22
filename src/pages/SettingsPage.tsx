@@ -2404,6 +2404,9 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const [newGroupName, setNewGroupName] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupNameInput, setGroupNameInput] = useState('');
+  // 여러 세부업무를 체크해서 한 번에 특정 그룹으로 배정하는 일괄 도구용 상태
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTargetGroupId, setBulkTargetGroupId] = useState('');
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2449,6 +2452,24 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const deleteGroup = (id: string) => {
     saveGroups(groups.filter(g => g.id !== id));
     save(types.map(t => t.groupId === id ? { ...t, groupId: undefined } : t));
+    setBulkSelectedIds(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; });
+    if (bulkTargetGroupId === id) setBulkTargetGroupId('');
+  };
+
+  const toggleBulkSelect = (id: string) => {
+    setBulkSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  // 체크한 세부업무들을 고른 그룹으로 한 번에 배정 — 기존 항목을 복제하는 게 아니라
+  // groupId만 그 그룹으로 바꿔 다는 것(세부업무 자체는 여전히 하나만 존재)
+  const applyBulkAssign = () => {
+    if (!bulkTargetGroupId || bulkSelectedIds.size === 0) return;
+    save(types.map(t => bulkSelectedIds.has(t.id) ? { ...t, groupId: bulkTargetGroupId } : t));
+    setBulkSelectedIds(new Set());
   };
 
   // 세부업무에 지원팀·파트를 연결(또는 변경)하면 즉시 저장하고, 이미 등록된 업무들에도
@@ -2687,6 +2708,46 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
           </button>
         </div>
       </div>
+
+      {/* 여러 세부업무를 한 번에 그룹으로 배정 — 왼쪽에서 체크, 오른쪽에서 그룹 선택 후 적용 */}
+      {groups.length > 0 && types.length > 0 && (
+        <div className="rounded-xl border border-gray-200 p-3">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">여러 개 한 번에 그룹 배정</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] text-gray-400 mb-1">세부업무 선택</p>
+              <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-100 divide-y divide-gray-50">
+                {types.map(t => (
+                  <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox" checked={bulkSelectedIds.has(t.id)} onChange={() => toggleBulkSelect(t.id)} />
+                    <span className="flex-1 truncate">{t.name}</span>
+                    <span className="text-[10px] text-gray-300 flex-shrink-0">{groups.find(g => g.id === t.groupId)?.name ?? '미분류'}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-gray-400 mb-1">배정할 그룹</p>
+              <div className="max-h-52 overflow-y-auto space-y-1">
+                {groups.map(g => (
+                  <button key={g.id} type="button" onClick={() => setBulkTargetGroupId(g.id)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs border transition-colors truncate ${
+                      bulkTargetGroupId === g.id ? 'border-violet-400 bg-violet-50 text-violet-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={applyBulkAssign}
+            disabled={bulkSelectedIds.size === 0 || !bulkTargetGroupId}
+            className="w-full mt-2.5 py-1.5 rounded-lg text-xs font-medium bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            선택한 {bulkSelectedIds.size}개를 {bulkTargetGroupId ? `'${groups.find(g => g.id === bulkTargetGroupId)?.name}' 그룹으로` : '그룹으로'} 배정
+          </button>
+        </div>
+      )}
 
       <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">

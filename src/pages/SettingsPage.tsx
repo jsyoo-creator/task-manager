@@ -4009,7 +4009,7 @@ function resolveExcelDefaultFields(team: Team, selectedTarget: 'team' | string):
     const defaultLabel = BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
     return { key, label: bf?.customLabel ?? defaultLabel, enabled: true, order: i };
   });
-  const metaFields = team.metaFields ?? DEFAULT_META_FIELDS;
+  const metaFields = currentPart?.metaFields ?? team.metaFields ?? DEFAULT_META_FIELDS;
   const customFormFields = (resolvedFormConfig?.customFields ?? []).filter(f => f.enabled !== false);
   return [
     ...builtinExcelFields,

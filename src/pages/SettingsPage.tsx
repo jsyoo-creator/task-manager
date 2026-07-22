@@ -2386,10 +2386,11 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newDept, setNewDept] = useState<Department | ''>('');
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const dragIdxRef = useRef<number | null>(null);
+  // 세부업무는 이제 그룹별 섹션으로 나눠서 보여주므로, 섹션(그룹)마다 독립된 추가 폼 입력값을 가짐
+  const [sectionNewName, setSectionNewName] = useState<Record<string, string>>({});
+  const [sectionNewDept, setSectionNewDept] = useState<Record<string, Department | ''>>({});
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
   const [supportPickerId, setSupportPickerId] = useState<string | null>(null);
@@ -2403,7 +2404,6 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const [newGroupName, setNewGroupName] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupNameInput, setGroupNameInput] = useState('');
-  const [newGroupId, setNewGroupId] = useState('');
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2451,10 +2451,6 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     save(types.map(t => t.groupId === id ? { ...t, groupId: undefined } : t));
   };
 
-  const setTypeGroup = (typeId: string, groupId: string) => {
-    save(types.map(t => t.id === typeId ? { ...t, groupId: groupId || undefined } : t));
-  };
-
   // 세부업무에 지원팀·파트를 연결(또는 변경)하면 즉시 저장하고, 이미 등록된 업무들에도
   // 소급 적용되도록 지원팀 업무를 일괄 생성함. 파트는 고정 id(supportPartId)로 저장해
   // 지원팀이 나중에 파트 이름을 바꿔도 연결이 깨지지 않게 하고, supportPartName은
@@ -2476,14 +2472,21 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     save(next);
   };
 
-  const onDrop = (toIdx: number) => {
-    const from = dragIdxRef.current;
-    if (from === null || from === toIdx) return;
-    const arr = [...types];
-    const [item] = arr.splice(from, 1);
-    arr.splice(toIdx, 0, item);
-    save(arr);
-    dragIdxRef.current = null; setDragOverIdx(null);
+  // 세부업무는 그룹별 섹션으로 나눠서 보여줌 — 같은 섹션 안에서 드래그하면 순서만
+  // 바뀌고, 다른 섹션으로 드래그하면 그 그룹으로 옮겨감(순서는 놓은 위치 기준)
+  const UNGROUPED_KEY = '__ungrouped__';
+  const sectionKeyOf = (t: SubTaskType) => t.groupId && groups.some(g => g.id === t.groupId) ? t.groupId : UNGROUPED_KEY;
+  const groupIdForSectionKey = (key: string) => key === UNGROUPED_KEY ? undefined : key;
+
+  const moveType = (draggedId: string, targetId: string | null, targetSectionKey: string) => {
+    const dragged = types.find(t => t.id === draggedId);
+    if (!dragged || draggedId === targetId) return;
+    const rest = types.filter(t => t.id !== draggedId);
+    const targetIdx = targetId ? rest.findIndex(t => t.id === targetId) : -1;
+    const updated = { ...dragged, groupId: groupIdForSectionKey(targetSectionKey) };
+    const next = [...rest];
+    next.splice(targetIdx === -1 ? next.length : targetIdx, 0, updated);
+    save(next);
   };
 
   const saveName = (id: string) => {
@@ -2498,11 +2501,13 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
 
   const deleteType = (id: string) => save(types.filter(t => t.id !== id));
 
-  const addType = () => {
-    const name = newName.trim();
+  const addTypeTo = (sectionKey: string) => {
+    const name = (sectionNewName[sectionKey] ?? '').trim();
     if (!name) return;
-    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: newDept || undefined, groupId: newGroupId || undefined }]);
-    setNewName(''); setNewDept(''); setNewGroupId('');
+    const dept = sectionNewDept[sectionKey] || undefined;
+    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: dept, groupId: groupIdForSectionKey(sectionKey) }]);
+    setSectionNewName(prev => ({ ...prev, [sectionKey]: '' }));
+    setSectionNewDept(prev => ({ ...prev, [sectionKey]: '' }));
   };
 
   const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
@@ -2686,7 +2691,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
       <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
         세부 업무 목록
-        <span className="text-gray-300 font-normal normal-case">드래그로 순서 · 이름 클릭으로 수정</span>
+        <span className="text-gray-300 font-normal normal-case">드래그로 순서·그룹 이동 · 이름 클릭으로 수정</span>
         {eligibleSupportTeams.length > 0 && (
           <button
             type="button"
@@ -2702,189 +2707,191 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
         )}
         {backfillMsg && <span className="normal-case font-normal text-[10px] text-violet-500">{backfillMsg}</span>}
       </p>
-      {types.length > 0 ? (
-        <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
-          {types.map((t, i) => (
-            <div key={t.id}>
-              <div draggable
-                onDragStart={() => { dragIdxRef.current = i; }}
-                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
-                onDrop={() => onDrop(i)}
-                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-                className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-                <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
-                {editingId === t.id ? (
-                  <input autoFocus
-                    className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
-                    value={nameInput} onChange={e => setNameInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
-                    onBlur={() => saveName(t.id)} />
-                ) : (
-                  <button type="button"
-                    onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
-                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
-                    {t.name}
-                  </button>
-                )}
-                {/* 직군 토글 버튼 */}
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-                    <button key={d} type="button"
-                      onClick={() => toggleDept(t.id, d)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
-                        t.department === d
-                          ? SUBTASK_DEPT_COLOR[d]
-                          : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
-                      }`}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
-                {/* 세부업무 그룹 선택 */}
-                {groups.length > 0 && (
-                  <select
-                    title="세부업무 그룹 — 지정하면 폼설정에서 이 그룹에 연결한 드롭다운 옵션이 선택된 업무에서만 노출됨"
-                    className={`text-[10px] px-1 py-0.5 rounded-md border focus:outline-none flex-shrink-0 ${
-                      t.groupId ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400'
-                    }`}
-                    value={t.groupId ?? ''}
-                    onChange={e => setTypeGroup(t.id, e.target.value)}>
-                    <option value="">그룹 없음</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                )}
-                {/* 캘린더 표시 토글 */}
-                <button
-                  type="button"
-                  title={t.showInCalendar === false ? '캘린더 미표시 (클릭하여 표시)' : '캘린더 표시 (클릭하여 숨김)'}
-                  onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInCalendar: x.showInCalendar === false ? true : false } : x))}
-                  className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
-                    t.showInCalendar === false
-                      ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                      : 'bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600'
-                  }`}>
-                  <CalendarDays size={11} />
-                </button>
-                {/* 업무 상세 노출 토글 */}
-                <button
-                  type="button"
-                  title={t.showInDetail === false ? '업무 상세 미노출 (클릭하여 노출)' : '업무 상세 노출 (클릭하여 숨김)'}
-                  onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInDetail: x.showInDetail === false ? true : false } : x))}
-                  className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
-                    t.showInDetail === false
-                      ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                      : 'bg-emerald-100 text-emerald-500 hover:bg-emerald-200 hover:text-emerald-600'
-                  }`}>
-                  <FileText size={11} />
-                </button>
-                {/* 지원팀 연결 토글 — 연결해두면 이 세부업무가 있는 업무가 생성되는
-                    즉시 지정한 지원팀·파트에 자동으로 업무가 만들어지고, 담당자·상태가
-                    양방향으로 동기화됨 */}
-                {eligibleSupportTeams.length > 0 && (
-                  <button
-                    type="button"
-                    title={t.supportTeamId ? '지원팀 연결됨 (클릭하여 수정)' : '지원팀 연결 (클릭하여 설정)'}
-                    onClick={() => {
-                      const next = supportPickerId === t.id ? null : t.id;
-                      setSupportPickerId(next);
-                      if (next) { setDraftSupportTeamId(t.supportTeamId ?? ''); setDraftSupportPartId(t.supportPartId ?? ''); }
-                    }}
-                    className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
-                      t.supportTeamId
-                        ? 'bg-violet-100 text-violet-500 hover:bg-violet-200 hover:text-violet-600'
-                        : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
-                    }`}>
-                    <Users size={11} />
-                  </button>
-                )}
-                <button type="button" onClick={() => deleteType(t.id)}
-                  className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
-                  <X size={11} />
-                </button>
-              </div>
-              {supportPickerId === t.id && (() => {
-                const draftTeam = eligibleSupportTeams.find(st => st.id === draftSupportTeamId);
-                const canConfirm = !!draftSupportTeamId && !!draftSupportPartId;
-                return (
-                  <div className="px-2.5 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
-                    <select
-                      className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                      value={draftSupportTeamId}
-                      onChange={e => {
-                        if (!e.target.value) { setDraftSupportTeamId(''); setDraftSupportPartId(''); clearSupportLink(t); return; }
-                        const st = eligibleSupportTeams.find(x => x.id === e.target.value);
-                        setDraftSupportTeamId(e.target.value);
-                        setDraftSupportPartId(st?.parts?.[0]?.id ?? '');
-                      }}>
-                      <option value="">연결 안 함</option>
-                      {eligibleSupportTeams.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
-                    </select>
-                    {draftTeam && (
-                      <select
-                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
-                        value={draftSupportPartId}
-                        onChange={e => setDraftSupportPartId(e.target.value)}>
-                        {(draftTeam.parts ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    )}
-                    {draftTeam && (() => {
-                      const draftPart = draftTeam.parts?.find(p => p.id === draftSupportPartId);
-                      return (
+      {[
+        ...groups.map(g => ({ key: g.id, name: g.name })),
+        { key: UNGROUPED_KEY, name: groups.length > 0 ? '미분류' : '전체' },
+      ].map(section => {
+        const items = types.filter(t => sectionKeyOf(t) === section.key);
+        return (
+          <div key={section.key} className="mb-3 last:mb-0">
+            {groups.length > 0 && (
+              <p className="text-[10px] font-semibold text-gray-400 mb-1 flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${section.key === UNGROUPED_KEY ? 'bg-gray-300' : 'bg-violet-400'}`} />
+                {section.name}
+                <span className="text-gray-300 font-normal">{items.length}개</span>
+              </p>
+            )}
+            {items.length > 0 && (
+              <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 mb-1.5"
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => { if (dragIdRef.current) moveType(dragIdRef.current, null, section.key); dragIdRef.current = null; setDragOverId(null); }}>
+                {items.map(t => (
+                  <div key={t.id}>
+                    <div draggable
+                      onDragStart={() => { dragIdRef.current = t.id; }}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverId(t.id); }}
+                      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null); }}
+                      onDrop={(e) => { e.stopPropagation(); if (dragIdRef.current) moveType(dragIdRef.current, t.id, section.key); dragIdRef.current = null; setDragOverId(null); }}
+                      onDragEnd={() => { dragIdRef.current = null; setDragOverId(null); }}
+                      className={`flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors cursor-default ${dragOverId === t.id ? 'border-t-2 border-blue-400' : ''}`}>
+                      <GripVertical size={13} className="text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0" />
+                      {editingId === t.id ? (
+                        <input autoFocus
+                          className="flex-1 min-w-0 text-xs px-1.5 py-0.5 rounded-md border border-blue-400 bg-white text-gray-800 focus:outline-none"
+                          value={nameInput} onChange={e => setNameInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveName(t.id); if (e.key === 'Escape') setEditingId(null); }}
+                          onBlur={() => saveName(t.id)} />
+                      ) : (
+                        <button type="button"
+                          onClick={() => { setEditingId(t.id); setNameInput(t.name); }}
+                          className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 transition-colors truncate min-w-0">
+                          {t.name}
+                        </button>
+                      )}
+                      {/* 직군 토글 버튼 */}
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                          <button key={d} type="button"
+                            onClick={() => toggleDept(t.id, d)}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                              t.department === d
+                                ? SUBTASK_DEPT_COLOR[d]
+                                : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                            }`}>
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                      {/* 캘린더 표시 토글 */}
+                      <button
+                        type="button"
+                        title={t.showInCalendar === false ? '캘린더 미표시 (클릭하여 표시)' : '캘린더 표시 (클릭하여 숨김)'}
+                        onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInCalendar: x.showInCalendar === false ? true : false } : x))}
+                        className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                          t.showInCalendar === false
+                            ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                            : 'bg-blue-100 text-blue-500 hover:bg-blue-200 hover:text-blue-600'
+                        }`}>
+                        <CalendarDays size={11} />
+                      </button>
+                      {/* 업무 상세 노출 토글 */}
+                      <button
+                        type="button"
+                        title={t.showInDetail === false ? '업무 상세 미노출 (클릭하여 노출)' : '업무 상세 노출 (클릭하여 숨김)'}
+                        onClick={() => save(types.map(x => x.id === t.id ? { ...x, showInDetail: x.showInDetail === false ? true : false } : x))}
+                        className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                          t.showInDetail === false
+                            ? 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
+                            : 'bg-emerald-100 text-emerald-500 hover:bg-emerald-200 hover:text-emerald-600'
+                        }`}>
+                        <FileText size={11} />
+                      </button>
+                      {/* 지원팀 연결 토글 — 연결해두면 이 세부업무가 있는 업무가 생성되는
+                          즉시 지정한 지원팀·파트에 자동으로 업무가 만들어지고, 담당자·상태가
+                          양방향으로 동기화됨 */}
+                      {eligibleSupportTeams.length > 0 && (
                         <button
                           type="button"
-                          title="이미 같은 팀·파트로 연결돼 있어도 다시 눌러서 재백필할 수 있습니다(예: 지원팀 쪽 업무를 지우고 다시 만들고 싶을 때)"
-                          disabled={!canConfirm}
-                          onClick={() => draftPart && saveSupportLink(t, draftSupportTeamId, draftPart.id, draftPart.name)}
-                          className={`text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors ${
-                            !canConfirm ? 'bg-gray-100 text-gray-300' : 'bg-violet-500 text-white hover:bg-violet-600'
+                          title={t.supportTeamId ? '지원팀 연결됨 (클릭하여 수정)' : '지원팀 연결 (클릭하여 설정)'}
+                          onClick={() => {
+                            const next = supportPickerId === t.id ? null : t.id;
+                            setSupportPickerId(next);
+                            if (next) { setDraftSupportTeamId(t.supportTeamId ?? ''); setDraftSupportPartId(t.supportPartId ?? ''); }
+                          }}
+                          className={`flex items-center justify-center w-5 h-5 rounded transition-colors ml-0.5 ${
+                            t.supportTeamId
+                              ? 'bg-violet-100 text-violet-500 hover:bg-violet-200 hover:text-violet-600'
+                              : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-400'
                           }`}>
-                          연결
+                          <Users size={11} />
                         </button>
+                      )}
+                      <button type="button" onClick={() => deleteType(t.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+                        <X size={11} />
+                      </button>
+                    </div>
+                    {supportPickerId === t.id && (() => {
+                      const draftTeam = eligibleSupportTeams.find(st => st.id === draftSupportTeamId);
+                      const canConfirm = !!draftSupportTeamId && !!draftSupportPartId;
+                      return (
+                        <div className="px-2.5 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
+                          <select
+                            className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                            value={draftSupportTeamId}
+                            onChange={e => {
+                              if (!e.target.value) { setDraftSupportTeamId(''); setDraftSupportPartId(''); clearSupportLink(t); return; }
+                              const st = eligibleSupportTeams.find(x => x.id === e.target.value);
+                              setDraftSupportTeamId(e.target.value);
+                              setDraftSupportPartId(st?.parts?.[0]?.id ?? '');
+                            }}>
+                            <option value="">연결 안 함</option>
+                            {eligibleSupportTeams.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                          </select>
+                          {draftTeam && (
+                            <select
+                              className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                              value={draftSupportPartId}
+                              onChange={e => setDraftSupportPartId(e.target.value)}>
+                              {(draftTeam.parts ?? []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          )}
+                          {draftTeam && (() => {
+                            const draftPart = draftTeam.parts?.find(p => p.id === draftSupportPartId);
+                            return (
+                              <button
+                                type="button"
+                                title="이미 같은 팀·파트로 연결돼 있어도 다시 눌러서 재백필할 수 있습니다(예: 지원팀 쪽 업무를 지우고 다시 만들고 싶을 때)"
+                                disabled={!canConfirm}
+                                onClick={() => draftPart && saveSupportLink(t, draftSupportTeamId, draftPart.id, draftPart.name)}
+                                className={`text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors ${
+                                  !canConfirm ? 'bg-gray-100 text-gray-300' : 'bg-violet-500 text-white hover:bg-violet-600'
+                                }`}>
+                                연결
+                              </button>
+                            );
+                          })()}
+                          {backfillMsg && <span className="text-[10px] text-violet-500 font-medium">{backfillMsg}</span>}
+                        </div>
                       );
                     })()}
-                    {backfillMsg && <span className="text-[10px] text-violet-500 font-medium">{backfillMsg}</span>}
                   </div>
-                );
-              })()}
+                ))}
+              </div>
+            )}
+            {items.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-2">
+                {groups.length > 0 ? '이 그룹에 세부업무 없음 — 아래에서 추가' : '등록된 세부 업무가 없습니다'}
+              </p>
+            )}
+            {/* 섹션별 추가 폼 */}
+            <div className="flex items-center gap-2">
+              <input className={`${iCls} flex-1 min-w-0`}
+                placeholder="세부업무명 입력"
+                value={sectionNewName[section.key] ?? ''}
+                onChange={e => setSectionNewName(prev => ({ ...prev, [section.key]: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && addTypeTo(section.key)} />
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                  <button key={d} type="button"
+                    onClick={() => setSectionNewDept(prev => ({ ...prev, [section.key]: prev[section.key] === d ? '' : d }))}
+                    className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                      sectionNewDept[section.key] === d
+                        ? SUBTASK_DEPT_COLOR[d]
+                        : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
+                    }`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => addTypeTo(section.key)} disabled={!(sectionNewName[section.key] ?? '').trim()}
+                className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
+                <Plus size={11} />추가
+              </button>
             </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs text-gray-400 text-center py-3">등록된 세부 업무가 없습니다</p>
-      )}
-      {/* 추가 폼 */}
-      <div className="flex items-center gap-2">
-        <input className={`${iCls} flex-1 min-w-0`}
-          placeholder="세부업무명 입력"
-          value={newName} onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addType()} />
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
-            <button key={d} type="button"
-              onClick={() => setNewDept(prev => prev === d ? '' : d)}
-              className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
-                newDept === d
-                  ? SUBTASK_DEPT_COLOR[d]
-                  : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
-              }`}>
-              {d}
-            </button>
-          ))}
-        </div>
-        {groups.length > 0 && (
-          <select
-            className="text-[10px] px-1 py-1.5 rounded-md border border-gray-200 bg-white text-gray-500 focus:outline-none flex-shrink-0"
-            value={newGroupId} onChange={e => setNewGroupId(e.target.value)}>
-            <option value="">그룹 없음</option>
-            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        )}
-        <button onClick={addType} disabled={!newName.trim()}
-          className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
-          <Plus size={11} />추가
-        </button>
-      </div>
+          </div>
+        );
+      })}
       </div>
     </div>
   );

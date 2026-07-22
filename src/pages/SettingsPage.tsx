@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, listAliasFieldCandidates } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
+import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, listAliasFieldCandidates } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -40,6 +40,9 @@ interface Props {
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdateSubTaskGroups: (teamId: string, groups: SubTaskGroup[]) => Promise<void>;
+  onUpdatePartSubTaskGroups: (teamId: string, partId: string, groups: SubTaskGroup[]) => Promise<void>;
+  onClearPartSubTaskGroups: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -811,11 +814,12 @@ function DependsOnEditor({ dependsOnId, setDependsOnId, valueMapInput, setValueM
 }
 
 // ── 필드 설정 빌더 (드래그 앤 드롭 + 너비 조절) ──
-function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTaskTypes = [], team, onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
+function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTaskTypes = [], subTaskGroups = [], team, onSaveFields, onSaveCustom, onSaveOrder, onSaveDrag }: {
   fields: BuiltinFieldConfig[];
   customFields: CustomFormField[];
   fieldOrder?: string[];
   subTaskTypes?: SubTaskType[];
+  subTaskGroups?: SubTaskGroup[];
   team: Team;
   onSaveFields: (f: BuiltinFieldConfig[]) => void;
   onSaveCustom: (f: CustomFormField[]) => void;
@@ -864,6 +868,9 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   // absolute 위치는 필드 목록 컨테이너의 overflow-hidden에 잘려 아래쪽 후보가 안 보이는
   // 문제가 있어(스크롤도 안 됨), 화면 좌표 기준 fixed 위치로 띄움
   const [openAliasRow, setOpenAliasRow] = useState<{ key: string; top: number; left: number } | null>(null);
+
+  // 옵션별 세부업무 그룹 연결 팝오버 — 어느 select 필드의 팝오버가 열려있는지
+  const [groupMapPickerId, setGroupMapPickerId] = useState<string | null>(null);
 
   // 인라인 편집 (커스텀 필드)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
@@ -1493,6 +1500,20 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                       </button>
                     );
                   })()}
+                  {cf.type === 'select' && !cf.dependsOn && (cf.options?.length ?? 0) > 0 && subTaskGroups.length > 0 && (() => {
+                    const mappedCount = Object.keys(cf.optionGroupMap ?? {}).length;
+                    return (
+                      <button
+                        type="button"
+                        title="옵션별 세부업무 그룹 연결 — 매핑된 옵션이 선택된 업무는 업무상세에서 그 그룹의 세부업무만 추가로 노출됨"
+                        onClick={e => { e.stopPropagation(); setGroupMapPickerId(groupMapPickerId === cf.id ? null : cf.id); }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                          mappedCount > 0 ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50'
+                        }`}>
+                        그룹 연결{mappedCount > 0 ? `됨(${mappedCount})` : ''}
+                      </button>
+                    );
+                  })()}
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                   {cf.dependsOn && <span className="text-[10px] text-violet-400 font-medium">연결됨</span>}
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
@@ -1583,6 +1604,26 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   </div>
                 );
               })()}
+              {groupMapPickerId === cf.id && (
+                <div className="px-9 pb-2 pt-1 bg-violet-50/40 border-t border-violet-100/60 space-y-1">
+                  {(cf.options ?? []).map(opt => (
+                    <div key={opt} className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-500 w-28 flex-shrink-0 truncate">{opt}</span>
+                      <select
+                        className="text-xs px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                        value={cf.optionGroupMap?.[opt] ?? ''}
+                        onChange={e => {
+                          const next = { ...(cf.optionGroupMap ?? {}) };
+                          if (e.target.value) next[opt] = e.target.value; else delete next[opt];
+                          onSaveCustom(customFields.map(f => f.id === cf.id ? { ...f, optionGroupMap: Object.keys(next).length ? next : undefined } : f));
+                        }}>
+                        <option value="">연결 안 함</option>
+                        {subTaskGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
               </div>
             );
             }
@@ -1855,6 +1896,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         customFields={customFields}
         fieldOrder={rawConfig?.fieldOrder}
         subTaskTypes={currentPart?.subTaskTypes ?? resolveTeamWideSubTaskTypes(team)}
+        subTaskGroups={currentPart?.subTaskGroups ?? resolveTeamWideSubTaskGroups(team)}
         team={team}
         onSaveFields={saveFields}
         onSaveCustom={saveCustom}
@@ -2329,12 +2371,15 @@ const SUBTASK_CALENDAR_COLORS = [
   '#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6',
 ];
 
-function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
+function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSaveGroups, onSaveGroupsPart, onClearGroupsPart }: {
   team: Team;
   teams: Team[];
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onSavePart: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPart: (teamId: string, partId: string) => Promise<void>;
+  onSaveGroups: (teamId: string, groups: SubTaskGroup[]) => Promise<void>;
+  onSaveGroupsPart: (teamId: string, partId: string, groups: SubTaskGroup[]) => Promise<void>;
+  onClearGroupsPart: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
@@ -2355,6 +2400,10 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   // "연결" 버튼을 눌러야 비로소 저장+백필이 실행되게 함
   const [draftSupportTeamId, setDraftSupportTeamId] = useState('');
   const [draftSupportPartId, setDraftSupportPartId] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupNameInput, setGroupNameInput] = useState('');
+  const [newGroupId, setNewGroupId] = useState('');
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2363,6 +2412,10 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const isInherited = !isTeam && !currentPart?.subTaskTypes;
   const teamTypes: SubTaskType[] = team.subTaskTypes ?? [];
   const types: SubTaskType[] = isTeam ? teamTypes : (currentPart?.subTaskTypes ?? teamTypes);
+  // 세부업무 그룹 — 폼설정 드롭다운 옵션과 연결해 업무상세에서 조건부로 노출할 때 사용.
+  // 세부업무 목록과 동일하게 파트가 별도 지정 안 하면 팀 기본값을 상속
+  const teamGroups: SubTaskGroup[] = team.subTaskGroups ?? [];
+  const groups: SubTaskGroup[] = isTeam ? teamGroups : (currentPart?.subTaskGroups ?? teamGroups);
 
   // 이 팀이 업무 요청을 보낼 수 있는 지원팀 목록 — 업무관리 페이지의 "지원팀에 요청"과
   // 동일한 화이트리스트 조건(팀 관리 > 지원팀 탭에서 설정)
@@ -2371,6 +2424,35 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const save = (next: SubTaskType[]) => {
     if (isTeam) onSave(team.id, next);
     else if (currentPart) onSavePart(team.id, currentPart.id, next);
+  };
+
+  const saveGroups = (next: SubTaskGroup[]) => {
+    if (isTeam) onSaveGroups(team.id, next);
+    else if (currentPart) onSaveGroupsPart(team.id, currentPart.id, next);
+  };
+
+  const addGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+    saveGroups([...groups, { id: `stg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name }]);
+    setNewGroupName('');
+  };
+
+  const saveGroupName = (id: string) => {
+    const name = groupNameInput.trim();
+    if (name) saveGroups(groups.map(g => g.id === id ? { ...g, name } : g));
+    setEditingGroupId(null);
+  };
+
+  // 그룹을 지우면 그 그룹을 참조하던 세부업무들의 groupId도 함께 해제 —
+  // 안 그러면 존재하지 않는 그룹을 가리키는 채로 남아 "항상 노출" 취급을 못 받고 사라진 것처럼 보임
+  const deleteGroup = (id: string) => {
+    saveGroups(groups.filter(g => g.id !== id));
+    save(types.map(t => t.groupId === id ? { ...t, groupId: undefined } : t));
+  };
+
+  const setTypeGroup = (typeId: string, groupId: string) => {
+    save(types.map(t => t.id === typeId ? { ...t, groupId: groupId || undefined } : t));
   };
 
   // 세부업무에 지원팀·파트를 연결(또는 변경)하면 즉시 저장하고, 이미 등록된 업무들에도
@@ -2419,8 +2501,8 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const addType = () => {
     const name = newName.trim();
     if (!name) return;
-    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: newDept || undefined }]);
-    setNewName(''); setNewDept('');
+    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: newDept || undefined, groupId: newGroupId || undefined }]);
+    setNewName(''); setNewDept(''); setNewGroupId('');
   };
 
   const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
@@ -2428,9 +2510,17 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
   const executeCopySubTask = (sourceId: string) => {
     const sourcePart = sourceId !== 'team' ? team.parts.find(p => p.id === sourceId) : undefined;
     const srcTypes = sourcePart ? (sourcePart.subTaskTypes ?? (team.subTaskTypes ?? [])) : (team.subTaskTypes ?? []);
-    // 원본과 id를 공유하면 파트간 설정이 뒤섞이므로(지원팀 연결, 담당자 목록 등) 복사 시 새 id를 발급
-    const copied = srcTypes.map(t => ({ ...t, id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}` }));
-    if (currentPart) onSavePart(team.id, currentPart.id, copied);
+    const srcGroups = sourcePart ? (sourcePart.subTaskGroups ?? (team.subTaskGroups ?? [])) : (team.subTaskGroups ?? []);
+    // 원본과 id를 공유하면 파트간 설정이 뒤섞이므로(지원팀 연결, 담당자 목록 등) 복사 시 새 id를 발급.
+    // 그룹도 마찬가지로 새 id를 발급하고, 세부업무의 groupId 참조를 새 id로 맞춰줌
+    const groupIdMap = new Map(srcGroups.map(g => [g.id, `stg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`]));
+    const copiedGroups = srcGroups.map(g => ({ ...g, id: groupIdMap.get(g.id)! }));
+    const copied = srcTypes.map(t => ({
+      ...t,
+      id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      groupId: t.groupId ? groupIdMap.get(t.groupId) : undefined,
+    }));
+    if (currentPart) { onSavePart(team.id, currentPart.id, copied); onSaveGroupsPart(team.id, currentPart.id, copiedGroups); }
     setPendingCopySource(null);
   };
 
@@ -2476,7 +2566,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
           <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
-          <button onClick={() => currentPart && onClearPart(team.id, currentPart.id)}
+          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); onClearGroupsPart(team.id, currentPart.id); } }}
             className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
             <RotateCcw size={11} />초기화
           </button>
@@ -2491,11 +2581,11 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
             </span>
           ) : (
             <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-              <button onClick={() => { onSave(team.id, types); doFlash('saved'); }}
+              <button onClick={() => { onSave(team.id, types); onSaveGroups(team.id, groups); doFlash('saved'); }}
                 className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
                 <ArrowUpToLine size={11} />팀 기본으로 지정
               </button>
-              <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
+              <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); onClearGroupsPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
                 className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
                 <RotateCcw size={11} />초기화
               </button>
@@ -2555,6 +2645,44 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
         </div>
       )}
 
+      {/* 세부업무 그룹 — 폼설정 드롭다운 옵션과 연결해 업무상세에서 조건부로 노출 */}
+      <div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
+          세부업무 그룹
+          <span className="text-gray-300 font-normal normal-case">폼설정 드롭다운 옵션과 연결해 업무상세에서 조건부로 노출</span>
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {groups.map(g => (
+            <div key={g.id} className="flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg bg-violet-50 border border-violet-100">
+              {editingGroupId === g.id ? (
+                <input autoFocus
+                  className="text-xs px-1 py-0 rounded border border-violet-300 bg-white text-gray-800 focus:outline-none w-20"
+                  value={groupNameInput} onChange={e => setGroupNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveGroupName(g.id); if (e.key === 'Escape') setEditingGroupId(null); }}
+                  onBlur={() => saveGroupName(g.id)} />
+              ) : (
+                <button type="button" onClick={() => { setEditingGroupId(g.id); setGroupNameInput(g.name); }}
+                  className="text-xs text-violet-700 hover:text-violet-900 transition-colors">
+                  {g.name}
+                </button>
+              )}
+              <button type="button" onClick={() => deleteGroup(g.id)}
+                className="text-violet-300 hover:text-red-400 transition-colors">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+          <input className={`${iCls} w-28`}
+            placeholder="그룹명 입력"
+            value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addGroup()} />
+          <button onClick={addGroup} disabled={!newGroupName.trim()}
+            className="flex-shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-40 transition-colors">
+            <Plus size={11} />그룹 추가
+          </button>
+        </div>
+      </div>
+
       <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
         세부 업무 목록
@@ -2613,6 +2741,19 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
                     </button>
                   ))}
                 </div>
+                {/* 세부업무 그룹 선택 */}
+                {groups.length > 0 && (
+                  <select
+                    title="세부업무 그룹 — 지정하면 폼설정에서 이 그룹에 연결한 드롭다운 옵션이 선택된 업무에서만 노출됨"
+                    className={`text-[10px] px-1 py-0.5 rounded-md border focus:outline-none flex-shrink-0 ${
+                      t.groupId ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400'
+                    }`}
+                    value={t.groupId ?? ''}
+                    onChange={e => setTypeGroup(t.id, e.target.value)}>
+                    <option value="">그룹 없음</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                )}
                 {/* 캘린더 표시 토글 */}
                 <button
                   type="button"
@@ -2731,6 +2872,14 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart }: {
             </button>
           ))}
         </div>
+        {groups.length > 0 && (
+          <select
+            className="text-[10px] px-1 py-1.5 rounded-md border border-gray-200 bg-white text-gray-500 focus:outline-none flex-shrink-0"
+            value={newGroupId} onChange={e => setNewGroupId(e.target.value)}>
+            <option value="">그룹 없음</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        )}
         <button onClick={addType} disabled={!newName.trim()}
           className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
           <Plus size={11} />추가
@@ -6934,7 +7083,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   );
 }
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -6953,6 +7102,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onUpdateSubTaskTypes: (teamId: string, types: SubTaskType[]) => Promise<void>;
   onUpdatePartSubTaskTypes: (teamId: string, partId: string, types: SubTaskType[]) => Promise<void>;
   onClearPartSubTaskTypes: (teamId: string, partId: string) => Promise<void>;
+  onUpdateSubTaskGroups: (teamId: string, groups: SubTaskGroup[]) => Promise<void>;
+  onUpdatePartSubTaskGroups: (teamId: string, partId: string, groups: SubTaskGroup[]) => Promise<void>;
+  onClearPartSubTaskGroups: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -8430,6 +8582,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onSave={onUpdateSubTaskTypes}
                         onSavePart={onUpdatePartSubTaskTypes}
                         onClearPart={onClearPartSubTaskTypes}
+                        onSaveGroups={onUpdateSubTaskGroups}
+                        onSaveGroupsPart={onUpdatePartSubTaskGroups}
+                        onClearGroupsPart={onClearPartSubTaskGroups}
                       />
                     </div>
                   )}
@@ -9096,7 +9251,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -9487,6 +9642,9 @@ export default function SettingsPage({
           onUpdateSubTaskTypes={onUpdateSubTaskTypes}
           onUpdatePartSubTaskTypes={onUpdatePartSubTaskTypes}
           onClearPartSubTaskTypes={onClearPartSubTaskTypes}
+          onUpdateSubTaskGroups={onUpdateSubTaskGroups}
+          onUpdatePartSubTaskGroups={onUpdatePartSubTaskGroups}
+          onClearPartSubTaskGroups={onClearPartSubTaskGroups}
           onUpdatePartCalendarOrder={onUpdatePartCalendarOrder}
           onClearPartCalendarOrder={onClearPartCalendarOrder}
           onUpdatePartPLShowInCalendar={onUpdatePartPLShowInCalendar}

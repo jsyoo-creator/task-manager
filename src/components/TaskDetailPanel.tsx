@@ -1510,11 +1510,46 @@ export default function TaskDetailPanel({
 
   const categoryColor = parts.find(p => p.name === task.category)?.color ?? CAT_DOT[task.category] ?? 'bg-gray-400';
 
-  // 세부업무 & 주차별 시간: 권한/삭제/숨김 기준으로 실제 노출 대상만 추림
+  // 폼설정 드롭다운(옵션→세부업무 그룹) 매핑 기반 허용 그룹 집합 — 그룹 미지정 세부업무는
+  // 항상 노출되고, 그룹이 지정된 세부업무는 이 업무의 해당 드롭다운 값이 그 그룹으로
+  // 연결돼 있을 때만 노출됨(직군 미지정 세부업무가 모든 탭에 보이는 것과 동일한 패턴)
+  const allowedSubTaskGroupIds = (() => {
+    const ids = new Set<string>();
+    const builtinVal = (key: string): string | undefined => {
+      switch (key) {
+        case 'taskMonth': return task.taskMonth;
+        case 'title': return task.title;
+        case 'category': return task.category;
+        case 'type': return task.type;
+        case 'status': return task.status;
+        case 'receiver': return task.receiver;
+        case 'assignee': return task.assignee;
+        case 'startDate': return task.startDate;
+        case 'endDate': return task.endDate;
+        default: return undefined;
+      }
+    };
+    (formConfig?.builtinFields ?? []).forEach(f => {
+      if (!f.optionGroupMap) return;
+      const val = builtinVal(f.key);
+      const gid = val ? f.optionGroupMap[val] : undefined;
+      if (gid) ids.add(gid);
+    });
+    (formConfig?.customFields ?? []).forEach(f => {
+      if (!f.optionGroupMap) return;
+      const val = task.customFields?.[f.id];
+      const gid = val ? f.optionGroupMap[val] : undefined;
+      if (gid) ids.add(gid);
+    });
+    return ids;
+  })();
+
+  // 세부업무 & 주차별 시간: 권한/삭제/숨김/그룹 기준으로 실제 노출 대상만 추림
   const visibleSubTaskTypes = subTaskTypes.filter(type => {
     if (deletedSubTaskIds.has(type.id)) return false;
     if (type.showInDetail === false) return false;
     if ((task.hiddenSubTaskTypeIds ?? []).includes(type.id)) return false;
+    if (type.groupId && !allowedSubTaskGroupIds.has(type.groupId)) return false;
     if (canSeeAll) return true;
     const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
     return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;

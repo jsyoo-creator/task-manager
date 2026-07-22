@@ -217,6 +217,7 @@ export interface TeamPart {
   formConfig?: TeamFormConfig; // 파트별 별도 폼 설정 (없으면 팀 기본 상속)
   metaFields?: MetaField[]; // 파트별 업무 정보 필드 (없으면 팀 기본 상속)
   subTaskTypes?: SubTaskType[]; // 파트별 세부 업무 목록 (없으면 팀 기본 상속)
+  subTaskGroups?: SubTaskGroup[]; // 파트별 세부업무 그룹 목록 (없으면 팀 기본 상속) — 폼설정 드롭다운 옵션과 연결해 업무상세에서 세부업무를 조건부로 노출하는 데 사용
   excelConfig?: ExcelFieldConfig[]; // 파트별 엑셀 필드 설정 (없으면 팀 기본 상속)
   weeklyExportConfig?: WeeklyExportConfig; // 파트별 위클리 컬럼 설정 (없으면 팀 기본 상속)
   calendarOrder?: string[]; // 캘린더 전용 세부업무 정렬 순서 (SubTaskType.id 목록, 업무상세 순서와 별개, 없으면 팀 기본 상속)
@@ -437,6 +438,8 @@ export interface CustomFormField {
   showIn?: 'both' | 'list' | 'detail'; // undefined = 'both' (하위 호환)
   options?: string[]; // select 타입일 때 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
+  optionGroupMap?: Record<string, string>; // select 타입: 옵션값 → 세부업무 그룹(SubTaskGroup.id).
+    // 매핑된 옵션이 선택된 업무는 업무상세에서 그 그룹에 속한 세부업무만 추가로 노출됨
   department?: Department; // name 타입: 해당 직군 사람만 표시 (구버전 호환)
   departments?: Department[]; // 복수 직군 선택 (신버전)
   linkedSubTaskTypeId?: string; // name 타입: 연동한 세부업무(SubTaskType.id). 있으면 이
@@ -476,6 +479,8 @@ export interface BuiltinFieldConfig {
     // 필드는 편집 불가 읽기전용으로 바뀌어 task.subTaskData[이 id].assignee 값을 그대로 보여줌
   options?: string[]; // select 타입: 선택지
   optionColors?: Record<string, { bg: string; text: string }>; // 옵션별 뱃지 색상
+  optionGroupMap?: Record<string, string>; // select 타입: 옵션값 → 세부업무 그룹(SubTaskGroup.id).
+    // 매핑된 옵션이 선택된 업무는 업무상세에서 그 그룹에 속한 세부업무만 추가로 노출됨
   showIn?: 'both' | 'list' | 'detail'; // 표시 위치: 목록/상세/둘다
   dependsOn?: { fieldId: string; valueMap: Record<string, string[]> }; // 연결 필드
   completedValues?: string[]; // key:'status'일 때, options 중 "완료"로 취급할 값들
@@ -581,6 +586,15 @@ export function resolveTeamWideSubTaskTypes(team: Team): SubTaskType[] {
   if (team.subTaskTypes?.length) return team.subTaskTypes;
   const seen = new Map<string, SubTaskType>();
   (team.parts ?? []).forEach(p => (p.subTaskTypes ?? []).forEach(t => { if (!seen.has(t.id)) seen.set(t.id, t); }));
+  return [...seen.values()];
+}
+
+// resolveTeamWideSubTaskTypes와 동일한 목적 — "팀 기본"/"전체" 탭에서 세부업무 그룹
+// 연결 후보를 고를 때, 팀 레벨 그룹이 없으면 모든 파트의 그룹을 id 기준으로 합쳐 보여줌
+export function resolveTeamWideSubTaskGroups(team: Team): SubTaskGroup[] {
+  if (team.subTaskGroups?.length) return team.subTaskGroups;
+  const seen = new Map<string, SubTaskGroup>();
+  (team.parts ?? []).forEach(p => (p.subTaskGroups ?? []).forEach(g => { if (!seen.has(g.id)) seen.set(g.id, g); }));
   return [...seen.values()];
 }
 
@@ -874,6 +888,14 @@ export interface SubTaskType {
     // 나중에 파트 이름을 바꿔도 연결이 깨지지 않게 함(생성 시점에 이 id로 현재 파트명을 다시 조회)
   supportPartName?: string; // 구버전 호환/표시용 캐시(설정 UI 라벨). supportPartId가 없을 때만
     // 폴백으로 사용 — 새로 저장할 때는 항상 supportPartId를 함께 채움
+  groupId?: string; // 소속 세부업무 그룹(SubTaskGroup.id). 미지정이면 직군 미지정과 동일하게
+    // 항상 노출됨 — 특정 드롭다운 옵션에서만 보이게 하려면 그룹을 지정하고, 폼설정에서
+    // 그 드롭다운의 옵션을 이 그룹에 연결해야 함
+}
+
+export interface SubTaskGroup {
+  id: string;
+  name: string;
 }
 
 export type PLSubTaskFieldType = 'text' | 'review'; // 텍스트, 검수
@@ -968,6 +990,7 @@ export interface Team {
   allFormConfig?: TeamFormConfig;  // 전체 뷰(파트 필터 없음) 전용 설정
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
+  subTaskGroups?: SubTaskGroup[]; // 세부업무 그룹 목록 팀 기본값 — 폼설정 드롭다운 옵션과 연결해 업무상세에서 세부업무를 조건부로 노출하는 데 사용
   plMainTaskTypes?: PLMainTaskType[]; // PL업무 메인 업무 항목 목록
   holidays?: CustomHoliday[];
   excelConfig?: ExcelFieldConfig[];

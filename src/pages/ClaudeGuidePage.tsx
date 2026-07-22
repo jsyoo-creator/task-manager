@@ -74,7 +74,7 @@ const TOC = [
 
 export default function ClaudeGuidePage() {
   return (
-    <div style={{ minHeight: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+    <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '48px 24px 120px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif', color: '#1f2937', lineHeight: 1.75 }}>
 
         <header style={{ marginBottom: 32 }}>

@@ -295,17 +295,18 @@ export default function ClaudeGuidePage() {
   return (
     <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <style>{`@media (max-width: 1280px) { .cg-quicknav { display: none !important; } }`}</style>
-      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '48px 24px 120px', display: 'flex', gap: 40, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, minWidth: 0, maxWidth: 820, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif', color: '#1f2937', lineHeight: 1.75 }}>
+      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '48px 24px 120px' }}>
+        <header style={{ maxWidth: 820, marginBottom: 20, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif' }}>
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#6366f1', letterSpacing: 0.5, marginBottom: 8, textTransform: 'uppercase' }}>PIVOT CREATIVE · 내부 강의자료</p>
+          <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 10, color: '#0f172a' }}>클로드에게 업무 시스템을 만들어달라고 요청하는 법</h1>
+          <p style={{ fontSize: 14, color: '#64748b' }}>
+            지금 보고 있는 이 업무 관리 툴(Task Manager)을 실제로 어떻게 만들었는지, 그 과정에서 있었던 소통 오류와 버그를 어떻게 풀었는지까지 담은 실습 가이드입니다.
+            프로그래밍을 몰라도 됩니다 — 여기 나온 말투를 그대로 따라 써보는 것부터 시작하면 됩니다. · 최종 수정일: 2026-07-22
+          </p>
+        </header>
 
-          <header style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: '#6366f1', letterSpacing: 0.5, marginBottom: 8, textTransform: 'uppercase' }}>PIVOT CREATIVE · 내부 강의자료</p>
-            <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 10, color: '#0f172a' }}>클로드에게 업무 시스템을 만들어달라고 요청하는 법</h1>
-            <p style={{ fontSize: 14, color: '#64748b' }}>
-              지금 보고 있는 이 업무 관리 툴(Task Manager)을 실제로 어떻게 만들었는지, 그 과정에서 있었던 소통 오류와 버그를 어떻게 풀었는지까지 담은 실습 가이드입니다.
-              프로그래밍을 몰라도 됩니다 — 여기 나온 말투를 그대로 따라 써보는 것부터 시작하면 됩니다. · 최종 수정일: 2026-07-22
-            </p>
-          </header>
+        <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 0, maxWidth: 820, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif', color: '#1f2937', lineHeight: 1.75 }}>
 
           <MethodTabs method={method} onChange={setMethod} />
 
@@ -656,7 +657,8 @@ VITE_FIREBASE_APP_ID`}</Code>
           <p style={{ fontSize: 12.5, color: '#94a3b8' }}>PIVOT CREATIVE 내부 교육용 자료 · 문의: js.yoo@pivot-inc.com</p>
         </div>
 
-        <QuickNav active={active} />
+          <QuickNav active={active} />
+        </div>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 // 개인정보처리방침 페이지(PrivacyPolicyPage)와 동일한 패턴 — 로그인 게이트 없이 URL로만 접근,
 // 앱 메뉴/네비게이션에는 의도적으로 노출하지 않음.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type Method = 'app' | 'cli';
 
@@ -230,6 +230,142 @@ function MethodTabs({ method, onChange }: { method: Method; onChange: (m: Method
   );
 }
 
+// 여러 항목 중 하나만 보여주고 싶은 곳에서 쓰는 공용 알약형 탭 (세로 스크롤을 줄이기 위함)
+function PillTabs({ labels, active, onChange }: { labels: string[]; active: number; onChange: (i: number) => void }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+      {labels.map((label, i) => (
+        <button
+          key={i}
+          onClick={() => onChange(i)}
+          style={{
+            padding: '8px 14px', borderRadius: 8, border: '1px solid #e2e8f0', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+            background: active === i ? '#4f46e5' : '#fff',
+            color: active === i ? '#fff' : '#475569',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const EXAMPLES: { label: string; situation: string; example: string; tip?: string }[] = [
+  {
+    label: '① 새 화면',
+    situation: '완전히 새로운 화면을 만들고 싶을 때',
+    example: '요즘 팀원들이 휴가 신청을 메신저로 따로따로 하고 있어서 놓치는 경우가 있어. 화면 안에서 신청자가 날짜랑 사유를 입력하고, 관리자가 승인·반려할 수 있게 만들고 싶은데, 혹시 더 나은 구조가 있으면 먼저 방향부터 제안해줄래?',
+  },
+  {
+    label: '② 검색/필터',
+    situation: '목록에서 원하는 것만 골라보고 싶을 때 (검색/필터)',
+    example: '업무가 늘어나니까 담당자 기준으로 빠르게 찾고 싶어지더라고. 검색창이 나을지 필터 드롭다운이 나을지, 어느 쪽이 이 화면엔 더 맞을지 같이 봐줄래?',
+  },
+  {
+    label: '③ 자동 계산',
+    situation: '자동으로 계산되게 하고 싶을 때',
+    example: '세부 업무 시간을 매번 손으로 더하고 있는데 번거로워서 자동으로 집계됐으면 해. 어디에 보여주는 게 자연스러울지도 같이 고민해줘',
+  },
+  {
+    label: '④ 권한',
+    situation: '특정 사람만 보게/누르게 하고 싶을 때 (권한)',
+    example: '삭제 버튼을 아무나 누를 수 있으면 실수로 지워질까 봐 걱정돼. 관리자만 보이게 하는 게 맞을 것 같은데, 어떻게 생각해?',
+  },
+  {
+    label: '⑤ 알림',
+    situation: '무언가 생기면 알려주고 싶을 때 (알림)',
+    example: '새 업무가 등록됐는데 담당자가 못 보고 지나치는 일이 종종 있어. 놓치지 않게 알려줄 방법이 있을까?',
+  },
+  {
+    label: '⑥ 엑셀 내보내기',
+    situation: '엑셀/파일로 뽑고 싶을 때',
+    example: '이 목록을 엑셀로도 받아보면 좋겠다는 이야기가 나왔어. 가능할지, 가능하면 어떤 형태로 내보내는 게 좋을지 같이 봐줄래?',
+  },
+  {
+    label: '⑦ 디자인 변경',
+    situation: '디자인(색·모양)을 바꾸고 싶을 때',
+    example: '등록 버튼이 좀 밋밋해서 눈에 잘 안 띄는 것 같아. 우리 브랜드 색(보라색 계열)으로 바꾸면 어떨지 한번 보여줄 수 있어?',
+  },
+  {
+    label: '⑧ 버그 신고',
+    situation: '기존 기능이 잘못됐을 때 (버그 신고)',
+    example: '업무관리 화면에서 날짜를 오늘로 바꾸면 목록에 있던 업무가 사라져 버려. 원래는 그대로 남아있어야 하는 게 맞는데, 왜 이러는지 원인 좀 봐줄 수 있어?',
+    tip: "버그 신고도 '어느 화면 → 무엇을 했더니 → 어떻게 잘못 나오는지 → 원래 어때야 하는지'를 설명하는 형태면 충분합니다. 원인을 직접 추측해서 말할 필요는 없습니다.",
+  },
+];
+
+const GLOSSARY: { label: string; items: [string, string][] }[] = [
+  {
+    label: '위치를 부르는 말',
+    items: [
+      ['헤더/상단바', '화면 맨 위, 로고나 큰 메뉴가 있는 줄'],
+      ['사이드바', '화면 옆(보통 왼쪽)에 세로로 붙어있는 메뉴 영역 — 이 앱의 좌측 메뉴가 여기에 해당'],
+      ['툴바', '버튼들이 가로로 나란히 놓인 줄 (예: 목록 위쪽의 여러 기능 버튼들)'],
+      ['본문/메인 영역', '화면 가운데 가장 큰 영역, 실제 내용이 들어가는 곳'],
+      ['푸터', '화면 맨 아래'],
+    ],
+  },
+  {
+    label: '구성요소를 부르는 말',
+    items: [
+      ['버튼', '누르면 동작이 실행되는 사각형 (예: "저장" 버튼)'],
+      ['드롭다운(선택박스)', '누르면 여러 선택지가 아래로 펼쳐지는 상자'],
+      ['체크박스', '네모 칸에 체크(✓) 표시를 하는 것'],
+      ['토글/스위치', '켜고 끄는 것을 미끄러지듯 표시하는 버튼'],
+      ['배지/칩', '작은 알약(타원) 모양의 라벨 — 상태 표시에 자주 씀'],
+      ['모달/팝업창', '화면 위에 떠서 나머지를 어둡게 가리는 별도 창'],
+      ['툴팁', '마우스를 올렸을 때 잠깐 뜨는 설명 문구'],
+      ['탭', '위쪽에서 여러 화면/카테고리를 전환하는 버튼 묶음 — 이 페이지의 "데스크탑 앱/터미널", 이 목록의 알약 버튼들도 탭'],
+      ['카드', '테두리나 그림자로 다른 내용과 구분되는 네모난 박스'],
+      ['테이블/목록', '표처럼 줄지어 늘어선 데이터'],
+    ],
+  },
+  {
+    label: '정렬·상태를 부르는 말',
+    items: [
+      ['좌측/가운데/우측 정렬', '텍스트가 칸의 왼쪽·가운데·오른쪽 중 어디에 붙는지'],
+      ['세로 중앙 정렬', '위아래 방향으로 가운데에 오는 것'],
+      ['활성화/비활성화', '지금 사용할 수 있는 상태인지 아닌지'],
+      ['필수/선택', '반드시 입력해야 하는 항목인지 아닌지'],
+      ['읽기 전용', '보이기만 하고 값을 고칠 수는 없는 상태'],
+      ['hover(마우스 오버)', '마우스 커서를 그 위에 올렸을 때 생기는 반응'],
+    ],
+  },
+];
+
+const CASES: { title: string; said: string; misread: string; actual: string; fix: React.ReactNode }[] = [
+  {
+    title: '"가운데(중앙)"의 의미',
+    said: '다른 팀은 중앙에 잘 있는데, 이 팀은 왜 이래?',
+    misread: "처음엔 '헤더와 값의 시작 위치(좌측 여백)를 맞춰달라'는 뜻으로 여러 차례 좌측 정렬 기준만 조정함",
+    actual: '실제로는 텍스트/값 자체가 칸의 정중앙(가로+세로 모두)에 오길 원한 것',
+    fix: <>사용자가 "시작일이 어딜 봐서 날짜 중앙에 있다는거야?"라고 명확히 반박한 뒤에야 진짜 의도를 확인함. 이후로는 <b>"중앙/가운데"</b>라는 단어가 나오면 절대 임의로 해석하지 않고, 화면 구조를 그림으로 먼저 보여주며 "좌측 정렬 유지 vs 가운데 정렬" 중 확정하고 시작하는 습관으로 바뀜.</>,
+  },
+  {
+    title: '"~에서도 보이게 해줘"가 "복사"인지 "이동"인지',
+    said: '다른 팀 업무를 지원팀 화면에서도 보이게 해줘',
+    misread: '지원팀 화면에 추가로 노출(중복 허용) — 원본 팀 화면에는 그대로 두고 지원팀 화면에도 같이 보여주는 방식으로 구현',
+    actual: "지원팀으로 옮겨서(귀속), 원본 팀 화면에서는 더 이상 보이지 않아야 함 — 중복이 아니라 '전용으로 배정'하는 의미였음",
+    fix: <>"내가 우선 표시한 지원팀에만 나와야 한다니까"라는 재지적을 받은 뒤 원본 팀 화면에서 해당 항목을 제외하도록 다시 수정함. 이후로는 <b>"~에서도 보이게"</b> 같은 요청을 받으면 "추가로 노출"과 "옮겨서 귀속"의 가능성을 먼저 구분해 확인함.</>,
+  },
+  {
+    title: '"스크롤하기 불편해"가 가리키는 것',
+    said: '여기 너무 좁아서 좌우로 스크롤하기 힘들어',
+    misread: '스크롤바(마우스로 잡는 막대) 자체가 얇아서 잡기 힘들다는 뜻으로 이해해, 스크롤바 두께만 두껍게 수정',
+    actual: '스크롤이 일어나는 콘텐츠 영역 자체의 세로 크기(패딩/높이)가 좁아서 답답하다는 뜻 — 스크롤바 두께 문제가 아니었음',
+    fix: <>실제 요청(영역 크기 확대)을 구현한 뒤에도, 오해로 만든 "두꺼운 스크롤바"를 그냥 남겨뒀다가 "그 스크롤 두껍다니까 왜 유지하냐"는 재지적을 받고서야 제거함. 교훈: 오해로 만든 변경은 진짜 요청을 구현했다고 해서 그냥 두지 말고, 명시적으로 유지해달라는 말이 없다면 원칙적으로 함께 되돌릴 것.</>,
+  },
+  {
+    title: '"A처럼 B도 중앙에" — 되물어서 확인했는데도 반대였던 경우',
+    said: "체크박스/드래그처럼 '월'도 중앙에 오게 해줘",
+    misread: "선택지를 만들어 되물은 뒤, '월을 체크박스·드래그가 있는 1번째 줄 기준에 맞춘다'는 옵션을 추천해 사용자가 선택 — 그런데 그 결과 원래 잘 되어 있던 체크박스/드래그의 정렬까지 함께 깨짐",
+    actual: "'월이 체크박스·드래그와 같은 정렬 그룹(세로 중앙 고정 레일)으로 옮겨가야 한다'는 뜻이었음 — 기존에 잘 동작하던 체크박스/드래그 정렬은 그대로 두고 월만 그쪽으로 옮기는 것이 정답",
+    fix: <>한 번 확인 질문을 거쳐도 결과가 사용자 의도와 반대일 수 있다는 걸 보여준 사례. "원래 잘 동작하던 상태"를 기준선으로 삼아, 그 기준선을 최대한 보존하는 방향으로 재해석해 해결함. 교훈: 확인 질문에서 고른 답이 실제 결과에서 다시 반박당하면, "추천 옵션 자체가 반대 방향이었을 가능성"부터 의심할 것.</>,
+  },
+];
+
 const TOC = [
   ['prep', '0. 준비물'],
   ['ways', '1. 시작하는 방법'],
@@ -245,9 +381,9 @@ const TOC = [
   ['checklist', '11. 요약 체크리스트'],
 ] as const;
 
-function QuickNav({ active }: { active: string }) {
+function QuickNav({ active, top }: { active: string; top: number }) {
   return (
-    <nav className="cg-quicknav" style={{ position: 'sticky', top: 28, width: 176, flexShrink: 0 }}>
+    <nav className="cg-quicknav" style={{ position: 'sticky', top: top + 12, width: 176, flexShrink: 0 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>퀵메뉴</div>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {TOC.map(([id, label]) => {
@@ -277,6 +413,11 @@ function QuickNav({ active }: { active: string }) {
 export default function ClaudeGuidePage() {
   const [method, setMethod] = useState<Method>('app');
   const [active, setActive] = useState<string>(TOC[0][0]);
+  const [exIdx, setExIdx] = useState(0);
+  const [glossIdx, setGlossIdx] = useState(0);
+  const [caseIdx, setCaseIdx] = useState(0);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const [stickyHeaderH, setStickyHeaderH] = useState(0);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -292,23 +433,36 @@ export default function ClaudeGuidePage() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const el = stickyHeaderRef.current;
+    if (!el) return;
+    const update = () => setStickyHeaderH(el.getBoundingClientRect().height);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <style>{`@media (max-width: 1280px) { .cg-quicknav { display: none !important; } }`}</style>
-      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '48px 24px 120px' }}>
-        <header style={{ maxWidth: 820, marginBottom: 20, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif' }}>
-          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#6366f1', letterSpacing: 0.5, marginBottom: 8, textTransform: 'uppercase' }}>PIVOT CREATIVE · 내부 강의자료</p>
-          <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 10, color: '#0f172a' }}>클로드에게 업무 시스템을 만들어달라고 요청하는 법</h1>
-          <p style={{ fontSize: 14, color: '#64748b' }}>
-            지금 보고 있는 이 업무 관리 툴(Task Manager)을 실제로 어떻게 만들었는지, 그 과정에서 있었던 소통 오류와 버그를 어떻게 풀었는지까지 담은 실습 가이드입니다.
-            프로그래밍을 몰라도 됩니다 — 여기 나온 말투를 그대로 따라 써보는 것부터 시작하면 됩니다. · 최종 수정일: 2026-07-22
-          </p>
-        </header>
+      <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px 120px' }}>
+        <div ref={stickyHeaderRef} style={{ position: 'sticky', top: 0, zIndex: 20, background: '#f8fafc', paddingTop: 48, paddingBottom: 10, borderBottom: '1px solid #e2e8f0' }}>
+          <header style={{ maxWidth: 820, marginBottom: 20, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif' }}>
+            <p style={{ fontSize: 12.5, fontWeight: 700, color: '#6366f1', letterSpacing: 0.5, marginBottom: 8, textTransform: 'uppercase' }}>PIVOT CREATIVE · 내부 강의자료</p>
+            <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 10, color: '#0f172a' }}>클로드에게 업무 시스템을 만들어달라고 요청하는 법</h1>
+            <p style={{ fontSize: 14, color: '#64748b' }}>
+              지금 보고 있는 이 업무 관리 툴(Task Manager)을 실제로 어떻게 만들었는지, 그 과정에서 있었던 소통 오류와 버그를 어떻게 풀었는지까지 담은 실습 가이드입니다.
+              프로그래밍을 몰라도 됩니다 — 여기 나온 말투를 그대로 따라 써보는 것부터 시작하면 됩니다. · 최종 수정일: 2026-07-22
+            </p>
+          </header>
+          <div style={{ maxWidth: 820 }}>
+            <MethodTabs method={method} onChange={setMethod} />
+          </div>
+        </div>
 
         <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
           <div style={{ flex: 1, minWidth: 0, maxWidth: 820, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", sans-serif', color: '#1f2937', lineHeight: 1.75 }}>
-
-          <MethodTabs method={method} onChange={setMethod} />
 
           <section>
             <H2 id="prep">0. 준비물 체크리스트</H2>
@@ -397,38 +551,11 @@ export default function ClaudeGuidePage() {
               아래 예시도 명령이 아니라 "이런 상황인데, 어떻게 하면 좋을까?"에 가깝게 적었습니다 — 말투는 자유롭게 바꿔도 되고, 핵심은 <b>상황과 이유를 먼저 설명</b>하는 것입니다.
             </P>
 
+            <PillTabs labels={EXAMPLES.map(e => e.label)} active={exIdx} onChange={setExIdx} />
             <PromptCard
-              situation="① 완전히 새로운 화면을 만들고 싶을 때"
-              example="요즘 팀원들이 휴가 신청을 메신저로 따로따로 하고 있어서 놓치는 경우가 있어. 화면 안에서 신청자가 날짜랑 사유를 입력하고, 관리자가 승인·반려할 수 있게 만들고 싶은데, 혹시 더 나은 구조가 있으면 먼저 방향부터 제안해줄래?"
-            />
-            <PromptCard
-              situation="② 목록에서 원하는 것만 골라보고 싶을 때 (검색/필터)"
-              example="업무가 늘어나니까 담당자 기준으로 빠르게 찾고 싶어지더라고. 검색창이 나을지 필터 드롭다운이 나을지, 어느 쪽이 이 화면엔 더 맞을지 같이 봐줄래?"
-            />
-            <PromptCard
-              situation="③ 자동으로 계산되게 하고 싶을 때"
-              example="세부 업무 시간을 매번 손으로 더하고 있는데 번거로워서 자동으로 집계됐으면 해. 어디에 보여주는 게 자연스러울지도 같이 고민해줘"
-            />
-            <PromptCard
-              situation="④ 특정 사람만 보게/누르게 하고 싶을 때 (권한)"
-              example="삭제 버튼을 아무나 누를 수 있으면 실수로 지워질까 봐 걱정돼. 관리자만 보이게 하는 게 맞을 것 같은데, 어떻게 생각해?"
-            />
-            <PromptCard
-              situation="⑤ 무언가 생기면 알려주고 싶을 때 (알림)"
-              example="새 업무가 등록됐는데 담당자가 못 보고 지나치는 일이 종종 있어. 놓치지 않게 알려줄 방법이 있을까?"
-            />
-            <PromptCard
-              situation="⑥ 엑셀/파일로 뽑고 싶을 때"
-              example="이 목록을 엑셀로도 받아보면 좋겠다는 이야기가 나왔어. 가능할지, 가능하면 어떤 형태로 내보내는 게 좋을지 같이 봐줄래?"
-            />
-            <PromptCard
-              situation="⑦ 디자인(색·모양)을 바꾸고 싶을 때"
-              example="등록 버튼이 좀 밋밋해서 눈에 잘 안 띄는 것 같아. 우리 브랜드 색(보라색 계열)으로 바꾸면 어떨지 한번 보여줄 수 있어?"
-            />
-            <PromptCard
-              situation="⑧ 기존 기능이 잘못됐을 때 (버그 신고)"
-              example="업무관리 화면에서 날짜를 오늘로 바꾸면 목록에 있던 업무가 사라져 버려. 원래는 그대로 남아있어야 하는 게 맞는데, 왜 이러는지 원인 좀 봐줄 수 있어?"
-              tip="버그 신고도 '어느 화면 → 무엇을 했더니 → 어떻게 잘못 나오는지 → 원래 어때야 하는지'를 설명하는 형태면 충분합니다. 원인을 직접 추측해서 말할 필요는 없습니다."
+              situation={EXAMPLES[exIdx].situation}
+              example={EXAMPLES[exIdx].example}
+              tip={EXAMPLES[exIdx].tip}
             />
 
             <Callout tone="tip" title="명령보다 '설명 + 상의'가 더 잘 통합니다">
@@ -452,85 +579,16 @@ export default function ClaudeGuidePage() {
             <H2 id="glossary">5. UI 용어 사전 — 화면 위치·구성요소를 부르는 공통 언어</H2>
             <P>"이 버튼", "그 상자" 처럼 부르는 대신, 아래 용어로 지칭하면 클로드도 사람 개발자도 똑같이 정확하게 알아듣습니다. 몰라도 되지만, 알아두면 요청이 훨씬 빨라집니다.</P>
 
-            <GlossaryGroup
-              title="화면의 '위치'를 부르는 말"
-              items={[
-                ['헤더/상단바', '화면 맨 위, 로고나 큰 메뉴가 있는 줄'],
-                ['사이드바', '화면 옆(보통 왼쪽)에 세로로 붙어있는 메뉴 영역 — 이 앱의 좌측 메뉴가 여기에 해당'],
-                ['툴바', '버튼들이 가로로 나란히 놓인 줄 (예: 목록 위쪽의 여러 기능 버튼들)'],
-                ['본문/메인 영역', '화면 가운데 가장 큰 영역, 실제 내용이 들어가는 곳'],
-                ['푸터', '화면 맨 아래'],
-              ]}
-            />
-
-            <GlossaryGroup
-              title="화면 '구성요소'를 부르는 말"
-              items={[
-                ['버튼', '누르면 동작이 실행되는 사각형 (예: "저장" 버튼)'],
-                ['드롭다운(선택박스)', '누르면 여러 선택지가 아래로 펼쳐지는 상자'],
-                ['체크박스', '네모 칸에 체크(✓) 표시를 하는 것'],
-                ['토글/스위치', '켜고 끄는 것을 미끄러지듯 표시하는 버튼'],
-                ['배지/칩', '작은 알약(타원) 모양의 라벨 — 상태 표시에 자주 씀'],
-                ['모달/팝업창', '화면 위에 떠서 나머지를 어둡게 가리는 별도 창'],
-                ['툴팁', '마우스를 올렸을 때 잠깐 뜨는 설명 문구'],
-                ['탭', '위쪽에서 여러 화면/카테고리를 전환하는 버튼 묶음 — 이 페이지 위쪽의 "데스크탑 앱/터미널"도 탭'],
-                ['카드', '테두리나 그림자로 다른 내용과 구분되는 네모난 박스'],
-                ['테이블/목록', '표처럼 줄지어 늘어선 데이터'],
-              ]}
-            />
-
-            <GlossaryGroup
-              title="정렬·상태를 부르는 말"
-              items={[
-                ['좌측/가운데/우측 정렬', '텍스트가 칸의 왼쪽·가운데·오른쪽 중 어디에 붙는지'],
-                ['세로 중앙 정렬', '위아래 방향으로 가운데에 오는 것'],
-                ['활성화/비활성화', '지금 사용할 수 있는 상태인지 아닌지'],
-                ['필수/선택', '반드시 입력해야 하는 항목인지 아닌지'],
-                ['읽기 전용', '보이기만 하고 값을 고칠 수는 없는 상태'],
-                ['hover(마우스 오버)', '마우스 커서를 그 위에 올렸을 때 생기는 반응'],
-              ]}
-            />
+            <PillTabs labels={GLOSSARY.map(g => g.label)} active={glossIdx} onChange={setGlossIdx} />
+            <GlossaryGroup title={GLOSSARY[glossIdx].label} items={GLOSSARY[glossIdx].items} />
           </section>
 
           <section>
             <H2 id="cases">6. 실제 있었던 소통 오류 4가지 — 어떻게 풀렸나</H2>
             <P>아래는 이 Task Manager를 만들면서 실제로 있었던 오해와, 그게 어떻게 바로잡혔는지를 정리한 사례입니다. 완벽하게 설명해도 오해가 생길 수 있다는 것, 그리고 오해가 생겼을 때 어떻게 바로잡는지가 더 중요하다는 것을 보여줍니다.</P>
 
-            <CaseStudy
-              n={1}
-              title={'"가운데(중앙)"의 의미'}
-              said="다른 팀은 중앙에 잘 있는데, 이 팀은 왜 이래?"
-              misread="처음엔 '헤더와 값의 시작 위치(좌측 여백)를 맞춰달라'는 뜻으로 여러 차례 좌측 정렬 기준만 조정함"
-              actual="실제로는 텍스트/값 자체가 칸의 정중앙(가로+세로 모두)에 오길 원한 것"
-              fix={<>사용자가 "시작일이 어딜 봐서 날짜 중앙에 있다는거야?"라고 명확히 반박한 뒤에야 진짜 의도를 확인함. 이후로는 <b>"중앙/가운데"</b>라는 단어가 나오면 절대 임의로 해석하지 않고, 화면 구조를 그림으로 먼저 보여주며 "좌측 정렬 유지 vs 가운데 정렬" 중 확정하고 시작하는 습관으로 바뀜.</>}
-            />
-
-            <CaseStudy
-              n={2}
-              title='"~에서도 보이게 해줘"가 "복사"인지 "이동"인지'
-              said="다른 팀 업무를 지원팀 화면에서도 보이게 해줘"
-              misread="지원팀 화면에 추가로 노출(중복 허용) — 원본 팀 화면에는 그대로 두고 지원팀 화면에도 같이 보여주는 방식으로 구현"
-              actual="지원팀으로 옮겨서(귀속), 원본 팀 화면에서는 더 이상 보이지 않아야 함 — 중복이 아니라 '전용으로 배정'하는 의미였음"
-              fix={<>"내가 우선 표시한 지원팀에만 나와야 한다니까"라는 재지적을 받은 뒤 원본 팀 화면에서 해당 항목을 제외하도록 다시 수정함. 이후로는 <b>"~에서도 보이게"</b> 같은 요청을 받으면 "추가로 노출"과 "옮겨서 귀속"의 가능성을 먼저 구분해 확인함.</>}
-            />
-
-            <CaseStudy
-              n={3}
-              title='"스크롤하기 불편해"가 가리키는 것'
-              said="여기 너무 좁아서 좌우로 스크롤하기 힘들어"
-              misread="스크롤바(마우스로 잡는 막대) 자체가 얇아서 잡기 힘들다는 뜻으로 이해해, 스크롤바 두께만 두껍게 수정"
-              actual="스크롤이 일어나는 콘텐츠 영역 자체의 세로 크기(패딩/높이)가 좁아서 답답하다는 뜻 — 스크롤바 두께 문제가 아니었음"
-              fix={<>실제 요청(영역 크기 확대)을 구현한 뒤에도, 오해로 만든 "두꺼운 스크롤바"를 그냥 남겨뒀다가 "그 스크롤 두껍다니까 왜 유지하냐"는 재지적을 받고서야 제거함. 교훈: 오해로 만든 변경은 진짜 요청을 구현했다고 해서 그냥 두지 말고, 명시적으로 유지해달라는 말이 없다면 원칙적으로 함께 되돌릴 것.</>}
-            />
-
-            <CaseStudy
-              n={4}
-              title='"A처럼 B도 중앙에" — 되물어서 확인했는데도 반대였던 경우'
-              said="체크박스/드래그처럼 '월'도 중앙에 오게 해줘"
-              misread="선택지를 만들어 되물은 뒤, '월을 체크박스·드래그가 있는 1번째 줄 기준에 맞춘다'는 옵션을 추천해 사용자가 선택 — 그런데 그 결과 원래 잘 되어 있던 체크박스/드래그의 정렬까지 함께 깨짐"
-              actual="'월이 체크박스·드래그와 같은 정렬 그룹(세로 중앙 고정 레일)으로 옮겨가야 한다'는 뜻이었음 — 기존에 잘 동작하던 체크박스/드래그 정렬은 그대로 두고 월만 그쪽으로 옮기는 것이 정답"
-              fix={<>한 번 확인 질문을 거쳐도 결과가 사용자 의도와 반대일 수 있다는 걸 보여준 사례. "원래 잘 동작하던 상태"를 기준선으로 삼아, 그 기준선을 최대한 보존하는 방향으로 재해석해 해결함. 교훈: 확인 질문에서 고른 답이 실제 결과에서 다시 반박당하면, "추천 옵션 자체가 반대 방향이었을 가능성"부터 의심할 것.</>}
-            />
+            <PillTabs labels={CASES.map((_, i) => `사례 ${i + 1}`)} active={caseIdx} onChange={setCaseIdx} />
+            <CaseStudy n={caseIdx + 1} {...CASES[caseIdx]} />
 
             <Callout tone="tip" title="공통 교훈">
               네 사례 모두 처음부터 완벽하게 통하지 않았습니다. 중요한 건 처음에 완벽히 설명하는 것보다, <b>"어? 그게 아니라"</b>는 피드백이 왔을 때 지금까지의 해석을 버리고 새로 확인하는 태도입니다.
@@ -662,7 +720,7 @@ VITE_FIREBASE_APP_ID`}</Code>
           <p style={{ fontSize: 12.5, color: '#94a3b8' }}>PIVOT CREATIVE 내부 교육용 자료 · 문의: js.yoo@pivot-inc.com</p>
         </div>
 
-          <QuickNav active={active} />
+          <QuickNav active={active} top={stickyHeaderH} />
         </div>
       </div>
     </div>

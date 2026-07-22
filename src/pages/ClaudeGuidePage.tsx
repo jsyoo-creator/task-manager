@@ -39,7 +39,7 @@ function IC({ children }: { children: React.ReactNode }) {
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <h2 id={id} style={{ fontSize: 21, fontWeight: 800, marginTop: 48, marginBottom: 14, color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: 10, scrollMarginTop: 24 }}>
+    <h2 id={id} style={{ fontSize: 21, fontWeight: 800, marginTop: 48, marginBottom: 14, color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: 10, scrollMarginTop: 'var(--cg-anchor-offset, 24px)' }}>
       {children}
     </h2>
   );
@@ -447,7 +447,7 @@ export default function ClaudeGuidePage() {
   }, [stickyHeaderH]);
 
   return (
-    <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+    <div style={{ height: '100vh', width: '100%', background: '#f8fafc', overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', ['--cg-anchor-offset' as string]: `${stickyHeaderH + 24}px` } as React.CSSProperties}>
       <style>{`@media (max-width: 1280px) { .cg-quicknav { display: none !important; } }`}</style>
       <div style={{ maxWidth: 1040, margin: '0 auto', padding: '0 24px 120px' }}>
         <div ref={stickyHeaderRef} style={{ position: 'sticky', top: 0, zIndex: 20, background: '#f8fafc', paddingTop: 48, paddingBottom: 10, borderBottom: '1px solid #e2e8f0' }}>

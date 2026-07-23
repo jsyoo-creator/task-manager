@@ -7450,6 +7450,11 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     return [...byId.entries()].filter(([, occs]) => new Set(occs.map(o => o.scope)).size > 1);
   };
 
+  // 2026-07-16 사고 원인: "①설정(id) 교체 → ②업무 데이터 이전"이 분리된 두 단계였는데,
+  // 중간에 하나라도 실패하면 설정만 새 id로 바뀌고 데이터는 옛 id 밑에 고아로 남았다.
+  // 재발 방지를 위해: 실행 전 정확히 뭘 바꿀지 확인창으로 보여주고, ②단계는 업무 하나하나
+  // try/catch로 감싸 하나가 실패해도 나머지는 계속 진행하며, 실패한 건은 절대 조용히
+  // 넘기지 않고 마지막에 정확히 몇 건이 실패했는지 보고한다.
   const handleFixDuplicateSubTaskTypeIds = async (team: Team) => {
     const dupEntries = findDuplicateSubTaskTypeIds(team);
     if (dupEntries.length === 0) return;
@@ -7468,6 +7473,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     });
     if (idRemapByPart.size === 0) return;
 
+    const confirmed = window.confirm(
+      `[${team.name}] 아래 ${migrationLabels.length}개 항목을 파트 쪽만 새 id로 분리하고(팀 기본 id는 그대로 유지), ` +
+      `관련 업무에 이미 입력된 담당자·시간 데이터를 새 id로 옮깁니다:\n\n${migrationLabels.join('\n')}\n\n계속할까요?`
+    );
+    if (!confirmed) return;
+
     const repairedParts = team.parts.map(p => {
       const remap = idRemapByPart.get(p.id);
       if (!remap || !p.subTaskTypes) return p;
@@ -7476,23 +7487,37 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     await onSetParts(team.id, repairedParts);
 
     // 기존 업무에 이미 입력된 담당자·시간(subTaskData)이 옛 id에 묶여 있으므로 새 id로 옮겨준다
+    let migratedCount = 0;
+    const failed: { title: string; error: string }[] = [];
     for (const [partId, remap] of idRemapByPart) {
       const part = team.parts.find(p => p.id === partId);
       if (!part) continue;
       const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
       for (const taskDoc of tasksSnap.docs) {
-        const subData = taskDoc.data().subTaskData;
-        if (!subData) continue;
-        const nextSub: Record<string, unknown> = { ...subData };
-        let changed = false;
-        remap.forEach((newId, oldId) => {
-          if (subData[oldId] !== undefined) { nextSub[newId] = subData[oldId]; delete nextSub[oldId]; changed = true; }
-        });
-        if (changed) await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub });
+        try {
+          const subData = taskDoc.data().subTaskData;
+          if (!subData) continue;
+          const nextSub: Record<string, unknown> = { ...subData };
+          let changed = false;
+          remap.forEach((newId, oldId) => {
+            if (subData[oldId] !== undefined) { nextSub[newId] = subData[oldId]; delete nextSub[oldId]; changed = true; }
+          });
+          if (changed) { await updateDoc(doc(db, 'tasks', taskDoc.id), { subTaskData: nextSub }); migratedCount++; }
+        } catch (e) {
+          failed.push({ title: taskDoc.data().title ?? taskDoc.id, error: e instanceof Error ? e.message : String(e) });
+        }
       }
     }
 
-    alert(`세부업무 id 중복 ${migrationLabels.length}건을 새 id로 분리했습니다:\n${migrationLabels.join('\n')}\n\n기존 업무에 입력돼 있던 담당자·시간 데이터도 함께 옮겨뒀습니다. 지원팀 연결을 설정해둔 항목이 있다면 다시 확인해주세요.`);
+    if (failed.length > 0) {
+      alert(
+        `⚠ [${team.name}] id 분리는 끝났지만, 업무 데이터 이전 중 ${failed.length}건이 실패했습니다 — 이 업무들은 옛 id 밑에 데이터가 남아있을 수 있으니 반드시 직접 확인해주세요:\n\n` +
+        failed.map(f => `- ${f.title}: ${f.error}`).join('\n') +
+        `\n\n(성공적으로 이전된 업무: ${migratedCount}건)`
+      );
+    } else {
+      alert(`세부업무 id 중복 ${migrationLabels.length}건을 새 id로 분리했습니다:\n${migrationLabels.join('\n')}\n\n기존 업무 ${migratedCount}건에 입력돼 있던 담당자·시간 데이터도 모두 함께 옮겼습니다. 지원팀 연결을 설정해둔 항목이 있다면 다시 확인해주세요.`);
+    }
   };
 
   // [사고 복구용 진단] 오늘 "세부업무 id 분리" 도구가 설정(id)만 바꾸고 업무 데이터 이전은
@@ -8319,9 +8344,9 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 </span>
                 <button
                   type="button"
-                  onClick={() => alert('이 복구 기능은 데이터 이전 중 문제가 발견되어 점검 중입니다. 잠시 사용을 중단해주세요.')}
-                  className="flex-shrink-0 px-2.5 py-1 rounded-md bg-gray-400 text-white text-xs font-medium cursor-not-allowed">
-                  점검 중 (사용 중단)
+                  onClick={async () => { for (const t of subTaskAffected) await handleFixDuplicateSubTaskTypeIds(t); }}
+                  className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors">
+                  팀별로 분리하기
                 </button>
               </div>
             )}
@@ -8494,12 +8519,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                     const dupSummary = dupEntries.map(([, occs]) => `${occs[0].name}(${occs.map(o => o.label).join('/')})`).join(', ');
                     return (
                       <div className="flex items-center justify-between gap-2 px-5 py-2.5 bg-red-50 border-b border-red-200 text-xs text-red-600">
-                        <span>⚠ 이 팀은 세부업무 항목의 id가 여러 파트에서 겹쳐 설정이 뒤섞일 수 있습니다: {dupSummary} (복구 기능은 점검 중이라 지금은 건드리지 않는 것이 안전합니다)</span>
+                        <span>⚠ 이 팀은 세부업무 항목의 id가 여러 파트에서 겹쳐 설정이 뒤섞일 수 있습니다: {dupSummary}</span>
                         <button
                           type="button"
-                          onClick={() => alert('이 복구 기능은 데이터 이전 중 문제가 발견되어 점검 중입니다. 잠시 사용을 중단해주세요.')}
-                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-gray-400 text-white font-medium cursor-not-allowed">
-                          점검 중 (사용 중단)
+                          onClick={() => handleFixDuplicateSubTaskTypeIds(team)}
+                          className="flex-shrink-0 px-2.5 py-1 rounded-md bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">
+                          지금 분리하기
                         </button>
                       </div>
                     );

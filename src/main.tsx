@@ -11,6 +11,21 @@
   const isPrivacyPolicyPath = pathname === "/privacy-policy";
   const isClaudeGuidePath = pathname === "/claude-guide";
 
+  // STG(스테이징) 환경에서 운영과 혼동하지 않도록 로그인 화면을 포함해 항상 최상단에 표시
+  const isStg = import.meta.env.VITE_APP_ENV === 'stg';
+  if (isStg) document.title = `[STG] ${document.title}`;
+
   createRoot(document.getElementById("root")!).render(
-    isPrivacyPolicyPath ? <PrivacyPolicyPage /> : isClaudeGuidePath ? <ClaudeGuidePage /> : <App />
+    <>
+      {isStg && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+          background: '#f59e0b', color: '#000', textAlign: 'center',
+          fontSize: 12, fontWeight: 700, padding: '3px 0', letterSpacing: '0.05em',
+        }}>
+          STG 테스트 환경 — 실제 운영 데이터 아님
+        </div>
+      )}
+      {isPrivacyPolicyPath ? <PrivacyPolicyPage /> : isClaudeGuidePath ? <ClaudeGuidePage /> : <App />}
+    </>
   );

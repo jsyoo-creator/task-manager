@@ -155,6 +155,30 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
   };
 
+  // subTaskTypes와 subTaskGroups는 둘 다 parts 배열 안에 같이 들어있는 필드라,
+  // updatePartSubTaskTypes/updatePartSubTaskGroups를 따로(await 없이) 연달아 호출하면
+  // 둘 다 "아직 안 바뀐" 같은 team.parts를 읽어 각자 parts 전체를 덮어쓰게 되고,
+  // 나중에 도착하는 쪽이 상대방의 변경을 모른 채로 덮어써서 하나가 조용히 사라진다
+  // (복사 시 groupIds 연결 유실, 그룹 삭제가 안 먹히는 문제의 원인). 두 필드를 한 번에
+  // 계산해서 단일 updateDoc으로 저장해 이 경쟁을 없앤다.
+  const updatePartSubTaskTypesAndGroups = async (teamId: string, partId: string, types: SubTaskType[], groups: SubTaskGroup[]) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => p.id === partId ? { ...p, subTaskTypes: types, subTaskGroups: groups } : p);
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
+  const clearPartSubTaskTypesAndGroups = async (teamId: string, partId: string) => {
+    const team = teams.find(t => t.id === teamId);
+    if (!team) return;
+    const newParts = team.parts.map(p => {
+      if (p.id !== partId) return p;
+      const { subTaskTypes: _t, subTaskGroups: _g, ...rest } = p;
+      return rest;
+    });
+    await updateDoc(doc(db, 'teams', teamId), { parts: newParts });
+  };
+
   const updatePartCalendarOrder = async (teamId: string, partId: string, order: string[]) => {
     const team = teams.find(t => t.id === teamId);
     if (!team) return;
@@ -384,5 +408,5 @@ export function useTeams(uid?: string, workplaceId?: string) {
     await batch.commit();
   };
 
-  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateSubTaskGroups, updatePartSubTaskGroups, clearPartSubTaskGroups, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, updatePartMailFormConfig, clearPartMailFormConfig, reorderTeams };
+  return { teams, loading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updateAllTeamsMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateSubTaskGroups, updatePartSubTaskGroups, clearPartSubTaskGroups, updatePartSubTaskTypesAndGroups, clearPartSubTaskTypesAndGroups, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateHolidays, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, updatePartMailFormConfig, clearPartMailFormConfig, reorderTeams };
 }

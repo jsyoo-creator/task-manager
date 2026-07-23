@@ -43,6 +43,8 @@ interface Props {
   onUpdateSubTaskGroups: (teamId: string, groups: SubTaskGroup[]) => Promise<void>;
   onUpdatePartSubTaskGroups: (teamId: string, partId: string, groups: SubTaskGroup[]) => Promise<void>;
   onClearPartSubTaskGroups: (teamId: string, partId: string) => Promise<void>;
+  onSavePartTypesAndGroups: (teamId: string, partId: string, types: SubTaskType[], groups: SubTaskGroup[]) => Promise<void>;
+  onClearPartTypesAndGroups: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -2400,7 +2402,7 @@ const SUBTASK_CALENDAR_COLORS = [
   '#22d3ee','#60a5fa','#818cf8','#a78bfa','#f472b6',
 ];
 
-function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSaveGroups, onSaveGroupsPart, onClearGroupsPart }: {
+function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSaveGroups, onSaveGroupsPart, onClearGroupsPart, onSaveTypesAndGroupsPart, onClearTypesAndGroupsPart }: {
   team: Team;
   teams: Team[];
   onSave: (teamId: string, types: SubTaskType[]) => Promise<void>;
@@ -2409,6 +2411,8 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   onSaveGroups: (teamId: string, groups: SubTaskGroup[]) => Promise<void>;
   onSaveGroupsPart: (teamId: string, partId: string, groups: SubTaskGroup[]) => Promise<void>;
   onClearGroupsPart: (teamId: string, partId: string) => Promise<void>;
+  onSaveTypesAndGroupsPart: (teamId: string, partId: string, types: SubTaskType[], groups: SubTaskGroup[]) => Promise<void>;
+  onClearTypesAndGroupsPart: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
@@ -2477,12 +2481,17 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   };
 
   // 그룹을 지우면 그 그룹을 참조하던 세부업무들의 태그도 함께 해제 —
-  // 안 그러면 존재하지 않는 그룹을 가리키는 채로 남아 데이터가 지저분해짐
+  // 안 그러면 존재하지 않는 그룹을 가리키는 채로 남아 데이터가 지저분해짐.
+  // 파트 스코프에서는 types/groups가 같은 parts 배열 필드를 공유하므로, saveGroups와
+  // save를 따로(await 없이) 호출하면 서로 상대방의 변경을 모른 채 parts 전체를
+  // 덮어써서 둘 중 하나가 사라진다 — 반드시 한 번에 저장한다
   const deleteGroup = (id: string) => {
-    saveGroups(groups.filter(g => g.id !== id));
-    save(types.map(t => resolveSubTaskGroupIds(t).includes(id)
+    const nextGroups = groups.filter(g => g.id !== id);
+    const nextTypes = types.map(t => resolveSubTaskGroupIds(t).includes(id)
       ? { ...t, groupId: undefined, groupIds: resolveSubTaskGroupIds(t).filter(gid => gid !== id) }
-      : t));
+      : t);
+    if (isTeam) { onSaveGroups(team.id, nextGroups); onSave(team.id, nextTypes); }
+    else if (currentPart) onSaveTypesAndGroupsPart(team.id, currentPart.id, nextTypes, nextGroups);
     setBulkSelectedIds(prev => { if (!prev.has(id)) return prev; const next = new Set(prev); next.delete(id); return next; });
     if (bulkTargetGroupId === id) setBulkTargetGroupId('');
   };
@@ -2589,7 +2598,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
       groupId: undefined,
       groupIds: resolveSubTaskGroupIds(t).map(gid => groupIdMap.get(gid)).filter((x): x is string => !!x),
     }));
-    if (currentPart) { onSavePart(team.id, currentPart.id, copied); onSaveGroupsPart(team.id, currentPart.id, copiedGroups); }
+    if (currentPart) onSaveTypesAndGroupsPart(team.id, currentPart.id, copied, copiedGroups);
     setPendingCopySource(null);
   };
 
@@ -2635,7 +2644,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
       {isInherited && (
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
           <p className="text-xs text-amber-700">팀 기본 설정을 상속 중 — 변경하면 이 파트만 다르게 저장됩니다</p>
-          <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); onClearGroupsPart(team.id, currentPart.id); } }}
+          <button onClick={() => { if (currentPart) onClearTypesAndGroupsPart(team.id, currentPart.id); }}
             className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
             <RotateCcw size={11} />초기화
           </button>
@@ -2654,7 +2663,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                 className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium">
                 <ArrowUpToLine size={11} />팀 기본으로 지정
               </button>
-              <button onClick={() => { if (currentPart) { onClearPart(team.id, currentPart.id); onClearGroupsPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
+              <button onClick={() => { if (currentPart) { onClearTypesAndGroupsPart(team.id, currentPart.id); setSelectedTarget('team'); doFlash('reset'); } }}
                 className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
                 <RotateCcw size={11} />초기화
               </button>
@@ -7290,7 +7299,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   );
 }
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onSavePartTypesAndGroups, onClearPartTypesAndGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -7312,6 +7321,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onUpdateSubTaskGroups: (teamId: string, groups: SubTaskGroup[]) => Promise<void>;
   onUpdatePartSubTaskGroups: (teamId: string, partId: string, groups: SubTaskGroup[]) => Promise<void>;
   onClearPartSubTaskGroups: (teamId: string, partId: string) => Promise<void>;
+  onSavePartTypesAndGroups: (teamId: string, partId: string, types: SubTaskType[], groups: SubTaskGroup[]) => Promise<void>;
+  onClearPartTypesAndGroups: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartCalendarOrder: (teamId: string, partId: string, order: string[]) => Promise<void>;
   onClearPartCalendarOrder: (teamId: string, partId: string) => Promise<void>;
   onUpdatePartPLShowInCalendar: (teamId: string, partId: string, value: boolean) => Promise<void>;
@@ -8792,6 +8803,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onSaveGroups={onUpdateSubTaskGroups}
                         onSaveGroupsPart={onUpdatePartSubTaskGroups}
                         onClearGroupsPart={onClearPartSubTaskGroups}
+                        onSaveTypesAndGroupsPart={onSavePartTypesAndGroups}
+                        onClearTypesAndGroupsPart={onClearPartTypesAndGroups}
                       />
                     </div>
                   )}
@@ -9458,7 +9471,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
 export default function SettingsPage({
   appUser, onUpdateName, onUpdateDepartment, onUpdateSelectedTeams, onUpdateDefaultTeam,
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
-  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig,
+  onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onSavePartTypesAndGroups, onClearPartTypesAndGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig,
   onReorderTeams,
   customHolidays, onUpdateHolidays,
   orphanTaskCount, onCleanupOrphanTasks,
@@ -9852,6 +9865,8 @@ export default function SettingsPage({
           onUpdateSubTaskGroups={onUpdateSubTaskGroups}
           onUpdatePartSubTaskGroups={onUpdatePartSubTaskGroups}
           onClearPartSubTaskGroups={onClearPartSubTaskGroups}
+          onSavePartTypesAndGroups={onSavePartTypesAndGroups}
+          onClearPartTypesAndGroups={onClearPartTypesAndGroups}
           onUpdatePartCalendarOrder={onUpdatePartCalendarOrder}
           onClearPartCalendarOrder={onClearPartCalendarOrder}
           onUpdatePartPLShowInCalendar={onUpdatePartPLShowInCalendar}

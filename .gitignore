@@ -7,3 +7,5 @@ dist/
 .claude/
 node_modules
 .vercel
+json/
+*firebase-adminsdk*.json

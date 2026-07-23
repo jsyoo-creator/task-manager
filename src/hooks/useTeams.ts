@@ -24,7 +24,11 @@ export function useTeams(uid?: string, workplaceId?: string) {
             return ao !== bo ? ao - bo : a.createdAt.localeCompare(b.createdAt);
           });
         setTeams(data);
-        setLoading(false);
+        // 로컬 캐시에만 있고 서버 확인 전인 "빈" 스냅샷을 진짜 로딩 완료로 치면, 이 근무지에
+        // 실제로는 팀이 있는데도 순간적으로 0건으로 보여 App.tsx의 "완전히 새 근무지" 자동
+        // 생성 가드를 뚫고 프로젝트가 중복 생성되는 사고가 난다. 서버가 확인해준 결과(비어있어도
+        // fromCache=false)일 때만 로딩 완료로 간주한다.
+        if (data.length > 0 || !snap.metadata.fromCache) setLoading(false);
       },
       err => {
         console.error('useTeams 구독 오류 (Firestore 권한 확인 필요):', err);

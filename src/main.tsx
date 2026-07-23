@@ -11,9 +11,26 @@
   const isPrivacyPolicyPath = pathname === "/privacy-policy";
   const isClaudeGuidePath = pathname === "/claude-guide";
 
-  // STG(스테이징) 환경에서 운영과 혼동하지 않도록 로그인 화면을 포함해 항상 최상단에 표시
+  // STG(스테이징) 환경에서 운영과 혼동하지 않도록 로그인 화면을 포함해 항상 최상단에 표시.
+  // 파비콘도 브라우저 탭에서 바로 구분되게 캔버스로 즉석 생성해 덮어씀(별도 이미지 파일 불필요)
   const isStg = import.meta.env.VITE_APP_ENV === 'stg';
-  if (isStg) document.title = `[STG] ${document.title}`;
+  if (isStg) {
+    document.title = `[STG] ${document.title}`;
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('STG', 32, 34);
+      const dataUrl = canvas.toDataURL('image/png');
+      document.querySelectorAll('link[rel~="icon"]').forEach(link => { (link as HTMLLinkElement).href = dataUrl; });
+    }
+  }
 
   createRoot(document.getElementById("root")!).render(
     <>

@@ -9,6 +9,7 @@ import { backfillSupportTaskLinks, repairLinkedSupportTaskOrder } from '../hooks
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where, documentId } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DatePicker from '../components/DatePicker';
+import ConfirmDialog from '../components/ConfirmDialog';
 import type { MailGridRow } from '../components/TaskDetailPanel';
 import { MAIL_TABLE_BUILTIN_FIELDS, resolveMailTableRowOrder, buildMailGreeting, stripNameTitleSuffix, composeMessageLine, buildMainRenderableTable, buildExtraRenderableTable, buildRenderableListGroup, resolveMailBodyBlockKeys, assembleMailBodyBlocks, mailBodyBlockToHtml, resolveMailBodyFieldValue, buildMailHtml, extractPhraseMarkerNames, resolveMessageTemplate, extractAdjacentPhraseGroups, isBlockVisible } from '../components/TaskDetailPanel';
 import type { MailBodyBlock } from '../components/TaskDetailPanel';
@@ -344,6 +345,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
   const [defaultTeamInput, setDefaultTeamInput] = useState<string | null>((workplaceId && u.defaultTeamIdByWorkplace?.[workplaceId]) || null);
   const [annualLeaveStr, setAnnualLeaveStr] = useState<string>(String(u.annualLeave ?? DEFAULT_ANNUAL));
   const [profileDataInput, setProfileDataInput] = useState<Record<string, string>>(u.profileData ?? {});
+  const [pendingDeleteUser, setPendingDeleteUser] = useState(false);
 
   // 최고 관리자: 본인 포함 전체 수정 가능
   // 중간 관리자: 본인 + 같은 팀 일반 사용자 수정 가능
@@ -430,10 +432,7 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
               )}
               {canDelete && !editing && (
                 <button
-                  onClick={() => {
-                    if (window.confirm(`${u.displayName} 사용자를 탈퇴 처리하시겠습니까?\n탈퇴 후 재로그인 시 일반 사용자로 재등록됩니다.`))
-                      onDeleteUser(u.uid);
-                  }}
+                  onClick={() => setPendingDeleteUser(true)}
                   className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
                   <Trash2 size={12} />
                 </button>
@@ -578,6 +577,15 @@ function UserRow({ u, viewerRole, viewerTeamIds, isSelf, onChangeRole, onUpdateI
           <button onClick={handleSave} className="px-4 py-1.5 rounded-lg text-xs font-semibold btn-shiny-primary">저장</button>
         </div>
       )}
+      <ConfirmDialog
+        open={pendingDeleteUser}
+        taskTitle={u.displayName}
+        title="사용자 탈퇴 처리"
+        message="이 사용자를 탈퇴 처리할까요?"
+        subMessage="탈퇴 후 재로그인 시 일반 사용자로 재등록됩니다"
+        onConfirm={() => { onDeleteUser(u.uid); setPendingDeleteUser(false); }}
+        onCancel={() => setPendingDeleteUser(false)}
+      />
     </div>
   );
 }
@@ -859,6 +867,8 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   builtinOptionColorsRef.current = builtinOptionColors;
   const builtinCompletedValuesRef = useRef(builtinCompletedValuesInput);
   builtinCompletedValuesRef.current = builtinCompletedValuesInput;
+
+  const [pendingDeleteCustom, setPendingDeleteCustom] = useState<{ id: string; name: string } | null>(null);
 
   // "같은 값 연결"(얼라이어스) 피커 — 어느 필드의 연결 설정 팝오버가 열려있는지
   const [aliasPickerId, setAliasPickerId] = useState<string | null>(null);
@@ -1537,7 +1547,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                   {cf.required && <span className="text-[10px] text-red-400 font-medium">필수</span>}
                   {cf.dependsOn && <span className="text-[10px] text-violet-400 font-medium">연결됨</span>}
                   <Toggle on={cf.enabled !== false} onToggle={() => toggleCustom(cf.id)} />
-                  <button onClick={() => deleteCustom(cf.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
+                  <button onClick={() => setPendingDeleteCustom({ id: cf.id, name: cf.label })} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5"><X size={11} /></button>
                 </div>
               </div>
               {aliasPickerId === cf.id && (() => {
@@ -1641,6 +1651,14 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
             .map(f => ({ id: f.id, label: f.label, options: f.options! })),
         ]} />
       </div>
+      <ConfirmDialog
+        open={!!pendingDeleteCustom}
+        taskTitle={pendingDeleteCustom?.name ?? ''}
+        title="필드 삭제"
+        message="이 커스텀 필드를 삭제할까요?"
+        onConfirm={() => { if (pendingDeleteCustom) deleteCustom(pendingDeleteCustom.id); setPendingDeleteCustom(null); }}
+        onCancel={() => setPendingDeleteCustom(null)}
+      />
     </div>
   );
 }
@@ -1662,6 +1680,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
   const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
+  const [pendingResetForm, setPendingResetForm] = useState(false);
 
   const isAllTarget = selectedTarget === 'all';
   const currentPart = (selectedTarget !== 'team' && selectedTarget !== 'all')
@@ -1816,10 +1835,7 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
                 </button>
               )}
               <button
-                onClick={() => {
-                  if (isAllTarget) { onClearAllFormConfig(team.id); doFlash('reset'); }
-                  else { onClearPartFormConfig(team.id, selectedTarget); doFlash('reset'); }
-                }}
+                onClick={() => setPendingResetForm(true)}
                 className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium">
                 <RotateCcw size={11} />초기화
               </button>
@@ -1933,6 +1949,19 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         onSaveCustom={saveCustom}
         onSaveOrder={saveOrder}
         onSaveDrag={saveDrag}
+      />
+      <ConfirmDialog
+        open={pendingResetForm}
+        taskTitle={isAllTarget ? '전체 뷰' : (currentPart?.name ?? '이 파트')}
+        title="폼 설정 초기화"
+        message="이 폼 설정을 전부 초기화할까요?"
+        subMessage="지금까지 설정한 필드 구성이 모두 사라집니다"
+        onConfirm={() => {
+          if (isAllTarget) { onClearAllFormConfig(team.id); doFlash('reset'); }
+          else { onClearPartFormConfig(team.id, selectedTarget); doFlash('reset'); }
+          setPendingResetForm(false);
+        }}
+        onCancel={() => setPendingResetForm(false)}
       />
     </div>
   );
@@ -2130,6 +2159,7 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
   const dragIdxRef = useRef<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   const [pendingCopySource, setPendingCopySource] = useState<string | null>(null);
+  const [pendingDeleteMetaField, setPendingDeleteMetaField] = useState<{ key: string; name: string } | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingKey(null); }, [team.id]);
 
@@ -2342,7 +2372,7 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
                 <select value={kind} onChange={e => changeKind(f.key, e.target.value as MetaFieldKind)} className={kindSelectCls}>
                   {(Object.keys(kindLabels) as MetaFieldKind[]).map(k => <option key={k} value={k}>{kindLabels[k]}</option>)}
                 </select>
-                <button type="button" onClick={() => deleteField(f.key)}
+                <button type="button" onClick={() => setPendingDeleteMetaField({ key: f.key, name: f.label })}
                   className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                   <X size={11} />
                 </button>
@@ -2382,6 +2412,14 @@ function MetaFieldsEditor({ team, onSave, onSavePart, onClearPart }: {
           </button>
         )}
       </div>
+      <ConfirmDialog
+        open={!!pendingDeleteMetaField}
+        taskTitle={pendingDeleteMetaField?.name ?? ''}
+        title="필드 삭제"
+        message="이 항목을 삭제할까요?"
+        onConfirm={() => { if (pendingDeleteMetaField) deleteField(pendingDeleteMetaField.key); setPendingDeleteMetaField(null); }}
+        onCancel={() => setPendingDeleteMetaField(null)}
+      />
     </div>
   );
 }
@@ -2440,6 +2478,8 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   // 여러 세부업무를 체크해서 한 번에 특정 그룹으로 배정하는 일괄 도구용 상태
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
   const [bulkTargetGroupId, setBulkTargetGroupId] = useState('');
+  const [pendingDeleteSubTaskType, setPendingDeleteSubTaskType] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDeleteSubTaskGroup, setPendingDeleteSubTaskGroup] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -2744,7 +2784,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                   {g.name}
                 </button>
               )}
-              <button type="button" onClick={() => deleteGroup(g.id)}
+              <button type="button" onClick={() => setPendingDeleteSubTaskGroup({ id: g.id, name: g.name })}
                 className="text-violet-300 hover:text-red-400 transition-colors">
                 <X size={11} />
               </button>
@@ -2948,7 +2988,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                           <Users size={11} />
                         </button>
                       )}
-                      <button type="button" onClick={() => deleteType(t.id)}
+                      <button type="button" onClick={() => setPendingDeleteSubTaskType({ id: t.id, name: t.name })}
                         className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                         <X size={11} />
                       </button>
@@ -3102,6 +3142,24 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
         );
       })()}
       </div>
+      <ConfirmDialog
+        open={!!pendingDeleteSubTaskType}
+        taskTitle={pendingDeleteSubTaskType?.name ?? ''}
+        title="세부업무 유형 삭제"
+        message="이 세부업무 유형을 삭제할까요?"
+        subMessage="이 유형을 사용 중인 업무의 데이터가 영향을 받을 수 있습니다"
+        onConfirm={() => { if (pendingDeleteSubTaskType) deleteType(pendingDeleteSubTaskType.id); setPendingDeleteSubTaskType(null); }}
+        onCancel={() => setPendingDeleteSubTaskType(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingDeleteSubTaskGroup}
+        taskTitle={pendingDeleteSubTaskGroup?.name ?? ''}
+        title="세부업무 그룹 삭제"
+        message="이 그룹을 삭제할까요?"
+        subMessage="그룹에 속한 유형들의 그룹 연결이 함께 해제됩니다"
+        onConfirm={() => { if (pendingDeleteSubTaskGroup) deleteGroup(pendingDeleteSubTaskGroup.id); setPendingDeleteSubTaskGroup(null); }}
+        onCancel={() => setPendingDeleteSubTaskGroup(null)}
+      />
     </div>
   );
 }
@@ -3119,6 +3177,7 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
   const [newLabel, setNewLabel] = useState('');
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
+  const [pendingDeleteStep, setPendingDeleteStep] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); setEditingField(null); }, [team.id]);
 
@@ -3264,7 +3323,7 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
                     {s.label}
                   </button>
                 )}
-                <button type="button" onClick={() => deleteStep(s.id)}
+                <button type="button" onClick={() => setPendingDeleteStep({ id: s.id, name: s.label })}
                   className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
                   <X size={11} />
                 </button>
@@ -3286,6 +3345,14 @@ function RevisionStepsEditor({ team, onSave, onSavePart, onClearPart }: {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={!!pendingDeleteStep}
+        taskTitle={pendingDeleteStep?.name ?? ''}
+        title="검수단계 삭제"
+        message="이 검수단계를 삭제할까요?"
+        onConfirm={() => { if (pendingDeleteStep) deleteStep(pendingDeleteStep.id); setPendingDeleteStep(null); }}
+        onCancel={() => setPendingDeleteStep(null)}
+      />
     </div>
   );
 }
@@ -3666,6 +3733,7 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
   const [newDepts, setNewDepts] = useState<Department[]>([]);
   const dragIdxRef = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [pendingDeletePLSubField, setPendingDeletePLSubField] = useState<{ id: string; name: string } | null>(null);
 
   const iCls = "text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
@@ -3742,7 +3810,7 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
                   );
                 })}
               </div>
-              <button type="button" onClick={() => deleteField(f.id)} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
+              <button type="button" onClick={() => setPendingDeletePLSubField({ id: f.id, name: f.name })} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
             </div>
           ))}
         </div>
@@ -3769,6 +3837,14 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
           <Plus size={10} />추가
         </button>
       </div>
+      <ConfirmDialog
+        open={!!pendingDeletePLSubField}
+        taskTitle={pendingDeletePLSubField?.name ?? ''}
+        title="필드 삭제"
+        message="이 PL 세부업무 필드를 삭제할까요?"
+        onConfirm={() => { if (pendingDeletePLSubField) deleteField(pendingDeletePLSubField.id); setPendingDeletePLSubField(null); }}
+        onCancel={() => setPendingDeletePLSubField(null)}
+      />
     </div>
   );
 }
@@ -3784,6 +3860,7 @@ function PLMainTaskTypesEditor({ team, onSave }: {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragIdxRef = useRef<number | null>(null);
+  const [pendingDeletePLMainType, setPendingDeletePLMainType] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setEditingId(null); setExpandedId(null); }, [team.id]);
 
@@ -3890,7 +3967,7 @@ function PLMainTaskTypesEditor({ team, onSave }: {
                       </button>
                     ))}
                   </div>
-                  <button type="button" onClick={() => deleteType(t.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5 flex-shrink-0">
+                  <button type="button" onClick={() => setPendingDeletePLMainType({ id: t.id, name: t.name })} className="text-gray-300 hover:text-red-400 transition-colors ml-0.5 flex-shrink-0">
                     <X size={11} />
                   </button>
                 </div>
@@ -3931,6 +4008,14 @@ function PLMainTaskTypesEditor({ team, onSave }: {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={!!pendingDeletePLMainType}
+        taskTitle={pendingDeletePLMainType?.name ?? ''}
+        title="유형 삭제"
+        message="이 PL 메인업무 유형을 삭제할까요?"
+        onConfirm={() => { if (pendingDeletePLMainType) deleteType(pendingDeletePLMainType.id); setPendingDeletePLMainType(null); }}
+        onCancel={() => setPendingDeletePLMainType(null)}
+      />
     </div>
   );
 }
@@ -4077,6 +4162,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
+  const [pendingRemoveCol, setPendingRemoveCol] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     setCols(getEffectiveCols());
@@ -4326,7 +4412,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
               <span className="text-xs flex-1 text-gray-700">{getColLabel(col)}</span>
             )}
             {(col.type === 'empty' || col.type === 'meta') && (
-              <button onClick={() => removeCol(col.id)}
+              <button onClick={() => setPendingRemoveCol({ id: col.id, name: getColLabel(col) })}
                 className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                 <X size={12} />
               </button>
@@ -4354,6 +4440,14 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
           미리보기: {cols.filter(c => c.enabled).map(c => getColLabel(c)).join(' | ')}
         </p>
       </div>
+      <ConfirmDialog
+        open={!!pendingRemoveCol}
+        taskTitle={pendingRemoveCol?.name ?? ''}
+        title="컬럼 삭제"
+        message="이 내보내기 컬럼을 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveCol) removeCol(pendingRemoveCol.id); setPendingRemoveCol(null); }}
+        onCancel={() => setPendingRemoveCol(null)}
+      />
     </div>
   );
 }
@@ -4800,6 +4894,8 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const rowDragIdxRef = useRef<number | null>(null);
   const [rowDragOverIdx, setRowDragOverIdx] = useState<number | null>(null);
+  const [pendingRemoveField, setPendingRemoveField] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRemoveTable, setPendingRemoveTable] = useState(false);
 
   useEffect(() => {
     setTitleDraft(table.title ?? '');
@@ -4907,7 +5003,7 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
           placeholder="표 제목 (선택, 예: 예상 일정표)"
           className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
         />
-        <button onClick={onRemove} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+        <button onClick={() => setPendingRemoveTable(true)} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
           표 삭제
         </button>
       </div>
@@ -4986,7 +5082,7 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
                         className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0"
                       />
                     )}
-                    <button onClick={() => handleRemoveField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                    <button onClick={() => setPendingRemoveField({ id: f.id, name: f.label })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                   </div>
                 );
               })}
@@ -5208,6 +5304,23 @@ function ExtraTableEditor({ table, candidateFields, onSave, onRemove }: {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={!!pendingRemoveField}
+        taskTitle={pendingRemoveField?.name ?? ''}
+        title="필드 삭제"
+        message="이 표 필드를 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveField) handleRemoveField(pendingRemoveField.id); setPendingRemoveField(null); }}
+        onCancel={() => setPendingRemoveField(null)}
+      />
+      <ConfirmDialog
+        open={pendingRemoveTable}
+        taskTitle={table.title || '표'}
+        title="표 삭제"
+        message="이 추가 표를 통째로 삭제할까요?"
+        subMessage="표 안의 모든 필드가 함께 삭제됩니다"
+        onConfirm={() => { onRemove(); setPendingRemoveTable(false); }}
+        onCancel={() => setPendingRemoveTable(false)}
+      />
     </div>
   );
 }
@@ -5227,6 +5340,8 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
   const [manualLabelDraft, setManualLabelDraft] = useState('');
   const dragIdxRef = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [pendingRemoveItem, setPendingRemoveItem] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRemoveGroup, setPendingRemoveGroup] = useState(false);
 
   useEffect(() => {
     setTitleDraft(group.title ?? '');
@@ -5300,7 +5415,7 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
           placeholder="목록 제목 (선택, 예: SNS 공유 이미지)"
           className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
         />
-        <button onClick={onRemove} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+        <button onClick={() => setPendingRemoveGroup(true)} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
           목록 삭제
         </button>
       </div>
@@ -5372,7 +5487,7 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
                     )}
                   </>
                 )}
-                <button onClick={() => handleRemoveItem(it.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                <button onClick={() => setPendingRemoveItem({ id: it.id, name: it.label })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
               </div>
             ))}
           </div>
@@ -5431,6 +5546,23 @@ function MailListGroupEditor({ group, candidateFields, onSave, onRemove }: {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={!!pendingRemoveItem}
+        taskTitle={pendingRemoveItem?.name ?? ''}
+        title="항목 삭제"
+        message="이 목록 항목을 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveItem) handleRemoveItem(pendingRemoveItem.id); setPendingRemoveItem(null); }}
+        onCancel={() => setPendingRemoveItem(null)}
+      />
+      <ConfirmDialog
+        open={pendingRemoveGroup}
+        taskTitle={group.title || '목록그룹'}
+        title="목록그룹 삭제"
+        message="이 목록그룹을 통째로 삭제할까요?"
+        subMessage="그룹 안의 모든 항목이 함께 삭제됩니다"
+        onConfirm={() => { onRemove(); setPendingRemoveGroup(false); }}
+        onCancel={() => setPendingRemoveGroup(false)}
+      />
     </div>
   );
 }
@@ -5447,6 +5579,8 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
   const [colTypeDraft, setColTypeDraft] = useState<'text' | 'date' | 'checkbox' | 'time' | 'select'>('text');
   const colDragIdxRef = useRef<number | null>(null);
   const [colDragOverIdx, setColDragOverIdx] = useState<number | null>(null);
+  const [pendingRemoveColumn, setPendingRemoveColumn] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRemoveGridTable, setPendingRemoveGridTable] = useState(false);
 
   useEffect(() => {
     setTitleDraft(table.title ?? '');
@@ -5506,7 +5640,7 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
           placeholder="표 제목 (선택, 예: 라이브 방송 일정)"
           className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
         />
-        <button onClick={onRemove} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+        <button onClick={() => setPendingRemoveGridTable(true)} className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
           행표 삭제
         </button>
       </div>
@@ -5595,7 +5729,7 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
                       <span className="text-[10px] text-gray-500">요일 표시</span>
                     </label>
                   )}
-                  <button onClick={() => handleRemoveColumn(c.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                  <button onClick={() => setPendingRemoveColumn({ id: c.id, name: c.label })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                 </div>
                 {c.type === 'select' && (
                   <div className="flex items-center gap-1.5 px-2 py-1">
@@ -5632,6 +5766,23 @@ function MailGridTableEditor({ table, onSave, onRemove }: {
         </div>
         <p className="text-[11px] text-gray-400 mt-1">값은 미리 채워지지 않고, 업무 상세의 메일 양식에서 메일 작성할 때마다 행을 추가하며 직접 입력합니다.</p>
       </div>
+      <ConfirmDialog
+        open={!!pendingRemoveColumn}
+        taskTitle={pendingRemoveColumn?.name ?? ''}
+        title="컬럼 삭제"
+        message="이 그리드표 컬럼을 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveColumn) handleRemoveColumn(pendingRemoveColumn.id); setPendingRemoveColumn(null); }}
+        onCancel={() => setPendingRemoveColumn(null)}
+      />
+      <ConfirmDialog
+        open={pendingRemoveGridTable}
+        taskTitle={table.title || '행표'}
+        title="그리드표 삭제"
+        message="이 그리드표를 통째로 삭제할까요?"
+        subMessage="표 안의 모든 컬럼이 함께 삭제됩니다"
+        onConfirm={() => { onRemove(); setPendingRemoveGridTable(false); }}
+        onCancel={() => setPendingRemoveGridTable(false)}
+      />
     </div>
   );
 }
@@ -5850,6 +6001,12 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   const [phraseOptionDrafts, setPhraseOptionDrafts] = useState<Record<string, string>>({});
   // 붙어 있는 마커 그룹의 "전체 선택 시 문구" draft (그룹 key(이름들을 |로 이음) → 입력 중인 텍스트)
   const [groupOverrideDrafts, setGroupOverrideDrafts] = useState<Record<string, string>>({});
+  const [pendingRemovePhraseOption, setPendingRemovePhraseOption] = useState<{ name: string; optionId: string; label: string } | null>(null);
+  const [pendingRemoveMessageInsert, setPendingRemoveMessageInsert] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRemoveRecipient, setPendingRemoveRecipient] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDeletePreset, setPendingDeletePreset] = useState(false);
+  const [pendingRemoveCustomField, setPendingRemoveCustomField] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRemoveBodyField, setPendingRemoveBodyField] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     setSelectedPresetId(currentPart?.mailFormConfig?.[0]?.id ?? '');
@@ -6071,7 +6228,6 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 
   const handleDeletePreset = () => {
     if (!currentPreset) return;
-    if (!window.confirm(`"${currentPreset.name}" 탭을 삭제할까요?`)) return;
     const next = presets.filter(p => p.id !== currentPreset.id);
     savePresets(next);
     setSelectedPresetId(next[0]?.id ?? '');
@@ -6475,7 +6631,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
               className="flex-1 text-sm font-semibold px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               placeholder="탭 이름"
             />
-            <button onClick={handleDeletePreset}
+            <button onClick={() => setPendingDeletePreset(true)}
               className="text-[11px] text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
               탭 삭제
             </button>
@@ -6544,7 +6700,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                                   placeholder="선택 시 삽입될 문구 내용"
                                   className="flex-1 min-w-0 text-xs px-2 py-1 rounded-md border border-gray-200 focus:outline-none"
                                 />
-                                <button onClick={() => handleRemovePhraseOption(name, opt.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                                <button onClick={() => setPendingRemovePhraseOption({ name, optionId: opt.id, label: (phraseOptionDrafts[opt.id] ?? opt.text) || '(빈 옵션)' })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                               </div>
                             ))}
                             <button onClick={() => handleAddPhraseOption(name)}
@@ -6675,7 +6831,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                           ))}
                         </div>
                       )}
-                      <button onClick={() => handleRemoveMessageInsert(ins.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                      <button onClick={() => setPendingRemoveMessageInsert({ id: ins.id, name: ins.label ?? '' })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                     </div>
                   ))}
                 </div>
@@ -6710,7 +6866,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                         onCommit={v => handleSetRecipientLabel(r.id, v)}
                         className="flex-1 min-w-0 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded px-1 -mx-1"
                       />
-                      <button onClick={() => handleRemoveRecipient(r.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                      <button onClick={() => setPendingRemoveRecipient({ id: r.id, name: r.label })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                     </div>
                   ))}
                 </div>
@@ -6851,7 +7007,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                             className="w-40 text-[11px] px-1.5 py-1 rounded-md border border-gray-200 focus:outline-none flex-shrink-0"
                           />
                         )}
-                        <button onClick={() => handleRemoveCustomField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                        <button onClick={() => setPendingRemoveCustomField({ id: f.id, name: f.label })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                       </div>
                     );
                   })}
@@ -7233,7 +7389,7 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
                       className={`text-[10px] px-1.5 py-0.5 rounded-md flex-shrink-0 transition-colors ${f.hideTitle ? 'bg-gray-200 text-gray-500' : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
                       {f.hideTitle ? '제목 숨김' : '제목 표시'}
                     </button>
-                    <button onClick={() => handleRemoveBodyField(f.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
+                    <button onClick={() => setPendingRemoveBodyField({ id: f.id, name: f.title })} className="opacity-50 hover:opacity-100 flex-shrink-0">×</button>
                   </div>
                 ))}
               </div>
@@ -7295,6 +7451,54 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
         </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!pendingRemovePhraseOption}
+        taskTitle={pendingRemovePhraseOption?.label ?? ''}
+        title="옵션 삭제"
+        message="이 선택 문구 옵션을 삭제할까요?"
+        onConfirm={() => { if (pendingRemovePhraseOption) handleRemovePhraseOption(pendingRemovePhraseOption.name, pendingRemovePhraseOption.optionId); setPendingRemovePhraseOption(null); }}
+        onCancel={() => setPendingRemovePhraseOption(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingRemoveMessageInsert}
+        taskTitle={pendingRemoveMessageInsert?.name ?? ''}
+        title="삽입 항목 삭제"
+        message="이 메시지 삽입 항목을 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveMessageInsert) handleRemoveMessageInsert(pendingRemoveMessageInsert.id); setPendingRemoveMessageInsert(null); }}
+        onCancel={() => setPendingRemoveMessageInsert(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingRemoveRecipient}
+        taskTitle={pendingRemoveRecipient?.name ?? ''}
+        title="수신인 삭제"
+        message="이 수신인 후보를 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveRecipient) handleRemoveRecipient(pendingRemoveRecipient.id); setPendingRemoveRecipient(null); }}
+        onCancel={() => setPendingRemoveRecipient(null)}
+      />
+      <ConfirmDialog
+        open={pendingDeletePreset}
+        taskTitle={currentPreset?.name ?? ''}
+        title="프리셋 삭제"
+        message="이 메일폼 프리셋을 삭제할까요?"
+        onConfirm={() => { handleDeletePreset(); setPendingDeletePreset(false); }}
+        onCancel={() => setPendingDeletePreset(false)}
+      />
+      <ConfirmDialog
+        open={!!pendingRemoveCustomField}
+        taskTitle={pendingRemoveCustomField?.name ?? ''}
+        title="필드 삭제"
+        message="이 표 커스텀 필드를 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveCustomField) handleRemoveCustomField(pendingRemoveCustomField.id); setPendingRemoveCustomField(null); }}
+        onCancel={() => setPendingRemoveCustomField(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingRemoveBodyField}
+        taskTitle={pendingRemoveBodyField?.name ?? ''}
+        title="필드 삭제"
+        message="이 본문 필드를 삭제할까요?"
+        onConfirm={() => { if (pendingRemoveBodyField) handleRemoveBodyField(pendingRemoveBodyField.id); setPendingRemoveBodyField(null); }}
+        onCancel={() => setPendingRemoveBodyField(null)}
+      />
     </div>
   );
 }
@@ -7364,6 +7568,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [colorPickerTeamId, setColorPickerTeamId] = useState<string | null>(null);
+  const [pendingDeleteTeam, setPendingDeleteTeam] = useState<{ id: string; name: string } | null>(null);
+  const [pendingDeletePart, setPendingDeletePart] = useState<{ team: Team; partId: string; name: string } | null>(null);
   const [partName, setPartName] = useState('');
   const [partColor, setPartColor] = useState(PART_COLORS[0].cls);
   // Enter 연타/더블클릭으로 handleAddPart가 겹쳐 실행되면 같은 밀리초에 Date.now()를
@@ -8445,7 +8651,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                       className="text-xs text-blue-500 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
                       {expandedTeam === team.id ? '닫기' : '팀 설정'}
                     </button>
-                    <button onClick={() => { if (confirm(`"${team.name}" 팀을 삭제하시겠습니까?`)) onDeleteTeam(team.id); }}
+                    <button onClick={() => setPendingDeleteTeam({ id: team.id, name: team.name })}
                       className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
                       <Trash2 size={12} />
                     </button>
@@ -8692,7 +8898,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                                   className="text-gray-300 hover:text-blue-400 transition-colors">
                                   <Pencil size={9} />
                                 </button>
-                                <button onClick={() => handleDeletePart(team, p.id)}
+                                <button onClick={() => setPendingDeletePart({ team, partId: p.id, name: p.name })}
                                   className="text-gray-300 hover:text-red-400 transition-colors">
                                   <X size={10} />
                                 </button>
@@ -9072,6 +9278,23 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={!!pendingDeleteTeam}
+        taskTitle={pendingDeleteTeam?.name ?? ''}
+        title="팀 삭제"
+        message="팀을 삭제할까요?"
+        onConfirm={() => { if (pendingDeleteTeam) onDeleteTeam(pendingDeleteTeam.id); setPendingDeleteTeam(null); }}
+        onCancel={() => setPendingDeleteTeam(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingDeletePart}
+        taskTitle={pendingDeletePart?.name ?? ''}
+        title="파트 삭제"
+        message="파트를 삭제할까요?"
+        subMessage="파트에 연결된 폼 설정과 세부업무 데이터가 함께 삭제되며 복구할 수 없습니다"
+        onConfirm={() => { if (pendingDeletePart) handleDeletePart(pendingDeletePart.team, pendingDeletePart.partId); setPendingDeletePart(null); }}
+        onCancel={() => setPendingDeletePart(null)}
+      />
     </section>
   );
 }
@@ -9109,6 +9332,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
   // 드래그 순서 변경
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [pendingDeleteField, setPendingDeleteField] = useState<{ id: string; name: string } | null>(null);
 
   const handleFieldDrop = async (targetId: string) => {
     if (!draggingId || draggingId === targetId) return;
@@ -9335,7 +9559,7 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
                   <div className="flex gap-2">
                     <button onClick={handleSaveEdit} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 transition-colors">저장</button>
                     <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
-                    <button onClick={() => handleDelete(field.id)} className="ml-auto text-xs px-3 py-1.5 rounded-lg text-red-400 hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors">삭제</button>
+                    <button onClick={() => setPendingDeleteField({ id: field.id, name: field.label })} className="ml-auto text-xs px-3 py-1.5 rounded-lg text-red-400 hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors">삭제</button>
                   </div>
                 </div>
               ) : (
@@ -9486,6 +9710,15 @@ function ProfileFieldManager({ profileFields, onUpdateProfileFields }: {
           <Plus size={13} /> 필드 추가
         </button>
       </div>
+      <ConfirmDialog
+        open={!!pendingDeleteField}
+        taskTitle={pendingDeleteField?.name ?? ''}
+        title="프로필 필드 삭제"
+        message="이 프로필 필드를 삭제할까요?"
+        subMessage="이 필드에 저장된 팀원들의 값도 함께 사라집니다"
+        onConfirm={() => { if (pendingDeleteField) handleDelete(pendingDeleteField.id); setPendingDeleteField(null); }}
+        onCancel={() => setPendingDeleteField(null)}
+      />
     </section>
   );
 }
@@ -9548,6 +9781,7 @@ export default function SettingsPage({
   const [migrateResult, setMigrateResult] = useState('');
   const [cleaning, setCleaning] = useState(false);
   const [cleanResult, setCleanResult] = useState('');
+  const [pendingCleanupOrphanTasks, setPendingCleanupOrphanTasks] = useState(false);
 
   const runSubtaskMigration = async () => {
     setMigrating(true);
@@ -9635,7 +9869,6 @@ export default function SettingsPage({
   };
 
   const runCleanupOrphanTasks = async () => {
-    if (!window.confirm(`파트에 속하지 않는 업무 ${orphanTaskCount}건을 삭제합니다. 복구할 수 없습니다. 계속하시겠습니까?`)) return;
     setCleaning(true);
     setCleanResult('');
     try {
@@ -10178,7 +10411,7 @@ export default function SettingsPage({
               </div>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={runCleanupOrphanTasks}
+                  onClick={() => setPendingCleanupOrphanTasks(true)}
                   disabled={cleaning || orphanTaskCount === 0}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                   {cleaning ? '삭제 중...' : '정리하기'}
@@ -10189,6 +10422,15 @@ export default function SettingsPage({
           </div>
         </section>
       )}
+      <ConfirmDialog
+        open={pendingCleanupOrphanTasks}
+        taskTitle={`파트 미소속 업무 ${orphanTaskCount}건`}
+        title="미소속 업무 영구 삭제"
+        message="파트 미소속 업무를 영구 삭제할까요?"
+        subMessage="휴지통을 거치지 않고 즉시 영구 삭제되며 복구할 수 없습니다"
+        onConfirm={() => { runCleanupOrphanTasks(); setPendingCleanupOrphanTasks(false); }}
+        onCancel={() => setPendingCleanupOrphanTasks(false)}
+      />
     </div>
     </RoleLabelContext.Provider>
   );

@@ -867,6 +867,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   builtinOptionColorsRef.current = builtinOptionColors;
   const builtinCompletedValuesRef = useRef(builtinCompletedValuesInput);
   builtinCompletedValuesRef.current = builtinCompletedValuesInput;
+  // 옵션값 → 세부업무 그룹(id). 커스텀 필드와 동일한 기능이지만 빌트인 필드용 — 이전엔
+  // 커스텀 필드 편집 화면에만 있고 빌트인(예: '유형' 필드를 '구분'으로 이름 바꾼 경우)에는
+  // UI가 없어서 옵션-그룹 연결이 아예 불가능했음
+  const [builtinOptionGroupMap, setBuiltinOptionGroupMap] = useState<Record<string, string>>({});
+  const builtinOptionGroupMapRef = useRef(builtinOptionGroupMap);
+  builtinOptionGroupMapRef.current = builtinOptionGroupMap;
 
   const [pendingDeleteCustom, setPendingDeleteCustom] = useState<{ id: string; name: string } | null>(null);
 
@@ -963,6 +969,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
         department: isName && builtinDeptInput ? builtinDeptInput as Department : undefined,
         options: isSelect ? validOpts : undefined,
         optionColors: isSelect && Object.keys(builtinOptionColorsRef.current).length > 0 ? builtinOptionColorsRef.current : undefined,
+        optionGroupMap: isSelect && Object.keys(builtinOptionGroupMapRef.current).length > 0 ? builtinOptionGroupMapRef.current : undefined,
         completedValues: key === 'status' && isSelect && builtinCompletedValuesRef.current.length > 0
           ? builtinCompletedValuesRef.current.filter(v => validOpts.includes(v))
           : undefined,
@@ -1144,8 +1151,29 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                                   if (builtinCompletedValuesInput.includes(old)) {
                                     setBuiltinCompletedValuesInput(prev => next ? prev.map(v => v === old ? next : v) : prev.filter(v => v !== old));
                                   }
+                                  if (builtinOptionGroupMap[old]) {
+                                    setBuiltinOptionGroupMap(prev => { const { [old]: g, ...rest } = prev; return next ? { ...rest, [next]: g } : rest; });
+                                  }
                                 }}
                               />
+                              {subTaskGroups.length > 0 && (
+                                <select
+                                  title="이 옵션에 연결할 세부업무 그룹 — 업무상세에서 이 옵션이 선택된 업무는 그 그룹의 세부업무만 추가로 노출됨"
+                                  className={`text-[10px] px-1 py-0.5 rounded-md border focus:outline-none flex-shrink-0 max-w-[90px] ${
+                                    builtinOptionGroupMap[opt] ? 'border-violet-200 bg-violet-50 text-violet-600' : 'border-gray-200 bg-white text-gray-400'
+                                  }`}
+                                  value={builtinOptionGroupMap[opt] ?? ''}
+                                  onChange={e => {
+                                    setBuiltinOptionGroupMap(prev => {
+                                      const next = { ...prev };
+                                      if (e.target.value) next[opt] = e.target.value; else delete next[opt];
+                                      return next;
+                                    });
+                                  }}>
+                                  <option value="">그룹 없음</option>
+                                  {subTaskGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                </select>
+                              )}
                               {fc.key === 'status' && opt.trim() && (
                                 <button type="button"
                                   title="완료 숨기기에서 완료로 취급"
@@ -1163,6 +1191,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                                   setBuiltinOptionsInput(prev => prev.filter((_, j) => j !== idx));
                                   setBuiltinOptionColors(prev => { const { [opt]: _, ...rest } = prev; return rest; });
                                   setBuiltinCompletedValuesInput(prev => prev.filter(v => v !== opt));
+                                  setBuiltinOptionGroupMap(prev => { const { [opt]: _, ...rest } = prev; return rest; });
                                 }}
                                   className="text-gray-300 hover:text-red-400 transition-colors"><X size={11} /></button>
                               )}
@@ -1232,11 +1261,13 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                           setBuiltinOptionsInput([...DEFAULT_STATUS_CONFIGS.map(s => s.label), '']);
                           setBuiltinOptionColors(Object.fromEntries(DEFAULT_STATUS_CONFIGS.map(s => [s.label, { bg: s.bg, text: s.text }])));
                           setBuiltinCompletedValuesInput(['완료']);
+                          setBuiltinOptionGroupMap({});
                         } else {
                           setTypeInput(fc.customType ?? 'default');
                           setBuiltinOptionsInput(fc.options?.length ? [...fc.options, ''] : ['', '']);
                           setBuiltinOptionColors(fc.optionColors ?? {});
                           setBuiltinCompletedValuesInput(fc.completedValues ?? []);
+                          setBuiltinOptionGroupMap(fc.optionGroupMap ?? {});
                         }
                         setBuiltinDependsOnId(fc.dependsOn?.fieldId ?? '');
                         setBuiltinValueMapInput(fc.dependsOn?.valueMap ?? {});
@@ -1248,6 +1279,11 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
                       {fc.customType && <span className="ml-1 text-[10px] text-violet-400 font-medium">{FIELD_TYPE_LABELS[fc.customType]}</span>}
                       {fc.required && <span className="ml-1 text-[10px] text-red-400 font-medium">필수</span>}
                       {fc.dependsOn && <span className="ml-1 text-[10px] text-violet-400 font-medium">연결됨</span>}
+                      {(fc.options?.length ?? 0) > 0 && subTaskGroups.length > 0 && Object.keys(fc.optionGroupMap ?? {}).length > 0 && (
+                        <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-600" title="옵션별 세부업무 그룹 연결 — 편집(이름 클릭)해서 옵션마다 다시 지정 가능">
+                          그룹 연결됨({Object.keys(fc.optionGroupMap ?? {}).length})
+                        </span>
+                      )}
                     </button>
                     {/* 이름 타입 직군 pill */}
                     {(fc.customType === 'name' || (fc.customType as string) === 'textarea' || (fc.customType as string) === '이름' || fc.key === 'receiver' || fc.key === 'assignee') && (
@@ -1938,12 +1974,6 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         );
       })()}
 
-      {(() => {
-        const resolvedGroups = currentPart?.subTaskGroups ?? resolveTeamWideSubTaskGroups(team);
-        // TEMP DIAGNOSTIC (그룹 연결 안 되는 문제 조사용 — 확인 끝나면 제거)
-        console.log('[그룹연결 진단/폼설정]', { team: team.name, selectedTarget, partId: currentPart?.id, partName: currentPart?.name, partOwnGroups: currentPart?.subTaskGroups, resolvedGroups });
-        return null;
-      })()}
       <FieldConfigEditor
         fields={fields}
         customFields={customFields}
@@ -2652,9 +2682,6 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     setShowCopyMenu(false);
     setPendingCopySource(sourceId);
   };
-
-  // TEMP DIAGNOSTIC (그룹 연결 안 되는 문제 조사용 — 확인 끝나면 제거)
-  console.log('[그룹연결 진단/세부업무]', { team: team.name, selectedTarget, partId: currentPart?.id, partName: currentPart?.name, partOwnGroups: currentPart?.subTaskGroups, groups });
 
   return (
     <div className="space-y-4">

@@ -1,6 +1,5 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
 
 const COLLECTIONS = [
   'aiTools', 'comments', 'discussionReads', 'members', 'posts', 'projects',
@@ -17,7 +16,10 @@ function loadServiceAccount(envVar) {
 function getApp(name, envVar) {
   const existing = getApps().find((a) => a.name === name);
   if (existing) return existing;
-  return initializeApp({ credential: cert(loadServiceAccount(envVar)) }, name);
+  const serviceAccount = loadServiceAccount(envVar);
+  const app = initializeApp({ credential: cert(serviceAccount) }, name);
+  app.__projectId = serviceAccount.project_id;
+  return app;
 }
 
 async function syncFirestore(prodDb, stgDb) {
@@ -38,55 +40,72 @@ async function syncFirestore(prodDb, stgDb) {
   return summary;
 }
 
-function toImportRecord(u) {
-  const record = {
-    uid: u.uid,
-    email: u.email,
-    emailVerified: u.emailVerified,
-    displayName: u.displayName,
-    photoURL: u.photoURL,
-    phoneNumber: u.phoneNumber,
-    disabled: u.disabled,
-    customClaims: u.customClaims,
-    providerData: u.providerData
-      .filter((p) => p.providerId !== 'password')
-      .map((p) => ({
-        uid: p.uid,
-        email: p.email,
-        displayName: p.displayName,
-        photoURL: p.photoURL,
-        providerId: p.providerId,
-        phoneNumber: p.phoneNumber,
-      })),
-  };
-  if (u.metadata) {
-    record.metadata = {
-      creationTime: u.metadata.creationTime,
-      lastSignInTime: u.metadata.lastSignInTime,
-    };
-  }
-  return record;
+// firebase-admin/auth는 jwks-rsa→jose 의존성이 Vercel 번들 환경에서 ERR_REQUIRE_ESM으로
+// 크래시하므로 사용하지 않고, Identity Toolkit REST API를 직접 호출한다.
+async function getAccessToken(app) {
+  return (await app.options.credential.getAccessToken()).access_token;
 }
 
-async function listAllUsers(auth) {
+async function listAllUsers(app) {
+  const token = await getAccessToken(app);
   let all = [];
   let pageToken;
   do {
-    const res = await auth.listUsers(1000, pageToken);
-    all = all.concat(res.users);
-    pageToken = res.pageToken;
+    const url = new URL(`https://identitytoolkit.googleapis.com/v1/projects/${app.__projectId}/accounts:batchGet`);
+    url.searchParams.set('maxResults', '1000');
+    if (pageToken) url.searchParams.set('nextPageToken', pageToken);
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`accounts:batchGet 실패 (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    all = all.concat(data.users || []);
+    pageToken = data.nextPageToken;
   } while (pageToken);
   return all;
 }
 
-async function syncNewAuthUsers(prodAuth, stgAuth) {
-  const [prodUsers, stgUsers] = await Promise.all([listAllUsers(prodAuth), listAllUsers(stgAuth)]);
-  const stgUids = new Set(stgUsers.map((u) => u.uid));
-  const newUsers = prodUsers.filter((u) => !stgUids.has(u.uid));
-  if (newUsers.length === 0) return { newCount: 0, successCount: 0, failureCount: 0 };
+function toRestImportRecord(u) {
+  return {
+    localId: u.localId,
+    email: u.email,
+    emailVerified: !!u.emailVerified,
+    displayName: u.displayName,
+    photoUrl: u.photoUrl,
+    disabled: !!u.disabled,
+    providerUserInfo: (u.providerUserInfo || [])
+      .filter((p) => p.providerId !== 'password')
+      .map((p) => ({
+        providerId: p.providerId,
+        rawId: p.rawId || p.federatedId,
+        email: p.email,
+        displayName: p.displayName,
+        photoUrl: p.photoUrl,
+      })),
+    createdAt: u.createdAt,
+    lastLoginAt: u.lastLoginAt,
+  };
+}
 
-  const result = await stgAuth.importUsers(newUsers.map(toImportRecord));
-  return { newCount: newUsers.length, successCount: result.successCount, failureCount: result.failureCount, errors: result.errors };
+async function importUsers(app, users) {
+  if (users.length === 0) return { successCount: 0, failureCount: 0 };
+  const token = await getAccessToken(app);
+  const url = `https://identitytoolkit.googleapis.com/v1/projects/${app.__projectId}/accounts:batchCreate`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ users: users.map(toRestImportRecord) }),
+  });
+  if (!res.ok) throw new Error(`accounts:batchCreate 실패 (${res.status}): ${await res.text()}`);
+  const data = await res.json();
+  const errors = data.error || [];
+  return { successCount: users.length - errors.length, failureCount: errors.length, errors };
+}
+
+async function syncNewAuthUsers(prodApp, stgApp) {
+  const [prodUsers, stgUsers] = await Promise.all([listAllUsers(prodApp), listAllUsers(stgApp)]);
+  const stgUids = new Set(stgUsers.map((u) => u.localId));
+  const newUsers = prodUsers.filter((u) => !stgUids.has(u.localId));
+  const result = await importUsers(stgApp, newUsers);
+  return { newCount: newUsers.length, ...result };
 }
 
 export default async function handler(req, res) {
@@ -106,11 +125,9 @@ export default async function handler(req, res) {
     const stgApp = getApp('stg-sync', 'FIREBASE_ADMIN_STG_KEY_B64');
     const prodDb = getFirestore(prodApp);
     const stgDb = getFirestore(stgApp);
-    const prodAuth = getAuth(prodApp);
-    const stgAuth = getAuth(stgApp);
 
     const firestoreSummary = await syncFirestore(prodDb, stgDb);
-    const authSummary = await syncNewAuthUsers(prodAuth, stgAuth);
+    const authSummary = await syncNewAuthUsers(prodApp, stgApp);
 
     res.status(200).json({ ok: true, firestoreSummary, authSummary });
   } catch (err) {

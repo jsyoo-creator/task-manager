@@ -313,7 +313,7 @@ export default function Layout({
 
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[220px] flex flex-col z-40"
-        style={{ background: '#1E2264' }}>
+        style={{ background: '#1E2264', top: 'var(--stg-banner-h, 0px)', height: 'calc(100vh - var(--stg-banner-h, 0px))' }}>
 
         {/* Logo + Team */}
         <div className="p-4 pb-3 mt-2">
@@ -417,8 +417,9 @@ export default function Layout({
         className="flex-1 min-w-0 relative"
         style={{
           marginLeft: '220px',
+          marginTop: 'var(--stg-banner-h, 0px)',
           padding: '12px',
-          height: '100vh',
+          height: 'calc(100vh - var(--stg-banner-h, 0px))',
           boxSizing: 'border-box',
         }}
       >

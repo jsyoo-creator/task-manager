@@ -2,5 +2,8 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/sync-stg-from-prod", "schedule": "0 13 * * *" }
   ]
 }

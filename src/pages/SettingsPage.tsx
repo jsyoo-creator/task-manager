@@ -1938,6 +1938,12 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
         );
       })()}
 
+      {(() => {
+        const resolvedGroups = currentPart?.subTaskGroups ?? resolveTeamWideSubTaskGroups(team);
+        // TEMP DIAGNOSTIC (그룹 연결 안 되는 문제 조사용 — 확인 끝나면 제거)
+        console.log('[그룹연결 진단/폼설정]', { team: team.name, selectedTarget, partId: currentPart?.id, partName: currentPart?.name, partOwnGroups: currentPart?.subTaskGroups, resolvedGroups });
+        return null;
+      })()}
       <FieldConfigEditor
         fields={fields}
         customFields={customFields}
@@ -2646,6 +2652,9 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     setShowCopyMenu(false);
     setPendingCopySource(sourceId);
   };
+
+  // TEMP DIAGNOSTIC (그룹 연결 안 되는 문제 조사용 — 확인 끝나면 제거)
+  console.log('[그룹연결 진단/세부업무]', { team: team.name, selectedTarget, partId: currentPart?.id, partName: currentPart?.name, partOwnGroups: currentPart?.subTaskGroups, groups });
 
   return (
     <div className="space-y-4">

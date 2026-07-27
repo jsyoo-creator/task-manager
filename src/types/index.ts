@@ -78,6 +78,7 @@ export interface UserPermissions {
   canManageBoard: boolean;          // 게시판 타인 글/댓글 관리
   canManageAiTools: boolean;        // AI 툴 리스트 추가·수정·삭제
   canViewAllCalendarWeekly: boolean; // 캘린더/위클리에서 타인 업무 조회 (false면 본인 것만)
+  canManageApiKeys: boolean;        // 외부 조회용 API 키 발급·폐기
 }
 
 export interface RolePermissionConfig {
@@ -96,6 +97,7 @@ export interface RolePermissionConfig {
   canManageBoard: boolean;
   canManageAiTools: boolean;
   canViewAllCalendarWeekly: boolean;
+  canManageApiKeys: boolean;
 }
 
 export interface RolePermissions {
@@ -120,6 +122,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canManageBoard: true,
     canManageAiTools: true,
     canViewAllCalendarWeekly: true,
+    canManageApiKeys: true,
   },
   user: {
     canCreateTasks: true,
@@ -137,6 +140,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     canManageBoard: false,
     canManageAiTools: false,
     canViewAllCalendarWeekly: false,
+    canManageApiKeys: false,
   },
 };
 
@@ -172,10 +176,26 @@ export function getPermissions(role: UserRole, rolePerms: RolePermissions = DEFA
       canManageBoard: true,
       canManageAiTools: true,
       canViewAllCalendarWeekly: true,
+      canManageApiKeys: true,
     };
   }
   const cfg = rolePerms[role] ?? DEFAULT_ROLE_PERMISSIONS[role];
   return { ...cfg, canManageUsers: false };
+}
+
+// 외부 조회용 API 키 — 원문 키는 발급 시 한 번만 보여주고 저장하지 않음(keyHash만 저장).
+// workplaceId 안의 모든 팀/파트 데이터를 조회할 수 있는 범위로 발급됨(팀 단위 제한 없음).
+export interface ApiKey {
+  id: string;
+  workplaceId: string;
+  label?: string;          // 발급자가 붙인 설명(예: "flex 연동용")
+  keyPrefix: string;       // 목록 화면에 식별용으로 보여주는 앞 8자
+  keyHash: string;         // SHA-256(원문 키) — 원문은 저장하지 않음
+  createdByUid: string;
+  createdByName: string;
+  createdAt: string;
+  lastUsedAt?: string;
+  revokedAt?: string;
 }
 
 export type TaskStatus = '진행 전' | '진행 중' | '완료' | '보류';

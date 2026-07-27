@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
-import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy } from 'lucide-react';
+import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy, Key } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
+import { useApiKeys } from '../hooks/useApiKeys';
 import { backfillSupportTaskLinks, repairLinkedSupportTaskOrder } from '../hooks/useTasks';
 import { collection, getDocs, updateDoc, doc, writeBatch, query, where, documentId } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -141,6 +142,7 @@ const PERM_ROWS: { key: keyof RolePermissionConfig; label: string; group: string
   { key: 'canSetNotice',           label: '게시판 공지 설정',         group: '게시판' },
   { key: 'canManageBoard',         label: '게시판 타인 글 / 댓글 관리', group: '게시판' },
   { key: 'canManageAiTools',       label: 'AI 툴 리스트 관리',        group: '게시판' },
+  { key: 'canManageApiKeys',       label: 'API 키 관리',             group: '설정' },
 ];
 
 function PermToggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
@@ -156,6 +158,119 @@ function PermToggle({ checked, onChange, disabled }: { checked: boolean; onChang
         checked ? 'translate-x-4' : 'translate-x-0.5'
       }`} />
     </button>
+  );
+}
+
+// 외부 조회용 API 키 발급/폐기 — 이 근무지 안 모든 팀/파트 데이터를 읽기 전용으로
+// 조회할 수 있는 범위로 발급됨(팀 단위 제한 없음). 원문 키는 발급 직후 한 번만 보여주고
+// Firestore엔 해시만 남긴다(useApiKeys 참고).
+function ApiKeySection({ workplaceId, currentUser }: { workplaceId: string; currentUser: AppUser }) {
+  const { apiKeys, createApiKey, revokeApiKey } = useApiKeys(workplaceId);
+  const [labelInput, setLabelInput] = useState('');
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [pendingRevoke, setPendingRevoke] = useState<{ id: string; label: string } | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const plain = await createApiKey(workplaceId, currentUser.uid, currentUser.displayName, labelInput.trim());
+      setNewKey(plain);
+      setLabelInput('');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <section className="glass-card">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+        <Key size={15} className="text-emerald-500" />
+        <span className="text-sm font-semibold text-gray-800">API 키</span>
+        <span className="text-xs text-gray-400">이 근무지의 모든 팀/파트 업무·위클리 데이터를 외부에서 읽기 전용으로 조회할 수 있는 키를 발급합니다</span>
+      </div>
+      <div className="p-5 space-y-3">
+        <div className="flex gap-2">
+          <input
+            className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            placeholder="용도 메모 (예: flex 연동용)"
+            value={labelInput}
+            onChange={e => setLabelInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !creating && handleCreate()}
+          />
+          <button
+            onClick={handleCreate}
+            disabled={creating}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors flex items-center gap-1 flex-shrink-0"
+          >
+            <Plus size={12} />새 키 발급
+          </button>
+        </div>
+
+        {apiKeys.length === 0 ? (
+          <p className="text-xs text-gray-400">발급된 키가 없습니다.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {apiKeys.map(k => (
+              <div key={k.id} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${k.revokedAt ? 'border-gray-100 bg-gray-50/60' : 'border-gray-200 bg-white/60'}`}>
+                <div className="text-xs flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-gray-600">{k.keyPrefix}···</span>
+                  {k.label && <span className="text-gray-500">{k.label}</span>}
+                  <span className="text-[10px] text-gray-400">{k.createdByName} · {(k.createdAt ?? '').slice(0, 10)}</span>
+                  {k.lastUsedAt && <span className="text-[10px] text-gray-400">최근 사용 {k.lastUsedAt.slice(0, 10)}</span>}
+                  {k.revokedAt && <span className="text-[10px] text-red-400 font-medium">폐기됨</span>}
+                </div>
+                {!k.revokedAt && (
+                  <button onClick={() => setPendingRevoke({ id: k.id, label: k.label || k.keyPrefix })}
+                    className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={13} /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 새 키 원문 표시 — 닫으면 다시 볼 수 없음 */}
+      {newKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setNewKey(null); setCopied(false); }}>
+          <div className="w-[420px] mx-4 rounded-2xl bg-white border border-black/8 shadow-2xl p-5 space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <Key size={16} className="text-emerald-500" />
+              <span className="text-sm font-semibold text-gray-800">API 키가 발급됐습니다</span>
+            </div>
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              이 창을 닫으면 원문 키를 다시 볼 수 없습니다. 지금 복사해서 안전한 곳에 보관하세요.
+            </p>
+            <div className="flex gap-2">
+              <code className="flex-1 text-xs px-2.5 py-2 rounded-lg border border-gray-200 bg-gray-50 text-gray-800 break-all">{newKey}</code>
+              <button
+                onClick={() => { navigator.clipboard.writeText(newKey); setCopied(true); }}
+                className="px-3 py-2 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors flex-shrink-0 flex items-center gap-1"
+              >
+                <Copy size={12} />{copied ? '복사됨' : '복사'}
+              </button>
+            </div>
+            <button
+              onClick={() => { setNewKey(null); setCopied(false); }}
+              className="w-full py-2 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!pendingRevoke}
+        taskTitle={pendingRevoke?.label ?? ''}
+        title="API 키 폐기"
+        message="이 키를 폐기할까요?"
+        subMessage="폐기 후 이 키로는 더 이상 데이터를 조회할 수 없습니다. 복구할 수 없습니다."
+        onConfirm={() => { if (pendingRevoke) revokeApiKey(pendingRevoke.id); setPendingRevoke(null); }}
+        onCancel={() => setPendingRevoke(null)}
+      />
+    </section>
   );
 }
 
@@ -9844,6 +9959,7 @@ export default function SettingsPage({
   const canManageMembers       = isRoleSuperadmin || myRolePerms.canManageMembers;
   const canManageHolidays      = isRoleSuperadmin || myRolePerms.canManageHolidays;
   const canManageProfileFields = isRoleSuperadmin || myRolePerms.canManageProfileFields;
+  const canManageApiKeys       = isRoleSuperadmin || myRolePerms.canManageApiKeys;
   const canManageUsers = canManageMembers; // 하위 호환 — 사용자 탭 접근 여부
 
   // 권한 에디터 로컬 상태
@@ -10415,6 +10531,11 @@ export default function SettingsPage({
             <RoleLabelEditor roleLabels={roleLabels ?? {}} onSave={onUpdateRoleLabels} />
           </div>
         </section>
+      )}
+
+      {/* ── 시스템 탭: API 키 ── */}
+      {activeTab === 'system' && canManageApiKeys && workplaceId && (
+        <ApiKeySection workplaceId={workplaceId} currentUser={appUser} />
       )}
 
       {/* ── 휴일 관리 탭 ── */}

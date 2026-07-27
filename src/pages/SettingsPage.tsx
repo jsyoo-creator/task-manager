@@ -608,10 +608,16 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function AddFieldForm({ onAdd, subTaskTypes = [], parentSelectFields = [] }: {
+function AddFieldForm({ onAdd, subTaskTypes = [], parentSelectFields = [], existingLabels = [], otherScopeLabels = [] }: {
   onAdd: (f: Omit<CustomFormField, 'id'>) => void;
   subTaskTypes?: SubTaskType[];
   parentSelectFields?: { id: string; label: string; options: string[] }[];
+  // 같은 화면(스코프) 안에 이미 있는 필드 라벨들 — 여기 겹치면 값 저장칸이 갈리거나
+  // 자동 얼라이어스로 뒤섞여 컬럼이 중복 표시되는 사고로 이어지므로 추가 전에 경고한다
+  existingLabels?: string[];
+  // 다른 스코프(팀 기본/전체/다른 파트)에 이미 있는 필드 라벨 — resolveAliasFieldId의
+  // "라벨이 같으면 자동으로 값을 공유" fallback이 걸려 의도치 않게 연결될 수 있음을 경고
+  otherScopeLabels?: { label: string; scope: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
@@ -624,24 +630,52 @@ function AddFieldForm({ onAdd, subTaskTypes = [], parentSelectFields = [] }: {
   const [linkedSubTaskTypeId, setLinkedSubTaskTypeId] = useState('');
   const [dependsOnId, setDependsOnId] = useState('');
   const [valueMapInput, setValueMapInput] = useState<Record<string, string[]>>({});
+  const [pendingDuplicate, setPendingDuplicate] = useState<{ field: Omit<CustomFormField, 'id'>; message: string; subMessage: string } | null>(null);
 
   const cls = "text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400";
 
-  const handleAdd = () => {
-    if (!label.trim()) return;
+  const buildField = (): Omit<CustomFormField, 'id'> => {
     const cleanValueMap: Record<string, string[]> = {};
     Object.entries(valueMapInput).forEach(([k, v]) => { const clean = v.filter(s => s.trim()); if (clean.length) cleanValueMap[k] = clean; });
-    onAdd({
+    return {
       label: label.trim(), type, required,
       options: type === 'select' && !dependsOnId ? options.filter(o => o.trim()) : undefined,
       optionColors: type === 'select' && !dependsOnId && Object.keys(optionColors).length > 0 ? optionColors : undefined,
       department: type === 'name' && dept ? dept : undefined,
       linkedSubTaskTypeId: type === 'name' && linkedSubTaskTypeId ? linkedSubTaskTypeId : undefined,
       dependsOn: type === 'select' && dependsOnId ? { fieldId: dependsOnId, valueMap: cleanValueMap } : undefined,
-    });
+    };
+  };
+
+  const commitAdd = (field: Omit<CustomFormField, 'id'>) => {
+    onAdd(field);
     setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setOptionColors({}); setDept('');
     setLinkedSubTaskTypeId('');
     setDependsOnId(''); setValueMapInput({}); setOpen(false);
+  };
+
+  const handleAdd = () => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const field = buildField();
+    if (existingLabels.some(l => l === trimmed)) {
+      setPendingDuplicate({
+        field,
+        message: `이미 이 화면에 "${trimmed}" 필드가 있습니다.`,
+        subMessage: '그대로 추가하면 필드가 중복 표시되고, 값과 색상 설정이 서로 엇갈려 보일 수 있습니다. 계속 추가할까요?',
+      });
+      return;
+    }
+    const otherMatch = otherScopeLabels.find(o => o.label === trimmed);
+    if (otherMatch) {
+      setPendingDuplicate({
+        field,
+        message: `"${otherMatch.scope}"에 이미 같은 이름의 필드가 있습니다.`,
+        subMessage: '라벨이 같으면 값은 자동으로 공유되지만, 색상 등 표시 설정은 따로 관리되어 두 필드의 모양이 다르게 보일 수 있습니다. 계속 추가할까요?',
+      });
+      return;
+    }
+    commitAdd(field);
   };
 
   if (!open) return (
@@ -745,12 +779,28 @@ function AddFieldForm({ onAdd, subTaskTypes = [], parentSelectFields = [] }: {
           containerClass="pt-2 border-t border-gray-100"
         />
       )}
+      {pendingDuplicate && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 space-y-1.5">
+          <p className="text-xs font-medium text-amber-700">⚠ {pendingDuplicate.message}</p>
+          <p className="text-[11px] text-amber-600">{pendingDuplicate.subMessage}</p>
+          <div className="flex gap-2 pt-0.5">
+            <button type="button" onClick={() => { commitAdd(pendingDuplicate.field); setPendingDuplicate(null); }}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+              그래도 추가
+            </button>
+            <button type="button" onClick={() => setPendingDuplicate(null)}
+              className="px-2.5 py-1 rounded-lg text-[11px] text-gray-500 hover:bg-gray-100 transition-colors">
+              취소
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex gap-2 pt-0.5">
         <button onClick={handleAdd} disabled={!label.trim()}
           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
           추가
         </button>
-        <button onClick={() => { setOpen(false); setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setDependsOnId(''); setValueMapInput({}); }}
+        <button onClick={() => { setOpen(false); setLabel(''); setType('text'); setRequired(false); setOptions(['', '']); setDependsOnId(''); setValueMapInput({}); setPendingDuplicate(null); }}
           className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 transition-colors">
           취소
         </button>
@@ -1685,7 +1735,12 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
             .map(f => ({ id: f.key, label: f.customLabel ?? (BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key), options: f.options! })),
           ...customFields.filter(f => f.type === 'select' && f.enabled !== false && (f.options?.length ?? 0) > 0)
             .map(f => ({ id: f.id, label: f.label, options: f.options! })),
-        ]} />
+        ]}
+          existingLabels={customFields.map(f => f.label)}
+          otherScopeLabels={aliasCandidates
+            .filter(c => c.id !== 'receiver' && c.id !== 'assignee' && !customFields.some(cf => cf.id === c.id))
+            .map(c => ({ label: c.label, scope: c.scope }))}
+        />
       </div>
       <ConfirmDialog
         open={!!pendingDeleteCustom}

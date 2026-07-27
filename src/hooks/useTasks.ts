@@ -358,7 +358,19 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     childIds.forEach(id => {
       const child = tasks.find(t => t.id === id);
       const syncKeys = getSyncKeys(child ?? parent);
-      const patch = buildSyncPatch(syncKeys, parent, child?.customFields);
+      const patch: Record<string, unknown> = buildSyncPatch(syncKeys, parent, child?.customFields);
+      // "복사"(copyIncludeDetails 팀)로 만든 업무를 그대로 그룹으로 묶으면, 세부업무
+      // 항목이 부모/자식 양쪽에 같은 종료일로 남아있어 캘린더 등에 두 번 집계된다.
+      // 귀속시키는 시점에 자식 쪽의 그 항목(부모와 종료일이 같은 것만)을 지워
+      // 부모 쪽 하나만 남긴다 — 종료일이 없거나 다르면 자식 고유 항목으로 보고 남겨둠
+      const parentST = parent.subTaskData ?? {};
+      const childST = child?.subTaskData ?? {};
+      Object.keys(childST).forEach(key => {
+        const childEnd = childST[key]?.endDate;
+        if (childEnd && childEnd === parentST[key]?.endDate) {
+          patch[`subTaskData.${key}`] = deleteField();
+        }
+      });
       batch.update(doc(db, 'tasks', id), { parentTaskId: parentId, ...patch, updatedAt: now });
     });
     await batch.commit();

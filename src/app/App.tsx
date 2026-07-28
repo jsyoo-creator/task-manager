@@ -1062,6 +1062,7 @@ function App() {
               subTaskTypes={resolvedSubTaskTypes}
               revisionSteps={resolvedRevisionSteps}
               teamMembers={teamMembers}
+              substitutePairs={selectedTeam?.substitutePairs}
               formConfig={resolvedFormConfig}
               teamFormConfig={selectedTeam?.formConfig}
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}

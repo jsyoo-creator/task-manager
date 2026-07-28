@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy, Key } from 'lucide-react';
-import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task } from '../types';
+import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task, SubstitutePair } from '../types';
 import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
@@ -7709,6 +7709,111 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
   );
 }
 
+// ──────────────────────────────────────────
+// 대무 자동지정 페어 관리 — 팀원 2명을 짝지어두면, 세부업무에서 담당자가 이 중
+// 한 명일 때 "대무 자동지정" 토글로 나머지 한 명이 바로 지정됨(TaskDetailPanel 참고)
+// ──────────────────────────────────────────
+function SubstitutePairManager({ team, allUsers, onUpdateTeam }: {
+  team: Team;
+  allUsers: AppUser[];
+  onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
+}) {
+  const [memberAUid, setMemberAUid] = useState('');
+  const [memberBUid, setMemberBUid] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+
+  const pairs = team.substitutePairs ?? [];
+
+  const teamMembers = allUsers
+    .filter(u => u.selectedTeamIds?.includes(team.id) || Object.values(u.defaultTeamIdByWorkplace ?? {}).includes(team.id))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  const savePairs = (next: SubstitutePair[]) => onUpdateTeam(team.id, { substitutePairs: next });
+
+  const addPair = () => {
+    if (!memberAUid || !memberBUid || memberAUid === memberBUid) return;
+    const a = teamMembers.find(u => u.uid === memberAUid);
+    const b = teamMembers.find(u => u.uid === memberBUid);
+    if (!a || !b) return;
+    const pair: SubstitutePair = {
+      id: `subpair_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      department: a.department === b.department ? a.department : undefined,
+      memberA: a.displayName,
+      memberB: b.displayName,
+    };
+    savePairs([...pairs, pair]);
+    setMemberAUid('');
+    setMemberBUid('');
+  };
+
+  const deletePair = (id: string) => savePairs(pairs.filter(p => p.id !== id));
+
+  return (
+    <div className="px-5 py-4 space-y-4">
+      <div>
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          대무 페어 등록
+          <span className="text-gray-300 font-normal normal-case ml-1">2명을 짝지으면, 세부업무에서 담당자가 이 중 한 명일 때 "대무 자동지정" 토글로 상대방이 바로 지정됩니다</span>
+        </p>
+        {teamMembers.length < 2 ? (
+          <p className="text-xs text-gray-400 text-center py-3">페어를 만들려면 이 팀 소속 팀원이 2명 이상 있어야 합니다</p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <select value={memberAUid} onChange={e => setMemberAUid(e.target.value)} className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+              <option value="">담당자 선택</option>
+              {teamMembers.map(u => <option key={u.uid} value={u.uid}>{u.displayName}{u.department ? ` (${u.department})` : ''}</option>)}
+            </select>
+            <span className="text-gray-300 text-xs flex-shrink-0">↔</span>
+            <select value={memberBUid} onChange={e => setMemberBUid(e.target.value)} className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+              <option value="">대무자 선택</option>
+              {teamMembers.filter(u => u.uid !== memberAUid).map(u => <option key={u.uid} value={u.uid}>{u.displayName}{u.department ? ` (${u.department})` : ''}</option>)}
+            </select>
+            <button
+              onClick={addPair}
+              disabled={!memberAUid || !memberBUid}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors"
+            >추가</button>
+          </div>
+        )}
+      </div>
+
+      {pairs.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-3">등록된 대무 페어가 없습니다</p>
+      ) : (
+        <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5">
+          {pairs.map(p => (
+            <div key={p.id} className="flex items-center justify-between py-2 px-3">
+              <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                {p.department && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium bg-gray-100 text-gray-500">{p.department}</span>
+                )}
+                <span>{p.memberA}</span>
+                <span className="text-gray-300">↔</span>
+                <span>{p.memberB}</span>
+              </div>
+              <button
+                onClick={() => setPendingDelete({ id: p.id, label: `${p.memberA} ↔ ${p.memberB}` })}
+                className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        taskTitle={pendingDelete?.label ?? ''}
+        title="대무 페어 삭제"
+        message="이 대무 페어를 삭제할까요?"
+        onConfirm={() => { if (pendingDelete) deletePair(pendingDelete.id); setPendingDelete(null); }}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </div>
+  );
+}
+
 function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onSavePartTypesAndGroups, onClearPartTypesAndGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
@@ -7766,7 +7871,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync' | 'substitute'>>({});
   // [사고 복구용] 팀별로 "매핑 추론" 대상 파트를 고르는 드롭다운 선택값
   const [incidentMappingPartId, setIncidentMappingPartId] = useState<Record<string, string>>({});
   // [사고 복구용] 팀별로 "PL 매핑 추론" 대상 PL 메인업무 타입을 고르는 드롭다운 선택값
@@ -8895,7 +9000,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support', 'groupSync'] as const).map(tab => (
+                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support', 'groupSync', 'substitute'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -8903,7 +9008,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : tab === 'support' ? '지원팀' : '귀속 동기화'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : tab === 'support' ? '지원팀' : tab === 'groupSync' ? '귀속 동기화' : '대무 관리'}
                       </button>
                     ))}
                   </div>
@@ -9476,6 +9581,11 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {/* 대무 관리 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'substitute' && (
+                    <SubstitutePairManager team={team} allUsers={allUsers} onUpdateTeam={onUpdateTeam} />
                   )}
 
                 </div>

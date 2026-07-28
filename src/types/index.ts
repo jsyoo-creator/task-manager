@@ -1035,6 +1035,23 @@ export interface Team {
   revisionSteps?: RevisionStep[]; // 수정단계 목록 팀 기본값 (없으면 DEFAULT_REVISION_STEPS)
   copyIncludeDetails?: boolean; // 업무 복사 시 세부업무/커스텀필드 등 세부사항까지 포함할지 팀 기본값 (undefined = false, 기존 동작)
   taskListTwoLine?: boolean; // 업무관리 목록에서 월+업무명은 1줄, 나머지 필드는 2줄에 배치할지 팀 기본값 (undefined = false, 기존 동작)
+  substitutePairs?: SubstitutePair[]; // 대무 자동지정용 2인 1조 페어 목록 (팀 관리 > 대무 관리에서 등록, 이름 기준)
+}
+
+// 대무 자동지정 페어 — 담당자가 이 중 한 명이면 세부업무의 "대무 자동지정" 토글로 나머지 한 명이 바로 지정됨
+export interface SubstitutePair {
+  id: string;
+  department?: Department; // 팀 관리 화면에서 직군별로 묶어 보여주기 위한 표시용 값(선택)
+  memberA: string; // 팀원 이름 (assignee/substitute와 동일하게 이름 문자열로 저장)
+  memberB: string;
+}
+
+// 담당자 이름으로 등록된 대무 페어를 찾아 상대방 이름을 반환 (2인 1조라 후보가 항상 최대 1명)
+export function findSubstitutePartner(pairs: SubstitutePair[] | undefined, assigneeName: string | undefined): string | undefined {
+  if (!assigneeName || !pairs?.length) return undefined;
+  const pair = pairs.find(p => p.memberA === assigneeName || p.memberB === assigneeName);
+  if (!pair) return undefined;
+  return pair.memberA === assigneeName ? pair.memberB : pair.memberA;
 }
 
 // 업무 복사 시 세부사항(세부업무/커스텀필드/메모 등) 포함 여부 — 파트 오버라이드 → 팀 기본값 순

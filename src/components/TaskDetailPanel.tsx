@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
-import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn } from '../types';
-import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds } from '../types';
+import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn, SubstitutePair } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds, findSubstitutePartner } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
@@ -1105,7 +1105,7 @@ export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
   metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
-  parentTask, childTasks = [], onRemoveFromGroup,
+  parentTask, childTasks = [], onRemoveFromGroup, substitutePairs,
 }: {
   task: Task;
   onClose: () => void;
@@ -1119,6 +1119,7 @@ export default function TaskDetailPanel({
   subTaskTypes?: SubTaskType[];
   revisionSteps?: RevisionStep[];
   teamMembers?: { name: string; department?: Department; email?: string }[];
+  substitutePairs?: SubstitutePair[]; // 대무 자동지정 페어 목록 (팀 관리 > 대무 관리에서 등록)
   formConfig?: TeamFormConfig;
   teamFormConfig?: TeamFormConfig;
   userPhotoMap?: Map<string, string>;
@@ -2397,16 +2398,49 @@ export default function TaskDetailPanel({
                       {subTotal > 0 && (
                         <span className="text-xs font-semibold text-orange-400 flex-shrink-0">대무 {subTotal}h</span>
                       )}
-                      {canManage && !isSupportLinked && !isVacation && !entry.substitute && !manualSubstituteIds.has(type.id) && (
-                        <button
-                          type="button"
-                          title="대무자 지정"
-                          className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded text-orange-400 border border-orange-200 hover:bg-orange-50 transition-colors"
-                          onClick={() => setManualSubstituteIds(prev => new Set(prev).add(type.id))}
-                        >
-                          + 대무
-                        </button>
-                      )}
+                      {canManage && !isSupportLinked && !isVacation && (() => {
+                        const partnerName = findSubstitutePartner(substitutePairs, entry.assignee);
+                        if (partnerName) {
+                          const autoOn = entry.substitute === partnerName;
+                          return (
+                            <button
+                              type="button"
+                              title={autoOn ? '대무 자동지정 해제' : `대무 자동지정 (${partnerName})`}
+                              className={`flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                autoOn ? 'text-orange-500 border-orange-300 bg-orange-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'
+                              }`}
+                              onClick={() => {
+                                if (autoOn) {
+                                  const { substitute, substituteWeeklyHours, substituteTotalHours, ...rest } = entry;
+                                  const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: rest };
+                                  commitSubTaskData(next);
+                                } else {
+                                  const next = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: { ...entry, substitute: partnerName } };
+                                  commitSubTaskData(next);
+                                }
+                              }}
+                            >
+                              <span className={`relative inline-flex h-3 w-5 flex-shrink-0 items-center rounded-full transition-colors ${autoOn ? 'bg-orange-400' : 'bg-gray-300'}`}>
+                                <span className={`inline-block h-2 w-2 transform rounded-full bg-white transition-transform ${autoOn ? 'translate-x-2.5' : 'translate-x-0.5'}`} />
+                              </span>
+                              대무 자동지정
+                            </button>
+                          );
+                        }
+                        if (!entry.substitute && !manualSubstituteIds.has(type.id)) {
+                          return (
+                            <button
+                              type="button"
+                              title="대무자 지정"
+                              className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded text-orange-400 border border-orange-200 hover:bg-orange-50 transition-colors"
+                              onClick={() => setManualSubstituteIds(prev => new Set(prev).add(type.id))}
+                            >
+                              + 대무
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                       {canDelete && (
                         <button
                           type="button"

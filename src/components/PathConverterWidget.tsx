@@ -9,13 +9,22 @@ interface Message {
   directionLabel?: string;
   note?: string;
   copyable?: boolean;
+  autoCopied?: boolean;
 }
 
 let seq = 0;
 const nextId = () => `pcw-${++seq}`;
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
+function CopyButton({ text, initialCopied = false }: { text: string; initialCopied?: boolean }) {
+  const [copied, setCopied] = useState(initialCopied);
+
+  useEffect(() => {
+    if (!initialCopied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <button
       onClick={async () => {
@@ -43,7 +52,7 @@ export default function PathConverterWidget() {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, open]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const raw = input.trim();
     if (!raw) return;
     const result = convertPath(raw);
@@ -57,6 +66,11 @@ export default function PathConverterWidget() {
         text: '경로 형식을 알아볼 수 없어요. 전체 경로(예: C:\\Users\\... 또는 /Users/...)를 붙여넣어 주세요.',
       };
     } else {
+      let autoCopied = false;
+      try {
+        await navigator.clipboard.writeText(result.output);
+        autoCopied = true;
+      } catch { /* clipboard 권한 없음 — 무시, 수동 복사 버튼으로 대체 */ }
       botMsg = {
         id: nextId(),
         role: 'bot',
@@ -64,6 +78,7 @@ export default function PathConverterWidget() {
         directionLabel: result.direction === 'win-to-mac' ? 'Windows → Mac' : 'Mac → Windows',
         note: result.note,
         copyable: true,
+        autoCopied,
       };
     }
     setMessages(prev => [...prev, userMsg, botMsg]);
@@ -120,7 +135,7 @@ export default function PathConverterWidget() {
                   )}
                   {m.copyable && (
                     <div className="mt-1.5 flex justify-end">
-                      <CopyButton text={m.text} />
+                      <CopyButton text={m.text} initialCopied={m.autoCopied} />
                     </div>
                   )}
                 </div>

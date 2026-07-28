@@ -7713,10 +7713,11 @@ function MailFormConfigManager({ team, members, onSavePart, onClearPart }: {
 // 대무 자동지정 페어 관리 — 팀원 2명을 짝지어두면, 세부업무에서 담당자가 이 중
 // 한 명일 때 "대무 자동지정" 토글로 나머지 한 명이 바로 지정됨(TaskDetailPanel 참고)
 // ──────────────────────────────────────────
-function SubstitutePairManager({ team, allUsers, onUpdateTeam }: {
+function SubstitutePairManager({ team, allUsers, onUpdateTeam, workplaceId }: {
   team: Team;
   allUsers: AppUser[];
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
+  workplaceId?: string;
 }) {
   const [memberAUid, setMemberAUid] = useState('');
   const [memberBUid, setMemberBUid] = useState('');
@@ -7724,8 +7725,15 @@ function SubstitutePairManager({ team, allUsers, onUpdateTeam }: {
 
   const pairs = team.substitutePairs ?? [];
 
+  // 여러 팀을 지원하려고 중복 선택(selectedTeamIds)해 둔 사람도 대무는 기본(별표) 팀
+  // 소속에서만 대상이 되어야 함 — 휴가 현황/대시보드의 "기본 팀 소속" 판정과 동일 기준
+  // (App.tsx의 isBaseMemberOfTeam 참고, 지원팀 예외 없이 항상 기본 팀 하나만 인정)
   const teamMembers = allUsers
-    .filter(u => u.selectedTeamIds?.includes(team.id) || Object.values(u.defaultTeamIdByWorkplace ?? {}).includes(team.id))
+    .filter(u => {
+      const defaultTeamId = workplaceId ? u.defaultTeamIdByWorkplace?.[workplaceId] : undefined;
+      if (defaultTeamId) return defaultTeamId === team.id;
+      return u.selectedTeamIds?.includes(team.id) ?? false;
+    })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 
   const savePairs = (next: SubstitutePair[]) => onUpdateTeam(team.id, { substitutePairs: next });
@@ -7814,7 +7822,7 @@ function SubstitutePairManager({ team, allUsers, onUpdateTeam }: {
   );
 }
 
-function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onSavePartTypesAndGroups, onClearPartTypesAndGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin }: {
+function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam, onReorderTeams, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onSavePartTypesAndGroups, onClearPartTypesAndGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig, allUsers, isSuperadmin, workplaceId }: {
   teams: Team[];
   globalRolePermissions: RolePermissions;
   onCreateTeam: (name: string, emoji: string) => Promise<string>;
@@ -7865,6 +7873,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
   allUsers: AppUser[];
   isSuperadmin: boolean;
+  workplaceId?: string;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -9585,7 +9594,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
 
                   {/* 대무 관리 탭 */}
                   {(teamTab[team.id] ?? 'parts') === 'substitute' && (
-                    <SubstitutePairManager team={team} allUsers={allUsers} onUpdateTeam={onUpdateTeam} />
+                    <SubstitutePairManager team={team} allUsers={allUsers} onUpdateTeam={onUpdateTeam} workplaceId={workplaceId} />
                   )}
 
                 </div>
@@ -10469,6 +10478,7 @@ export default function SettingsPage({
           onClearPartMailFormConfig={onClearPartMailFormConfig}
           allUsers={users}
           isSuperadmin={isRoleSuperadmin}
+          workplaceId={workplaceId}
         />
       )}
 

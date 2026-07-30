@@ -1218,8 +1218,20 @@ export function deriveSubtasksForTeam(
     }
     const withPrefix = (name: string) => titlePrefix ? `${titlePrefix} ${name}` : name;
 
+    // 그룹핑(부모 업무로 귀속)된 자식 업무는 부모 쪽 subTaskData에 같은 세부업무 key가
+    // 같은 종료일로 그대로 남아있는 경우가 있다(그룹핑 시점 정리 로직이 못 잡은 기존 데이터 등).
+    // 캘린더 등에서 완전히 동일한 카드가 두 번 뜨는 걸 막기 위해 여기서 한 번 더 걸러낸다.
+    const parentTask = task.parentTaskId ? allProjectTasks.find(t => t.id === task.parentTaskId) : undefined;
+
     return Object.entries(task.subTaskData ?? {})
       .filter(([key]) => !validTypeIds || validTypeIds.has(key))
+      .filter(([key, entry]) => {
+        const parentEntry = parentTask?.subTaskData?.[key];
+        if (!parentEntry?.endDate || !entry.endDate) return true;
+        if (entry.endDate !== parentEntry.endDate) return true;
+        // 종료일이 같아도 실제 기록된 시간이 다르면 별개로 진행된 작업일 수 있으므로 숨기지 않는다
+        return (entry.totalHours ?? 0) !== (parentEntry.totalHours ?? 0);
+      })
       .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
       .flatMap(([key, entry]): SubTask[] => {
         // PL review 타입: 체크된 항목별로 개별 SubTask 생성
@@ -1228,32 +1240,35 @@ export function deriveSubtasksForTeam(
           const checkedItems = (entry.checkedItems ?? []).filter(id =>
             (entry.reviewDates ?? {})[id]?.startDate
           );
-          return checkedItems.map(itemId => {
-            const reviewTask = allProjectTasks.find(t => t.id === itemId);
-            const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
-            const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
-            const itemTotalHours = Object.values(itemWeeklyHours).reduce((a: number, b: number) => a + b, 0);
-            const rs = (entry.reviewStatus ?? {})[itemId] ?? '검수 전';
-            return {
-              id: `${task.id}__${key}__${itemId}`,
-              taskId: task.id,
-              projectId: task.projectId ?? '',
-              title: withPrefix(reviewTask?.title ?? itemId),
-              category: task.category,
-              type: task.type,
-              status: reviewStatusToTaskStatus(rs),
-              assignee: task.assignee ?? task.receiver ?? '',
-              receiver: '',
-              startDate: itemDates.startDate ?? '',
-              endDate: itemDates.endDate ?? '',
-              weeklyHours: itemWeeklyHours,
-              totalHours: itemTotalHours,
-              substituteWeeklyHours: undefined,
-              substituteTotalHours: undefined,
-              revisionLevel: 0,
-              createdAt: task.createdAt,
-            };
-          });
+          // 검수 대상 업무가 휴지통으로 이동했거나 영구삭제된 경우 카드 자체를 만들지 않음
+          return checkedItems
+            .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
+            .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
+            .map(({ itemId, reviewTask }) => {
+              const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
+              const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
+              const itemTotalHours = Object.values(itemWeeklyHours).reduce((a: number, b: number) => a + b, 0);
+              const rs = (entry.reviewStatus ?? {})[itemId] ?? '검수 전';
+              return {
+                id: `${task.id}__${key}__${itemId}`,
+                taskId: task.id,
+                projectId: task.projectId ?? '',
+                title: withPrefix(reviewTask?.title ?? itemId),
+                category: task.category,
+                type: task.type,
+                status: reviewStatusToTaskStatus(rs),
+                assignee: task.assignee ?? task.receiver ?? '',
+                receiver: '',
+                startDate: itemDates.startDate ?? '',
+                endDate: itemDates.endDate ?? '',
+                weeklyHours: itemWeeklyHours,
+                totalHours: itemTotalHours,
+                substituteWeeklyHours: undefined,
+                substituteTotalHours: undefined,
+                revisionLevel: 0,
+                createdAt: task.createdAt,
+              };
+            });
         }
 
         // 일반 엔트리

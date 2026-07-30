@@ -1072,6 +1072,7 @@ function App() {
               vacations={teamVacations}
               reviewTasks={detailTask.plTask
                 ? tasks.filter(t =>
+                    !t.deletedAt &&
                     !t.plTask &&
                     t.projectId === detailTask.projectId &&
                     t.id !== detailTask.id &&

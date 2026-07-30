@@ -2409,8 +2409,8 @@ export default function TaskDetailPanel({
                               <button
                                 type="button"
                                 title={autoOn ? '대무 자동지정 해제' : `대무 자동지정 (${partnerName})`}
-                                className={`flex-shrink-0 flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
-                                  autoOn ? 'text-white border-orange-500 bg-orange-500' : 'text-orange-500 border-orange-300 bg-white hover:bg-orange-50'
+                                className={`flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                                  autoOn ? 'text-orange-500 border-orange-300 bg-orange-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'
                                 }`}
                                 onClick={() => {
                                   if (autoOn) {
@@ -2423,7 +2423,7 @@ export default function TaskDetailPanel({
                                   }
                                 }}
                               >
-                                <span className={`relative inline-flex h-3 w-5 flex-shrink-0 items-center rounded-full transition-colors ${autoOn ? 'bg-orange-700' : 'bg-orange-200'}`}>
+                                <span className={`relative inline-flex h-3 w-5 flex-shrink-0 items-center rounded-full transition-colors ${autoOn ? 'bg-orange-400' : 'bg-gray-300'}`}>
                                   <span className={`inline-block h-2 w-2 transform rounded-full bg-white transition-transform ${autoOn ? 'translate-x-2.5' : 'translate-x-0.5'}`} />
                                 </span>
                                 대무 자동지정

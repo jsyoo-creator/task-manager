@@ -299,9 +299,13 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
     if (!touchesAssigneeOrStatus && !touchesScheduleOrHours && !touchesSubTaskData && !touchesBaseInfo && !touchesDeletedSubTasks && !touchesTrash) return;
 
     // 1) 이 업무 자신이 지원팀에서 자동 생성된 연결 업무라면 → 담당자/상태를 원본
-    //    업무의 해당 세부업무 항목에 반영
+    //    업무의 해당 세부업무 항목에 반영. 로컬 tasks state(React, onSnapshot 반영
+    //    지연 가능)로 자기 자신을 찾으면 타이밍에 따라 linkedFromTaskId가 아직 안
+    //    붙어있는 것처럼 보여 조용히 동기화가 누락될 수 있으므로, Firestore에서
+    //    직접 다시 읽어 확인한다(방향 2는 원래부터 그렇게 하고 있었음)
     if (touchesAssigneeOrStatus || touchesScheduleOrHours) {
-      const self = tasks.find(t => t.id === id);
+      const selfSnap = await getDoc(doc(db, 'tasks', id));
+      const self = selfSnap.exists() ? (selfSnap.data() as Task) : undefined;
       if (self?.linkedFromTaskId && self.linkedFromSubTaskTypeId) {
         const patch: Record<string, unknown> = {};
         if (data.assignee !== undefined) patch[`subTaskData.${self.linkedFromSubTaskTypeId}.assignee`] = data.assignee;

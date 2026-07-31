@@ -1533,12 +1533,14 @@ export default function TaskDetailPanel({
       }
     };
     (formConfig?.builtinFields ?? []).forEach(f => {
+      if (f.enabled === false) return; // 이 팀/파트에서 꺼진(안 보이는) 필드는 필터에 관여시키지 않음
       if (!f.optionGroupMap) return;
       const val = builtinVal(f.key);
       const gid = val ? f.optionGroupMap[val] : undefined;
       if (gid) ids.add(gid);
     });
     (formConfig?.customFields ?? []).forEach(f => {
+      if (f.enabled === false) return; // 이 팀/파트에서 꺼진(안 보이는) 필드는 필터에 관여시키지 않음
       if (!f.optionGroupMap) return;
       const val = task.customFields?.[f.id];
       const gid = val ? f.optionGroupMap[val] : undefined;
@@ -2051,10 +2053,10 @@ export default function TaskDetailPanel({
               onClick={() => {
                 const groupMappedFields = (formConfig?.builtinFields ?? [])
                   .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
-                  .map(f => ({ key: f.key, optionGroupMap: f.optionGroupMap, currentValue: builtinVal(f.key) }));
+                  .map(f => ({ key: f.key, enabled: f.enabled, optionGroupMap: f.optionGroupMap, currentValue: builtinVal(f.key) }));
                 const groupMappedCustomFields = (formConfig?.customFields ?? [])
                   .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
-                  .map(f => ({ id: f.id, label: f.label, optionGroupMap: f.optionGroupMap, currentValue: task.customFields?.[f.id] }));
+                  .map(f => ({ id: f.id, label: f.label, enabled: f.enabled, optionGroupMap: f.optionGroupMap, currentValue: task.customFields?.[f.id] }));
                 const dump = {
                   taskId: task.id,
                   category: task.category,

@@ -676,6 +676,9 @@ function App() {
       // 파트 별도 설정 우선, 없으면 팀 기본 사용 (SettingsPage 로직과 동일)
       const types = partObj?.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [];
       const typeConfig = types.find(t => t.id === subKey);
+      // 지원팀에 연결된 세부업무는 지원팀 쪽 캘린더에서 관리할 일이므로 우리팀
+      // 캘린더에는 안 보여야 함(담당자/기간도 지원팀 소관 — 원본에서는 읽기전용)
+      if (typeConfig?.supportTeamId) return false;
       if (typeConfig) return typeConfig.showInCalendar !== false;
       // subTaskTypes에 없는 타입: calendarVisibleTypeIds fallback
       return calendarVisibleTypeIds.has(subKey);

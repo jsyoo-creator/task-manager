@@ -2052,11 +2052,18 @@ export default function TaskDetailPanel({
                 const dump = {
                   taskId: task.id,
                   category: task.category,
+                  deletedAt: task.deletedAt,
+                  deletedBy: task.deletedBy,
+                  updatedAt: task.updatedAt,
+                  hiddenSubTaskTypeIds: task.hiddenSubTaskTypeIds,
+                  hasActiveSubTaskGroupFilter,
+                  allowedSubTaskGroupIds: Array.from(allowedSubTaskGroupIds),
+                  visibleTypeCount: visibleSubTaskTypes.length,
                   subTaskData: task.subTaskData,
                   currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
                 };
                 console.log('[세부업무 디버그]', JSON.stringify(dump, null, 1));
-                alert(JSON.stringify({ subTaskData: dump.subTaskData, currentTypeIds: dump.currentTypeIds }, null, 1) + '\n\n(같은 내용이 브라우저 콘솔(F12)에도 출력됩니다 — 스크롤 없이 보려면 콘솔을 확인해주세요)');
+                alert(JSON.stringify(dump, null, 1) + '\n\n(같은 내용이 브라우저 콘솔(F12)에도 출력됩니다 — 스크롤 없이 보려면 콘솔을 확인해주세요)');
               }}
               className="text-[9px] font-normal normal-case text-gray-300 hover:text-red-400"
             >디버그</button>

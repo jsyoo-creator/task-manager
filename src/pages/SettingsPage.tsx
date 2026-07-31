@@ -1869,7 +1869,7 @@ function FieldConfigEditor({ fields: fieldsProp, customFields, fieldOrder, subTa
   );
 }
 
-function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateTeam, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine }: {
+function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateTeam, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, selectedTarget, setSelectedTarget }: {
   team: Team;
   onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
   onUpdateAllFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
@@ -1879,9 +1879,10 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
   onUpdateTeam: (teamId: string, data: Partial<Omit<Team, 'id'>>) => Promise<void>;
   onUpdatePartTaskListTwoLine: (teamId: string, partId: string, value: boolean) => Promise<void>;
   onClearPartTaskListTwoLine: (teamId: string, partId: string) => Promise<void>;
+  // 선택된 편집 대상: 'team' | 'all' | 파트 ID — 서브탭 전환 후에도 유지되도록 부모(SettingsPage)가 관리
+  selectedTarget: 'team' | 'all' | string;
+  setSelectedTarget: (target: 'team' | 'all' | string) => void;
 }) {
-  // 선택된 편집 대상: 'team' | 'all' | 파트 ID
-  const [selectedTarget, setSelectedTarget] = useState<'team' | 'all' | string>('team');
   const [flash, setFlash] = useState<'saved' | 'reset' | null>(null);
   const doFlash = (type: 'saved' | 'reset') => { setFlash(type); setTimeout(() => setFlash(null), 1500); };
   const [showCopyMenu, setShowCopyMenu] = useState(false);
@@ -7881,6 +7882,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync' | 'substitute'>>({});
+  // 폼 설정의 "적용 대상" 선택값 — 다른 팀 관리 서브탭에 갔다 돌아와도 유지되도록 SettingsPage
+  // 레벨에서 관리(FormBuilder 내부 state로 두면 서브탭 전환 시 컴포넌트가 언마운트되면서
+  // 조용히 '팀 기본'으로 리셋돼, 사용자가 다른 파트를 편집 중이라 착각한 채 팀 기본에 저장하는 사고로 이어짐)
+  const [formBuilderTarget, setFormBuilderTarget] = useState<Record<string, 'team' | 'all' | string>>({});
   // [사고 복구용] 팀별로 "매핑 추론" 대상 파트를 고르는 드롭다운 선택값
   const [incidentMappingPartId, setIncidentMappingPartId] = useState<Record<string, string>>({});
   // [사고 복구용] 팀별로 "PL 매핑 추론" 대상 PL 메인업무 타입을 고르는 드롭다운 선택값
@@ -9311,6 +9316,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onUpdateTeam={onUpdateTeam}
                         onUpdatePartTaskListTwoLine={onUpdatePartTaskListTwoLine}
                         onClearPartTaskListTwoLine={onClearPartTaskListTwoLine}
+                        selectedTarget={formBuilderTarget[team.id] ?? 'team'}
+                        setSelectedTarget={(target) => setFormBuilderTarget(prev => ({ ...prev, [team.id]: target }))}
                       />
                     </div>
                   )}

@@ -8311,6 +8311,68 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 진단] 위 "원본 유실 진단"에서 찾은 고아 연결 각각에 대해, 원본이
+  // 속했던 팀에 같은 파트·같은 제목의 "현재 살아있는" 업무가 있는지 찾는다. 업무를
+  // "복사"해서 이번 기수 새 업무를 만들면 지원팀 연결이 자동으로 또 하나 생기는데,
+  // 그 뒤 지난 기수 원본을 휴지통에 넣어도 옛 연결은 전혀 정리되지 않아 지원팀
+  // 목록에 옛 연결(고아)과 새 연결이 둘 다 남는 경우가 있다 — 이런 경우는
+  // "휴지통 이동"이 아니라 "최신 업무로 재연결"이 정답이므로, 후보를 구분해서
+  // 보여주기만 한다. 데이터는 전혀 바꾸지 않는다.
+  const scanSupportLinkRelinkCandidates = async (team: Team) => {
+    try {
+      const teamTasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id)));
+      const linked = teamTasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt && t.linkedFromTaskId);
+      if (linked.length === 0) {
+        alert(`[${team.name}] 이 팀이 받는 지원팀 연결 업무 자체가 없습니다.`);
+        return;
+      }
+      const originIds = [...new Set(linked.map(l => l.linkedFromTaskId as string))];
+      const originById = new Map<string, Task>();
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where(documentId(), 'in', chunk)));
+        snap.forEach(d => originById.set(d.id, { id: d.id, ...d.data() } as Task));
+      }
+      const orphaned = linked.filter(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        return !origin || origin.deletedAt;
+      });
+      if (orphaned.length === 0) {
+        alert(`[${team.name}]: 원본이 없어지거나 휴지통에 있는 연결 자체가 없습니다.`);
+        return;
+      }
+      // 원본이 속했던 팀들의 "현재 살아있고(비삭제) 아직 지원팀 연결 자신이 아닌" 업무를 모아
+      const originTeamIds = [...new Set(orphaned.map(l => originById.get(l.linkedFromTaskId as string)?.teamId).filter((v): v is string => !!v))];
+      const liveByTeam = new Map<string, Task[]>();
+      for (const tid of originTeamIds) {
+        const snap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', tid)));
+        liveByTeam.set(tid, snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt && !t.linkedFromTaskId));
+      }
+      const report = orphaned.map(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        const teamId = origin?.teamId;
+        const liveTasks = teamId ? (liveByTeam.get(teamId) ?? []) : [];
+        const candidates = liveTasks.filter(t => t.title === l.title && t.category === origin?.category);
+        return {
+          supportTaskTitle: l.title,
+          supportTaskId: l.id,
+          linkedFromSubTaskTypeId: l.linkedFromSubTaskTypeId,
+          originCategory: origin?.category,
+          candidateCount: candidates.length,
+          candidateIds: candidates.map(c => c.id),
+        };
+      });
+      console.log(`[지원팀 연결 재연결 후보 진단] ${team.name}`, JSON.stringify(report, null, 1));
+      const exactOne = report.filter(r => r.candidateCount === 1).length;
+      const none = report.filter(r => r.candidateCount === 0).length;
+      const multi = report.filter(r => r.candidateCount > 1).length;
+      alert(`[${team.name}] 원본이 사라진 지원팀 연결 ${orphaned.length}건 중:\n\n- 같은 팀·파트·제목의 살아있는 업무가 정확히 1건 있음 (재연결 후보): ${exactOne}건\n- 살아있는 업무 없음 (진짜 끝난 업무로 추정, 휴지통 후보): ${none}건\n- 같은 조건에 여러 건 있어 애매함 (수동 확인 필요): ${multi}건\n\n브라우저 콘솔(F12)에 건별 상세(제목·후보 업무 id)가 JSON으로 출력돼 있습니다. 위 세 숫자만 보내주시면 됩니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+    } catch (e) {
+      console.error('[지원팀 연결 재연결 후보 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 적용] 지원팀 연결 기능이 생기기 전에 이미 날짜 등이 입력돼 있던 옛날
   // 업무는, 그 이후로 지원팀이 다시 그 값을 안 건드리는 한 앞으로도 영원히 원본에
   // 반영될 기회가 없다(동기화는 "값이 바뀌는 시점"에만 실행됨). 위 진단
@@ -9172,6 +9234,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           <button type="button" onClick={() => scanSupportLinkOrphanedOrigin(team)}
                             className={`${btn} bg-rose-600 text-white hover:bg-rose-700`}>
                             지원팀 연결 원본 유실 진단
+                          </button>
+                          <button type="button" onClick={() => scanSupportLinkRelinkCandidates(team)}
+                            className={`${btn} bg-fuchsia-600 text-white hover:bg-fuchsia-700`}>
+                            지원팀 연결 재연결 후보 진단
                           </button>
                           <span className="w-px h-4 bg-amber-300 mx-0.5" />
                           <select

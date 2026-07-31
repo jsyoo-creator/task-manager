@@ -1377,6 +1377,10 @@ export default function TaskDetailPanel({
       // 바꾸고 접수자는 그대로 두면 검수 담당자가 계속 예전 사람으로 되돌아가는
       // 문제가 있었음(복사 후 재배정해도 "내 업무만" 필터에 계속 걸리는 원인)
       if (type.plFieldType === 'review') return;
+      // 지원팀 연결 세부업무는 담당자가 지원팀 쪽에서 지정하는 값(연결 업무와 양방향
+      // 동기화됨) — 지원팀이 아직 배정 전이라 비어있는 걸 자동배정이 "빈칸"으로 오인해
+      // 우리 팀 담당자로 채워버리면 그 값이 지원팀 연결 업무에도 그대로 역전파돼버림
+      if (type.supportTeamId) return;
       const typeDepts = resolveFieldDepts(type);
       if (!typeDepts) return;
       const entry = next[type.id] ?? { assignee: '', weeklyHours: {}, totalHours: 0 };

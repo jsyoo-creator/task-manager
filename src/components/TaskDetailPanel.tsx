@@ -2049,6 +2049,12 @@ export default function TaskDetailPanel({
             <button
               type="button"
               onClick={() => {
+                const groupMappedFields = (formConfig?.builtinFields ?? [])
+                  .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
+                  .map(f => ({ key: f.key, optionGroupMap: f.optionGroupMap, currentValue: builtinVal(f.key) }));
+                const groupMappedCustomFields = (formConfig?.customFields ?? [])
+                  .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
+                  .map(f => ({ id: f.id, label: f.label, optionGroupMap: f.optionGroupMap, currentValue: task.customFields?.[f.id] }));
                 const dump = {
                   taskId: task.id,
                   category: task.category,
@@ -2059,6 +2065,8 @@ export default function TaskDetailPanel({
                   hasActiveSubTaskGroupFilter,
                   allowedSubTaskGroupIds: Array.from(allowedSubTaskGroupIds),
                   visibleTypeCount: visibleSubTaskTypes.length,
+                  groupMappedFields,
+                  groupMappedCustomFields,
                   subTaskData: task.subTaskData,
                   currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
                 };

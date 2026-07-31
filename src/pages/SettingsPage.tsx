@@ -8373,6 +8373,69 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 적용] 위 두 진단(원본 유실/재연결 후보)에서 확인된 고아 지원팀
+  // 연결을 실제로 정리한다: 후보가 없으면(진짜 끝난 업무) 휴지통으로, 후보가
+  // 정확히 1건이면 그 업무로 재연결(linkedFromTaskId만 교체 — 다른 필드는 안 건드림),
+  // 후보가 여러 건이면 그중 createdAt이 가장 최근인 업무로 재연결한다(대부분 이전
+  // 기수/이번 기수 업무가 둘 다 아직 활성 상태로 남아있는 경우라 최신이 맞을 확률이
+  // 높음). 재연결은 포인터만 바꿀 뿐 현재 담당자/상태 값을 새 원본에 즉시 밀어넣지는
+  // 않음 — 그건 이미 있는 "지원팀 연결 필드값 진단/적용" 도구로 뒤이어 처리하면 됨.
+  const applySupportLinkOrphanFix = async (team: Team) => {
+    if (!window.confirm(`[${team.name}] 원본이 사라진 지원팀 연결을 정리합니다.\n\n- 살아있는 후보가 없으면 → 휴지통 이동\n- 후보가 1건이면 → 그 업무로 재연결\n- 후보가 여러 건이면 → 가장 최근에 생성된 업무로 재연결\n\n진행할까요? (완전삭제 아님, 휴지통 이동은 나중에 복구 가능)`)) return;
+    try {
+      const teamTasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id)));
+      const linked = teamTasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt && t.linkedFromTaskId);
+      const originIds = [...new Set(linked.map(l => l.linkedFromTaskId as string))];
+      const originById = new Map<string, Task>();
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where(documentId(), 'in', chunk)));
+        snap.forEach(d => originById.set(d.id, { id: d.id, ...d.data() } as Task));
+      }
+      const orphaned = linked.filter(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        return !origin || origin.deletedAt;
+      });
+      if (orphaned.length === 0) {
+        alert(`[${team.name}]: 정리할 고아 연결이 없습니다.`);
+        return;
+      }
+      const originTeamIds = [...new Set(orphaned.map(l => originById.get(l.linkedFromTaskId as string)?.teamId).filter((v): v is string => !!v))];
+      const liveByTeam = new Map<string, Task[]>();
+      for (const tid of originTeamIds) {
+        const snap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', tid)));
+        liveByTeam.set(tid, snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt && !t.linkedFromTaskId));
+      }
+      const now = new Date().toISOString();
+      const applied: { supportTaskTitle: string; supportTaskId: string; action: string; detail: string }[] = [];
+      const batch = writeBatch(db);
+      orphaned.forEach(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        const teamId = origin?.teamId;
+        const liveTasks = teamId ? (liveByTeam.get(teamId) ?? []) : [];
+        const candidates = liveTasks.filter(t => t.title === l.title && t.category === origin?.category);
+        if (candidates.length === 0) {
+          batch.update(doc(db, 'tasks', l.id), { deletedAt: now, deletedBy: '(지원팀 연결 원본 유실 정리로 자동 이동)', updatedAt: now });
+          applied.push({ supportTaskTitle: l.title, supportTaskId: l.id, action: '휴지통 이동', detail: '살아있는 후보 없음' });
+        } else {
+          const chosen = candidates.length === 1
+            ? candidates[0]
+            : [...candidates].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0];
+          batch.update(doc(db, 'tasks', l.id), { linkedFromTaskId: chosen.id, updatedAt: now });
+          applied.push({ supportTaskTitle: l.title, supportTaskId: l.id, action: '재연결', detail: `${l.linkedFromTaskId} → ${chosen.id}${candidates.length > 1 ? ` (후보 ${candidates.length}건 중 최신)` : ''}` });
+        }
+      });
+      await batch.commit();
+      console.log(`[지원팀 연결 원본 유실 정리 적용] ${team.name}`, JSON.stringify(applied, null, 1));
+      const trashCount = applied.filter(a => a.action === '휴지통 이동').length;
+      const relinkCount = applied.filter(a => a.action === '재연결').length;
+      alert(`[${team.name}] 총 ${applied.length}건 처리 완료 — 재연결 ${relinkCount}건, 휴지통 이동 ${trashCount}건.\n\n브라우저 콘솔(F12)에 건별 상세 내역이 출력되어 있습니다. 캡처해서 보내주시면 확인 부탁드립니다.`);
+    } catch (e) {
+      console.error('[지원팀 연결 원본 유실 정리 적용] 실행 중 오류', e);
+      alert(`적용 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 적용] 지원팀 연결 기능이 생기기 전에 이미 날짜 등이 입력돼 있던 옛날
   // 업무는, 그 이후로 지원팀이 다시 그 값을 안 건드리는 한 앞으로도 영원히 원본에
   // 반영될 기회가 없다(동기화는 "값이 바뀌는 시점"에만 실행됨). 위 진단
@@ -9238,6 +9301,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           <button type="button" onClick={() => scanSupportLinkRelinkCandidates(team)}
                             className={`${btn} bg-fuchsia-600 text-white hover:bg-fuchsia-700`}>
                             지원팀 연결 재연결 후보 진단
+                          </button>
+                          <button type="button" onClick={() => applySupportLinkOrphanFix(team)}
+                            className={`${btn} bg-fuchsia-800 text-white hover:bg-fuchsia-900`}>
+                            지원팀 연결 원본 유실 정리 적용
                           </button>
                           <span className="w-px h-4 bg-amber-300 mx-0.5" />
                           <select

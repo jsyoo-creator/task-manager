@@ -8260,6 +8260,51 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 진단] 위 두 진단은 모두 "linkedFromTaskId가 가리키는 원본 업무가
+  // 존재한다"는 전제 위에서 세부업무 id나 필드값의 어긋남을 잡는다. 이 진단은 그
+  // 전제 자체가 깨진 경우 — 원본 문서가 아예 없거나(재생성 등으로 옛 id가 유실),
+  // 휴지통에 있거나, 있어도 제목이 달라 실제로는 다른 업무를 가리키는 경우를 찾는다.
+  // 이러면 지원팀에서 담당자를 아무리 바꿔도 원본에는 영원히 반영되지 않는다.
+  // 데이터는 전혀 바꾸지 않는다.
+  const scanSupportLinkOrphanedOrigin = async (team: Team) => {
+    try {
+      const teamTasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id)));
+      const linked = teamTasksSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt && t.linkedFromTaskId);
+      if (linked.length === 0) {
+        alert(`[${team.name}] 이 팀이 받는 지원팀 연결 업무 자체가 없습니다.`);
+        return;
+      }
+      const originIds = [...new Set(linked.map(l => l.linkedFromTaskId as string))];
+      const originById = new Map<string, Task>();
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where(documentId(), 'in', chunk)));
+        snap.forEach(d => originById.set(d.id, { id: d.id, ...d.data() } as Task));
+      }
+      const report: { supportTaskTitle: string; supportTaskId: string; linkedFromTaskId: string; issue: string; originTitle?: string }[] = [];
+      linked.forEach(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        if (!origin) {
+          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: '원본 업무 문서 자체가 없음(삭제/유실)' });
+        } else if (origin.deletedAt) {
+          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: '원본 업무가 휴지통에 있음', originTitle: origin.title });
+        } else if (origin.title !== l.title) {
+          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: `제목 불일치(원본: "${origin.title}")`, originTitle: origin.title });
+        }
+      });
+      console.log(`[지원팀 연결 원본 유실 진단] ${team.name}`, JSON.stringify(report, null, 1));
+      if (report.length === 0) {
+        alert(`[${team.name}]: 지원팀 연결 업무 ${linked.length}건을 확인했지만, 원본을 못 찾거나 제목이 어긋난 경우는 찾지 못했습니다.`);
+        return;
+      }
+      const summary = report.slice(0, 10).map(r => `- ${r.supportTaskTitle}: ${r.issue}`).join('\n');
+      alert(`[${team.name}] 원본 업무를 찾을 수 없거나 어긋난 연결을 ${report.length}건 찾았습니다:\n\n${summary}${report.length > 10 ? `\n...외 ${report.length - 10}건` : ''}\n\n브라우저 콘솔(F12 → Console)에 전체 내역이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+    } catch (e) {
+      console.error('[지원팀 연결 원본 유실 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 적용] 지원팀 연결 기능이 생기기 전에 이미 날짜 등이 입력돼 있던 옛날
   // 업무는, 그 이후로 지원팀이 다시 그 값을 안 건드리는 한 앞으로도 영원히 원본에
   // 반영될 기회가 없다(동기화는 "값이 바뀌는 시점"에만 실행됨). 위 진단
@@ -9117,6 +9162,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           <button type="button" onClick={() => scanSupportLinkIdMismatch(team)}
                             className={`${btn} bg-orange-600 text-white hover:bg-orange-700`}>
                             지원팀 연결 끊김 진단
+                          </button>
+                          <button type="button" onClick={() => scanSupportLinkOrphanedOrigin(team)}
+                            className={`${btn} bg-rose-600 text-white hover:bg-rose-700`}>
+                            지원팀 연결 원본 유실 진단
                           </button>
                           <span className="w-px h-4 bg-amber-300 mx-0.5" />
                           <select

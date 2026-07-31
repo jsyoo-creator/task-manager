@@ -8172,8 +8172,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
       linked.forEach(l => {
         const origin = originById.get(l.linkedFromTaskId as string);
         if (!origin) return; // 원본 업무 자체가 삭제된 경우는 별개 사안이라 여기선 제외
-        const originPart = team.parts.find(p => p.name === origin.category);
-        const currentIds = new Set((originPart?.subTaskTypes ?? team.subTaskTypes ?? []).map(t => t.id));
+        // 원본 업무는 "지금 조회 중인 지원팀"이 아니라 자신이 속한 팀(origin.teamId)의
+        // 파트 설정을 기준으로 판단해야 함 — team.parts를 그대로 쓰면 서로 다른 팀의
+        // id 네임스페이스를 비교하게 되어 정상 연결까지 전부 불일치로 오판됨
+        const originTeam = teams.find(t => t.id === origin.teamId) ?? team;
+        const originPart = originTeam.parts.find(p => p.name === origin.category);
+        const currentIds = new Set((originPart?.subTaskTypes ?? originTeam.subTaskTypes ?? []).map(t => t.id));
         if (!currentIds.has(l.linkedFromSubTaskTypeId as string)) {
           report.push({ originTitle: origin.title, originPart: origin.category, supportTaskTitle: l.title, pointsToId: l.linkedFromSubTaskTypeId as string });
         }

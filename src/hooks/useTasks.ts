@@ -292,7 +292,11 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
       return Object.keys(data.deletedSubTasks).filter(k => !(k in before));
     })();
     const touchesDeletedSubTasks = newlyDeletedTypeIds.length > 0;
-    if (!touchesAssigneeOrStatus && !touchesScheduleOrHours && !touchesSubTaskData && !touchesBaseInfo && !touchesDeletedSubTasks) return;
+    // 원본 업무 전체를 휴지통으로 옮기면(세부업무 개별 삭제와 별개로), 연결된 지원팀
+    // 업무들도 함께 휴지통으로 보냄 — 안 그러면 지원팀 쪽은 계속 활성 상태로 남아
+    // 지원팀이 값을 바꿔도 이미 휴지통에 있는 원본에는 영원히 반영될 곳이 없어짐
+    const touchesTrash = data.deletedAt !== undefined && !!data.deletedAt;
+    if (!touchesAssigneeOrStatus && !touchesScheduleOrHours && !touchesSubTaskData && !touchesBaseInfo && !touchesDeletedSubTasks && !touchesTrash) return;
 
     // 1) 이 업무 자신이 지원팀에서 자동 생성된 연결 업무라면 → 담당자/상태를 원본
     //    업무의 해당 세부업무 항목에 반영
@@ -312,14 +316,20 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
 
     // 2) 이 업무가 원본이라면 → 연결된 지원팀 업무(들)에 기본 정보(제목/월/기간)와
     //    해당 세부업무의 담당자/상태를 반영. 세부업무 자체가 삭제됐다면 그 세부업무에
-    //    대응하는 지원팀 업무는 더 이상 할 일이 없는 것이므로 함께 휴지통으로 보냄
-    if (touchesSubTaskData || touchesBaseInfo || touchesDeletedSubTasks) {
+    //    대응하는 지원팀 업무는 더 이상 할 일이 없는 것이므로 함께 휴지통으로 보냄.
+    //    원본 업무 전체가 휴지통으로 가면 연결된 지원팀 업무 전부를 같이 보냄
+    if (touchesSubTaskData || touchesBaseInfo || touchesDeletedSubTasks || touchesTrash) {
       const linkedSnap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', '==', id)));
       if (linkedSnap.empty) return;
       const batch = writeBatch(db);
       let any = false;
       linkedSnap.forEach(d => {
         const linked = d.data() as Task;
+        if (touchesTrash && !linked.deletedAt) {
+          any = true;
+          batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 업무 휴지통 이동으로 자동 이동)', updatedAt: now });
+          return;
+        }
         if (touchesDeletedSubTasks && linked.linkedFromSubTaskTypeId && newlyDeletedTypeIds.includes(linked.linkedFromSubTaskTypeId) && !linked.deletedAt) {
           any = true;
           batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 세부업무 삭제로 자동 이동)', updatedAt: now });

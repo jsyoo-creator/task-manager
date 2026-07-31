@@ -8281,15 +8281,15 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         const snap = await getDocs(query(collection(db, 'tasks'), where(documentId(), 'in', chunk)));
         snap.forEach(d => originById.set(d.id, { id: d.id, ...d.data() } as Task));
       }
-      const report: { supportTaskTitle: string; supportTaskId: string; linkedFromTaskId: string; issue: string; originTitle?: string }[] = [];
+      const report: { supportTaskTitle: string; supportTaskId: string; linkedFromTaskId: string; issue: string; issueKind: string; originTitle?: string; originPart?: string }[] = [];
       linked.forEach(l => {
         const origin = originById.get(l.linkedFromTaskId as string);
         if (!origin) {
-          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: '원본 업무 문서 자체가 없음(삭제/유실)' });
+          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: '원본 업무 문서 자체가 없음(삭제/유실)', issueKind: '원본없음' });
         } else if (origin.deletedAt) {
-          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: '원본 업무가 휴지통에 있음', originTitle: origin.title });
+          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: '원본 업무가 휴지통에 있음', issueKind: '원본휴지통', originTitle: origin.title, originPart: origin.category });
         } else if (origin.title !== l.title) {
-          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: `제목 불일치(원본: "${origin.title}")`, originTitle: origin.title });
+          report.push({ supportTaskTitle: l.title, supportTaskId: l.id, linkedFromTaskId: l.linkedFromTaskId as string, issue: `제목 불일치(원본: "${origin.title}")`, issueKind: '제목불일치', originTitle: origin.title, originPart: origin.category });
         }
       });
       console.log(`[지원팀 연결 원본 유실 진단] ${team.name}`, JSON.stringify(report, null, 1));
@@ -8297,8 +8297,14 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         alert(`[${team.name}]: 지원팀 연결 업무 ${linked.length}건을 확인했지만, 원본을 못 찾거나 제목이 어긋난 경우는 찾지 못했습니다.`);
         return;
       }
-      const summary = report.slice(0, 10).map(r => `- ${r.supportTaskTitle}: ${r.issue}`).join('\n');
-      alert(`[${team.name}] 원본 업무를 찾을 수 없거나 어긋난 연결을 ${report.length}건 찾았습니다:\n\n${summary}${report.length > 10 ? `\n...외 ${report.length - 10}건` : ''}\n\n브라우저 콘솔(F12 → Console)에 전체 내역이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요 — 확인 후 안전하게 복구를 진행하겠습니다. (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
+      const byKind = new Map<string, number>();
+      report.forEach(r => byKind.set(r.issueKind, (byKind.get(r.issueKind) ?? 0) + 1));
+      const kindSummary = [...byKind.entries()].map(([k, c]) => `${k} ${c}건`).join(', ');
+      const byPart = new Map<string, number>();
+      report.forEach(r => { const p = r.originPart ?? '(알수없음)'; byPart.set(p, (byPart.get(p) ?? 0) + 1); });
+      const partSummary = [...byPart.entries()].map(([p, c]) => `${p} ${c}건`).join(', ');
+      const sample = report.slice(0, 10).map(r => `- [${r.originPart ?? '?'}] ${r.supportTaskTitle}: ${r.issue}`).join('\n');
+      alert(`[${team.name}] 원본 업무를 찾을 수 없거나 어긋난 연결을 총 ${report.length}건(지원팀 연결 업무 ${linked.length}건 중) 찾았습니다.\n\n유형별: ${kindSummary}\n원본 파트별: ${partSummary}\n\n샘플:\n${sample}${report.length > 10 ? `\n...외 ${report.length - 10}건` : ''}\n\n브라우저 콘솔(F12 → Console)에 전체 내역이 JSON으로 출력되어 있습니다. 위 요약 수치를 보내주시면 됩니다(전체 JSON은 필요시에만). (이 진단은 조회만 하고 데이터는 바꾸지 않습니다)`);
     } catch (e) {
       console.error('[지원팀 연결 원본 유실 진단] 실행 중 오류', e);
       alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);

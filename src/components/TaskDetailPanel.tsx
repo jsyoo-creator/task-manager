@@ -2068,6 +2068,15 @@ export default function TaskDetailPanel({
                 const groupMappedCustomFields = (formConfig?.customFields ?? [])
                   .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
                   .map(f => ({ id: f.id, label: f.label, enabled: f.enabled, optionGroupMap: f.optionGroupMap, currentValue: task.customFields?.[f.id] }));
+                const subTaskLinkedFields = (formConfig?.customFields ?? [])
+                  .filter(f => f.linkedSubTaskTypeId)
+                  .map(f => ({
+                    id: f.id,
+                    label: f.label,
+                    linkedSubTaskTypeId: f.linkedSubTaskTypeId,
+                    linkedTypeExistsInCurrentTypes: subTaskTypes.some(t => t.id === f.linkedSubTaskTypeId),
+                    resolvedAssignee: task.subTaskData?.[f.linkedSubTaskTypeId as string]?.assignee,
+                  }));
                 const dump = {
                   taskId: task.id,
                   category: task.category,
@@ -2084,6 +2093,7 @@ export default function TaskDetailPanel({
                   visibleTypeCount: visibleSubTaskTypes.length,
                   groupMappedFields,
                   groupMappedCustomFields,
+                  subTaskLinkedFields,
                   subTaskData: task.subTaskData,
                   currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
                 };

@@ -5,6 +5,8 @@ import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FI
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
+import { db } from '../lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 const PANEL_W = 540;
 const MAIL_PANEL_W = 420;
@@ -2054,7 +2056,12 @@ export default function TaskDetailPanel({
             {/* 임시 디버그: 세부업무 id 이전 사고 조사용 — 조사 끝나면 제거 */}
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                const reverseLinkSnap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', '==', task.id)));
+                const reverseLinks = reverseLinkSnap.docs.map(d => {
+                  const t = d.data() as Task;
+                  return { id: d.id, title: t.title, teamId: t.teamId, deletedAt: t.deletedAt, linkedFromSubTaskTypeId: t.linkedFromSubTaskTypeId, assignee: t.assignee, status: t.status };
+                });
                 const groupMappedFields = (formConfig?.builtinFields ?? [])
                   .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
                   .map(f => ({ key: f.key, enabled: f.enabled, optionGroupMap: f.optionGroupMap, currentValue: builtinVal(f.key) }));
@@ -2070,6 +2077,7 @@ export default function TaskDetailPanel({
                   assignee: task.assignee,
                   linkedFromTaskId: task.linkedFromTaskId,
                   linkedFromSubTaskTypeId: task.linkedFromSubTaskTypeId,
+                  reverseLinks,
                   hiddenSubTaskTypeIds: task.hiddenSubTaskTypeIds,
                   hasActiveSubTaskGroupFilter,
                   allowedSubTaskGroupIds: Array.from(allowedSubTaskGroupIds),

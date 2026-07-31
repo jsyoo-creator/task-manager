@@ -8231,9 +8231,13 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
       let checkedCount = 0;
       origins.forEach(origin => {
         types.forEach(type => {
-          const entry = origin.subTaskData?.[type.id];
+          // entry가 아예 없는(원본 subTaskData에 이 세부업무 항목 자체가 생성된 적
+          // 없는) 경우도 비교 대상에 포함시켜야 함 — "값이 있는데 다르다"뿐 아니라
+          // "지원팀엔 값이 있는데 원본엔 항목 자체가 없다"도 명백한 어긋남이고,
+          // 오히려 이쪽이 동기화가 아예 안 탄 더 심각한 사례임
+          const entry = origin.subTaskData?.[type.id] ?? {};
           const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
-          if (!entry || !linkedTask) return;
+          if (!linkedTask) return;
           checkedCount++;
           FIELDS.forEach(f => {
             const a = entry[f as keyof typeof entry] ?? '';
@@ -8465,9 +8469,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
       const plan: { originId: string; originTitle: string; typeId: string; typeName: string; patch: Record<string, unknown> }[] = [];
       origins.forEach(origin => {
         types.forEach(type => {
-          const entry = origin.subTaskData?.[type.id];
+          // entry가 아예 없어도(항목 자체가 생성된 적 없어도) "빈 칸"으로 취급해 채움
+          const entry = origin.subTaskData?.[type.id] ?? {};
           const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
-          if (!entry || !linkedTask) return;
+          if (!linkedTask) return;
           const fieldPatch: Record<string, unknown> = {};
           FIELDS.forEach(f => {
             const a = entry[f as keyof typeof entry];

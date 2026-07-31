@@ -1533,12 +1533,14 @@ export default function TaskDetailPanel({
       }
     };
     (formConfig?.builtinFields ?? []).forEach(f => {
+      if (f.enabled === false) return; // 이 팀/파트에서 꺼진(안 보이는) 필드는 필터에 관여시키지 않음
       if (!f.optionGroupMap) return;
       const val = builtinVal(f.key);
       const gid = val ? f.optionGroupMap[val] : undefined;
       if (gid) ids.add(gid);
     });
     (formConfig?.customFields ?? []).forEach(f => {
+      if (f.enabled === false) return; // 이 팀/파트에서 꺼진(안 보이는) 필드는 필터에 관여시키지 않음
       if (!f.optionGroupMap) return;
       const val = task.customFields?.[f.id];
       const gid = val ? f.optionGroupMap[val] : undefined;

@@ -2715,11 +2715,19 @@ export default function TaskDetailPanel({
         {!task.plTask && (() => {
           const allCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
           // 다른 필드가 이 필드로 얼라이어스되어 이미 그 필드의 행에서 값이 보이고
-          // 있다면, 같은 값을 보여주는 행을 또 만들지 않음(중복 방지)
+          // 있다면, 같은 값을 보여주는 행을 또 만들지 않음(중복 방지). 단, A가 B를
+          // 가리키는데 B도 A(또는 다른 필드)를 가리키는 순환 연결이면 이 규칙을 그대로
+          // 적용할 경우 두 필드가 전부 화면에서 사라져버림(실제 사고: "수정 유형"이
+          // "목록+상세"로 설정돼 있는데도 상세 화면 전체에서 안 보였음) — 대상(target)
+          // 필드 자신도 다른 곳을 가리키는 얼라이어스 소스라면(=순환) 숨기지 않고 둘 다
+          // 보여줌. 값이 중복 표시되는 게 필드가 통째로 사라지는 것보다 훨씬 안전함
+          const targetIdBySourceId = new Map<string, string>();
+          allCfs.forEach(cf => {
+            const t = resolveAliasFieldId(cf, task.category, parts);
+            if (t && !BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(t)) targetIdBySourceId.set(cf.id, t);
+          });
           const aliasedTargetIds = new Set(
-            allCfs
-              .map(cf => resolveAliasFieldId(cf, task.category, parts))
-              .filter((id): id is string => !!id && !BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(id))
+            [...targetIdBySourceId.values()].filter(targetId => !targetIdBySourceId.has(targetId))
           );
           const enabledCfs = allCfs.filter(cf => !aliasedTargetIds.has(cf.id));
           const fo = formConfig?.fieldOrder;

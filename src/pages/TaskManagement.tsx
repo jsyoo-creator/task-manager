@@ -2301,11 +2301,24 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
   // 고정 컬럼(tableCfs) 중 이 업무의 파트에 있는 같은 라벨의 필드로 얼라이어스되는
   // 필드가 있으면, 그 대상 필드는 이미 고정 컬럼에서 값이 보이고 있으므로 별도
   // 컬럼으로 또 보여주지 않음 — 안 그러면 "퍼블"이 담당자 옆(고정 컬럼)과 뒤쪽
-  // (파트 자체 필드)에 두 번 나타나는 것처럼 보임
+  // (파트 자체 필드)에 두 번 나타나는 것처럼 보임. 단, 그 대상 필드 자신도 다시
+  // 다른 필드를 가리키는 얼라이어스 소스라면(=순환 연결) 숨기지 않음 — 순환을 그대로
+  // 숨기면 관련 필드가 전부 화면에서 사라져버리는 사고가 남(실제로 상세 패널 쪽에서
+  // 겪음). 대상 필드 정의는 팀 기본/전체/모든 파트를 통틀어 찾아야 함(얼라이어스가
+  // 스코프를 넘나들 수 있으므로)
+  const findCfDefById = (id: string): CustomFormField | undefined =>
+    formConfig?.customFields?.find(f => f.id === id) ??
+    (parts ?? []).flatMap(p => p.formConfig?.customFields ?? []).find(f => f.id === id);
   const aliasedTargetIds = new Set(
     tableCfs
       .map(cf => resolveAliasFieldId(cf, task.category, parts))
       .filter((id): id is string => !!id && !BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(id))
+      .filter(targetId => {
+        const targetCf = findCfDefById(targetId);
+        if (!targetCf) return true;
+        const backTarget = resolveAliasFieldId(targetCf, task.category, parts);
+        return !(backTarget && !BUILTIN_FIELD_KEYS_FOR_ALIAS.includes(backTarget));
+      })
   );
   const enabledCfs = (formConfig?.customFields ?? []).filter(cf =>
     cf.enabled !== false && cf.showIn !== 'detail' && !tableCfIds.has(cf.id) && !aliasedTargetIds.has(cf.id)

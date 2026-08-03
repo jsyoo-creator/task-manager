@@ -2595,10 +2595,10 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             const typeColor = fc.optionColors?.[task.type];
             if (typeColor) return [
               <div key="type" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer"
+                className="relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer"
                 style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
-                <span className="text-xs font-medium whitespace-nowrap">{task.type}</span>
-                {canManage && <ChevronDown size={10} />}
+                <span className="flex-1 min-w-0 text-xs font-medium truncate">{task.type}</span>
+                {canManage && <ChevronDown size={10} className="flex-shrink-0" />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                     value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
@@ -2609,8 +2609,8 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
             return [
               <div key="type" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer bg-gray-100">
-                <span className="text-xs font-medium text-gray-600 whitespace-nowrap">{task.type || '-'}</span>
+                className="relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer bg-gray-100">
+                <span className="flex-1 min-w-0 text-xs font-medium text-gray-600 truncate">{task.type || '-'}</span>
                 {canManage && <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"

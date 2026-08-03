@@ -388,14 +388,6 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
   });
-  // 그룹 모달의 "귀속시킬 업무" 후보 — 이미 누군가의 하위 업무인 것은 부모가 될 수 없고(1단계 제한),
-  // 지금 선택 중인(그 자체가 자식이 될) 업무는 후보에서 제외
-  const groupParentCandidates = useMemo(() =>
-    tasks
-      .filter(t => !t.parentTaskId && !selectedIds.has(t.id))
-      .filter(t => !groupSearch.trim() || t.title.toLowerCase().includes(groupSearch.trim().toLowerCase())),
-    [tasks, selectedIds, groupSearch]
-  );
 
   const monthsWithData = useMemo(() => {
     const set = new Set<number>();
@@ -1174,6 +1166,19 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     }
     return true;
   });
+
+  // 그룹 모달의 "귀속시킬 업무" 후보 — 반드시 지금 화면에 실제로 보이는 목록(filtered)
+  // 안에서만 찾아야 함. 예전엔 파트 탭/연도/월 필터를 무시한 tasks 전체에서 검색해서,
+  // 지금 보고 있는 목록엔 1건뿐인데 다른 달/다른 파트의 같은 제목 업무까지 후보로
+  // 같이 나와 "업무는 하나뿐인데 검색하면 2개 나온다"는 혼란을 줬음. 이미 누군가의
+  // 하위 업무인 것은 부모가 될 수 없고(1단계 제한), 지금 선택 중인(그 자체가 자식이
+  // 될) 업무는 후보에서 제외
+  const groupParentCandidates = useMemo(() =>
+    filtered
+      .filter(t => !t.parentTaskId && !selectedIds.has(t.id))
+      .filter(t => !groupSearch.trim() || t.title.toLowerCase().includes(groupSearch.trim().toLowerCase())),
+    [filtered, selectedIds, groupSearch]
+  );
 
   type GroupBlock = { key: string; label: string; tasks: Task[]; part?: TeamPart | null; isPerson?: boolean };
 

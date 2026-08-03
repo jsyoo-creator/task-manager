@@ -939,26 +939,26 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     return map;
   }, [tasks, tableCfs, parts, formConfig]);
 
-  // 빌트인 select 필드(유형/상태/파트/접수자/담당자)도 위와 동일한 이유로 실제 값 +
-  // 팀 기본/전체 파트의 옵션 오버라이드까지 전부 합쳐서 폭 계산에 씀 — customType이
-  // 'select'가 아닌 필드는 builtinFieldWidth 내부에서 값 자체를 안 쓰므로 계산해도 무해함.
+  // 빌트인 select 필드(유형/상태/파트/접수자/담당자)의 실제 표시값만 폭 계산에 씀.
+  // 옵션 목록(cf.options/dependsOn)은 customValuesByFieldId와 달리 다른 파트 것까지
+  // 합치면 안 됨 — 커스텀 필드는 파트마다 "같은 id"를 의도적으로 공유하는 경우라
+  // 다른 파트 오버라이드까지 보는 게 맞지만, 빌트인 필드는 key('type' 등)가 모든
+  // 파트가 재사용하는 고정 슬롯일 뿐이라 서로 완전히 무관한 값(예: 어떤 파트는
+  // "A1~G4" 코드, 다른 파트는 "수정 유형"이라는 긴 문장)을 의미하는 경우가 많음.
+  // 지금 렌더링 중인 fc(활성 파트 기준으로 이미 해석된 값)의 options/dependsOn은
+  // builtinFieldWidth가 그대로 읽으므로 여기선 실제 업무 값만 모으면 됨 — 그마저도
+  // 지금 탭에 표시되는 업무로 범위를 한정해 다른 파트 값이 섞여 들어가지 않게 함.
   const builtinValuesByKey = useMemo(() => {
     const map = new Map<string, string[]>();
+    const relevantTasks = activeCategory !== 'all' ? tasks.filter(t => t.category === activeCategory) : tasks;
     tableFields.forEach(fc => {
       if (fc.customType !== 'select') return;
       const values: string[] = [];
-      tasks.forEach(t => { const v = (t as Record<string, unknown>)[fc.key]; if (v) values.push(String(v)); });
-      [formConfig, ...(parts ?? []).map(p => p.formConfig)].forEach(cfg => {
-        const match = cfg?.builtinFields?.find(f => f.key === fc.key);
-        if (match) {
-          values.push(...(match.options ?? []));
-          values.push(...Object.values(match.dependsOn?.valueMap ?? {}).flat());
-        }
-      });
+      relevantTasks.forEach(t => { const v = (t as Record<string, unknown>)[fc.key]; if (v) values.push(String(v)); });
       map.set(fc.key, values);
     });
     return map;
-  }, [tasks, tableFields, parts, formConfig]);
+  }, [tasks, tableFields, activeCategory]);
 
   const currentTeam = teams.find(t => t.id === currentTeamId);
   // 2줄 구성(업무명만 1번째 줄 / 나머지 필드 2번째 줄) 사용 여부 — 파트 탭이면 그 파트 오버라이드,

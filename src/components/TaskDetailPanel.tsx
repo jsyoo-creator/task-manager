@@ -1766,10 +1766,14 @@ export default function TaskDetailPanel({
                 return (pVal && valueMap[pVal]) ? valueMap[pVal] : typeOptsBase;
               })();
               // 연결 필드로 옵션이 좁혀지면 예전에 저장된 값이 현재 옵션 목록에 없을 수 있음 —
-              // raw 값을 그대로 보여주면 지금은 안 쓰는 값이 마치 정상 선택된 것처럼 보이므로 구분 표시
-              const typeValid = typeOpts.includes(task.type);
-              const typeDisplayText = typeValid ? task.type : '선택 필요';
-              const typeColor = typeValid ? fc.optionColors?.[task.type] : undefined;
+              // raw 값을 그대로 보여주면 지금은 안 쓰는 값이 마치 정상 선택된 것처럼 보이므로 구분 표시.
+              // 단, 좁혀진 옵션이 1개뿐이면 고를 필요가 없으므로 그 옵션을 바로 보여줌(저장은 안 함 —
+              // 실제 선택 전까지 task.type은 그대로 두고 화면 표시만 그 값으로 대신함).
+              const typeMatches = typeOpts.includes(task.type);
+              const effectiveTypeValue = typeMatches ? task.type : (typeOpts.length === 1 ? typeOpts[0] : '');
+              const typeValid = !!effectiveTypeValue;
+              const typeDisplayText = typeValid ? effectiveTypeValue : '선택 필요';
+              const typeColor = typeValid ? fc.optionColors?.[effectiveTypeValue] : undefined;
               return (
                 <div key="type">
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
@@ -1780,7 +1784,7 @@ export default function TaskDetailPanel({
                           style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
                           <span>{typeDisplayText}</span><ChevronDown size={9} />
                         </div>
-                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={typeValid ? task.type : ''}
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={effectiveTypeValue}
                           onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
                           <option value="">선택하세요</option>
                           {typeOpts.map(t => <option key={t}>{t}</option>)}
@@ -1791,7 +1795,7 @@ export default function TaskDetailPanel({
                         <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer ${typeValid ? 'bg-gray-100 text-gray-600' : 'bg-gray-50 text-gray-400 border border-dashed border-gray-300'}`}>
                           <span>{typeDisplayText}</span><ChevronDown size={9} />
                         </div>
-                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={typeValid ? task.type : ''}
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={effectiveTypeValue}
                           onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
                           <option value="">선택하세요</option>
                           {typeOpts.map(t => <option key={t}>{t}</option>)}

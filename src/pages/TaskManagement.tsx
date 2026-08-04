@@ -945,8 +945,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     const relevantTasks = activeCategory !== 'all' ? tasks.filter(t => t.category === activeCategory) : tasks;
     tableFields.forEach(fc => {
       if (fc.customType !== 'select') return;
+      // 연결 필드(dependsOn)가 있는 경우, 지금 옵션 목록에 없는 값(연결 필드 도입 전 예전
+      // 값 등)은 화면에 "선택 필요"로 짧게 대체 표시되므로 폭 계산에도 넣으면 안 됨 —
+      // 그대로 넣으면 그 예전 긴 문구 하나 때문에 컬럼 전체가 불필요하게 넓어짐.
+      const validSet = fc.dependsOn
+        ? new Set([...(fc.options ?? []), ...Object.values(fc.dependsOn.valueMap ?? {}).flat()])
+        : null;
       const values: string[] = [];
-      relevantTasks.forEach(t => { const v = (t as Record<string, unknown>)[fc.key]; if (v) values.push(String(v)); });
+      relevantTasks.forEach(t => {
+        const v = (t as Record<string, unknown>)[fc.key];
+        if (!v) return;
+        const s = String(v);
+        if (validSet && !validSet.has(s)) return;
+        values.push(s);
+      });
       map.set(fc.key, values);
     });
     return map;
@@ -2651,10 +2663,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
               return (pVal && valueMap[pVal]) ? valueMap[pVal] : typeOptsBase;
             })();
             // 연결 필드로 옵션이 좁혀지면 예전에 저장된 값이 현재 옵션 목록에 없을 수 있음 —
-            // raw 값을 그대로 보여주면 지금은 안 쓰는 값이 마치 정상 선택된 것처럼 보이므로 구분 표시
-            const typeValid = typeOpts.includes(task.type);
-            const typeDisplayText = typeValid ? (task.type || '-') : '선택 필요';
-            const typeColor = typeValid ? fc.optionColors?.[task.type] : undefined;
+            // raw 값을 그대로 보여주면 지금은 안 쓰는 값이 마치 정상 선택된 것처럼 보이므로 구분 표시.
+            // 단, 좁혀진 옵션이 1개뿐이면 고를 필요가 없으므로 그 옵션을 바로 보여줌(저장은 안 함).
+            const typeMatches = typeOpts.includes(task.type);
+            const effectiveTypeValue = typeMatches ? task.type : (typeOpts.length === 1 ? typeOpts[0] : '');
+            const typeValid = !!effectiveTypeValue;
+            const typeDisplayText = typeValid ? effectiveTypeValue : '선택 필요';
+            const typeColor = typeValid ? fc.optionColors?.[effectiveTypeValue] : undefined;
             if (typeColor) return [
               <div key="type" onClick={e => e.stopPropagation()}
                 className="relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer"
@@ -2663,7 +2678,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 {canManage && <ChevronDown size={10} className="flex-shrink-0" />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={typeValid ? task.type : ''} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    value={effectiveTypeValue} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
                     <option value="">선택하세요</option>
                     {typeOpts.map(t => <option key={t}>{t}</option>)}
                   </select>
@@ -2677,7 +2692,7 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 {canManage && <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={typeValid ? task.type : ''} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    value={effectiveTypeValue} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
                     <option value="">선택하세요</option>
                     {typeOpts.map(t => <option key={t}>{t}</option>)}
                   </select>

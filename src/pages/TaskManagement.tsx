@@ -2650,16 +2650,21 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
                 : (task.customFields?.[fieldId] ?? '');
               return (pVal && valueMap[pVal]) ? valueMap[pVal] : typeOptsBase;
             })();
-            const typeColor = fc.optionColors?.[task.type];
+            // 연결 필드로 옵션이 좁혀지면 예전에 저장된 값이 현재 옵션 목록에 없을 수 있음 —
+            // raw 값을 그대로 보여주면 지금은 안 쓰는 값이 마치 정상 선택된 것처럼 보이므로 구분 표시
+            const typeValid = typeOpts.includes(task.type);
+            const typeDisplayText = typeValid ? (task.type || '-') : '선택 필요';
+            const typeColor = typeValid ? fc.optionColors?.[task.type] : undefined;
             if (typeColor) return [
               <div key="type" onClick={e => e.stopPropagation()}
                 className="relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer"
                 style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
-                <span className="flex-1 min-w-0 text-xs font-medium truncate">{task.type}</span>
+                <span className="flex-1 min-w-0 text-xs font-medium truncate">{typeDisplayText}</span>
                 {canManage && <ChevronDown size={10} className="flex-shrink-0" />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    value={typeValid ? task.type : ''} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    <option value="">선택하세요</option>
                     {typeOpts.map(t => <option key={t}>{t}</option>)}
                   </select>
                 )}
@@ -2667,12 +2672,13 @@ function TaskRow({ task, onUpdate, onDelete, onDeleteRequest, onOpenDetail, onCo
             ];
             return [
               <div key="type" onClick={e => e.stopPropagation()}
-                className="relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer bg-gray-100">
-                <span className="flex-1 min-w-0 text-xs font-medium text-gray-600 truncate">{task.type || '-'}</span>
+                className={`relative flex items-center justify-between w-full min-w-0 overflow-hidden rounded-full pl-2.5 pr-1.5 py-0.5 cursor-pointer ${typeValid ? 'bg-gray-100' : 'bg-gray-50 border border-dashed border-gray-300'}`}>
+                <span className={`flex-1 min-w-0 text-xs font-medium truncate ${typeValid ? 'text-gray-600' : 'text-gray-400'}`}>{typeDisplayText}</span>
                 {canManage && <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />}
                 {canManage && (
                   <select className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    value={task.type} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    value={typeValid ? task.type : ''} onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                    <option value="">선택하세요</option>
                     {typeOpts.map(t => <option key={t}>{t}</option>)}
                   </select>
                 )}

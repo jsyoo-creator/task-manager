@@ -1763,7 +1763,11 @@ export default function TaskDetailPanel({
                   : (task.customFields?.[fieldId] ?? '');
                 return (pVal && valueMap[pVal]) ? valueMap[pVal] : typeOptsBase;
               })();
-              const typeColor = fc.optionColors?.[task.type];
+              // 연결 필드로 옵션이 좁혀지면 예전에 저장된 값이 현재 옵션 목록에 없을 수 있음 —
+              // raw 값을 그대로 보여주면 지금은 안 쓰는 값이 마치 정상 선택된 것처럼 보이므로 구분 표시
+              const typeValid = typeOpts.includes(task.type);
+              const typeDisplayText = typeValid ? task.type : '선택 필요';
+              const typeColor = typeValid ? fc.optionColors?.[task.type] : undefined;
               return (
                 <div key="type">
                   <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">{lbl}</p>
@@ -1772,20 +1776,22 @@ export default function TaskDetailPanel({
                       <div className="relative block w-full">
                         <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer"
                           style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
-                          <span>{task.type}</span><ChevronDown size={9} />
+                          <span>{typeDisplayText}</span><ChevronDown size={9} />
                         </div>
-                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.type}
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={typeValid ? task.type : ''}
                           onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                          <option value="">선택하세요</option>
                           {typeOpts.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
                     ) : (
                       <div className="relative block w-full">
-                        <div className="flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer bg-gray-100 text-gray-600">
-                          <span>{task.type}</span><ChevronDown size={9} />
+                        <div className={`flex w-full items-center justify-between px-2.5 py-0.5 rounded-lg text-xs font-medium cursor-pointer ${typeValid ? 'bg-gray-100 text-gray-600' : 'bg-gray-50 text-gray-400 border border-dashed border-gray-300'}`}>
+                          <span>{typeDisplayText}</span><ChevronDown size={9} />
                         </div>
-                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={task.type}
+                        <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={typeValid ? task.type : ''}
                           onChange={e => onUpdate(task.id, { type: e.target.value as TaskType })}>
+                          <option value="">선택하세요</option>
                           {typeOpts.map(t => <option key={t}>{t}</option>)}
                         </select>
                       </div>
@@ -1794,9 +1800,9 @@ export default function TaskDetailPanel({
                     typeColor ? (
                       <span className="inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium"
                         style={{ backgroundColor: typeColor.bg, color: typeColor.text }}>
-                        {task.type}
+                        {typeDisplayText}
                       </span>
-                    ) : <span className="inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">{task.type}</span>
+                    ) : <span className={`inline-flex px-2.5 py-0.5 rounded-lg text-xs font-medium ${typeValid ? 'bg-gray-100 text-gray-600' : 'bg-gray-50 text-gray-400 border border-dashed border-gray-300'}`}>{typeDisplayText}</span>
                   )}
                 </div>
               );

@@ -1206,6 +1206,7 @@ export default function TaskDetailPanel({
   const [deletedSubTaskIds, setDeletedSubTaskIds] = useState<Set<string>>(new Set());
   const [manualSubstituteIds, setManualSubstituteIds] = useState<Set<string>>(new Set());
   const [activeDeptTab, setActiveDeptTab] = useState<Department | null>(null);
+  const [activeReviewPartTabs, setActiveReviewPartTabs] = useState<Record<string, string>>({});
   const [visible, setVisible] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [mailMessage, setMailMessage] = useState('');
@@ -2156,6 +2157,17 @@ export default function TaskDetailPanel({
                   };
 
                   const items = reviewTasks ?? [];
+                  const reviewPartTabAll = '__all__';
+                  const reviewParts = Array.from(new Set(items.map(rt => rt.category).filter((c): c is string => !!c)));
+                  const showReviewPartTabs = reviewParts.length >= 2;
+                  const activeReviewPart = showReviewPartTabs
+                    ? (activeReviewPartTabs[type.id] && (activeReviewPartTabs[type.id] === reviewPartTabAll || reviewParts.includes(activeReviewPartTabs[type.id]))
+                        ? activeReviewPartTabs[type.id]
+                        : reviewPartTabAll)
+                    : reviewPartTabAll;
+                  const displayedItems = showReviewPartTabs && activeReviewPart !== reviewPartTabAll
+                    ? items.filter(rt => rt.category === activeReviewPart)
+                    : items;
                   return (
                     <div key={type.id} className="rounded-xl bg-gray-50 p-3">
                       <div className="flex items-center gap-2 mb-2">
@@ -2171,11 +2183,33 @@ export default function TaskDetailPanel({
                           <span className="text-[10px] font-medium text-violet-600">{reviewTotal}h</span>
                         )}
                       </div>
-                      {items.length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-2">등록된 업무가 없습니다</p>
+                      {showReviewPartTabs && (
+                        <div className="flex items-center gap-1 mb-2 flex-wrap">
+                          <button type="button"
+                            onClick={() => setActiveReviewPartTabs(prev => ({ ...prev, [type.id]: reviewPartTabAll }))}
+                            className={`text-[10px] font-semibold px-2 py-1 rounded-lg transition-all flex-shrink-0 ${
+                              activeReviewPart === reviewPartTabAll ? 'bg-violet-500 text-white' : 'bg-white text-gray-500 hover:text-gray-700'
+                            }`}>전체 {items.length}</button>
+                          {reviewParts.map(p => {
+                            const count = items.filter(rt => rt.category === p).length;
+                            const isActive = activeReviewPart === p;
+                            return (
+                              <button key={p} type="button"
+                                onClick={() => setActiveReviewPartTabs(prev => ({ ...prev, [type.id]: p }))}
+                                className={`text-[10px] font-semibold px-2 py-1 rounded-lg transition-all flex-shrink-0 ${
+                                  isActive ? 'bg-violet-500 text-white' : 'bg-white text-gray-500 hover:text-gray-700'
+                                }`}>{p} {count}</button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {displayedItems.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-2">
+                          {showReviewPartTabs && activeReviewPart !== reviewPartTabAll ? '해당 파트에 등록된 업무가 없습니다' : '등록된 업무가 없습니다'}
+                        </p>
                       ) : (
                         <div className="space-y-1">
-                          {items.map(rt => {
+                          {displayedItems.map(rt => {
                             const isChecked = checked.includes(rt.id);
                             const rtDates = reviewDates[rt.id] ?? {};
                             const rtWeeklyHours = reviewWeeklyHours[rt.id] ?? {};

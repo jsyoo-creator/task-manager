@@ -536,10 +536,20 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       endDate:   pb('endDate', '종료일'),
     };
   })();
+  // 커스텀 필드도 빌트인 필드와 동일하게 "현재" 라벨로 매칭해야 함 — excelConfig에 저장된
+  // label은 필드 라벨을 나중에 고쳐도 자동으로 안 따라와서(엑셀 관리 탭에서 재저장해야만 갱신),
+  // 오래된 라벨 그대로 엑셀 헤더와 매칭하면 엉뚱한 컬럼 값이 들어가거나 원래 값이 통째로
+  // 버려지는 문제가 있었음(예: 필드 라벨을 바꾼 뒤 엑셀 관리를 재저장 안 한 커스텀 필드).
+  const importCustomLabels = (() => {
+    const selected = parts?.filter(p => importParts.has(p.name)) ?? [];
+    const partWithConfig = selected.find(p => p.formConfig);
+    const merged = partWithConfig?.formConfig ? mergeFormConfig(partWithConfig.formConfig, formConfig) : formConfig;
+    return new Map((merged?.customFields ?? []).map(cf => [cf.id, cf.label]));
+  })();
   const importSelectedParts = parts?.filter(p => importParts.has(p.name)) ?? [];
   const importValidKeys = computeValidExcelKeys(importSelectedParts);
   const importFields = (effectiveImportConfig?.filter(f => f.enabled && importValidKeys.has(f.key)).sort((a, b) => a.order - b.order) ?? [])
-    .map(f => ({ ...f, label: importBuiltinLabels[f.key] ?? f.label }));
+    .map(f => ({ ...f, label: importBuiltinLabels[f.key] ?? importCustomLabels.get(f.key) ?? f.label }));
   // 선택된 파트의 커스텀 필드 중 'date' 타입인 필드 id 집합 — 엑셀 가져오기 시 날짜 정규화 대상 판별용
   const importDateFieldIds = (() => {
     const selected = parts?.filter(p => importParts.has(p.name)) ?? [];

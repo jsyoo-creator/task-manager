@@ -457,8 +457,8 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                           const h = dailyH[i];
                           return (
                             <div key={name} className="flex items-center gap-0.5">
-                              <span className={`text-[10px] font-medium ${isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
-                              <span className={`text-[10px] font-semibold ${h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
+                              <span className={`text-xs font-medium ${isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
+                              <span className={`text-xs font-semibold ${h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
                             </div>
                           );
                         })}

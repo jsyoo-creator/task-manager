@@ -2892,23 +2892,32 @@ export default function TaskDetailPanel({
                         ) : cfType === 'date' ? (
                           <DatePicker value={val} onChange={handleBlur} disabled={!editable} btnClassName={cls} />
                         ) : cfType === 'number' ? (
-                          <input type="number" readOnly={!editable} value={val}
-                            onChange={e => handleBlur(e.target.value)}
-                            onBlur={e => handleBlur(e.target.value)}
+                          <input type="number" readOnly={!editable} value={manualFieldDrafts[cf.id] ?? val}
+                            onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                            onBlur={e => {
+                              handleBlur(e.target.value);
+                              setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                            }}
                             className={cls} />
                         ) : cfType === 'link' ? (
                           <div className="flex items-center gap-px">
-                            <input type="url" readOnly={!editable} value={val}
-                              onChange={e => handleBlur(e.target.value)}
-                              onBlur={e => handleBlur(e.target.value)}
+                            <input type="url" readOnly={!editable} value={manualFieldDrafts[cf.id] ?? val}
+                              onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                              onBlur={e => {
+                                handleBlur(e.target.value);
+                                setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                              }}
                               placeholder="https://"
                               className={linkInputCls} />
                             {val && <a href={val} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-blue-400 hover:text-blue-500"><ExternalLink size={13} /></a>}
                           </div>
                         ) : (
-                          <input type="text" readOnly={!editable} value={val}
-                            onChange={e => handleBlur(e.target.value)}
-                            onBlur={e => handleBlur(e.target.value)}
+                          <input type="text" readOnly={!editable} value={manualFieldDrafts[cf.id] ?? val}
+                            onChange={e => setManualFieldDrafts(prev => ({ ...prev, [cf.id]: e.target.value }))}
+                            onBlur={e => {
+                              handleBlur(e.target.value);
+                              setManualFieldDrafts(prev => { const next = { ...prev }; delete next[cf.id]; return next; });
+                            }}
                             placeholder="-"
                             className={cls} />
                         )}

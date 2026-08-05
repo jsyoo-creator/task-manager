@@ -451,6 +451,19 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                   {totalH > 0 && (
                     <>
                       <span className="text-gray-200">·</span>
+                      <div className="flex items-center gap-1.5">
+                        {DAY_NAMES.map((name, i) => {
+                          const isToday = weekdays[i]?.isToday;
+                          const h = dailyH[i];
+                          return (
+                            <div key={name} className="flex items-center gap-0.5">
+                              <span className={`text-[10px] font-medium ${isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
+                              <span className={`text-[10px] font-semibold ${h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span className="text-gray-200">·</span>
                       <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
                       <span className="text-xs text-gray-300">/ {personTargetH}h</span>
                       {totalH < personTargetH && (
@@ -466,22 +479,6 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                   )}
                 </div>
               </div>
-
-              {/* 일별 시간 */}
-              {totalH > 0 && (
-                <div className="px-5 py-2 bg-white border-b border-gray-100 flex items-center gap-3">
-                  {DAY_NAMES.map((name, i) => {
-                    const isToday = weekdays[i]?.isToday;
-                    const h = dailyH[i];
-                    return (
-                      <div key={name} className="flex items-center gap-1">
-                        <span className={`text-[11px] font-medium ${isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
-                        <span className={`text-[11px] font-semibold ${h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-600') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
               {/* 휴가 행 */}
               {vacH > 0 && (

@@ -127,19 +127,24 @@ function getPersonVacationInfo(personName: string, vacations: Vacation[], weekMo
   return { h: entries.reduce((s, e) => s + e.h, 0), entries };
 }
 
-// 태스크 시작일 기준 상대 주차를 계산해 해당 주의 시간 합산
-function getSubWeekHours(sub: SubTask, currentWeekMonday: Date, useSubstitute = false): number {
-  if (!sub.startDate) return 0;
+// 태스크 시작일 기준 상대 주차를 계산해 해당 주의 월~금 일별 시간 배열([월,화,수,목,금]) 반환
+function getSubWeekDailyHours(sub: SubTask, currentWeekMonday: Date, useSubstitute = false): number[] {
+  if (!sub.startDate) return [0, 0, 0, 0, 0];
   const taskStart = toDate(sub.startDate);
   const dow = taskStart.getDay();
   const taskMonday = new Date(taskStart);
   taskMonday.setDate(taskStart.getDate() - (dow === 0 ? 6 : dow - 1));
   taskMonday.setHours(0, 0, 0, 0);
   const diffWeeks = Math.round((currentWeekMonday.getTime() - taskMonday.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  if (diffWeeks < 0) return 0;
+  if (diffWeeks < 0) return [0, 0, 0, 0, 0];
   const relWeek = diffWeeks + 1;
   const hours = useSubstitute ? (sub.substituteWeeklyHours ?? {}) : sub.weeklyHours;
-  return [1, 2, 3, 4, 5].reduce((sum, d) => sum + (hours[`w${relWeek}d${d}`] ?? 0), 0);
+  return [1, 2, 3, 4, 5].map(d => hours[`w${relWeek}d${d}`] ?? 0);
+}
+
+// 태스크 시작일 기준 상대 주차를 계산해 해당 주의 시간 합산
+function getSubWeekHours(sub: SubTask, currentWeekMonday: Date, useSubstitute = false): number {
+  return getSubWeekDailyHours(sub, currentWeekMonday, useSubstitute).reduce((a, b) => a + b, 0);
 }
 
 function fmtDate(dateStr: string) {
@@ -273,8 +278,14 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
       ].filter((g): g is { task: Task; subs: SubTask[]; taskH: number; isSubstitute: boolean } => g !== null);
 
       const totalH = groups.reduce((sum, g) => sum + g.taskH, 0);
+      const dailyH = groups.reduce((acc, g) => {
+        g.subs.forEach(s => {
+          getSubWeekDailyHours(s, start, g.isSubstitute).forEach((h, i) => { acc[i] += h; });
+        });
+        return acc;
+      }, [0, 0, 0, 0, 0]);
       const vacInfo = getPersonVacationInfo(person, vacations, start);
-      return { person, groups, totalH, vacH: vacInfo.h, vacEntries: vacInfo.entries };
+      return { person, groups, totalH, dailyH, vacH: vacInfo.h, vacEntries: vacInfo.entries };
     }).filter(p => p.groups.length > 0 || p.vacH > 0);
   }, [weekSubtasks, allTaskMap, start, effectiveSeeAll, currentUserName, vacations]);
 
@@ -350,7 +361,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {personData.map(({ person, groups, totalH, vacH, vacEntries }) => {
+          {personData.map(({ person, groups, totalH, dailyH, vacH, vacEntries }) => {
             const personTargetH = targetH - vacH;
             const copyToClipboard = () => {
               // 파트별 설정 우선: 모든 업무가 같은 파트면 그 파트 설정, 혼합이면 팀 기본
@@ -455,6 +466,22 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                   )}
                 </div>
               </div>
+
+              {/* 일별 시간 */}
+              {totalH > 0 && (
+                <div className="px-5 py-2 bg-white border-b border-gray-100 flex items-center gap-3">
+                  {DAY_NAMES.map((name, i) => {
+                    const isToday = weekdays[i]?.isToday;
+                    const h = dailyH[i];
+                    return (
+                      <div key={name} className="flex items-center gap-1">
+                        <span className={`text-[11px] font-medium ${isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
+                        <span className={`text-[11px] font-semibold ${h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-600') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* 휴가 행 */}
               {vacH > 0 && (

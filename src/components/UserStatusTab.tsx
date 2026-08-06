@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Users } from 'lucide-react';
 import type { AppUser, Team, Workplace } from '../types';
 import { deriveSubtasksForTeam } from '../types';
 import { useProjects } from '../hooks/useProjects';
@@ -22,6 +22,7 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
   const now = new Date();
   const [monthCursor, setMonthCursor] = useState({ year: now.getFullYear(), month0: now.getMonth() });
   const [weekIdx, setWeekIdx] = useState(0);
+  const [nameQuery, setNameQuery] = useState('');
 
   const { projects } = useProjects(workplaceId || undefined);
   const projectId = projects[0]?.id ?? '';
@@ -32,11 +33,12 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
     () => allTeams.filter(t => t.workplaceId === workplaceId),
     [allTeams, workplaceId]
   );
-  const usersInWorkplace = useMemo(
-    () => [...users.filter(u => u.workplaceIds?.includes(workplaceId))]
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko')),
-    [users, workplaceId]
-  );
+  const usersInWorkplace = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    return [...users.filter(u =>
+      u.workplaceIds?.includes(workplaceId) && (!q || u.displayName.toLowerCase().includes(q))
+    )].sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko'));
+  }, [users, workplaceId, nameQuery]);
 
   const subtasksAll = useMemo(
     () => teamsInWorkplace.flatMap(team =>
@@ -97,13 +99,24 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
           <span className="text-sm font-semibold text-gray-800">사용자 현황</span>
           <span className="text-xs text-gray-400">근무지별 사용자의 주간 요일별 업무 시간</span>
         </div>
-        <select
-          className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
-          value={workplaceId}
-          onChange={e => { setWorkplaceId(e.target.value); setWeekIdx(0); }}
-        >
-          {workplaces.map(wp => <option key={wp.id} value={wp.id}>{wp.name}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+            <input
+              className="text-xs pl-7 pr-2.5 py-1.5 w-36 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              placeholder="이름 검색"
+              value={nameQuery}
+              onChange={e => setNameQuery(e.target.value)}
+            />
+          </div>
+          <select
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white focus:outline-none"
+            value={workplaceId}
+            onChange={e => { setWorkplaceId(e.target.value); setWeekIdx(0); }}
+          >
+            {workplaces.map(wp => <option key={wp.id} value={wp.id}>{wp.name}</option>)}
+          </select>
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-4 px-5 py-3 border-b border-gray-100 bg-gray-50/60">
@@ -137,7 +150,9 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
       {!workplaceId ? (
         <p className="px-5 py-6 text-sm text-gray-400 text-center">등록된 근무지가 없습니다</p>
       ) : usersInWorkplace.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-gray-400 text-center">이 근무지에 배정된 사용자가 없습니다</p>
+        <p className="px-5 py-6 text-sm text-gray-400 text-center">
+          {nameQuery.trim() ? '검색 결과가 없습니다' : '이 근무지에 배정된 사용자가 없습니다'}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -147,7 +162,8 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
                 {DAY_NAMES.map(d => (
                   <th key={d} className="text-center font-medium text-xs text-gray-400 py-2.5 w-16">{d}</th>
                 ))}
-                <th className="text-center font-medium text-xs text-gray-400 py-2.5 w-20">총업무</th>
+                <th className="text-center font-medium text-xs text-gray-400 py-2.5 w-16">업무 수</th>
+                <th className="text-center font-medium text-xs text-gray-400 py-2.5 w-16">총시간</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -169,7 +185,9 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
                   })}
                   <td className="text-center py-2.5">
                     <span className="text-xs font-semibold text-indigo-600">{taskCount}개</span>
-                    {totalH > 0 && <span className="text-[11px] text-gray-400 ml-1">({totalH}h)</span>}
+                  </td>
+                  <td className="text-center py-2.5">
+                    <span className="text-xs font-semibold text-gray-700">{totalH > 0 ? `${totalH}h` : '-'}</span>
                   </td>
                 </tr>
               ))}

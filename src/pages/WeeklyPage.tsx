@@ -143,7 +143,7 @@ function getSubWeekDailyHours(sub: SubTask, currentWeekMonday: Date, useSubstitu
   const diffWeeks = Math.round((currentWeekMonday.getTime() - taskMonday.getTime()) / (7 * 24 * 60 * 60 * 1000));
   if (diffWeeks < 0) return [0, 0, 0, 0, 0];
   const relWeek = diffWeeks + 1;
-  const hours = useSubstitute ? (sub.substituteWeeklyHours ?? {}) : sub.weeklyHours;
+  const hours = useSubstitute ? (sub.substituteWeeklyHours ?? {}) : (sub.weeklyHours ?? {});
   return [1, 2, 3, 4, 5].map(d => round2(hours[`w${relWeek}d${d}`] ?? 0));
 }
 

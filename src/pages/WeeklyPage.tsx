@@ -83,6 +83,11 @@ function toDate(str: string) {
   return new Date(y, m - 1, d);
 }
 
+// 부동소수점 합산 오차(예: 1.3899999999999997) 제거
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 function fmt(d: Date) { return `${d.getMonth() + 1}/${d.getDate()}(${DAY_KO[d.getDay()]})`; }
 
@@ -139,12 +144,12 @@ function getSubWeekDailyHours(sub: SubTask, currentWeekMonday: Date, useSubstitu
   if (diffWeeks < 0) return [0, 0, 0, 0, 0];
   const relWeek = diffWeeks + 1;
   const hours = useSubstitute ? (sub.substituteWeeklyHours ?? {}) : sub.weeklyHours;
-  return [1, 2, 3, 4, 5].map(d => hours[`w${relWeek}d${d}`] ?? 0);
+  return [1, 2, 3, 4, 5].map(d => round2(hours[`w${relWeek}d${d}`] ?? 0));
 }
 
 // 태스크 시작일 기준 상대 주차를 계산해 해당 주의 시간 합산
 function getSubWeekHours(sub: SubTask, currentWeekMonday: Date, useSubstitute = false): number {
-  return getSubWeekDailyHours(sub, currentWeekMonday, useSubstitute).reduce((a, b) => a + b, 0);
+  return round2(getSubWeekDailyHours(sub, currentWeekMonday, useSubstitute).reduce((a, b) => a + b, 0));
 }
 
 function fmtDate(dateStr: string) {
@@ -264,7 +269,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
           if (!task) return null;
           const subs = mySubs.filter(s => s.taskId === taskId && getSubWeekHours(s, start) > 0);
           if (subs.length === 0) return null;
-          const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0);
+          const taskH = round2(subs.reduce((sum, s) => sum + getSubWeekHours(s, start), 0));
           return { task, subs, taskH, isSubstitute: false };
         }),
         ...[...new Set(subSubs.map(s => s.taskId))].map(taskId => {
@@ -272,18 +277,18 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
           if (!task) return null;
           const subs = subSubs.filter(s => s.taskId === taskId && getSubWeekHours(s, start, true) > 0);
           if (subs.length === 0) return null;
-          const taskH = subs.reduce((sum, s) => sum + getSubWeekHours(s, start, true), 0);
+          const taskH = round2(subs.reduce((sum, s) => sum + getSubWeekHours(s, start, true), 0));
           return { task, subs, taskH, isSubstitute: true };
         }),
       ].filter((g): g is { task: Task; subs: SubTask[]; taskH: number; isSubstitute: boolean } => g !== null);
 
-      const totalH = groups.reduce((sum, g) => sum + g.taskH, 0);
+      const totalH = round2(groups.reduce((sum, g) => sum + g.taskH, 0));
       const dailyH = groups.reduce((acc, g) => {
         g.subs.forEach(s => {
           getSubWeekDailyHours(s, start, g.isSubstitute).forEach((h, i) => { acc[i] += h; });
         });
         return acc;
-      }, [0, 0, 0, 0, 0]);
+      }, [0, 0, 0, 0, 0]).map(round2);
       const vacInfo = getPersonVacationInfo(person, vacations, start);
       return { person, groups, totalH, dailyH, vacH: vacInfo.h, vacEntries: vacInfo.entries };
     }).filter(p => p.groups.length > 0 || p.vacH > 0);

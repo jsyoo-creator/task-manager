@@ -438,20 +438,17 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                   </div>
                 )}
                 <span className="text-sm font-bold text-gray-800 flex-1">{person}</span>
+
                 <div className="flex items-center gap-2">
-                  <button onClick={copyToClipboard}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-                    {copiedPerson === person
-                      ? <><Check size={12} className="text-green-500" /><span className="text-green-500">복사됨</span></>
-                      : <><Copy size={12} /><span>복사</span></>
-                    }
-                  </button>
-                  <span className="text-gray-200">|</span>
-                  <span className="text-xs text-gray-400">{groups.length}개 업무</span>
+                  {/* 업무 개수 */}
+                  <div className="flex items-center px-2.5 py-1 rounded-lg bg-white border border-gray-200">
+                    <span className="text-xs font-medium text-gray-500 whitespace-nowrap">{groups.length}개 업무</span>
+                  </div>
+
                   {totalH > 0 && (
                     <>
-                      <span className="text-gray-200">·</span>
-                      <div className="flex items-center gap-1.5">
+                      {/* 일별 시간 */}
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-gray-200">
                         {DAY_NAMES.map((name, i) => {
                           const isToday = weekdays[i]?.isToday;
                           const h = dailyH[i];
@@ -463,21 +460,33 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                           );
                         })}
                       </div>
-                      <span className="text-gray-200">·</span>
-                      <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
-                      <span className="text-xs text-gray-300">/ {personTargetH}h</span>
-                      {totalH < personTargetH && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500 border border-amber-200">미달</span>
-                      )}
-                      {totalH === personTargetH && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">정상</span>
-                      )}
-                      {totalH > personTargetH && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">초과</span>
-                      )}
+
+                      {/* 합계 시간 */}
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-gray-200">
+                        <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
+                        <span className="text-xs text-gray-300">/ {personTargetH}h</span>
+                        {totalH < personTargetH && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500 border border-amber-200">미달</span>
+                        )}
+                        {totalH === personTargetH && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">정상</span>
+                        )}
+                        {totalH > personTargetH && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">초과</span>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
+
+                {/* 복사 버튼 — 우측 끝 */}
+                <button onClick={copyToClipboard}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 bg-white border border-gray-200 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
+                  {copiedPerson === person
+                    ? <><Check size={12} className="text-green-500" /><span className="text-green-500">복사됨</span></>
+                    : <><Copy size={12} /><span>복사</span></>
+                  }
+                </button>
               </div>
 
               {/* 휴가 행 */}

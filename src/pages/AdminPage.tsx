@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Building2, Plus, UserCog, Shield, LogOut, X, LayoutGrid, Star } from 'lucide-react';
+import { Building2, Plus, UserCog, Shield, LogOut, X, LayoutGrid, Star, BarChart3 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useWorkplaces } from '../hooks/useWorkplaces';
 import { useAllUsers } from '../hooks/useUserRole';
 import type { Team, AppUser, UserRole, Workplace } from '../types';
 import { TOGGLEABLE_MENU_ITEMS, isMenuEnabled } from '../types';
+import UserStatusTab from '../components/UserStatusTab';
 
 const ROLE_OPTIONS: UserRole[] = ['user', 'manager', 'superadmin'];
 const ROLE_LABEL: Record<UserRole, string> = { user: '일반 사용자', manager: '중간 관리자', superadmin: '최고 관리자' };
@@ -19,9 +20,10 @@ interface Props {
 
 // 플랫폼 관리자(PIVOT 본사 관리자) 전용 — 일반 업무관리 화면과 완전히 분리된 독립 페이지.
 // 근무지(클라이언트 TF) 생성 및 사용자 배정을 담당.
-type AdminTab = 'workplaces' | 'users' | 'menus' | 'platform';
+type AdminTab = 'workplaces' | 'userStatus' | 'users' | 'menus' | 'platform';
 const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
   { id: 'workplaces', label: '근무지 목록', icon: <Building2 size={14} /> },
+  { id: 'userStatus', label: '사용자 현황', icon: <BarChart3 size={14} /> },
   { id: 'users',      label: '사용자 근무지 배정', icon: <UserCog size={14} /> },
   { id: 'menus',      label: '메뉴 관리', icon: <LayoutGrid size={14} /> },
   { id: 'platform',   label: '플랫폼 관리자', icon: <Shield size={14} /> },
@@ -167,6 +169,11 @@ export default function AdminPage({ onSignOut, hasWorkspaceAccess }: Props) {
           </div>
         )}
       </section>
+        )}
+
+        {/* 근무지별 사용자 업무 현황 */}
+        {tab === 'userStatus' && (
+          <UserStatusTab workplaces={workplaces} users={users} allTeams={allTeams} />
         )}
 
         {/* 사용자 근무지 배정 (다중 배정 가능) */}

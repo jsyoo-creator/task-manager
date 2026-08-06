@@ -470,13 +470,13 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                         <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
                         <span className="text-xs text-gray-300">/ {personTargetH}h</span>
                         {totalH < personTargetH && (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500 border border-amber-200">미달</span>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-500">미달</span>
                         )}
                         {totalH === personTargetH && (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-200">정상</span>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600">정상</span>
                         )}
                         {totalH > personTargetH && (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">초과</span>
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500">초과</span>
                         )}
                       </div>
                     </div>

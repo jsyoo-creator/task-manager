@@ -453,10 +453,11 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                           const isToday = weekdays[i]?.isToday;
                           const h = dailyH[i];
                           const isOver = h > 8;
+                          const isUnder = h > 0 && h < 8;
                           return (
                             <div key={name} className="flex items-center gap-0.5">
-                              <span className={`text-xs font-medium ${isOver ? 'text-red-500' : isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
-                              <span className={`text-xs font-semibold ${isOver ? 'text-red-500' : h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
+                              <span className={`text-xs font-medium ${isOver ? 'text-red-500' : isUnder ? 'text-amber-500' : isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
+                              <span className={`text-xs font-semibold ${isOver ? 'text-red-500' : isUnder ? 'text-amber-500' : h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
                             </div>
                           );
                         })}

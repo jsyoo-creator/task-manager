@@ -428,7 +428,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
             <div key={person} className="glass-card overflow-hidden">
 
               {/* 담당자 헤더 */}
-              <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
+              <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2.5">
                 {userPhotoMap?.get(person) ? (
                   <img src={userPhotoMap.get(person)} alt={person}
                     className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
@@ -439,30 +439,30 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                 )}
                 <span className="text-sm font-bold text-gray-800 flex-1">{person}</span>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   {/* 업무 개수 */}
-                  <div className="flex items-center px-2.5 py-1 rounded-lg bg-white border border-gray-200">
+                  <div className="flex items-center h-7 px-2.5 rounded-lg bg-white border border-gray-200">
                     <span className="text-xs font-medium text-gray-500 whitespace-nowrap">{groups.length}개 업무</span>
                   </div>
 
                   {totalH > 0 && (
-                    <>
-                      {/* 일별 시간 */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-gray-200">
+                    /* 일별 시간 + 합계 시간 */
+                    <div className="flex items-center gap-2 h-7 px-2.5 rounded-lg bg-white border border-gray-200">
+                      <div className="flex items-center gap-1.5">
                         {DAY_NAMES.map((name, i) => {
                           const isToday = weekdays[i]?.isToday;
                           const h = dailyH[i];
+                          const isOver = h > 8;
                           return (
                             <div key={name} className="flex items-center gap-0.5">
-                              <span className={`text-xs font-medium ${isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
-                              <span className={`text-xs font-semibold ${h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
+                              <span className={`text-xs font-medium ${isOver ? 'text-red-500' : isToday ? 'text-[#5B5BD6]' : 'text-gray-400'}`}>{name}</span>
+                              <span className={`text-xs font-semibold ${isOver ? 'text-red-500' : h > 0 ? (isToday ? 'text-[#5B5BD6]' : 'text-gray-500') : 'text-gray-300'}`}>{h > 0 ? `${h}h` : '-'}</span>
                             </div>
                           );
                         })}
                       </div>
-
-                      {/* 합계 시간 */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-gray-200">
+                      <span className="w-px h-3.5 bg-gray-200 flex-shrink-0" />
+                      <div className="flex items-center gap-1.5">
                         <span className="text-sm font-bold text-indigo-600">{totalH}h</span>
                         <span className="text-xs text-gray-300">/ {personTargetH}h</span>
                         {totalH < personTargetH && (
@@ -475,13 +475,13 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">초과</span>
                         )}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
 
                 {/* 복사 버튼 — 우측 끝 */}
                 <button onClick={copyToClipboard}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 bg-white border border-gray-200 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
+                  className="flex items-center gap-1 h-7 px-3 rounded-lg text-xs font-semibold text-gray-600 bg-white border border-gray-200 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
                   {copiedPerson === person
                     ? <><Check size={12} className="text-green-500" /><span className="text-green-500">복사됨</span></>
                     : <><Copy size={12} /><span>복사</span></>

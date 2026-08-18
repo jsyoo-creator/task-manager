@@ -1255,21 +1255,51 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
 
   const handleDrop = (dropOnId: string) => {
     if (!dragId || dragId === dropOnId) { setDragId(null); setDragOverId(null); return; }
+    const dragTask = tasks.find(t => t.id === dragId);
+    const dropTask = tasks.find(t => t.id === dropOnId);
+    if (!dragTask || !dropTask) { setDragId(null); setDragOverId(null); return; }
+
     // sortOrder는 파트 구분 없는 팀 전체 공용 값이라, 화면에 보이는(필터된) 목록만 기준으로
     // 0부터 다시 매기면 다른 파트 업무와 순서 값이 겹친다(충돌). 그러면 그 파트에서 업무를
     // 추가/삭제/재정렬할 때마다 동점(tie) 처리 기준인 Firestore 스냅샷 순서가 바뀌어, 아무것도
     // 손대지 않은 이 파트의 화면 순서까지 같이 흔들려 보이는 문제가 있었다. 항상 팀 전체
     // 업무(tasks) 기준으로 이동시켜 팀 전체에서 고유한 순서를 유지한다.
-    const ids = tasks.map(t => t.id);
-    const fromIdx = ids.indexOf(dragId);
-    const toIdx = ids.indexOf(dropOnId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const newIds = [...ids];
-    newIds.splice(fromIdx, 1);
-    newIds.splice(toIdx, 0, dragId);
-    newIds.forEach((id, idx) => {
-      const t = tasks.find(x => x.id === id);
-      if (t && t.sortOrder !== idx) onUpdateTask(id, { sortOrder: idx });
+    //
+    // 그룹(부모+자식)은 화면에서 항상 부모 바로 뒤에 자식이 붙어서 렌더링된다
+    // (renderTaskNode). 그래서 개별 업무 단위로 sortOrder를 재배치하면, 다른 업무를
+    // 그룹의 자식들 사이로 드롭했을 때 sortOrder 값은 바뀌어도 화면엔 반영되지 않아
+    // "그룹 위로 이동이 안 된다"는 증상이 생긴다. 이를 막기 위해 그룹을 하나의 이동
+    // 단위(부모 id를 대표 키로)로 다룬다.
+    const hasParentInTeam = (t: Task) => !!t.parentTaskId && tasks.some(x => x.id === t.parentTaskId);
+    const unitKeyOf = (t: Task) => hasParentInTeam(t) ? (t.parentTaskId as string) : t.id;
+
+    // 자식 업무는 그룹 밖으로 드래그해도 이동할 수 없다 — 항상 부모 바로 뒤에 렌더링되므로
+    // sortOrder만 바꿔봐야 화면에 반영되지 않는다.
+    if (hasParentInTeam(dragTask)) { setDragId(null); setDragOverId(null); return; }
+
+    const dragUnitKey = unitKeyOf(dragTask);
+    const dropUnitKey = unitKeyOf(dropTask);
+    if (dragUnitKey === dropUnitKey) { setDragId(null); setDragOverId(null); return; }
+
+    const unitOrder: string[] = [];
+    const seen = new Set<string>();
+    tasks.forEach(t => {
+      const key = unitKeyOf(t);
+      if (!seen.has(key)) { seen.add(key); unitOrder.push(key); }
+    });
+    const fromIdx = unitOrder.indexOf(dragUnitKey);
+    const toIdx = unitOrder.indexOf(dropUnitKey);
+    if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return; }
+    unitOrder.splice(fromIdx, 1);
+    unitOrder.splice(toIdx, 0, dragUnitKey);
+
+    let idx = 0;
+    unitOrder.forEach(key => {
+      const unitTasks = [tasks.find(t => t.id === key)!, ...(childrenByParent.get(key) ?? [])];
+      unitTasks.forEach(t => {
+        if (t.sortOrder !== idx) onUpdateTask(t.id, { sortOrder: idx });
+        idx++;
+      });
     });
     setDragId(null);
     setDragOverId(null);

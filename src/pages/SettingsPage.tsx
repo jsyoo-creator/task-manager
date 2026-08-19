@@ -8418,6 +8418,61 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 진단] 위 필드값 진단은 origin+세부업무 id 짝마다 지원팀 업무를 Map
+  // 하나로 묶는데, 같은 짝에 지원팀 업무가 2건 이상(중복) 있으면 그중 하나만(어느 게
+  // 남을지 보장 안 됨) 비교 대상이 되고 나머지는 조용히 무시된다. 세부업무 id가
+  // 재발급된 뒤 지원팀 쪽에서 새 연결이 다시 만들어지면, 옛 연결(실제 값이 채워진
+  // 것)과 새 연결(빈 채로 새로 생긴 것)이 동시에 남아있을 수 있다 — 방금 진단에서
+  // "지원팀 값이 계속 빈 칸"으로 나온 게 이 경우일 가능성이 있다. 이 진단은 그런
+  // 중복을 찾아 후보들의 담당자·상태를 그대로 보여주기만 한다(조회 전용).
+  const scanSupportLinkDuplicates = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
+      if (types.length === 0) { alert(`[${part.name}] 지원팀 연결이 설정된 세부업무가 없습니다.`); return; }
+      const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt);
+      const originIds = origins.map(o => o.id);
+      if (originIds.length === 0) { alert(`[${part.name}] 업무가 없습니다.`); return; }
+      const linked: Task[] = [];
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+        snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+      }
+      const byKey = new Map<string, Task[]>();
+      linked.forEach(l => {
+        if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
+        const key = `${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`;
+        const arr = byKey.get(key) ?? []; arr.push(l); byKey.set(key, arr);
+      });
+      const originById = new Map(origins.map(o => [o.id, o]));
+      const typeById = new Map(types.map(t => [t.id, t]));
+      const report: { originTitle: string; typeName: string; candidates: { id: string; assignee?: string; status?: string; updatedAt?: string }[] }[] = [];
+      byKey.forEach((docs, key) => {
+        if (docs.length < 2) return;
+        const [originId, typeId] = key.split('::');
+        const origin = originById.get(originId);
+        const type = typeById.get(typeId);
+        if (!origin || !type) return;
+        report.push({
+          originTitle: origin.title,
+          typeName: type.name,
+          candidates: docs.map(d => ({ id: d.id, assignee: d.assignee, status: d.status, updatedAt: d.updatedAt })),
+        });
+      });
+      console.log(`[지원팀 연결 중복 진단] ${team.name} / ${part.name}`, JSON.stringify(report, null, 1));
+      if (report.length === 0) {
+        alert(`[${part.name}] 같은 원본 세부업무에 지원팀 업무가 중복으로 연결된 경우를 찾지 못했습니다.`);
+        return;
+      }
+      const summary = report.slice(0, 10).map(r => `- ${r.originTitle}: 지원팀 업무 ${r.candidates.length}건 (${r.candidates.map(c => `${c.assignee || '(담당자 없음)'}/${c.status || '-'}`).join(', ')})`).join('\n');
+      alert(`[${part.name}] 지원팀 업무가 중복 연결된 원본을 ${report.length}건 찾았습니다:\n\n${summary}${report.length > 10 ? `\n...외 ${report.length - 10}건` : ''}\n\n브라우저 콘솔(F12 → Console)에 문서 id까지 포함한 전체 내역이 JSON으로 출력되어 있습니다. 캡처해서 보내주세요.`);
+    } catch (e) {
+      console.error('[지원팀 연결 중복 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 진단] 위 두 진단은 모두 "linkedFromTaskId가 가리키는 원본 업무가
   // 존재한다"는 전제 위에서 세부업무 id나 필드값의 어긋남을 잡는다. 이 진단은 그
   // 전제 자체가 깨진 경우 — 원본 문서가 아예 없거나(재생성 등으로 옛 id가 유실),
@@ -9569,6 +9624,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             disabled={!selectedPart}
                             className={`${btn} bg-fuchsia-600 text-white hover:bg-fuchsia-700 disabled:opacity-40`}>
                             지원팀 필드값 진단
+                          </button>
+                          <button type="button"
+                            onClick={() => selectedPart && scanSupportLinkDuplicates(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-pink-600 text-white hover:bg-pink-700 disabled:opacity-40`}>
+                            지원팀 연결 중복 진단
                           </button>
                           <button type="button"
                             onClick={() => selectedPart && applySupportLinkFieldSync(team, selectedPart)}

@@ -8871,6 +8871,68 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 적용 — 통합] 위 "덮어쓰기"와 "근거없는 담당자 지우기"를 여러 번 나눠
+  // 눌러도 계속 다른 이름이 남는 사례가 있어(예: 로컬 자동배정이 그 사이 다시 값을
+  // 채워 넣는 경우 등), 예외 없이 한 번에 정리하는 도구. 지원팀 연결이 설정된
+  // 세부업무는 애초에 로컬 값이 정답일 수 없다 — 담당자는 항상 지원팀 연결 업무의
+  // 현재 값을 그대로 따라야 한다(있으면 그 값으로, 없으면 무조건 빈 칸으로). 이미
+  // 일치하는 항목은 건드리지 않는다.
+  const applySupportLinkFullReconcile = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
+      if (types.length === 0) { alert(`[${part.name}] 지원팀 연결이 설정된 세부업무가 없습니다.`); return; }
+      const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt);
+      const originIds = origins.map(o => o.id);
+      if (originIds.length === 0) { alert(`[${part.name}] 업무가 없습니다.`); return; }
+      const linked: Task[] = [];
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+        snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+      }
+      const linkedByOriginAndType = new Map<string, Task>();
+      linked.forEach(l => {
+        if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
+        linkedByOriginAndType.set(`${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`, l);
+      });
+
+      const plan: { originId: string; originTitle: string; typeId: string; typeName: string; oldValue: string; newValue: string }[] = [];
+      origins.forEach(origin => {
+        types.forEach(type => {
+          const entry = origin.subTaskData?.[type.id];
+          const oldValue = entry?.assignee ?? '';
+          const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
+          const newValue = linkedTask?.assignee ?? '';
+          if (oldValue === newValue) return; // 이미 일치 — 건드리지 않음
+          plan.push({ originId: origin.id, originTitle: origin.title, typeId: type.id, typeName: type.name, oldValue, newValue });
+        });
+      });
+
+      if (plan.length === 0) {
+        alert(`[${part.name}] 이미 전부 지원팀 연결값과 일치합니다. 정리할 대상이 없습니다.`);
+        return;
+      }
+      console.log(`[지원팀 연결 담당자 전체 동기화 - 사전 계획] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      const preview = plan.slice(0, 10).map(p => `- [${p.typeName}] ${p.originTitle}: "${p.oldValue || '(빈 칸)'}" → "${p.newValue || '(빈 칸)'}"`).join('\n');
+      if (!window.confirm(`[${part.name}] 담당자 값 ${plan.length}건을 지원팀 연결값에 맞춰 정리합니다(있으면 그 값으로, 없으면 빈 칸으로):\n\n${preview}${plan.length > 10 ? `\n...외 ${plan.length - 10}건` : ''}\n\n계속할까요?`)) return;
+
+      const now = new Date().toISOString();
+      for (let i = 0; i < plan.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.slice(i, i + 400).forEach(p => {
+          batch.update(doc(db, 'tasks', p.originId), { [`subTaskData.${p.typeId}.assignee`]: p.newValue, updatedAt: now });
+        });
+        await batch.commit();
+      }
+      console.log(`[지원팀 연결 담당자 전체 동기화 완료] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      alert(`[${part.name}] ${plan.length}건을 지원팀 연결값에 맞춰 정리했습니다.`);
+    } catch (e) {
+      console.error('[지원팀 연결 담당자 전체 동기화] 실행 중 오류', e);
+      alert(`적용 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
   // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
   // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
@@ -9723,6 +9785,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             disabled={!selectedPart}
                             className={`${btn} bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40`}>
                             근거없는 담당자 지우기 적용
+                          </button>
+                          <button type="button"
+                            onClick={() => selectedPart && applySupportLinkFullReconcile(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-black text-white hover:bg-gray-800 disabled:opacity-40`}>
+                            퍼블 담당자 전체 강제 동기화
                           </button>
                           <button type="button"
                             onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}

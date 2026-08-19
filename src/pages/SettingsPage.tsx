@@ -8796,6 +8796,69 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 적용] 위 덮어쓰기는 지원팀 쪽에 실제 값이 있을 때만 작동한다. 그런데
+  // 지원팀이 아직 담당자를 정하지 않은(값이 빈) 항목은, 원본에 남아있는 담당자 이름이
+  // 실제로는 예전 검수자/담당자 pill 겹침 사고 때 로컬 자동배정이 잘못 채운 근거 없는
+  // 값이다(지원팀 연결이 설정된 세부업무는 로컬 자동배정에서 원래 제외돼야 하므로).
+  // 정답이 없는 상태에서 엉뚱한 사람 이름을 계속 보여주는 것보다는 빈 칸으로 지워
+  // 두고, 지원팀이 나중에 실제로 배정하면 그때 정상적으로 채워지게 한다. 지원팀 쪽에
+  // 이미 값이 있는 경우는(위 덮어쓰기 대상이므로) 건드리지 않는다.
+  const applySupportLinkClearUnbackedAssignee = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
+      if (types.length === 0) { alert(`[${part.name}] 지원팀 연결이 설정된 세부업무가 없습니다.`); return; }
+      const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt);
+      const originIds = origins.map(o => o.id);
+      if (originIds.length === 0) { alert(`[${part.name}] 업무가 없습니다.`); return; }
+      const linked: Task[] = [];
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+        snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+      }
+      const linkedByOriginAndType = new Map<string, Task>();
+      linked.forEach(l => {
+        if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
+        linkedByOriginAndType.set(`${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`, l);
+      });
+
+      const plan: { originId: string; originTitle: string; typeId: string; typeName: string; oldAssignee: string }[] = [];
+      origins.forEach(origin => {
+        types.forEach(type => {
+          const entry = origin.subTaskData?.[type.id];
+          if (!entry?.assignee) return;
+          const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
+          if (!linkedTask) return; // 연결 자체가 없으면(재연결 필요 등) 근거 없는 값인지 판단 불가 — 건드리지 않음
+          if (linkedTask.assignee) return; // 지원팀에 이미 값이 있으면 "덮어쓰기 적용"이 처리할 대상이므로 건드리지 않음
+          plan.push({ originId: origin.id, originTitle: origin.title, typeId: type.id, typeName: type.name, oldAssignee: entry.assignee });
+        });
+      });
+
+      if (plan.length === 0) {
+        alert(`[${part.name}] 지울 대상이 없습니다.`);
+        return;
+      }
+      console.log(`[지원팀 연결 근거없는 담당자 지우기 - 사전 계획] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      const preview = plan.slice(0, 10).map(p => `- [${p.typeName}] ${p.originTitle}: "${p.oldAssignee}" → (빈 칸)`).join('\n');
+      if (!window.confirm(`[${part.name}] 지원팀이 아직 담당자를 안 정한 항목 ${plan.length}건의 담당자 값을 빈 칸으로 지웁니다:\n\n${preview}${plan.length > 10 ? `\n...외 ${plan.length - 10}건` : ''}\n\n계속할까요?`)) return;
+
+      const now = new Date().toISOString();
+      for (let i = 0; i < plan.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.slice(i, i + 400).forEach(p => {
+          batch.update(doc(db, 'tasks', p.originId), { [`subTaskData.${p.typeId}.assignee`]: '', updatedAt: now });
+        });
+        await batch.commit();
+      }
+      console.log(`[지원팀 연결 근거없는 담당자 지우기 완료] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      alert(`[${part.name}] ${plan.length}건의 담당자 값을 지웠습니다. 지원팀이 나중에 실제로 배정하면 정상적으로 채워집니다.`);
+    } catch (e) {
+      console.error('[지원팀 연결 근거없는 담당자 지우기] 실행 중 오류', e);
+      alert(`적용 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
   // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
   // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
@@ -9642,6 +9705,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             disabled={!selectedPart}
                             className={`${btn} bg-red-800 text-white hover:bg-red-900 disabled:opacity-40`}>
                             지원팀 값으로 덮어쓰기 적용
+                          </button>
+                          <button type="button"
+                            onClick={() => selectedPart && applySupportLinkClearUnbackedAssignee(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-40`}>
+                            근거없는 담당자 지우기 적용
                           </button>
                           <button type="button"
                             onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}

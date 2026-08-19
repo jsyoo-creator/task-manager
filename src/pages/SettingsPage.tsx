@@ -8194,6 +8194,52 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 진단] 검수자/담당자 필드의 직군(pill) 설정이 서로 겹쳐 있던 동안,
+  // 부서 자동배정 로직(TaskDetailPanel)이 세부업무 항목의 담당자를 그 항목의 직군과
+  // 맞지 않는 사람으로 잘못 채워 넣었을 수 있다(예: 기획 담당자가 디자인/퍼블 세부업무
+  // 담당자로 들어감). 세부업무 타입에 지정된 직군과 실제 배정된 사람의 소속 직군이
+  // 다른 항목을 찾아 보여주기만 한다(조회 전용, 데이터는 바꾸지 않음). 겸직 등으로
+  // 정상일 수도 있는 오탐이 섞일 수 있으니, 반드시 사람이 확인 후 정리할 것.
+  const scanDeptMismatchForPart = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.department);
+      if (types.length === 0) {
+        alert(`[${part.name}] 직군이 지정된 세부업무 항목이 없습니다.`);
+        return;
+      }
+      const deptByName = new Map<string, Department>();
+      allUsers.forEach(u => { if (u.department) deptByName.set(u.displayName, u.department); });
+      const tasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const mismatches: { taskTitle: string; typeName: string; expectedDept: Department; assignee: string; actualDept: Department }[] = [];
+      tasksSnap.forEach(d => {
+        const data = d.data();
+        if (data.deletedAt) return;
+        const subData = data.subTaskData as Record<string, { assignee?: string }> | undefined;
+        if (!subData) return;
+        types.forEach(type => {
+          const assignee = subData[type.id]?.assignee;
+          if (!assignee) return;
+          const actualDept = deptByName.get(assignee);
+          if (!actualDept || actualDept === type.department) return; // 소속 정보 없으면 판단 보류, 일치하면 정상
+          mismatches.push({ taskTitle: data.title, typeName: type.name, expectedDept: type.department!, assignee, actualDept });
+        });
+      });
+      console.log(`[직군 불일치 진단] ${team.name} / ${part.name}`, JSON.stringify(mismatches, null, 1));
+      if (mismatches.length === 0) {
+        alert(`[${part.name}] 세부업무 담당자와 직군이 어긋난 항목을 찾지 못했습니다.`);
+        return;
+      }
+      const byType = new Map<string, number>();
+      mismatches.forEach(m => byType.set(m.typeName, (byType.get(m.typeName) ?? 0) + 1));
+      const typeSummary = [...byType.entries()].map(([t, c]) => `${t}: ${c}건`).join(', ');
+      const sampleSummary = mismatches.slice(0, 10).map(m => `- [${m.typeName}(${m.expectedDept})] ${m.taskTitle}: ${m.assignee}(${m.actualDept})`).join('\n');
+      alert(`[${part.name}] 세부업무 직군과 담당자 소속이 어긋난 항목을 ${mismatches.length}건 찾았습니다 (${typeSummary}):\n\n${sampleSummary}${mismatches.length > 10 ? `\n...외 ${mismatches.length - 10}건` : ''}\n\n⚠ 겸직 등으로 정상일 수도 있으니 반드시 사람이 확인 후 정리하세요. 브라우저 콘솔(F12 → Console)에 전체 내역이 JSON으로 출력되어 있습니다.`);
+    } catch (e) {
+      console.error('[직군 불일치 진단] 실행 중 오류', e);
+      alert(`진단 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 진단] 세부업무 id를 재발급(위 "세부업무 id 분리" 등)하면, 그 세부업무에
   // 걸려있던 지원팀 연결 업무 문서의 linkedFromSubTaskTypeId는 옛 id를 그대로 가리킨 채
   // 남는다. 그러면 지원팀에서 담당자·기간을 바꿔도 원본 업무의 subTaskData는 항상 옛 id
@@ -9365,6 +9411,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             className="px-1.5 py-0.5 rounded-md border border-amber-300 bg-white text-amber-700 text-[11px]">
                             {team.parts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                           </select>
+                          <button type="button"
+                            onClick={() => selectedPart && scanDeptMismatchForPart(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-lime-600 text-white hover:bg-lime-700 disabled:opacity-40`}>
+                            직군 불일치 진단
+                          </button>
                           <button type="button"
                             onClick={() => selectedPart && proposePartIdMapping(team, selectedPart)}
                             disabled={!selectedPart}

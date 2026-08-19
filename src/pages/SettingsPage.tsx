@@ -8665,6 +8665,82 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 적용 — 덮어쓰기] 위 "빈 칸 채우기"는 원본에 이미 값이 있으면 절대
+  // 안 건드린다. 그런데 사업자몰은 세부업무 id 재발급 사고 동안 "값은 있지만 틀린"
+  // 상태(예: 퍼블 담당자 칸에 지원팀 담당자가 아니라 사업자몰 로컬 사람 이름이 잘못
+  // 채워짐)로 오염됐기 때문에, 그 경우는 빈 칸 채우기로 고쳐지지 않는다. 이 도구는
+  // 진단(scanSupportLinkFieldMismatch)에서 확인된, "값이 있는데 지원팀 값과 다른"
+  // 항목을 실제로 지원팀 값으로 덮어쓴다 — 기존 값을 지우는 작업이므로 미리보기를
+  // 반드시 보여주고 확인을 받는다.
+  const applySupportLinkFieldOverwrite = async (team: Team, part: TeamPart) => {
+    try {
+      const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
+      if (types.length === 0) { alert(`[${part.name}] 지원팀 연결이 설정된 세부업무가 없습니다.`); return; }
+      const originSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id), where('category', '==', part.name)));
+      const origins = originSnap.docs.map(d => ({ id: d.id, ...d.data() } as Task)).filter(t => !t.deletedAt);
+      const originIds = origins.map(o => o.id);
+      if (originIds.length === 0) { alert(`[${part.name}] 업무가 없습니다.`); return; }
+      const linked: Task[] = [];
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', 'in', chunk)));
+        snap.forEach(d => linked.push({ id: d.id, ...d.data() } as Task));
+      }
+      const linkedByOriginAndType = new Map<string, Task>();
+      linked.forEach(l => {
+        if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
+        linkedByOriginAndType.set(`${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`, l);
+      });
+
+      const FIELDS = ['assignee', 'status', 'startDate', 'endDate'] as const;
+      const plan: { originId: string; originTitle: string; typeId: string; typeName: string; patch: Record<string, unknown>; changes: string[] }[] = [];
+      origins.forEach(origin => {
+        types.forEach(type => {
+          const entry = origin.subTaskData?.[type.id] ?? {};
+          const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
+          if (!linkedTask) return;
+          const fieldPatch: Record<string, unknown> = {};
+          const changes: string[] = [];
+          FIELDS.forEach(f => {
+            const a = entry[f as keyof typeof entry];
+            const b = (linkedTask as unknown as Record<string, unknown>)[f];
+            // 지원팀 쪽 값이 비어있으면(아직 지원팀도 안 채운 상태) 원본을 빈 값으로
+            // 지우지 않음 — 지원팀에 실제 값이 있을 때만 덮어씀
+            if (b !== undefined && b !== '' && JSON.stringify(a ?? '') !== JSON.stringify(b)) {
+              fieldPatch[`subTaskData.${type.id}.${f}`] = b;
+              changes.push(`${f}: "${a ?? ''}" → "${b}"`);
+            }
+          });
+          if (Object.keys(fieldPatch).length > 0) {
+            plan.push({ originId: origin.id, originTitle: origin.title, typeId: type.id, typeName: type.name, patch: fieldPatch, changes });
+          }
+        });
+      });
+
+      if (plan.length === 0) {
+        alert(`[${part.name}] 지원팀 값으로 덮어쓸 대상이 없습니다.`);
+        return;
+      }
+      console.log(`[지원팀 연결 필드값 덮어쓰기 - 사전 계획] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      const preview = plan.slice(0, 10).map(p => `- [${p.typeName}] ${p.originTitle}: ${p.changes.join(', ')}`).join('\n');
+      if (!window.confirm(`[${part.name}] 기존 값을 지원팀 값으로 덮어씁니다 (되돌리기 어려우니 위 콘솔에서 전체 목록을 먼저 확인하는 걸 권장합니다) — 총 ${plan.length}건:\n\n${preview}${plan.length > 10 ? `\n...외 ${plan.length - 10}건` : ''}\n\n계속할까요?`)) return;
+
+      const now = new Date().toISOString();
+      for (let i = 0; i < plan.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.slice(i, i + 400).forEach(p => {
+          batch.update(doc(db, 'tasks', p.originId), { ...p.patch, updatedAt: now });
+        });
+        await batch.commit();
+      }
+      console.log(`[지원팀 연결 필드값 덮어쓰기 완료] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
+      alert(`[${part.name}] ${plan.length}건을 지원팀 값으로 덮어썼습니다. 브라우저 콘솔에 적용 내역(변경 전후 값)이 남아있습니다.`);
+    } catch (e) {
+      console.error('[지원팀 연결 필드값 덮어쓰기] 실행 중 오류', e);
+      alert(`적용 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 — 매핑 자동 추론] 업무 1건만 봐서 이름을 사람이 추측하는 방식은 브랜드관처럼
   // 항목이 몇 개뿐일 때만 가능하다. 업무가 많은 파트(오픈마켓 82건 등)는 "같은 파트의 여러
   // 업무에 걸쳐, 옛 id X가 실제 값을 가질 때 항상 새 id Y 자리가 비어있는" 패턴을 통계적으로
@@ -9499,6 +9575,12 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             disabled={!selectedPart}
                             className={`${btn} bg-fuchsia-800 text-white hover:bg-fuchsia-900 disabled:opacity-40`}>
                             빈 칸 채우기 적용
+                          </button>
+                          <button type="button"
+                            onClick={() => selectedPart && applySupportLinkFieldOverwrite(team, selectedPart)}
+                            disabled={!selectedPart}
+                            className={`${btn} bg-red-800 text-white hover:bg-red-900 disabled:opacity-40`}>
+                            지원팀 값으로 덮어쓰기 적용
                           </button>
                           <button type="button"
                             onClick={() => selectedPart && applyInferredPartIdMapping(team, selectedPart)}

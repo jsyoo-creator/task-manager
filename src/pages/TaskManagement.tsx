@@ -1269,17 +1269,14 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
     // (renderTaskNode). 그래서 개별 업무 단위로 sortOrder를 재배치하면, 다른 업무를
     // 그룹의 자식들 사이로 드롭했을 때 sortOrder 값은 바뀌어도 화면엔 반영되지 않아
     // "그룹 위로 이동이 안 된다"는 증상이 생긴다. 이를 막기 위해 그룹을 하나의 이동
-    // 단위(부모 id를 대표 키로)로 다룬다.
+    // 단위(부모 id를 대표 키로)로 다루고, 그룹 내부 재정렬(형제끼리 순서 바꾸기)은
+    // 별도로 처리한 뒤 마지막에 항상 전체를 순서대로 다시 펼쳐 sortOrder를 재계산한다
+    // (기존 sortOrder에 빈틈이 있어도 매번 0부터 새로 매겨 충돌 없이 정리됨).
     const hasParentInTeam = (t: Task) => !!t.parentTaskId && tasks.some(x => x.id === t.parentTaskId);
     const unitKeyOf = (t: Task) => hasParentInTeam(t) ? (t.parentTaskId as string) : t.id;
 
-    // 자식 업무는 그룹 밖으로 드래그해도 이동할 수 없다 — 항상 부모 바로 뒤에 렌더링되므로
-    // sortOrder만 바꿔봐야 화면에 반영되지 않는다.
-    if (hasParentInTeam(dragTask)) { setDragId(null); setDragOverId(null); return; }
-
     const dragUnitKey = unitKeyOf(dragTask);
     const dropUnitKey = unitKeyOf(dropTask);
-    if (dragUnitKey === dropUnitKey) { setDragId(null); setDragOverId(null); return; }
 
     const unitOrder: string[] = [];
     const seen = new Set<string>();
@@ -1287,15 +1284,33 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       const key = unitKeyOf(t);
       if (!seen.has(key)) { seen.add(key); unitOrder.push(key); }
     });
-    const fromIdx = unitOrder.indexOf(dragUnitKey);
-    const toIdx = unitOrder.indexOf(dropUnitKey);
-    if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return; }
-    unitOrder.splice(fromIdx, 1);
-    unitOrder.splice(toIdx, 0, dragUnitKey);
+    const childrenOf = new Map(childrenByParent);
+
+    if (hasParentInTeam(dragTask)) {
+      // 자식 업무 드래그: 같은 그룹 안의 형제 순서 바꾸기만 허용(부모는 항상 맨 앞에
+      // 고정). 그룹 밖(다른 유닛)으로는 이동할 수 없다 — 자식은 항상 부모 바로 뒤에
+      // 렌더링되므로 그룹을 벗어나는 위치 이동은 화면에 반영되지 않는다.
+      if (dragUnitKey !== dropUnitKey) { setDragId(null); setDragOverId(null); return; }
+      const siblings = childrenOf.get(dragUnitKey) ?? [];
+      const fromIdx = siblings.findIndex(s => s.id === dragId);
+      const toIdx = dropOnId === dragUnitKey ? 0 : siblings.findIndex(s => s.id === dropOnId);
+      if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return; }
+      const newSiblings = [...siblings];
+      newSiblings.splice(fromIdx, 1);
+      newSiblings.splice(toIdx, 0, dragTask);
+      childrenOf.set(dragUnitKey, newSiblings);
+    } else {
+      if (dragUnitKey === dropUnitKey) { setDragId(null); setDragOverId(null); return; }
+      const fromIdx = unitOrder.indexOf(dragUnitKey);
+      const toIdx = unitOrder.indexOf(dropUnitKey);
+      if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return; }
+      unitOrder.splice(fromIdx, 1);
+      unitOrder.splice(toIdx, 0, dragUnitKey);
+    }
 
     let idx = 0;
     unitOrder.forEach(key => {
-      const unitTasks = [tasks.find(t => t.id === key)!, ...(childrenByParent.get(key) ?? [])];
+      const unitTasks = [tasks.find(t => t.id === key)!, ...(childrenOf.get(key) ?? [])];
       unitTasks.forEach(t => {
         if (t.sortOrder !== idx) onUpdateTask(t.id, { sortOrder: idx });
         idx++;

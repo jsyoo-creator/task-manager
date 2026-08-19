@@ -8288,6 +8288,67 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
     }
   };
 
+  // [사고 복구용 적용] 위 진단(scanSupportLinkIdMismatch)에서 확인된, 옛(사라진) 세부업무
+  // id를 가리키는 지원팀 연결 업무의 linkedFromSubTaskTypeId를 원본 파트의 현재 id로
+  // 재연결한다. 원본 파트에 직군(department)이 '퍼블'인 세부업무가 정확히 하나뿐일 때만
+  // (사업자몰 파트: 옛 "퍼블 1차/2차" 등이 "퍼블 STG 작업" 하나로 통합됐다고 확인됨)
+  // 안전하게 그 현재 id로 재연결하고, 그 외(퍼블 직군 세부업무가 0개 또는 여러 개)는
+  // 애매하므로 건드리지 않고 목록만 남긴다. 연결 "포인터"만 고치는 것이라 담당자·날짜
+  // 등 실제 값은 바꾸지 않는다(그 값 동기화는 이후 별도 도구로 진행).
+  const applySupportLinkStaleTypeIdFix = async (team: Team) => {
+    try {
+      const teamTasksSnap = await getDocs(query(collection(db, 'tasks'), where('teamId', '==', team.id)));
+      const linked = teamTasksSnap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Task))
+        .filter(t => !t.deletedAt && t.linkedFromTaskId && t.linkedFromSubTaskTypeId);
+      if (linked.length === 0) { alert(`[${team.name}] 이 팀이 받는 지원팀 연결 업무 자체가 없습니다.`); return; }
+      const originIds = [...new Set(linked.map(l => l.linkedFromTaskId as string))];
+      const originById = new Map<string, Task>();
+      for (let i = 0; i < originIds.length; i += 30) {
+        const chunk = originIds.slice(i, i + 30);
+        const snap = await getDocs(query(collection(db, 'tasks'), where(documentId(), 'in', chunk)));
+        snap.forEach(d => originById.set(d.id, { id: d.id, ...d.data() } as Task));
+      }
+      const plan: { docId: string; title: string; originPart: string; fromId: string; toId: string }[] = [];
+      const ambiguous: { title: string; originPart: string; fromId: string; reason: string }[] = [];
+      linked.forEach(l => {
+        const origin = originById.get(l.linkedFromTaskId as string);
+        if (!origin) return;
+        const originTeam = teams.find(t => t.id === origin.teamId) ?? team;
+        const originPart = originTeam.parts.find(p => p.name === origin.category);
+        const types = originPart?.subTaskTypes ?? originTeam.subTaskTypes ?? [];
+        const currentIds = new Set(types.map(t => t.id));
+        if (currentIds.has(l.linkedFromSubTaskTypeId as string)) return; // 이미 정상
+        const pubTypes = types.filter(t => t.department === '퍼블');
+        if (pubTypes.length !== 1) {
+          ambiguous.push({ title: l.title, originPart: origin.category, fromId: l.linkedFromSubTaskTypeId as string, reason: pubTypes.length === 0 ? '퍼블 직군 세부업무 없음' : '퍼블 직군 세부업무 여러 개' });
+          return;
+        }
+        plan.push({ docId: l.id, title: l.title, originPart: origin.category, fromId: l.linkedFromSubTaskTypeId as string, toId: pubTypes[0].id });
+      });
+      console.log(`[지원팀 연결 재연결 적용 - 사전 계획] ${team.name}`, JSON.stringify({ plan, ambiguous }, null, 1));
+      if (plan.length === 0) {
+        alert(`[${team.name}] 재연결할 대상을 찾지 못했습니다.` + (ambiguous.length > 0 ? `\n\n⚠ ${ambiguous.length}건은 원본 파트의 퍼블 직군 세부업무가 0개 또는 여러 개라 자동 판단이 애매해 건드리지 않았습니다. 콘솔을 확인해주세요.` : ''));
+        return;
+      }
+      const preview = plan.slice(0, 10).map(p => `- [${p.originPart}] ${p.title}: ${p.fromId} → ${p.toId}`).join('\n');
+      if (!window.confirm(`[${team.name}] 지원팀 연결 ${plan.length}건의 연결 포인터(linkedFromSubTaskTypeId)를 원본의 현재 "퍼블" 세부업무 id로 재연결합니다 (담당자·날짜 값 자체는 아직 안 바꿉니다):\n\n${preview}${plan.length > 10 ? `\n...외 ${plan.length - 10}건` : ''}${ambiguous.length > 0 ? `\n\n⚠ 이 중 ${ambiguous.length}건은 애매해서 제외했습니다.` : ''}\n\n계속할까요?`)) return;
+      const now = new Date().toISOString();
+      for (let i = 0; i < plan.length; i += 400) {
+        const batch = writeBatch(db);
+        plan.slice(i, i + 400).forEach(p => {
+          batch.update(doc(db, 'tasks', p.docId), { linkedFromSubTaskTypeId: p.toId, updatedAt: now });
+        });
+        await batch.commit();
+      }
+      console.log(`[지원팀 연결 재연결 적용 완료] ${team.name}`, JSON.stringify(plan, null, 1));
+      alert(`[${team.name}] ${plan.length}건을 재연결했습니다.` + (ambiguous.length > 0 ? ` (애매해서 건드리지 않은 ${ambiguous.length}건은 콘솔 참고)` : '') + `\n\n이제 "지원팀 필드값 진단"을 다시 돌리면 실제 값이 다른 항목(담당자 등)이 보일 겁니다 — 그건 다음 단계에서 별도로 정리하겠습니다.`);
+    } catch (e) {
+      console.error('[지원팀 연결 재연결 적용] 실행 중 오류', e);
+      alert(`재연결 적용 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}\n\n브라우저 콘솔(F12)을 확인해주세요.`);
+    }
+  };
+
   // [사고 복구용 진단] 위 진단은 "id 자체가 어긋난" 경우만 잡는다. id는 정상인데
   // 특정 필드(예: 담당자는 오는데 시작일/종료일만 안 오는 경우)만 어긋나는 것은
   // 별개 문제이므로, 파트를 하나 골라 그 파트의 지원팀 연결 세부업무 전체에 대해
@@ -9391,6 +9452,10 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                           <button type="button" onClick={() => scanSupportLinkIdMismatch(team)}
                             className={`${btn} bg-orange-600 text-white hover:bg-orange-700`}>
                             지원팀 연결 끊김 진단
+                          </button>
+                          <button type="button" onClick={() => applySupportLinkStaleTypeIdFix(team)}
+                            className={`${btn} bg-orange-800 text-white hover:bg-orange-900`}>
+                            지원팀 연결 끊김 재연결 적용
                           </button>
                           <button type="button" onClick={() => scanSupportLinkOrphanedOrigin(team)}
                             className={`${btn} bg-rose-600 text-white hover:bg-rose-700`}>

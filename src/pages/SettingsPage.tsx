@@ -4342,7 +4342,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
   onClearPart: (teamId: string, partId: string) => Promise<void>;
 }) {
   const [selectedTarget, setSelectedTarget] = useState<'team' | string>('team');
-  const [colMode, setColMode] = useState<'normal' | 'substitute'>('normal');
+  const [colMode, setColMode] = useState<'normal' | 'substitute' | 'vacation'>('normal');
   const isTeamTarget = selectedTarget === 'team';
   const currentPart = !isTeamTarget ? team.parts.find(p => p.id === selectedTarget) : undefined;
   const isInherited = !isTeamTarget && !currentPart?.weeklyExportConfig;
@@ -4357,12 +4357,18 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
     return currentPart?.weeklyExportConfig?.columns ?? team.weeklyExportConfig?.columns ?? DEFAULT_WEEKLY_EXPORT_COLS;
   };
 
-  // 대무 항목 전용 설정이 없으면 (해당 팀/파트의) 일반 항목 설정을 그대로 상속
+  // 대무/휴가 항목 전용 설정이 없으면 (해당 팀/파트의) 일반 항목 설정을 그대로 상속
   const getEffectiveSubstituteCols = () => getEffectiveConfigObj()?.substituteColumns ?? getEffectiveNormalCols();
+  const getEffectiveVacationCols = () => getEffectiveConfigObj()?.vacationColumns ?? getEffectiveNormalCols();
 
   const hasOwnSubstituteConfig = !!getEffectiveConfigObj()?.substituteColumns;
+  const hasOwnVacationConfig = !!getEffectiveConfigObj()?.vacationColumns;
 
-  const getEffectiveCols = () => colMode === 'normal' ? getEffectiveNormalCols() : getEffectiveSubstituteCols();
+  const getEffectiveCols = () => {
+    if (colMode === 'substitute') return getEffectiveSubstituteCols();
+    if (colMode === 'vacation') return getEffectiveVacationCols();
+    return getEffectiveNormalCols();
+  };
 
   const [cols, setCols] = useState<WeeklyColumnDef[]>(getEffectiveCols);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -4381,9 +4387,12 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
   const doSave = async (next: WeeklyColumnDef[]) => {
     setSaving(true);
     const base = getEffectiveConfigObj();
-    const newConfig: WeeklyExportConfig = colMode === 'normal'
-      ? (base?.substituteColumns ? { columns: next, substituteColumns: base.substituteColumns } : { columns: next })
-      : { columns: base?.columns ?? getEffectiveNormalCols(), substituteColumns: next };
+    const newConfig: WeeklyExportConfig = { columns: base?.columns ?? getEffectiveNormalCols() };
+    if (colMode === 'normal') newConfig.columns = next;
+    if (colMode === 'substitute') newConfig.substituteColumns = next;
+    else if (base?.substituteColumns) newConfig.substituteColumns = base.substituteColumns;
+    if (colMode === 'vacation') newConfig.vacationColumns = next;
+    else if (base?.vacationColumns) newConfig.vacationColumns = base.vacationColumns;
     if (isTeamTarget) await onSave(newConfig);
     else if (currentPart) await onSavePart(team.id, currentPart.id, newConfig);
     setSaving(false);
@@ -4395,6 +4404,20 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
     setSaving(true);
     const base = getEffectiveConfigObj();
     const newConfig: WeeklyExportConfig = { columns: base?.columns ?? getEffectiveNormalCols() };
+    if (base?.vacationColumns) newConfig.vacationColumns = base.vacationColumns;
+    if (isTeamTarget) await onSave(newConfig);
+    else if (currentPart) await onSavePart(team.id, currentPart.id, newConfig);
+    setCols(getEffectiveNormalCols());
+    setSaving(false);
+    setFlash('reset');
+    setTimeout(() => setFlash(null), 1500);
+  };
+
+  const clearVacationOverride = async () => {
+    setSaving(true);
+    const base = getEffectiveConfigObj();
+    const newConfig: WeeklyExportConfig = { columns: base?.columns ?? getEffectiveNormalCols() };
+    if (base?.substituteColumns) newConfig.substituteColumns = base.substituteColumns;
     if (isTeamTarget) await onSave(newConfig);
     else if (currentPart) await onSavePart(team.id, currentPart.id, newConfig);
     setCols(getEffectiveNormalCols());
@@ -4451,6 +4474,7 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
 
   const resetToDefault = () => {
     if (colMode === 'substitute') { clearSubstituteOverride(); return; }
+    if (colMode === 'vacation') { clearVacationOverride(); return; }
     const next = DEFAULT_WEEKLY_EXPORT_COLS;
     setCols(next);
     doSave(next);
@@ -4522,11 +4546,11 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
         </div>
       )}
 
-      {/* 일반/대무 항목 유형 선택 */}
+      {/* 일반/대무/휴가 항목 유형 선택 */}
       <div>
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">항목 유형</p>
         <div className="flex flex-wrap gap-1.5">
-          {(['normal', 'substitute'] as const).map(mode => (
+          {(['normal', 'substitute', 'vacation'] as const).map(mode => (
             <button key={mode}
               onClick={() => setColMode(mode)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
@@ -4534,8 +4558,11 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
                   ? 'bg-orange-500 text-white border-orange-500'
                   : 'border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}>
-              {mode === 'normal' ? '일반 항목' : '대무 항목'}
+              {mode === 'normal' ? '일반 항목' : mode === 'substitute' ? '대무 항목' : '휴가 항목'}
               {mode === 'substitute' && hasOwnSubstituteConfig && (
+                <span className={`text-[10px] px-1 rounded ${colMode === mode ? 'bg-white/20' : 'bg-orange-100 text-orange-600'}`}>별도</span>
+              )}
+              {mode === 'vacation' && hasOwnVacationConfig && (
                 <span className={`text-[10px] px-1 rounded ${colMode === mode ? 'bg-white/20' : 'bg-orange-100 text-orange-600'}`}>별도</span>
               )}
             </button>
@@ -4557,6 +4584,26 @@ function WeeklyExportManager({ team, onSave, onSavePart, onClearPart }: {
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
           <p className="text-xs text-blue-700">대무 항목에 별도 설정이 적용 중</p>
           <button onClick={clearSubstituteOverride}
+            className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
+            <RotateCcw size={11} />초기화 (일반 설정 따르기)
+          </button>
+        </div>
+      )}
+
+      {/* 휴가 항목 상속/별도 안내 */}
+      {colMode === 'vacation' && !hasOwnVacationConfig && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">휴가 항목은 일반 항목 설정을 그대로 사용 중</p>
+          <button onClick={() => doSave(cols)}
+            className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium ml-3 flex-shrink-0">
+            <ArrowDownToLine size={11} />별도 설정 시작
+          </button>
+        </div>
+      )}
+      {colMode === 'vacation' && hasOwnVacationConfig && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">휴가 항목에 별도 설정이 적용 중</p>
+          <button onClick={clearVacationOverride}
             className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
             <RotateCcw size={11} />초기화 (일반 설정 따르기)
           </button>

@@ -374,8 +374,9 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
               const singlePart = partNames.length === 1 ? parts?.find(p => p.name === partNames[0]) : undefined;
               const effectiveConfig = singlePart?.weeklyExportConfig ?? weeklyExportConfig;
               const normalCols = (effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
-              // 대무 항목 전용 설정이 없으면 일반 항목 설정을 그대로 상속
+              // 대무/휴가 항목 전용 설정이 없으면 일반 항목 설정을 그대로 상속
               const substituteCols = (effectiveConfig?.substituteColumns ?? effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
+              const vacationCols = (effectiveConfig?.vacationColumns ?? effectiveConfig?.columns ?? DEFAULT_WEEKLY_COLS).filter(c => c.enabled);
               // 파트 metaFields 우선, 없으면 팀 metaFields
               const effectiveMetaFields = singlePart?.metaFields ?? metaFields;
               const buildRow = (vals: { isNew: number; isDerived: number; isOther: number; taskH: number; desc: string; task: typeof groups[0]['task'] }, cols: WeeklyColumnDef[]) =>
@@ -422,7 +423,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
               });
               if (vacH > 0) {
                 const vacLines = vacEntries.map(e => `※ ${e.type} ${e.dateStr}`).join('\n');
-                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"`, task: groups[0]?.task ?? {} as typeof groups[0]['task'] }, normalCols));
+                rows.push(buildRow({ isNew: 0, isDerived: 0, isOther: 0, taskH: 0, desc: `"${vacLines}"`, task: groups[0]?.task ?? {} as typeof groups[0]['task'] }, vacationCols));
               }
               navigator.clipboard.writeText(rows.join('\n'));
               setCopiedPerson(person);

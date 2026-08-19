@@ -8797,12 +8797,13 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   };
 
   // [사고 복구용 적용] 위 덮어쓰기는 지원팀 쪽에 실제 값이 있을 때만 작동한다. 그런데
-  // 지원팀이 아직 담당자를 정하지 않은(값이 빈) 항목은, 원본에 남아있는 담당자 이름이
-  // 실제로는 예전 검수자/담당자 pill 겹침 사고 때 로컬 자동배정이 잘못 채운 근거 없는
-  // 값이다(지원팀 연결이 설정된 세부업무는 로컬 자동배정에서 원래 제외돼야 하므로).
-  // 정답이 없는 상태에서 엉뚱한 사람 이름을 계속 보여주는 것보다는 빈 칸으로 지워
-  // 두고, 지원팀이 나중에 실제로 배정하면 그때 정상적으로 채워지게 한다. 지원팀 쪽에
-  // 이미 값이 있는 경우는(위 덮어쓰기 대상이므로) 건드리지 않는다.
+  // 지원팀이 아직 담당자를 정하지 않은(값이 빈) 항목이나, 애초에 지원팀 연결 업무 자체가
+  // 없는 항목은, 원본에 남아있는 담당자 이름이 실제로는 예전 검수자/담당자 pill 겹침
+  // 사고 때 로컬 자동배정이 잘못 채운 근거 없는 값이다(지원팀 연결이 설정된 세부업무는
+  // 로컬 자동배정에서 원래 제외돼야 하므로). 두 경우를 모두 지우되, 연결 자체가 없는
+  // 경우는 "이 사람이 확실히 퍼블 소속이 아닐 때"만(소속 정보로 교차 확인) 지워서
+  // 혹시 모를 정상적인 수동 입력까지 건드리지 않게 한다. 지원팀 쪽에 이미 값이 있는
+  // 경우는(위 덮어쓰기 대상이므로) 건드리지 않는다.
   const applySupportLinkClearUnbackedAssignee = async (team: Team, part: TeamPart) => {
     try {
       const types = (part.subTaskTypes ?? team.subTaskTypes ?? []).filter(t => t.supportTeamId);
@@ -8822,16 +8823,27 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         if (l.deletedAt || !l.linkedFromTaskId || !l.linkedFromSubTaskTypeId) return;
         linkedByOriginAndType.set(`${l.linkedFromTaskId}::${l.linkedFromSubTaskTypeId}`, l);
       });
+      const deptByName = new Map<string, Department>();
+      allUsers.forEach(u => { if (u.department) deptByName.set(u.displayName, u.department); });
 
-      const plan: { originId: string; originTitle: string; typeId: string; typeName: string; oldAssignee: string }[] = [];
+      const plan: { originId: string; originTitle: string; typeId: string; typeName: string; oldAssignee: string; reason: string }[] = [];
       origins.forEach(origin => {
         types.forEach(type => {
           const entry = origin.subTaskData?.[type.id];
           if (!entry?.assignee) return;
           const linkedTask = linkedByOriginAndType.get(`${origin.id}::${type.id}`);
-          if (!linkedTask) return; // 연결 자체가 없으면(재연결 필요 등) 근거 없는 값인지 판단 불가 — 건드리지 않음
-          if (linkedTask.assignee) return; // 지원팀에 이미 값이 있으면 "덮어쓰기 적용"이 처리할 대상이므로 건드리지 않음
-          plan.push({ originId: origin.id, originTitle: origin.title, typeId: type.id, typeName: type.name, oldAssignee: entry.assignee });
+          let reason: string;
+          if (linkedTask) {
+            if (linkedTask.assignee) return; // 지원팀에 이미 값이 있으면 "덮어쓰기 적용"이 처리할 대상이므로 건드리지 않음
+            reason = '지원팀 연결은 있으나 아직 담당자 미배정';
+          } else {
+            // 연결 자체가 없는 경우 — 이 사람의 실제 소속 직군이 확실히 이 세부업무의
+            // 직군과 다를 때만(예: 퍼블 항목에 기획/디자인 소속 사람) 근거 없는 값으로 판단
+            const actualDept = deptByName.get(entry.assignee);
+            if (!actualDept || actualDept === type.department) return;
+            reason = `지원팀 연결 자체가 없고, 배정된 사람(${entry.assignee})의 소속이 ${actualDept}로 이 항목 직군(${type.department})과 다름`;
+          }
+          plan.push({ originId: origin.id, originTitle: origin.title, typeId: type.id, typeName: type.name, oldAssignee: entry.assignee, reason });
         });
       });
 
@@ -8840,8 +8852,8 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         return;
       }
       console.log(`[지원팀 연결 근거없는 담당자 지우기 - 사전 계획] ${team.name} / ${part.name}`, JSON.stringify(plan, null, 1));
-      const preview = plan.slice(0, 10).map(p => `- [${p.typeName}] ${p.originTitle}: "${p.oldAssignee}" → (빈 칸)`).join('\n');
-      if (!window.confirm(`[${part.name}] 지원팀이 아직 담당자를 안 정한 항목 ${plan.length}건의 담당자 값을 빈 칸으로 지웁니다:\n\n${preview}${plan.length > 10 ? `\n...외 ${plan.length - 10}건` : ''}\n\n계속할까요?`)) return;
+      const preview = plan.slice(0, 10).map(p => `- [${p.typeName}] ${p.originTitle}: "${p.oldAssignee}" → (빈 칸) (${p.reason})`).join('\n');
+      if (!window.confirm(`[${part.name}] 근거 없는 담당자 값 ${plan.length}건을 빈 칸으로 지웁니다:\n\n${preview}${plan.length > 10 ? `\n...외 ${plan.length - 10}건` : ''}\n\n계속할까요?`)) return;
 
       const now = new Date().toISOString();
       for (let i = 0; i < plan.length; i += 400) {

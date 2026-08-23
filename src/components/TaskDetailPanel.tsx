@@ -2138,6 +2138,7 @@ export default function TaskDetailPanel({
                   const reviewWeeklyHours: Record<string, Record<string, number>> = entry.reviewWeeklyHours ?? {};
                   const reviewDates: Record<string, { startDate?: string; endDate?: string }> = entry.reviewDates ?? {};
                   const reviewStatus: Record<string, string> = entry.reviewStatus ?? {};
+                  const reviewAssignees: Record<string, string> = entry.reviewAssignees ?? {};
 
                   const reviewTotal = calcReviewTotal(reviewWeeklyHours, reviewDates, checked);
 
@@ -2164,6 +2165,14 @@ export default function TaskDetailPanel({
                   const setItemStatus = (id: string, status: string) => {
                     const nextRs = { ...reviewStatus, [id]: status };
                     const nextEntry = { ...entry, reviewStatus: nextRs };
+                    const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
+                    commitSubTaskData(nextData);
+                  };
+
+                  const setReviewerAssignee = (id: string, assignee: string) => {
+                    const nextRa = { ...reviewAssignees };
+                    if (assignee) nextRa[id] = assignee; else delete nextRa[id];
+                    const nextEntry = { ...entry, reviewAssignees: nextRa };
                     const nextData = { ...(task.subTaskData ?? {}), ...localSubTaskData, [type.id]: nextEntry };
                     commitSubTaskData(nextData);
                   };
@@ -2279,6 +2288,9 @@ export default function TaskDetailPanel({
                                     </span>
                                   </button>
                                   <span className={`flex-1 min-w-0 truncate ${isChecked ? 'text-violet-700 font-medium' : 'text-gray-600'}`}>{rt.title}</span>
+                                  {isChecked && reviewAssignees[rt.id] && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium flex-shrink-0">{reviewAssignees[rt.id]}</span>
+                                  )}
                                   {rt.taskMonth && <span className="text-[10px] text-gray-400 flex-shrink-0">{rt.taskMonth}</span>}
                                   {rtTotal > 0 && (
                                     <span className="text-[10px] font-medium text-violet-500 flex-shrink-0">{rtTotal}h</span>
@@ -2305,6 +2317,18 @@ export default function TaskDetailPanel({
                                 </div>
                                 {isChecked && (
                                   <div className="px-2.5 pb-2.5 space-y-2">
+                                    {/* 검수자 */}
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[11px] text-violet-500 w-10 flex-shrink-0">검수자</span>
+                                      <select
+                                        disabled={!canManage}
+                                        value={reviewAssignees[rt.id] ?? ''}
+                                        onChange={e => setReviewerAssignee(rt.id, e.target.value)}
+                                        className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 disabled:opacity-50 focus:outline-none">
+                                        <option value="">선택 안 함</option>
+                                        {displayAssignees.map(a => <option key={a} value={a}>{a}</option>)}
+                                      </select>
+                                    </div>
                                     {/* 날짜 */}
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-[11px] text-violet-500 w-10 flex-shrink-0">날짜</span>

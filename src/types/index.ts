@@ -1118,6 +1118,7 @@ export interface SubTaskDataEntry {
   reviewWeeklyHours?: Record<string, Record<string, number>>; // review 타입 필드: taskId → { w1d1... }
   reviewDates?: Record<string, { startDate?: string; endDate?: string }>; // review 타입 필드: taskId → 날짜
   reviewStatus?: Record<string, string>; // review 타입 필드: taskId → 검수 상태
+  reviewAssignees?: Record<string, string>; // review 타입 필드: taskId → 검수자 이름
 }
 
 // 휴지통: 개별 삭제된 세부업무의 스냅샷 (typeName은 삭제 시점 이름 — 이후 세부업무 타입이 이름 변경/삭제돼도 표시 가능하도록 보존)
@@ -1298,7 +1299,7 @@ export function deriveSubtasksForTeam(
                 category: task.category,
                 type: task.type,
                 status: reviewStatusToTaskStatus(rs),
-                assignee: task.assignee ?? task.receiver ?? '',
+                assignee: (entry.reviewAssignees ?? {})[itemId] || task.assignee || task.receiver || '',
                 receiver: '',
                 startDate: itemDates.startDate ?? '',
                 endDate: itemDates.endDate ?? '',

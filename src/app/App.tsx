@@ -1065,6 +1065,7 @@ function App() {
               subTaskTypes={resolvedSubTaskTypes}
               revisionSteps={resolvedRevisionSteps}
               teamMembers={teamMembers}
+              baseTeamMembers={dashboardTeamMembers}
               substitutePairs={selectedTeam?.substitutePairs}
               formConfig={resolvedFormConfig}
               teamFormConfig={selectedTeam?.formConfig}

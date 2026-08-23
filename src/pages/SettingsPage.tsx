@@ -2667,6 +2667,9 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   // 세부업무는 이제 그룹별 섹션으로 나눠서 보여주므로, 섹션(그룹)마다 독립된 추가 폼 입력값을 가짐
   const [sectionNewName, setSectionNewName] = useState<Record<string, string>>({});
   const [sectionNewDept, setSectionNewDept] = useState<Record<string, Department | ''>>({});
+  // PL업무 검수 필드와 동일한 체크리스트형 검수 기능 — 같은 프로젝트의 다른 일반 업무들을
+  // 체크리스트로 불러와 하나씩 검수 처리함(App.tsx의 reviewTasks 계산과 연동)
+  const [sectionNewFieldType, setSectionNewFieldType] = useState<Record<string, PLSubTaskFieldType>>({});
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
@@ -2816,6 +2819,10 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     save(types.map(t => t.id === id ? { ...t, department: t.department === dept ? undefined : dept } : t));
   };
 
+  const toggleFieldType = (id: string) => {
+    save(types.map(t => t.id === id ? { ...t, plFieldType: t.plFieldType === 'review' ? undefined : 'review' } : t));
+  };
+
   const deleteType = (id: string) => save(types.filter(t => t.id !== id));
 
   // sectionKey: ALL_KEY면 태그 없이 생성(전체 목록 전용 추가), 그룹 id면 그 그룹으로 태그해서 생성
@@ -2824,9 +2831,11 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
     if (!name) return;
     const dept = sectionNewDept[sectionKey] || undefined;
     const groupIds = sectionKey === ALL_KEY ? undefined : [sectionKey];
-    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: dept, groupIds }]);
+    const plFieldType = sectionNewFieldType[sectionKey] === 'review' ? 'review' : undefined;
+    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: dept, groupIds, plFieldType }]);
     setSectionNewName(prev => ({ ...prev, [sectionKey]: '' }));
     setSectionNewDept(prev => ({ ...prev, [sectionKey]: '' }));
+    setSectionNewFieldType(prev => ({ ...prev, [sectionKey]: 'text' }));
   };
 
   const iCls = "text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/60 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
@@ -3126,6 +3135,14 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                           </button>
                         ))}
                       </div>
+                      {/* 검수 타입 토글 — PL업무 검수 필드와 동일하게, 켜면 같은 프로젝트의 다른
+                          업무들을 체크리스트로 불러와 하나씩 검수 처리하는 기능이 활성화됨 */}
+                      <button type="button"
+                        title="세부업무 필드 타입 — 검수로 전환하면 같은 프로젝트의 다른 업무를 체크리스트로 불러와 검수 처리할 수 있습니다"
+                        onClick={() => toggleFieldType(t.id)}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[t.plFieldType ?? 'text']}`}>
+                        {PL_FIELD_TYPE_LABEL[t.plFieldType ?? 'text']}
+                      </button>
                       {/* 그룹 태그 — 칩으로 표시, x로 제거, +로 추가 */}
                       {groups.length > 0 && (
                         <div className="flex items-center gap-1 flex-shrink-0 flex-wrap max-w-[160px] justify-end">
@@ -3271,6 +3288,10 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                   </button>
                 ))}
               </div>
+              <button type="button" onClick={() => setSectionNewFieldType(prev => ({ ...prev, [ALL_KEY]: prev[ALL_KEY] === 'review' ? 'text' : 'review' }))}
+                className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[sectionNewFieldType[ALL_KEY] ?? 'text']}`}>
+                {PL_FIELD_TYPE_LABEL[sectionNewFieldType[ALL_KEY] ?? 'text']}
+              </button>
               <button onClick={() => addTypeTo(ALL_KEY)} disabled={!(sectionNewName[ALL_KEY] ?? '').trim()}
                 className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
                 <Plus size={11} />추가
@@ -3331,6 +3352,10 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                     </button>
                   ))}
                 </div>
+                <button type="button" onClick={() => setSectionNewFieldType(prev => ({ ...prev, [g.id]: prev[g.id] === 'review' ? 'text' : 'review' }))}
+                  className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[sectionNewFieldType[g.id] ?? 'text']}`}>
+                  {PL_FIELD_TYPE_LABEL[sectionNewFieldType[g.id] ?? 'text']}
+                </button>
                 <button onClick={() => addTypeTo(g.id)} disabled={!(sectionNewName[g.id] ?? '').trim()}
                   className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors">
                   <Plus size={11} />추가

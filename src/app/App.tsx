@@ -1073,13 +1073,13 @@ function App() {
               currentUserName={currentUserName}
               currentUserDept={appUser?.department}
               vacations={teamVacations}
-              reviewTasks={detailTask.plTask
+              reviewTasks={(detailTask.plTask || resolvedSubTaskTypes.some(t => t.plFieldType === 'review'))
                 ? tasks.filter(t =>
                     !t.deletedAt &&
                     !t.plTask &&
                     t.projectId === detailTask.projectId &&
                     t.id !== detailTask.id &&
-                    (!detailTask.plParts?.length || detailTask.plParts.includes(t.category))
+                    (!detailTask.plTask || !detailTask.plParts?.length || detailTask.plParts.includes(t.category))
                   )
                 : undefined}
             />

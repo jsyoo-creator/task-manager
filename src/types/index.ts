@@ -1272,9 +1272,12 @@ export function deriveSubtasksForTeam(
       })
       .sort(([a], [b]) => (subTaskTypeOrder.get(a) ?? 999) - (subTaskTypeOrder.get(b) ?? 999))
       .flatMap(([key, entry]): SubTask[] => {
-        // PL review 타입: 체크된 항목별로 개별 SubTask 생성
-        const subField = plMainType?.subFields?.find(f => f.id === key);
-        if (subField?.fieldType === 'review') {
+        // review 타입(PL업무·일반 업무 공용): 체크된 항목별로 개별 SubTask 생성
+        const matchedType = validTypes?.find(t => t.id === key);
+        const isReviewField = task.plTask
+          ? (matchedType as PLSubTaskField | undefined)?.fieldType === 'review'
+          : (matchedType as SubTaskType | undefined)?.plFieldType === 'review';
+        if (isReviewField) {
           const checkedItems = (entry.checkedItems ?? []).filter(id =>
             (entry.reviewDates ?? {})[id]?.startDate
           );

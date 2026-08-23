@@ -3145,7 +3145,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                       </button>
                       {/* 그룹 태그 — 칩으로 표시, x로 제거, +로 추가 */}
                       {groups.length > 0 && (
-                        <div className="flex items-center gap-1 flex-shrink-0 flex-wrap max-w-[160px] justify-end">
+                        <div className="flex items-center gap-1 flex-shrink-0 flex-wrap max-w-[240px] justify-end">
                           {tagIds.map(gid => {
                             const g = groups.find(x => x.id === gid);
                             if (!g) return null;

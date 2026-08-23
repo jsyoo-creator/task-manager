@@ -1207,6 +1207,8 @@ export default function TaskDetailPanel({
   const [manualSubstituteIds, setManualSubstituteIds] = useState<Set<string>>(new Set());
   const [activeDeptTab, setActiveDeptTab] = useState<Department | null>(null);
   const [activeReviewPartTabs, setActiveReviewPartTabs] = useState<Record<string, string>>({});
+  const [activeReviewMonthTabs, setActiveReviewMonthTabs] = useState<Record<string, string>>({});
+  const [reviewSearchQuery, setReviewSearchQuery] = useState<Record<string, string>>({});
   const [visible, setVisible] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [mailMessage, setMailMessage] = useState('');
@@ -2175,9 +2177,20 @@ export default function TaskDetailPanel({
                         ? activeReviewPartTabs[type.id]
                         : reviewPartTabAll)
                     : reviewPartTabAll;
-                  const displayedItems = showReviewPartTabs && activeReviewPart !== reviewPartTabAll
-                    ? items.filter(rt => rt.category === activeReviewPart)
-                    : items;
+                  const reviewMonthAll = '__all__';
+                  const reviewMonths = Array.from(new Set(items.map(rt => rt.taskMonth).filter((m): m is string => !!m))).sort();
+                  const showReviewMonthTabs = reviewMonths.length >= 2;
+                  const activeReviewMonth = showReviewMonthTabs
+                    ? (activeReviewMonthTabs[type.id] && (activeReviewMonthTabs[type.id] === reviewMonthAll || reviewMonths.includes(activeReviewMonthTabs[type.id]))
+                        ? activeReviewMonthTabs[type.id]
+                        : reviewMonthAll)
+                    : reviewMonthAll;
+                  const reviewSearch = (reviewSearchQuery[type.id] ?? '').trim().toLowerCase();
+                  const displayedItems = items
+                    .filter(rt => !showReviewPartTabs || activeReviewPart === reviewPartTabAll || rt.category === activeReviewPart)
+                    .filter(rt => !showReviewMonthTabs || activeReviewMonth === reviewMonthAll || rt.taskMonth === activeReviewMonth)
+                    .filter(rt => !reviewSearch || rt.title.toLowerCase().includes(reviewSearch));
+                  const reviewFilterActive = (showReviewPartTabs && activeReviewPart !== reviewPartTabAll) || (showReviewMonthTabs && activeReviewMonth !== reviewMonthAll) || !!reviewSearch;
                   return (
                     <div key={type.id} className="rounded-xl bg-gray-50 p-3">
                       <div className="flex items-center gap-2 mb-2">
@@ -2213,9 +2226,29 @@ export default function TaskDetailPanel({
                           })}
                         </div>
                       )}
+                      {items.length > 0 && (
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <input type="text"
+                            value={reviewSearchQuery[type.id] ?? ''}
+                            onChange={e => setReviewSearchQuery(prev => ({ ...prev, [type.id]: e.target.value }))}
+                            placeholder="업무명 검색"
+                            className="flex-1 min-w-0 text-[11px] px-2 py-1 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400" />
+                          {showReviewMonthTabs && (
+                            <select
+                              value={activeReviewMonth}
+                              onChange={e => setActiveReviewMonthTabs(prev => ({ ...prev, [type.id]: e.target.value }))}
+                              className="text-[11px] px-1.5 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 focus:outline-none flex-shrink-0">
+                              <option value={reviewMonthAll}>전체 월</option>
+                              {reviewMonths.map(m => (
+                                <option key={m} value={m}>{m} ({items.filter(rt => rt.taskMonth === m).length})</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
                       {displayedItems.length === 0 ? (
                         <p className="text-xs text-gray-400 text-center py-2">
-                          {showReviewPartTabs && activeReviewPart !== reviewPartTabAll ? '해당 파트에 등록된 업무가 없습니다' : '등록된 업무가 없습니다'}
+                          {reviewFilterActive ? '조건에 맞는 업무가 없습니다' : '등록된 업무가 없습니다'}
                         </p>
                       ) : (
                         <div className="space-y-1">

@@ -1103,7 +1103,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 
 export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
-  metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, formConfig, teamFormConfig, userPhotoMap,
+  metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, baseTeamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
   parentTask, childTasks = [], onRemoveFromGroup, substitutePairs,
 }: {
@@ -1119,6 +1119,7 @@ export default function TaskDetailPanel({
   subTaskTypes?: SubTaskType[];
   revisionSteps?: RevisionStep[];
   teamMembers?: { name: string; department?: Department; email?: string }[];
+  baseTeamMembers?: { name: string; department?: Department; email?: string }[]; // 지원팀 크로스 소속 제외, 순수 우리팀 소속만(검수자 선택용)
   substitutePairs?: SubstitutePair[]; // 대무 자동지정 페어 목록 (팀 관리 > 대무 관리에서 등록)
   formConfig?: TeamFormConfig;
   teamFormConfig?: TeamFormConfig;
@@ -2123,6 +2124,14 @@ export default function TaskDetailPanel({
                   : null;
                 const displayAssignees = (filtered && filtered.length > 0) ? filtered : assignees;
 
+                // 검수자 후보 — 지원팀 크로스 소속(다른 팀 지원 인원)은 제외하고 순수 우리팀
+                // 소속만 보여줌(teamMembers는 지원팀 인원도 포함하는 목록이라 그대로 쓰면 안 됨)
+                const baseMembers = baseTeamMembers ?? teamMembers ?? [];
+                const filteredBaseMembers = typeDepts && baseMembers.length
+                  ? baseMembers.filter(m => m.department && typeDepts.includes(m.department)).map(m => m.name)
+                  : baseMembers.map(m => m.name);
+                const reviewerCandidates = filteredBaseMembers.length > 0 ? filteredBaseMembers : baseMembers.map(m => m.name);
+
                 // 시작/종료일 기준 비활성 컬럼 계산
                 const sd = entry.startDate ? new Date(entry.startDate) : null;
                 const sdDow = sd ? sd.getDay() : 1;
@@ -2326,7 +2335,7 @@ export default function TaskDetailPanel({
                                         onChange={e => setReviewerAssignee(rt.id, e.target.value)}
                                         className="flex-1 text-xs px-2 py-0.5 rounded-md border border-violet-200 bg-white text-violet-700 disabled:opacity-50 focus:outline-none">
                                         <option value="">선택 안 함</option>
-                                        {displayAssignees.map(a => <option key={a} value={a}>{a}</option>)}
+                                        {reviewerCandidates.map(a => <option key={a} value={a}>{a}</option>)}
                                       </select>
                                     </div>
                                     {/* 날짜 */}

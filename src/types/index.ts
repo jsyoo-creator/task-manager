@@ -1291,11 +1291,15 @@ export function deriveSubtasksForTeam(
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
               const itemTotalHours = Object.values(itemWeeklyHours).reduce((a: number, b: number) => a + b, 0);
               const rs = (entry.reviewStatus ?? {})[itemId] ?? '검수 전';
+              // 검수 항목 카드는 원본 업무명만 보이면 어느 검수 속성(세부업무)에서 온 시간인지
+              // 알 수 없으므로, 세부업무명을 함께 붙여 표시함
+              const reviewFieldName = taskNameMap.get(key);
+              const reviewTitle = reviewTask?.title ?? itemId;
               return {
                 id: `${task.id}__${key}__${itemId}`,
                 taskId: task.id,
                 projectId: task.projectId ?? '',
-                title: withPrefix(reviewTask?.title ?? itemId),
+                title: withPrefix(reviewFieldName ? `${reviewTitle} · ${reviewFieldName}` : reviewTitle),
                 category: task.category,
                 type: task.type,
                 status: reviewStatusToTaskStatus(rs),

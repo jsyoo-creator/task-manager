@@ -1580,7 +1580,7 @@ export default function TaskDetailPanel({
   // 직군은 팀과 무관한 사용자 개인 속성이므로 currentUserDept를 그대로 사용한다.
   const myDept = currentUserDept ?? teamMembers?.find(m => m.name === currentUserName)?.department;
   const DEPT_TAB_ORDER: Department[] = ['기획', '디자인', '퍼블'];
-  const presentDepts = DEPT_TAB_ORDER.filter(d => visibleSubTaskTypes.some(t => t.department === d));
+  const presentDepts = DEPT_TAB_ORDER.filter(d => visibleSubTaskTypes.some(t => resolveFieldDepts(t)?.includes(d)));
   const orderedDepts = myDept && presentDepts.includes(myDept)
     ? [myDept, ...presentDepts.filter(d => d !== myDept)]
     : presentDepts;
@@ -1588,8 +1588,9 @@ export default function TaskDetailPanel({
   const activeDept = showDeptTabs
     ? (activeDeptTab && orderedDepts.includes(activeDeptTab) ? activeDeptTab : orderedDepts[0])
     : null;
+  // 직군을 여러 개 선택한 세부업무는 그 직군들 각 탭에 따로따로(중복) 노출됨
   const displayedSubTaskTypes = showDeptTabs
-    ? visibleSubTaskTypes.filter(t => !t.department || t.department === activeDept)
+    ? visibleSubTaskTypes.filter(t => { const depts = resolveFieldDepts(t); return !depts || (activeDept !== null && depts.includes(activeDept)); })
     : visibleSubTaskTypes;
 
   return (

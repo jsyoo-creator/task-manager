@@ -898,7 +898,8 @@ export interface SubTaskMemo {
 export interface SubTaskType {
   id: string;
   name: string;
-  department?: Department;
+  department?: Department;    // 구버전 호환(단일 직군) — 여러 직군이면 departments 사용
+  departments?: Department[]; // 복수 직군 선택 (신버전) — resolveFieldDepts로 읽을 것
   showInCalendar?: boolean; // undefined = true (기본 표시)
   calendarColor?: string;   // undefined = 기본색
   showInDetail?: boolean;   // undefined = true, 업무 상세 화면에 노출할지 여부

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy, Key } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task, SubstitutePair } from '../types';
-import { resolvePLMainDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates } from '../types';
+import { resolvePLMainDepts, resolveFieldDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -2666,7 +2666,7 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const [nameInput, setNameInput] = useState('');
   // 세부업무는 이제 그룹별 섹션으로 나눠서 보여주므로, 섹션(그룹)마다 독립된 추가 폼 입력값을 가짐
   const [sectionNewName, setSectionNewName] = useState<Record<string, string>>({});
-  const [sectionNewDept, setSectionNewDept] = useState<Record<string, Department | ''>>({});
+  const [sectionNewDepts, setSectionNewDepts] = useState<Record<string, Department[]>>({});
   // PL업무 검수 필드와 동일한 체크리스트형 검수 기능 — 같은 프로젝트의 다른 일반 업무들을
   // 체크리스트로 불러와 하나씩 검수 처리함(App.tsx의 reviewTasks 계산과 연동)
   const [sectionNewFieldType, setSectionNewFieldType] = useState<Record<string, PLSubTaskFieldType>>({});
@@ -2816,7 +2816,12 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   };
 
   const toggleDept = (id: string, dept: Department) => {
-    save(types.map(t => t.id === id ? { ...t, department: t.department === dept ? undefined : dept } : t));
+    save(types.map(t => {
+      if (t.id !== id) return t;
+      const cur = resolveFieldDepts(t) ?? [];
+      const next = cur.includes(dept) ? cur.filter(d => d !== dept) : [...cur, dept];
+      return { ...t, departments: next.length ? next : undefined, department: undefined };
+    }));
   };
 
   const toggleFieldType = (id: string) => {
@@ -2829,12 +2834,12 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const addTypeTo = (sectionKey: string) => {
     const name = (sectionNewName[sectionKey] ?? '').trim();
     if (!name) return;
-    const dept = sectionNewDept[sectionKey] || undefined;
+    const depts = sectionNewDepts[sectionKey] ?? [];
     const groupIds = sectionKey === ALL_KEY ? undefined : [sectionKey];
     const plFieldType = sectionNewFieldType[sectionKey] === 'review' ? 'review' : undefined;
-    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, department: dept, groupIds, plFieldType }]);
+    save([...types, { id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, name, departments: depts.length ? depts : undefined, groupIds, plFieldType }]);
     setSectionNewName(prev => ({ ...prev, [sectionKey]: '' }));
-    setSectionNewDept(prev => ({ ...prev, [sectionKey]: '' }));
+    setSectionNewDepts(prev => ({ ...prev, [sectionKey]: [] }));
     setSectionNewFieldType(prev => ({ ...prev, [sectionKey]: 'text' }));
   };
 
@@ -3121,19 +3126,22 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                           {t.name}
                         </button>
                       )}
-                      {/* 직군 토글 버튼 */}
+                      {/* 직군 토글 버튼 — 여러 직군 동시 선택 가능(선택한 직군 탭마다 따로 노출됨) */}
                       <div className="flex items-center gap-0.5 flex-shrink-0">
-                        {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
+                        {(['기획', '디자인', '퍼블'] as Department[]).map(d => {
+                          const curDepts = resolveFieldDepts(t) ?? [];
+                          return (
                           <button key={d} type="button"
                             onClick={() => toggleDept(t.id, d)}
                             className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
-                              t.department === d
+                              curDepts.includes(d)
                                 ? SUBTASK_DEPT_COLOR[d]
                                 : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
                             }`}>
                             {d}
                           </button>
-                        ))}
+                          );
+                        })}
                       </div>
                       {/* 검수 타입 토글 — PL업무 검수 필드와 동일하게, 켜면 같은 프로젝트의 다른
                           업무들을 체크리스트로 불러와 하나씩 검수 처리하는 기능이 활성화됨 */}
@@ -3278,9 +3286,12 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
                   <button key={d} type="button"
-                    onClick={() => setSectionNewDept(prev => ({ ...prev, [ALL_KEY]: prev[ALL_KEY] === d ? '' : d }))}
+                    onClick={() => setSectionNewDepts(prev => {
+                      const cur = prev[ALL_KEY] ?? [];
+                      return { ...prev, [ALL_KEY]: cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d] };
+                    })}
                     className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
-                      sectionNewDept[ALL_KEY] === d
+                      (sectionNewDepts[ALL_KEY] ?? []).includes(d)
                         ? SUBTASK_DEPT_COLOR[d]
                         : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
                     }`}>
@@ -3319,9 +3330,9 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                   {items.map(t => (
                     <div key={t.id} className="flex items-center gap-2 py-1.5 px-2.5">
                       <span className="flex-1 text-xs text-gray-700 truncate">{t.name}</span>
-                      {t.department && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${SUBTASK_DEPT_COLOR[t.department]}`}>{t.department}</span>
-                      )}
+                      {(resolveFieldDepts(t) ?? []).map(d => (
+                        <span key={d} className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${SUBTASK_DEPT_COLOR[d]}`}>{d}</span>
+                      ))}
                       <button type="button" title="이 그룹에서 제거(세부업무 자체는 삭제 안 됨)" onClick={() => removeTag(t.id, g.id)}
                         className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={11} /></button>
                     </div>
@@ -3342,9 +3353,12 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                 <div className="flex items-center gap-0.5 flex-shrink-0">
                   {(['기획', '디자인', '퍼블'] as Department[]).map(d => (
                     <button key={d} type="button"
-                      onClick={() => setSectionNewDept(prev => ({ ...prev, [g.id]: prev[g.id] === d ? '' : d }))}
+                      onClick={() => setSectionNewDepts(prev => {
+                        const cur = prev[g.id] ?? [];
+                        return { ...prev, [g.id]: cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d] };
+                      })}
                       className={`text-[10px] px-1.5 py-1.5 rounded-md font-medium transition-colors ${
-                        sectionNewDept[g.id] === d
+                        (sectionNewDepts[g.id] ?? []).includes(d)
                           ? SUBTASK_DEPT_COLOR[d]
                           : 'bg-gray-100 text-gray-400 hover:bg-gray-100'
                       }`}>

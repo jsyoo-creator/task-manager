@@ -37,7 +37,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam, resolveFieldDepts } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig, SubTaskType } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import PathConverterWidget from '../components/PathConverterWidget';
@@ -549,8 +549,9 @@ function App() {
     const setForTypes = (types: SubTaskType[], partName: string) => {
       types.forEach(type => {
         const key = `${partName}::${type.id}`;
-        if (type.department) {
-          map.set(key, teamMembers.filter(m => m.department === type.department).map(m => m.name));
+        const typeDepts = resolveFieldDepts(type);
+        if (typeDepts?.length) {
+          map.set(key, teamMembers.filter(m => m.department && typeDepts.includes(m.department)).map(m => m.name));
         } else {
           map.set(key, teamAssignees);
         }

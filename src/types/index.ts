@@ -1292,9 +1292,10 @@ export function deriveSubtasksForTeam(
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
               const itemTotalHours = Object.values(itemWeeklyHours).reduce((a: number, b: number) => a + b, 0);
               const rs = (entry.reviewStatus ?? {})[itemId] ?? '검수 전';
-              // 검수 항목 카드는 원본 업무명만 보이면 어느 검수 속성(세부업무)에서 온 시간인지
-              // 알 수 없으므로, 세부업무명을 함께 붙여 표시함
-              const reviewFieldName = taskNameMap.get(key);
+              // 일반 세부업무의 검수 항목은 한 업무 안에 검수형 세부업무가 여러 개 있을 수 있어
+              // 어느 세부업무에서 온 항목인지 구분하도록 세부업무명을 함께 붙인다.
+              // PL업무는 세부업무 구성이 고정돼 있어 원본 업무명만 표시한다.
+              const reviewFieldName = task.plTask ? undefined : taskNameMap.get(key);
               const reviewTitle = reviewTask?.title ?? itemId;
               return {
                 id: `${task.id}__${key}__${itemId}`,

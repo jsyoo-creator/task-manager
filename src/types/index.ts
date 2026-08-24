@@ -1299,7 +1299,7 @@ export function deriveSubtasksForTeam(
                 id: `${task.id}__${key}__${itemId}`,
                 taskId: task.id,
                 projectId: task.projectId ?? '',
-                title: withPrefix(reviewFieldName ? `${reviewTitle} · ${reviewFieldName}` : reviewTitle),
+                title: withPrefix(reviewFieldName ? `${reviewTitle} ${reviewFieldName}` : reviewTitle),
                 category: task.category,
                 type: task.type,
                 status: reviewStatusToTaskStatus(rs),

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { Shield, User, Users, Check, ChevronDown, ChevronRight, Pencil, X, Plus, Trash2, Layers, GripVertical, RotateCcw, Star, CalendarDays, FileText, ArrowUpToLine, ArrowDownToLine, Copy, Key } from 'lucide-react';
 import type { AppUser, UserRole, Department, Team, TeamPart, TeamFormConfig, CustomFormField, FormFieldType, BuiltinFieldKey, BuiltinFieldConfig, MetaField, MetaFieldKind, SubTaskType, SubTaskGroup, PLMainTaskType, PLSubTaskField, PLSubTaskFieldType, TaskStatus, CustomHoliday, ExcelFieldConfig, ProfileFieldDef, WeeklyColumnDef, WeeklyExportConfig, RolePermissions, RolePermissionConfig, RevisionStep, RoleLabels, MailFormPreset, MailTableCustomField, MailTableCellStyle, MailBodyCustomField, MailTableConfig, MailListGroup, MailListItem, MailMessageInsert, MailOptionalPhrase, MailGridTableConfig, MailGridColumn, MailRecipientOption, Task, SubstitutePair } from '../types';
-import { resolvePLMainDepts, resolveFieldDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates } from '../types';
+import { resolvePLMainDepts, resolveFieldDepts, DEFAULT_REVISION_STEPS, normalizeRevisionSteps, resolveRoleLabel, DEFAULT_ROLE_LABELS, resolveCopyIncludeDetails, resolveFormFieldOrderKeys, resolveTeamWideSubTaskTypes, resolveTeamWideSubTaskGroups, resolveSubTaskGroupIds, listAliasFieldCandidates, resolveReviewStatusLabels, DEFAULT_REVIEW_STATUS_LABELS } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { DEPARTMENTS, BUILTIN_FIELDS_META, TABLE_FIELD_KEYS, resolveBuiltinFields, DEFAULT_META_FIELDS, getMetaFieldKind, withMetaFieldKind, STATUS_COLOR_PRESETS, DEFAULT_STATUS_CONFIGS, mergeAllPartsConfig, mergeFormConfig, DEFAULT_ROLE_PERMISSIONS, resolveGroupSyncFields, resolveDupeCheckFields } from '../types';
 import { useAllUsers } from '../hooks/useUserRole';
@@ -2690,6 +2690,10 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
   const [bulkTargetGroupId, setBulkTargetGroupId] = useState('');
   const [pendingDeleteSubTaskType, setPendingDeleteSubTaskType] = useState<{ id: string; name: string } | null>(null);
   const [pendingDeleteSubTaskGroup, setPendingDeleteSubTaskGroup] = useState<{ id: string; name: string } | null>(null);
+  // 검수 상태 표시 라벨(검수 전/검수 중/검수 완료) 커스텀 편집 — 저장값(고정 키)은 그대로 두고
+  // 화면에 보여줄 텍스트만 세부업무별로 바꾼다
+  const [reviewLabelEditId, setReviewLabelEditId] = useState<string | null>(null);
+  const [reviewLabelDraft, setReviewLabelDraft] = useState<[string, string, string]>(DEFAULT_REVIEW_STATUS_LABELS);
 
   useEffect(() => { setSelectedTarget('team'); setEditingId(null); }, [team.id]);
 
@@ -3151,6 +3155,24 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                         className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[t.plFieldType ?? 'text']}`}>
                         {PL_FIELD_TYPE_LABEL[t.plFieldType ?? 'text']}
                       </button>
+                      {/* 검수 상태 라벨 편집 — 검수 타입일 때만 노출, 내부 저장값은 그대로 두고
+                          화면에 보여줄 텍스트(검수 전/검수 중/검수 완료)만 바꿈 */}
+                      {t.plFieldType === 'review' && (
+                        <button type="button"
+                          title="검수 상태 명칭 편집"
+                          onClick={() => {
+                            const next = reviewLabelEditId === t.id ? null : t.id;
+                            setReviewLabelEditId(next);
+                            if (next) setReviewLabelDraft(resolveReviewStatusLabels(t));
+                          }}
+                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 transition-colors ${
+                            reviewLabelEditId === t.id
+                              ? 'bg-violet-500 text-white'
+                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-500'
+                          }`}>
+                          명칭
+                        </button>
+                      )}
                       {/* 그룹 태그 — 칩으로 표시, x로 제거, +로 추가 */}
                       {groups.length > 0 && (
                         <div className="flex items-center gap-1 flex-shrink-0 flex-wrap max-w-[240px] justify-end">
@@ -3269,6 +3291,30 @@ function SubTaskTypesEditor({ team, teams, onSave, onSavePart, onClearPart, onSa
                         </div>
                       );
                     })()}
+                    {reviewLabelEditId === t.id && (
+                      <div className="px-2.5 pb-2 pt-1.5 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
+                        {(['검수 전', '검수 중', '검수 완료'] as const).map((defaultLabel, i) => (
+                          <input key={i}
+                            className="w-20 text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                            placeholder={defaultLabel}
+                            value={reviewLabelDraft[i]}
+                            onChange={e => setReviewLabelDraft(prev => {
+                              const next = [...prev] as [string, string, string];
+                              next[i] = e.target.value;
+                              return next;
+                            })} />
+                        ))}
+                        <button type="button"
+                          onClick={() => {
+                            const labels = reviewLabelDraft.map((v, i) => v.trim() || DEFAULT_REVIEW_STATUS_LABELS[i]) as [string, string, string];
+                            save(types.map(x => x.id === t.id ? { ...x, reviewStatusLabels: labels } : x));
+                            setReviewLabelEditId(null);
+                          }}
+                          className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-violet-500 text-white hover:bg-violet-600 transition-colors">
+                          저장
+                        </button>
+                      </div>
+                    )}
                   </div>
                   );
                 })}

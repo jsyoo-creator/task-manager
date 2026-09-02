@@ -37,7 +37,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam, resolveFieldDepts } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam, resolveFieldDepts, resolveReviewStatusLabels } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig, SubTaskType } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import PathConverterWidget from '../components/PathConverterWidget';
@@ -566,6 +566,21 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeam?.subTaskTypes, activeParts, teamMembers, teamAssignees]);
 
+  // 세부업무 타입 ID별 검수 상태 커스텀 라벨(팀 설정에서 편집) — 위클리 인라인 편집에서
+  // 저장값(고정 키)은 그대로 두고 화면에 보여줄 텍스트만 여기서 매핑해 내려줌
+  const reviewStatusLabelsBySubTaskType = useMemo(() => {
+    const map = new Map<string, [string, string, string]>();
+    const setForTypes = (types: SubTaskType[], partName: string) => {
+      types.forEach(type => { map.set(`${partName}::${type.id}`, resolveReviewStatusLabels(type)); });
+    };
+    if (activeParts.length === 0) {
+      setForTypes(selectedTeam?.subTaskTypes ?? [], '__team__');
+    } else {
+      activeParts.forEach(p => setForTypes(p.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [], p.name));
+    }
+    return map;
+  }, [selectedTeam?.subTaskTypes, activeParts]);
+
   // 지원팀에 연결된 세부업무 타입 키(파트명::타입id) 집합 — 캘린더/위클리에서 이 세부업무는
   // 지원팀 쪽 값을 받기만 해야 하므로 담당자/대무자/상태/기간/시간 편집을 막는 데 사용
   const supportLinkedSubTaskKeys = useMemo(() => {
@@ -928,7 +943,7 @@ function App() {
               <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} mainTaskEndDateShow={selectedTeam?.mainTaskEndDateShow} mainTaskEndDateColor={selectedTeam?.mainTaskEndDateColor} plShowInCalendar={selectedTeam?.plShowInCalendar} />
             )} />
             <Route path="/weekly" element={!menuEnabled('/weekly') ? <Navigate to="/" replace /> : (
-              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} />
+              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} reviewStatusLabelsBySubTaskType={reviewStatusLabelsBySubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} />
             )} />
             <Route path="/vacation" element={!menuEnabled('/vacation') ? <Navigate to="/" replace /> : (
               <VacationPage

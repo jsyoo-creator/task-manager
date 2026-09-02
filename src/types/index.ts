@@ -1303,6 +1303,8 @@ export function deriveSubtasksForTeam(
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
+            // 검수 작업 자체의 시작일이 아니라, 검수 대상 업무가 등록된(생성된) 순서대로 보여준다
+            .sort((a, b) => (a.reviewTask?.createdAt ?? '').localeCompare(b.reviewTask?.createdAt ?? ''))
             .map(({ itemId, reviewTask }) => {
               const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
@@ -1333,9 +1335,7 @@ export function deriveSubtasksForTeam(
                 revisionLevel: 0,
                 createdAt: task.createdAt,
               };
-            })
-            // 체크리스트에 추가된 순서가 아니라 실제 검수 대상 업무의 시작일 기준으로 보여준다
-            .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+            });
         }
 
         // 일반 엔트리

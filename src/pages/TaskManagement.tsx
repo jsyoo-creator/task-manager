@@ -329,6 +329,21 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // 연도/월 드롭다운 옆 좌우 화살표 — 월이 "전체"(0)일 땐 현재 월을 기준으로 이동 시작.
+  // 1월에서 이전/12월에서 다음으로 넘어가면 연도도 함께 넘어가게 함
+  const shiftMonth = (delta: 1 | -1) => {
+    const cur = monthFilter === 0 ? now.getMonth() + 1 : monthFilter;
+    let nextMonth = cur + delta;
+    let nextYear = yearFilter;
+    if (nextMonth > 12) { nextMonth = 1; nextYear += 1; }
+    else if (nextMonth < 1) { nextMonth = 12; nextYear -= 1; }
+    // 연도 드롭다운 옵션(YEARS)이 현재±1년 3개뿐이라 그 범위를 벗어나지 않게 함
+    setYearFilter(Math.min(Math.max(nextYear, YEARS[0]), YEARS[YEARS.length - 1]));
+    setMonthFilter(nextMonth);
+  };
+  // 연도 드롭다운 옵션(YEARS)이 현재±1년 3개뿐이라 화살표도 그 범위 안에서만 움직이게 함
+  const shiftYear = (delta: 1 | -1) => setYearFilter(y => Math.min(Math.max(y + delta, YEARS[0]), YEARS[YEARS.length - 1]));
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [pendingBulkUngroup, setPendingBulkUngroup] = useState(false);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => {
@@ -1710,13 +1725,42 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       </div>
 
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-        <FilterSelect label="연도" value={yearFilter} onChange={v => setYearFilter(Number(v))}>
-          {YEARS.map(y => <option key={y}>{y}</option>)}
-        </FilterSelect>
-        <FilterSelect label="월" value={monthFilter} onChange={v => setMonthFilter(Number(v))}>
-          <option value={0}>전체</option>
-          {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
-        </FilterSelect>
+        <YearMonthNav displayValue={`${yearFilter}년`} valueWidth={40} onPrev={() => shiftYear(-1)} onNext={() => shiftYear(1)}>
+          {close => (
+            <div className="flex flex-col py-1 min-w-[84px]">
+              {YEARS.map(y => (
+                <button key={y} type="button" onClick={() => { setYearFilter(y); close(); }}
+                  className={`px-3 py-1.5 text-xs text-left rounded-md mx-1 transition-colors ${
+                    y === yearFilter ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {y}년
+                </button>
+              ))}
+            </div>
+          )}
+        </YearMonthNav>
+        <YearMonthNav displayValue={monthFilter === 0 ? '전체' : `${monthFilter}월`} valueWidth={26} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)}>
+          {close => (
+            <div className="p-1.5 min-w-[168px]">
+              <button type="button" onClick={() => { setMonthFilter(0); close(); }}
+                className={`w-full px-2 py-1.5 mb-1 text-xs text-center rounded-md transition-colors ${
+                  monthFilter === 0 ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                }`}>
+                전체
+              </button>
+              <div className="grid grid-cols-3 gap-0.5">
+                {MONTHS.map(m => (
+                  <button key={m} type="button" onClick={() => { setMonthFilter(m); close(); }}
+                    className={`px-2 py-1.5 text-xs text-center rounded-md transition-colors ${
+                      m === monthFilter ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    {m}월{m === now.getMonth() + 1 ? ' ●' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </YearMonthNav>
         <button
           onClick={() => setMyTasksOnly(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -2286,6 +2330,53 @@ function FilterSelect({ label, value, onChange, children }: {
         value={value} onChange={e => onChange(e.target.value)}>
         {children}
       </select>
+    </div>
+  );
+}
+
+// 연도/월 필터용 — 네이티브 select 대신 좌우 화살표로 이동하고, 가운데 값을 클릭하면
+// 여러 칸 건너뛸 수 있는 팝오버(달력 피커 대체)가 뜬다
+function YearMonthNav({ displayValue, valueWidth, onPrev, onNext, children }: {
+  displayValue: string; valueWidth?: number; onPrev: () => void; onNext: () => void;
+  children: (close: () => void) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  // 옆 필터 버튼(내 업무만 등)과 정확히 같은 높이(h-7 = py-1.5 + text-xs 한 줄)로 고정 —
+  // 상속에 기대지 않고 각 버튼에 직접 지정해서 어떤 경우에도 높이가 벌어지지 않게 함
+  const arrowCls = "h-7 w-7 flex items-center justify-center text-gray-400 hover:text-indigo-600 active:scale-90 transition-all flex-shrink-0";
+
+  return (
+    <div ref={ref} className="relative flex items-center glass-card !rounded-lg !overflow-visible">
+      <button type="button" onClick={onPrev} title="이전" aria-label="이전"
+        className={`${arrowCls} border-r border-black/[0.06]`}>
+        <ChevronLeft size={12} strokeWidth={2.5} />
+      </button>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="h-7 flex items-center gap-1 px-2 text-xs font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
+        {/* 자릿수가 바뀌어도(9월 vs 12월) 박스 너비가 흔들리지 않도록 값 부분만 고정폭 */}
+        <span className="text-center tabular-nums" style={valueWidth ? { minWidth: valueWidth } : undefined}>{displayValue}</span>
+        <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />
+      </button>
+      <button type="button" onClick={onNext} title="다음" aria-label="다음"
+        className={`${arrowCls} border-l border-black/[0.06]`}>
+        <ChevronRight size={12} strokeWidth={2.5} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-20 bg-white rounded-xl shadow-lg border border-black/[0.06]">
+          {children(() => setOpen(false))}
+        </div>
+      )}
     </div>
   );
 }

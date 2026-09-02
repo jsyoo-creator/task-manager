@@ -706,6 +706,15 @@ export function resolveStatusConfigs(config?: TeamFormConfig): StatusConfig[] {
   return DEFAULT_STATUS_CONFIGS.map(d => config.statusConfigs!.find(s => s.key === d.key) ?? d);
 }
 
+export const DEFAULT_REVIEW_STATUS_LABELS: [string, string, string] = ['검수 전', '검수 중', '검수 완료'];
+
+// 검수 속성 세부업무의 상태 표시 라벨. 내부 저장값(검수 전/검수 중/검수 완료)은 상태 판정 로직이
+// 그대로 문자열 비교하므로 절대 바꾸지 않고, 화면에 보여줄 텍스트만 팀별로 커스터마이징한다.
+export function resolveReviewStatusLabels(type?: { reviewStatusLabels?: string[] }): [string, string, string] {
+  const custom = type?.reviewStatusLabels;
+  return DEFAULT_REVIEW_STATUS_LABELS.map((d, i) => custom?.[i]?.trim() || d) as [string, string, string];
+}
+
 export function resolveBuiltinFields(config?: TeamFormConfig): BuiltinFieldConfig[] {
   let fields: BuiltinFieldConfig[];
   if (!config) {
@@ -904,6 +913,8 @@ export interface SubTaskType {
   calendarColor?: string;   // undefined = 기본색
   showInDetail?: boolean;   // undefined = true, 업무 상세 화면에 노출할지 여부
   plFieldType?: PLSubTaskFieldType; // PL세부업무 필드 타입 (text|review)
+  reviewStatusLabels?: [string, string, string]; // 검수 상태 커스텀 명칭 [검수 전, 검수 중, 검수 완료] 순서 —
+    // 내부 저장값(고정 키)은 그대로 두고 화면 표시 텍스트만 바꾼다. resolveReviewStatusLabels로 읽을 것
   supportTeamId?: string;   // 이 세부업무를 자동으로 지원 요청할 지원팀 id (있으면 연결 활성화)
   supportPartId?: string;   // 지원팀 내 어느 파트로 보낼지 — 파트의 고정 id로 저장해, 지원팀이
     // 나중에 파트 이름을 바꿔도 연결이 깨지지 않게 함(생성 시점에 이 id로 현재 파트명을 다시 조회)
@@ -935,6 +946,7 @@ export interface PLSubTaskField {
   fieldType: PLSubTaskFieldType;
   department?: Department;    // 구버전 호환
   departments?: Department[]; // 복수 직군 선택 (신버전)
+  reviewStatusLabels?: [string, string, string]; // 검수 상태 커스텀 명칭 — SubTaskType과 동일한 용도, resolveReviewStatusLabels로 읽을 것
 }
 
 export interface PLMainTaskType {
@@ -1102,6 +1114,9 @@ export interface SubTask {
   substituteTotalHours?: number;
   revisionLevel: number; // 0~6 (F1~F6)
   createdAt: string;
+  reviewStatusText?: string; // 검수 항목에서 파생된 카드일 때만: 실제 검수 상태 표시 텍스트(팀 커스텀 라벨 반영).
+    // status는 진행 전/진행 중/완료/보류로 뭉뚱그려야 하는 필터·색상 로직 때문에 그대로 두고,
+    // 화면에 보여줄 세부 텍스트만 이 필드로 따로 전달한다
 }
 
 export interface SubTaskDataEntry {
@@ -1284,9 +1299,12 @@ export function deriveSubtasksForTeam(
             (entry.reviewDates ?? {})[id]?.startDate
           );
           // 검수 대상 업무가 휴지통으로 이동했거나 영구삭제된 경우 카드 자체를 만들지 않음
+          const reviewLabels = resolveReviewStatusLabels(matchedType as { reviewStatusLabels?: string[] } | undefined);
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
+            // 검수 작업 자체의 시작일이 아니라, 검수 대상 업무가 등록된(생성된) 순서대로 보여준다
+            .sort((a, b) => (a.reviewTask?.createdAt ?? '').localeCompare(b.reviewTask?.createdAt ?? ''))
             .map(({ itemId, reviewTask }) => {
               const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};
@@ -1305,6 +1323,7 @@ export function deriveSubtasksForTeam(
                 category: task.category,
                 type: task.type,
                 status: reviewStatusToTaskStatus(rs),
+                reviewStatusText: reviewLabels[DEFAULT_REVIEW_STATUS_LABELS.indexOf(rs)] ?? rs,
                 assignee: (entry.reviewAssignees ?? {})[itemId] || task.assignee || task.receiver || '',
                 receiver: '',
                 startDate: itemDates.startDate ?? '',

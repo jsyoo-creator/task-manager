@@ -30,6 +30,7 @@ interface Props {
   canManage?: boolean;
   assignees?: string[];
   assigneesPerSubTaskType?: Map<string, string[]>;
+  reviewStatusLabelsBySubTaskType?: Map<string, [string, string, string]>;
   supportLinkedSubTaskKeys?: Set<string>; // `${파트명}::${세부업무타입id}` — 지원팀에 연결돼 원본에서는 읽기만 가능한 세부업무
 }
 
@@ -47,12 +48,12 @@ const DEFAULT_STATUS: Record<string, { bg: string; text: string }> = {
   '보류':   { bg: '#e2e8f0', text: '#475569' },
 };
 
-function StatusPill({ status }: { status: TaskStatus | string }) {
+function StatusPill({ status, label }: { status: TaskStatus | string; label?: string }) {
   const s = DEFAULT_STATUS[status] ?? { bg: '#f3f4f6', text: '#6b7280' };
   return (
     <span className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 flex-shrink-0 whitespace-nowrap"
       style={{ backgroundColor: s.bg, color: s.text }}>
-      {status}
+      {label ?? status}
     </span>
   );
 }
@@ -168,7 +169,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType, supportLinkedSubTaskKeys }: Props) {
+export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType, reviewStatusLabelsBySubTaskType, supportLinkedSubTaskKeys }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [onlyMe, setOnlyMe] = useState(false);
@@ -568,7 +569,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                                 {h > 0 && (
                                   <span className="text-[11px] font-semibold text-gray-400">{h}h</span>
                                 )}
-                                <StatusPill status={s.status} />
+                                <StatusPill status={s.status} label={s.reviewStatusText} />
                               </div>
                             </div>
                             {isEditing && editTask && onUpdateTask && (
@@ -577,6 +578,7 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
                                 subKey={subKey}
                                 reviewItemId={reviewItemId}
                                 assignees={assigneesPerSubTaskType?.get(`${s.category}::${subKey}`) ?? assigneesPerSubTaskType?.get(`__team__::${subKey}`) ?? assignees}
+                                reviewStatusLabels={reviewStatusLabelsBySubTaskType?.get(`${s.category}::${subKey}`) ?? reviewStatusLabelsBySubTaskType?.get(`__team__::${subKey}`)}
                                 canManage={canManage}
                                 isSupportLinked={!!supportLinkedSubTaskKeys?.has(`${s.category}::${subKey}`)}
                                 onUpdateTask={onUpdateTask}

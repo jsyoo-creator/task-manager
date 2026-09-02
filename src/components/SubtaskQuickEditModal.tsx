@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Task, TaskStatus } from '../types';
 import DatePicker from './DatePicker';
 import { getWeekDays, getStartEndDayIdx, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
+import { resolveReviewStatusLabels } from '../types';
 
 const STATUSES: TaskStatus[] = ['진행 전', '진행 중', '완료', '보류'];
 const REVIEW_STATUSES = ['검수 전', '검수 중', '검수 완료'];
@@ -25,6 +26,8 @@ interface Props {
   canManage: boolean;
   /** 지원팀에 연결된 세부업무 — 지원팀 쪽 값을 받기만 해야 하므로 여기서는 편집을 막음 */
   isSupportLinked?: boolean;
+  /** 검수 상태 커스텀 표시 라벨 [검수 전, 검수 중, 검수 완료] — 저장값은 항상 고정 키 그대로 */
+  reviewStatusLabels?: [string, string, string];
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onClose: () => void;
 }
@@ -33,8 +36,9 @@ const lbl = 'block text-[10px] font-semibold text-gray-400 mb-0.5 uppercase trac
 const inp = 'w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#6C63FF]/40';
 
 // 클릭한 세부업무 바로 아래에 펼쳐지는 인라인 편집 패널 (캘린더 인라인 카드와 동일한 데이터/계산식 공유)
-export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assignees, canManage, isSupportLinked = false, onUpdateTask, onClose }: Props) {
+export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assignees, canManage, isSupportLinked = false, reviewStatusLabels, onUpdateTask, onClose }: Props) {
   const canEdit = canManage && !isSupportLinked;
+  const reviewLabels = resolveReviewStatusLabels(reviewStatusLabels ? { reviewStatusLabels } : undefined);
   const entry = task.subTaskData?.[subKey] ?? { weeklyHours: {}, totalHours: 0 };
   const reviewDates = reviewItemId ? (entry.reviewDates ?? {})[reviewItemId] ?? {} : undefined;
   const reviewHours = reviewItemId ? (entry.reviewWeeklyHours ?? {})[reviewItemId] ?? {} : undefined;
@@ -230,7 +234,9 @@ export default function SubtaskQuickEditModal({ task, subKey, reviewItemId, assi
             disabled={!canEdit}
             onChange={e => setEditState(st => ({ ...st, status: e.target.value }))}
           >
-            {(reviewItemId ? REVIEW_STATUSES : STATUSES).map(s => <option key={s}>{s}</option>)}
+            {reviewItemId
+              ? REVIEW_STATUSES.map((s, i) => <option key={s} value={s}>{reviewLabels[i]}</option>)
+              : STATUSES.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
       </div>

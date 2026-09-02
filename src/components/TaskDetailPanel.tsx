@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, ChevronDown, ExternalLink, Copy, Check, Lock, Users } from 'lucide-react';
 import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, TeamFormConfig, Department, BuiltinFieldKey, Vacation, RevisionStep, MailFormPreset, MailTableConfig, MailListGroup, MailMessageInsert, MailTableCustomField, MailBodyCustomField, MailOptionalPhrase, MailPhraseGroupOverride, MailGridTableConfig, MailGridColumn, SubstitutePair } from '../types';
-import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds, findSubstitutePartner } from '../types';
+import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds, findSubstitutePartner, resolveReviewStatusLabels } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
-import { db } from '../lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
 
 const PANEL_W = 540;
 const MAIL_PANEL_W = 420;
@@ -2071,49 +2069,15 @@ export default function TaskDetailPanel({
             {/* 임시 디버그: 세부업무 id 이전 사고 조사용 — 조사 끝나면 제거 */}
             <button
               type="button"
-              onClick={async () => {
-                const reverseLinkSnap = await getDocs(query(collection(db, 'tasks'), where('linkedFromTaskId', '==', task.id)));
-                const reverseLinks = reverseLinkSnap.docs.map(d => {
-                  const t = d.data() as Task;
-                  return { id: d.id, title: t.title, teamId: t.teamId, deletedAt: t.deletedAt, linkedFromSubTaskTypeId: t.linkedFromSubTaskTypeId, assignee: t.assignee, status: t.status };
-                });
-                const groupMappedFields = (formConfig?.builtinFields ?? [])
-                  .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
-                  .map(f => ({ key: f.key, enabled: f.enabled, optionGroupMap: f.optionGroupMap, currentValue: builtinVal(f.key) }));
-                const groupMappedCustomFields = (formConfig?.customFields ?? [])
-                  .filter(f => f.optionGroupMap && Object.keys(f.optionGroupMap).length > 0)
-                  .map(f => ({ id: f.id, label: f.label, enabled: f.enabled, optionGroupMap: f.optionGroupMap, currentValue: task.customFields?.[f.id] }));
-                const subTaskLinkedFields = (formConfig?.customFields ?? [])
-                  .filter(f => f.linkedSubTaskTypeId)
-                  .map(f => ({
-                    id: f.id,
-                    label: f.label,
-                    linkedSubTaskTypeId: f.linkedSubTaskTypeId,
-                    linkedTypeExistsInCurrentTypes: subTaskTypes.some(t => t.id === f.linkedSubTaskTypeId),
-                    resolvedAssignee: task.subTaskData?.[f.linkedSubTaskTypeId as string]?.assignee,
-                  }));
+              onClick={() => {
                 const dump = {
                   taskId: task.id,
                   category: task.category,
-                  deletedAt: task.deletedAt,
-                  deletedBy: task.deletedBy,
-                  updatedAt: task.updatedAt,
-                  assignee: task.assignee,
-                  linkedFromTaskId: task.linkedFromTaskId,
-                  linkedFromSubTaskTypeId: task.linkedFromSubTaskTypeId,
-                  reverseLinks,
-                  hiddenSubTaskTypeIds: task.hiddenSubTaskTypeIds,
-                  hasActiveSubTaskGroupFilter,
-                  allowedSubTaskGroupIds: Array.from(allowedSubTaskGroupIds),
-                  visibleTypeCount: visibleSubTaskTypes.length,
-                  groupMappedFields,
-                  groupMappedCustomFields,
-                  subTaskLinkedFields,
                   subTaskData: task.subTaskData,
                   currentTypeIds: subTaskTypes.map(t => ({ id: t.id, name: t.name })),
                 };
                 console.log('[세부업무 디버그]', JSON.stringify(dump, null, 1));
-                alert(JSON.stringify(dump, null, 1) + '\n\n(같은 내용이 브라우저 콘솔(F12)에도 출력됩니다 — 스크롤 없이 보려면 콘솔을 확인해주세요)');
+                alert(JSON.stringify({ subTaskData: dump.subTaskData, currentTypeIds: dump.currentTypeIds }, null, 1) + '\n\n(같은 내용이 브라우저 콘솔(F12)에도 출력됩니다 — 스크롤 없이 보려면 콘솔을 확인해주세요)');
               }}
               className="text-[9px] font-normal normal-case text-gray-300 hover:text-red-400"
             >디버그</button>
@@ -2185,6 +2149,7 @@ export default function TaskDetailPanel({
                   const reviewDates: Record<string, { startDate?: string; endDate?: string }> = entry.reviewDates ?? {};
                   const reviewStatus: Record<string, string> = entry.reviewStatus ?? {};
                   const reviewAssignees: Record<string, string> = entry.reviewAssignees ?? {};
+                  const reviewStatusLabels = resolveReviewStatusLabels(type);
 
                   const reviewTotal = calcReviewTotal(reviewWeeklyHours, reviewDates, checked);
 
@@ -2343,10 +2308,11 @@ export default function TaskDetailPanel({
                                   )}
                                   {isChecked && (() => {
                                     const rs = (reviewStatus[rt.id] ?? '검수 전') as ReviewStatus;
+                                    const rsIdx = REVIEW_STATUSES.indexOf(rs);
                                     return (
                                       <div className="relative flex-shrink-0">
                                         <div className={`flex items-center gap-1 text-[10px] px-1.5 py-px rounded font-medium ${REVIEW_STATUS_STYLE[rs]}`}>
-                                          <span>{rs}</span>
+                                          <span>{reviewStatusLabels[rsIdx]}</span>
                                           <ChevronDown size={8} />
                                         </div>
                                         <select
@@ -2355,7 +2321,7 @@ export default function TaskDetailPanel({
                                           onChange={e => { e.stopPropagation(); setItemStatus(rt.id, e.target.value); }}
                                           className="absolute inset-0 opacity-0 w-full h-full disabled:cursor-default"
                                           style={{ cursor: canManage ? 'pointer' : 'default' }}>
-                                          {REVIEW_STATUSES.map(s => <option key={s}>{s}</option>)}
+                                          {REVIEW_STATUSES.map((s, i) => <option key={s} value={s}>{reviewStatusLabels[i]}</option>)}
                                         </select>
                                       </div>
                                     );

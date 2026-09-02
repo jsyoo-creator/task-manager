@@ -1725,15 +1725,42 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       </div>
 
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-        <FilterSelect label="연도" value={yearFilter} onChange={v => setYearFilter(Number(v))}
-          onPrev={() => shiftYear(-1)} onNext={() => shiftYear(1)}>
-          {YEARS.map(y => <option key={y}>{y}</option>)}
-        </FilterSelect>
-        <FilterSelect label="월" value={monthFilter} onChange={v => setMonthFilter(Number(v))}
-          onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)}>
-          <option value={0}>전체</option>
-          {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
-        </FilterSelect>
+        <YearMonthNav displayValue={`${yearFilter}년`} onPrev={() => shiftYear(-1)} onNext={() => shiftYear(1)}>
+          {close => (
+            <div className="flex flex-col py-1 min-w-[84px]">
+              {YEARS.map(y => (
+                <button key={y} type="button" onClick={() => { setYearFilter(y); close(); }}
+                  className={`px-3 py-1.5 text-xs text-left rounded-md mx-1 transition-colors ${
+                    y === yearFilter ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {y}년
+                </button>
+              ))}
+            </div>
+          )}
+        </YearMonthNav>
+        <YearMonthNav displayValue={monthFilter === 0 ? '전체' : `${monthFilter}월`} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)}>
+          {close => (
+            <div className="p-1.5 min-w-[168px]">
+              <button type="button" onClick={() => { setMonthFilter(0); close(); }}
+                className={`w-full px-2 py-1.5 mb-1 text-xs text-center rounded-md transition-colors ${
+                  monthFilter === 0 ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                }`}>
+                전체
+              </button>
+              <div className="grid grid-cols-3 gap-0.5">
+                {MONTHS.map(m => (
+                  <button key={m} type="button" onClick={() => { setMonthFilter(m); close(); }}
+                    className={`px-2 py-1.5 text-xs text-center rounded-md transition-colors ${
+                      m === monthFilter ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    {m}월{m === now.getMonth() + 1 ? ' ●' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </YearMonthNav>
         <button
           onClick={() => setMyTasksOnly(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -2293,28 +2320,57 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   );
 }
 
-function FilterSelect({ label, value, onChange, children, onPrev, onNext }: {
+function FilterSelect({ label, value, onChange, children }: {
   label: string; value: string | number; onChange: (v: string) => void; children: React.ReactNode;
-  onPrev?: () => void; onNext?: () => void;
 }) {
   return (
     <div className="flex items-center gap-1.5 glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs">
-      {onPrev && (
-        <button type="button" onClick={onPrev} aria-label={`이전 ${label}`}
-          className="text-gray-400 hover:text-gray-700 transition-colors -ml-0.5">
-          <ChevronLeft size={13} />
-        </button>
-      )}
       <span className="text-gray-500 font-medium">{label}</span>
       <select className="bg-transparent border-none focus:outline-none text-gray-800 font-semibold cursor-pointer text-xs"
         value={value} onChange={e => onChange(e.target.value)}>
         {children}
       </select>
-      {onNext && (
-        <button type="button" onClick={onNext} aria-label={`다음 ${label}`}
-          className="text-gray-400 hover:text-gray-700 transition-colors -mr-0.5">
-          <ChevronRight size={13} />
-        </button>
+    </div>
+  );
+}
+
+// 연도/월 필터용 — 네이티브 select 대신 좌우 화살표로 이동하고, 가운데 값을 클릭하면
+// 여러 칸 건너뛸 수 있는 팝오버(달력 피커 대체)가 뜬다
+function YearMonthNav({ displayValue, onPrev, onNext, children }: {
+  displayValue: string; onPrev: () => void; onNext: () => void;
+  children: (close: () => void) => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative flex items-center gap-0.5 glass-card !rounded-lg !overflow-visible px-1 py-1.5 text-xs">
+      <button type="button" onClick={onPrev} aria-label="이전"
+        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors">
+        <ChevronLeft size={13} />
+      </button>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-gray-800 font-semibold hover:bg-black/5 transition-colors">
+        {displayValue}
+        <ChevronDown size={11} className="text-gray-400" />
+      </button>
+      <button type="button" onClick={onNext} aria-label="다음"
+        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors">
+        <ChevronRight size={13} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-20 bg-white rounded-xl shadow-lg border border-black/[0.06]">
+          {children(() => setOpen(false))}
+        </div>
       )}
     </div>
   );

@@ -1303,8 +1303,9 @@ export function deriveSubtasksForTeam(
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
-            // 검수 작업 자체의 시작일이 아니라, 검수 대상 업무가 등록된(생성된) 순서대로 보여준다
-            .sort((a, b) => (a.reviewTask?.createdAt ?? '').localeCompare(b.reviewTask?.createdAt ?? ''))
+            // 검수 작업 자체의 일정이나 DB 등록 시각이 아니라, 검수 대상 업무 본연의 날짜(startDate)
+            // 순서대로 보여준다 — 카드 제목의 날짜(예: "9/7 냉장고 신제품")와 일치해야 함
+            .sort((a, b) => (a.reviewTask?.startDate ?? '').localeCompare(b.reviewTask?.startDate ?? ''))
             .map(({ itemId, reviewTask }) => {
               const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};

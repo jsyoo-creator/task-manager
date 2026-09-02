@@ -578,8 +578,13 @@ function App() {
     } else {
       activeParts.forEach(p => setForTypes(p.subTaskTypes ?? selectedTeam?.subTaskTypes ?? [], p.name));
     }
+    // PL업무 세부업무 필드는 파트 구분 없이 팀 전역이라 항상 __team__ 폴백 버킷에 채워둠
+    // (WeeklyPage 조회부가 `${category}::${id}` 실패 시 `__team__::${id}`로 한 번 더 찾음)
+    (selectedTeam?.plMainTaskTypes ?? []).forEach(m => {
+      (m.subFields ?? []).forEach(f => { map.set(`__team__::${f.id}`, resolveReviewStatusLabels(f)); });
+    });
     return map;
-  }, [selectedTeam?.subTaskTypes, activeParts]);
+  }, [selectedTeam?.subTaskTypes, selectedTeam?.plMainTaskTypes, activeParts]);
 
   // 지원팀에 연결된 세부업무 타입 키(파트명::타입id) 집합 — 캘린더/위클리에서 이 세부업무는
   // 지원팀 쪽 값을 받기만 해야 하므로 담당자/대무자/상태/기간/시간 편집을 막는 데 사용

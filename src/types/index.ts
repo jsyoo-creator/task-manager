@@ -946,6 +946,7 @@ export interface PLSubTaskField {
   fieldType: PLSubTaskFieldType;
   department?: Department;    // 구버전 호환
   departments?: Department[]; // 복수 직군 선택 (신버전)
+  reviewStatusLabels?: [string, string, string]; // 검수 상태 커스텀 명칭 — SubTaskType과 동일한 용도, resolveReviewStatusLabels로 읽을 것
 }
 
 export interface PLMainTaskType {
@@ -1113,6 +1114,9 @@ export interface SubTask {
   substituteTotalHours?: number;
   revisionLevel: number; // 0~6 (F1~F6)
   createdAt: string;
+  reviewStatusText?: string; // 검수 항목에서 파생된 카드일 때만: 실제 검수 상태 표시 텍스트(팀 커스텀 라벨 반영).
+    // status는 진행 전/진행 중/완료/보류로 뭉뚱그려야 하는 필터·색상 로직 때문에 그대로 두고,
+    // 화면에 보여줄 세부 텍스트만 이 필드로 따로 전달한다
 }
 
 export interface SubTaskDataEntry {
@@ -1295,6 +1299,7 @@ export function deriveSubtasksForTeam(
             (entry.reviewDates ?? {})[id]?.startDate
           );
           // 검수 대상 업무가 휴지통으로 이동했거나 영구삭제된 경우 카드 자체를 만들지 않음
+          const reviewLabels = resolveReviewStatusLabels(matchedType as { reviewStatusLabels?: string[] } | undefined);
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
@@ -1316,6 +1321,7 @@ export function deriveSubtasksForTeam(
                 category: task.category,
                 type: task.type,
                 status: reviewStatusToTaskStatus(rs),
+                reviewStatusText: reviewLabels[DEFAULT_REVIEW_STATUS_LABELS.indexOf(rs)] ?? rs,
                 assignee: (entry.reviewAssignees ?? {})[itemId] || task.assignee || task.receiver || '',
                 receiver: '',
                 startDate: itemDates.startDate ?? '',
@@ -1327,7 +1333,9 @@ export function deriveSubtasksForTeam(
                 revisionLevel: 0,
                 createdAt: task.createdAt,
               };
-            });
+            })
+            // 체크리스트에 추가된 순서가 아니라 실제 검수 대상 업무의 시작일 기준으로 보여준다
+            .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
         }
 
         // 일반 엔트리

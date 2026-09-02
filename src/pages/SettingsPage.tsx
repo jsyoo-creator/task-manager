@@ -4026,6 +4026,8 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
   const dragIdxRef = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [pendingDeletePLSubField, setPendingDeletePLSubField] = useState<{ id: string; name: string } | null>(null);
+  const [reviewLabelEditId, setReviewLabelEditId] = useState<string | null>(null);
+  const [reviewLabelDraft, setReviewLabelDraft] = useState<[string, string, string]>(DEFAULT_REVIEW_STATUS_LABELS);
 
   const iCls = "text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30";
 
@@ -4067,42 +4069,84 @@ function PLSubFieldsEditor({ fields, onChange }: { fields: PLSubTaskField[]; onC
       {fields.length > 0 && (
         <div className="rounded-lg border border-black/7 overflow-hidden divide-y divide-black/5">
           {fields.map((f, i) => (
-            <div key={f.id}
-              draggable
-              onDragStart={() => { dragIdxRef.current = i; }}
-              onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
-              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
-              onDrop={() => onDrop(i)}
-              onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
-              className={`flex items-center gap-1.5 py-1.5 px-2 hover:bg-black/2 cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
-              <GripVertical size={11} className="text-gray-300 cursor-grab flex-shrink-0" />
-              {editingId === f.id ? (
-                <input autoFocus className="flex-1 min-w-0 text-xs px-1 py-0.5 rounded border border-blue-400 bg-white focus:outline-none"
-                  value={nameInput} onChange={e => setNameInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveName(f.id); if (e.key === 'Escape') setEditingId(null); }}
-                  onBlur={() => saveName(f.id)} />
-              ) : (
-                <button type="button" onClick={() => { setEditingId(f.id); setNameInput(f.name); }}
-                  className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 truncate min-w-0">
-                  {f.name}
+            <div key={f.id}>
+              <div
+                draggable
+                onDragStart={() => { dragIdxRef.current = i; }}
+                onDragOver={e => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIdx(null); }}
+                onDrop={() => onDrop(i)}
+                onDragEnd={() => { dragIdxRef.current = null; setDragOverIdx(null); }}
+                className={`flex items-center gap-1.5 py-1.5 px-2 hover:bg-black/2 cursor-default ${dragOverIdx === i ? 'border-t-2 border-blue-400' : ''}`}>
+                <GripVertical size={11} className="text-gray-300 cursor-grab flex-shrink-0" />
+                {editingId === f.id ? (
+                  <input autoFocus className="flex-1 min-w-0 text-xs px-1 py-0.5 rounded border border-blue-400 bg-white focus:outline-none"
+                    value={nameInput} onChange={e => setNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveName(f.id); if (e.key === 'Escape') setEditingId(null); }}
+                    onBlur={() => saveName(f.id)} />
+                ) : (
+                  <button type="button" onClick={() => { setEditingId(f.id); setNameInput(f.name); }}
+                    className="flex-1 text-left text-xs text-gray-700 hover:text-blue-600 truncate min-w-0">
+                    {f.name}
+                  </button>
+                )}
+                <button type="button" onClick={() => toggleFieldType(f.id)}
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[f.fieldType]}`}>
+                  {PL_FIELD_TYPE_LABEL[f.fieldType]}
                 </button>
-              )}
-              <button type="button" onClick={() => toggleFieldType(f.id)}
-                className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 ${PL_FIELD_TYPE_COLOR[f.fieldType]}`}>
-                {PL_FIELD_TYPE_LABEL[f.fieldType]}
-              </button>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                {(['기획', '디자인', '퍼블'] as Department[]).map(d => {
-                  const cur = f.departments?.length ? f.departments : f.department ? [f.department] : [];
-                  return (
-                    <button key={d} type="button" onClick={() => toggleDept(f.id, d)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${cur.includes(d) ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
-                      {d}
-                    </button>
-                  );
-                })}
+                {f.fieldType === 'review' && (
+                  <button type="button"
+                    title="검수 상태 명칭 편집"
+                    onClick={() => {
+                      const next = reviewLabelEditId === f.id ? null : f.id;
+                      setReviewLabelEditId(next);
+                      if (next) setReviewLabelDraft(resolveReviewStatusLabels(f));
+                    }}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium flex-shrink-0 transition-colors ${
+                      reviewLabelEditId === f.id
+                        ? 'bg-violet-500 text-white'
+                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-500'
+                    }`}>
+                    명칭
+                  </button>
+                )}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {(['기획', '디자인', '퍼블'] as Department[]).map(d => {
+                    const cur = f.departments?.length ? f.departments : f.department ? [f.department] : [];
+                    return (
+                      <button key={d} type="button" onClick={() => toggleDept(f.id, d)}
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${cur.includes(d) ? SUBTASK_DEPT_COLOR[d] : 'bg-gray-100 text-gray-400'}`}>
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button type="button" onClick={() => setPendingDeletePLSubField({ id: f.id, name: f.name })} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
               </div>
-              <button type="button" onClick={() => setPendingDeletePLSubField({ id: f.id, name: f.name })} className="text-gray-300 hover:text-red-400 ml-0.5"><X size={10} /></button>
+              {reviewLabelEditId === f.id && (
+                <div className="px-2.5 pb-2 pt-1.5 bg-violet-50/40 border-t border-violet-100/60 flex items-center gap-1.5">
+                  {(['검수 전', '검수 중', '검수 완료'] as const).map((defaultLabel, li) => (
+                    <input key={li}
+                      className="w-20 text-[11px] px-1.5 py-0.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:border-violet-400"
+                      placeholder={defaultLabel}
+                      value={reviewLabelDraft[li]}
+                      onChange={e => setReviewLabelDraft(prev => {
+                        const next = [...prev] as [string, string, string];
+                        next[li] = e.target.value;
+                        return next;
+                      })} />
+                  ))}
+                  <button type="button"
+                    onClick={() => {
+                      const labels = reviewLabelDraft.map((v, li) => v.trim() || DEFAULT_REVIEW_STATUS_LABELS[li]) as [string, string, string];
+                      save(fields.map(x => x.id === f.id ? { ...x, reviewStatusLabels: labels } : x));
+                      setReviewLabelEditId(null);
+                    }}
+                    className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-violet-500 text-white hover:bg-violet-600 transition-colors">
+                    저장
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

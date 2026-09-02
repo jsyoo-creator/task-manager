@@ -329,6 +329,21 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // 연도/월 드롭다운 옆 좌우 화살표 — 월이 "전체"(0)일 땐 현재 월을 기준으로 이동 시작.
+  // 1월에서 이전/12월에서 다음으로 넘어가면 연도도 함께 넘어가게 함
+  const shiftMonth = (delta: 1 | -1) => {
+    const cur = monthFilter === 0 ? now.getMonth() + 1 : monthFilter;
+    let nextMonth = cur + delta;
+    let nextYear = yearFilter;
+    if (nextMonth > 12) { nextMonth = 1; nextYear += 1; }
+    else if (nextMonth < 1) { nextMonth = 12; nextYear -= 1; }
+    // 연도 드롭다운 옵션(YEARS)이 현재±1년 3개뿐이라 그 범위를 벗어나지 않게 함
+    setYearFilter(Math.min(Math.max(nextYear, YEARS[0]), YEARS[YEARS.length - 1]));
+    setMonthFilter(nextMonth);
+  };
+  // 연도 드롭다운 옵션(YEARS)이 현재±1년 3개뿐이라 화살표도 그 범위 안에서만 움직이게 함
+  const shiftYear = (delta: 1 | -1) => setYearFilter(y => Math.min(Math.max(y + delta, YEARS[0]), YEARS[YEARS.length - 1]));
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [pendingBulkUngroup, setPendingBulkUngroup] = useState(false);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => {
@@ -1710,10 +1725,12 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       </div>
 
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-        <FilterSelect label="연도" value={yearFilter} onChange={v => setYearFilter(Number(v))}>
+        <FilterSelect label="연도" value={yearFilter} onChange={v => setYearFilter(Number(v))}
+          onPrev={() => shiftYear(-1)} onNext={() => shiftYear(1)}>
           {YEARS.map(y => <option key={y}>{y}</option>)}
         </FilterSelect>
-        <FilterSelect label="월" value={monthFilter} onChange={v => setMonthFilter(Number(v))}>
+        <FilterSelect label="월" value={monthFilter} onChange={v => setMonthFilter(Number(v))}
+          onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)}>
           <option value={0}>전체</option>
           {MONTHS.map(m => <option key={m} value={m}>{m}월{m === now.getMonth() + 1 ? ' ●' : ''}</option>)}
         </FilterSelect>
@@ -2276,16 +2293,29 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   );
 }
 
-function FilterSelect({ label, value, onChange, children }: {
+function FilterSelect({ label, value, onChange, children, onPrev, onNext }: {
   label: string; value: string | number; onChange: (v: string) => void; children: React.ReactNode;
+  onPrev?: () => void; onNext?: () => void;
 }) {
   return (
     <div className="flex items-center gap-1.5 glass-card !rounded-lg !overflow-visible px-2.5 py-1.5 text-xs">
+      {onPrev && (
+        <button type="button" onClick={onPrev} aria-label={`이전 ${label}`}
+          className="text-gray-400 hover:text-gray-700 transition-colors -ml-0.5">
+          <ChevronLeft size={13} />
+        </button>
+      )}
       <span className="text-gray-500 font-medium">{label}</span>
       <select className="bg-transparent border-none focus:outline-none text-gray-800 font-semibold cursor-pointer text-xs"
         value={value} onChange={e => onChange(e.target.value)}>
         {children}
       </select>
+      {onNext && (
+        <button type="button" onClick={onNext} aria-label={`다음 ${label}`}
+          className="text-gray-400 hover:text-gray-700 transition-colors -mr-0.5">
+          <ChevronRight size={13} />
+        </button>
+      )}
     </div>
   );
 }

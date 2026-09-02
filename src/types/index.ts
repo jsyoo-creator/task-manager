@@ -1300,12 +1300,17 @@ export function deriveSubtasksForTeam(
           );
           // 검수 대상 업무가 휴지통으로 이동했거나 영구삭제된 경우 카드 자체를 만들지 않음
           const reviewLabels = resolveReviewStatusLabels(matchedType as { reviewStatusLabels?: string[] } | undefined);
+          // 검수 대상 업무의 startDate/createdAt은 카드 제목에 박힌 날짜(예: "9/7 냉장고
+          // 신제품")와 실제로 일치하지 않는 경우가 있어(등록 경위에 따라 달라짐), 화면에
+          // 보이는 제목의 날짜 숫자 자체를 파싱해 그 순서대로 정렬한다.
+          const parseTitleMonthDay = (title?: string): number => {
+            const m = title?.match(/^(\d{1,2})\/(\d{1,2})/);
+            return m ? parseInt(m[1], 10) * 100 + parseInt(m[2], 10) : Infinity;
+          };
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
-            // 검수 작업 자체의 일정이나 DB 등록 시각이 아니라, 검수 대상 업무 본연의 날짜(startDate)
-            // 순서대로 보여준다 — 카드 제목의 날짜(예: "9/7 냉장고 신제품")와 일치해야 함
-            .sort((a, b) => (a.reviewTask?.startDate ?? '').localeCompare(b.reviewTask?.startDate ?? ''))
+            .sort((a, b) => parseTitleMonthDay(a.reviewTask?.title) - parseTitleMonthDay(b.reviewTask?.title))
             .map(({ itemId, reviewTask }) => {
               const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};

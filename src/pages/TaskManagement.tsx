@@ -2352,28 +2352,28 @@ function YearMonthNav({ displayValue, onPrev, onNext, children }: {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [open]);
 
-  const arrowCls = "w-6 h-6 flex items-center justify-center rounded-lg glass-card !overflow-visible text-gray-500 hover:text-indigo-600 hover:!bg-indigo-50 active:scale-90 transition-all flex-shrink-0";
+  const arrowCls = "px-1.5 py-1.5 text-gray-400 hover:text-indigo-600 active:scale-90 transition-all flex-shrink-0";
 
   return (
-    <div className="flex items-center gap-1">
-      <button type="button" onClick={onPrev} title="이전" aria-label="이전" className={arrowCls}>
-        <ChevronLeft size={13} strokeWidth={2.5} />
+    <div ref={ref} className="relative flex items-center glass-card !rounded-lg !overflow-visible text-xs">
+      <button type="button" onClick={onPrev} title="이전" aria-label="이전"
+        className={`${arrowCls} border-r border-black/[0.06]`}>
+        <ChevronLeft size={12} strokeWidth={2.5} />
       </button>
-      <div ref={ref} className="relative">
-        <button type="button" onClick={() => setOpen(o => !o)}
-          className="flex items-center gap-1 glass-card !rounded-lg !overflow-visible px-3 py-1.5 text-xs font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
-          {displayValue}
-          <ChevronDown size={10} className="text-gray-400" />
-        </button>
-        {open && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-20 bg-white rounded-xl shadow-lg border border-black/[0.06]">
-            {children(() => setOpen(false))}
-          </div>
-        )}
-      </div>
-      <button type="button" onClick={onNext} title="다음" aria-label="다음" className={arrowCls}>
-        <ChevronRight size={13} strokeWidth={2.5} />
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 px-2.5 py-1.5 font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
+        {displayValue}
+        <ChevronDown size={10} className="text-gray-400" />
       </button>
+      <button type="button" onClick={onNext} title="다음" aria-label="다음"
+        className={`${arrowCls} border-l border-black/[0.06]`}>
+        <ChevronRight size={12} strokeWidth={2.5} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-20 bg-white rounded-xl shadow-lg border border-black/[0.06]">
+          {children(() => setOpen(false))}
+        </div>
+      )}
     </div>
   );
 }

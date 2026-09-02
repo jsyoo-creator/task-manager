@@ -1725,7 +1725,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
       </div>
 
       <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-        <YearMonthNav displayValue={`${yearFilter}년`} onPrev={() => shiftYear(-1)} onNext={() => shiftYear(1)}>
+        <YearMonthNav displayValue={`${yearFilter}년`} valueWidth={40} onPrev={() => shiftYear(-1)} onNext={() => shiftYear(1)}>
           {close => (
             <div className="flex flex-col py-1 min-w-[84px]">
               {YEARS.map(y => (
@@ -1739,7 +1739,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             </div>
           )}
         </YearMonthNav>
-        <YearMonthNav displayValue={monthFilter === 0 ? '전체' : `${monthFilter}월`} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)}>
+        <YearMonthNav displayValue={monthFilter === 0 ? '전체' : `${monthFilter}월`} valueWidth={26} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)}>
           {close => (
             <div className="p-1.5 min-w-[168px]">
               <button type="button" onClick={() => { setMonthFilter(0); close(); }}
@@ -2336,8 +2336,8 @@ function FilterSelect({ label, value, onChange, children }: {
 
 // 연도/월 필터용 — 네이티브 select 대신 좌우 화살표로 이동하고, 가운데 값을 클릭하면
 // 여러 칸 건너뛸 수 있는 팝오버(달력 피커 대체)가 뜬다
-function YearMonthNav({ displayValue, onPrev, onNext, children }: {
-  displayValue: string; onPrev: () => void; onNext: () => void;
+function YearMonthNav({ displayValue, valueWidth, onPrev, onNext, children }: {
+  displayValue: string; valueWidth?: number; onPrev: () => void; onNext: () => void;
   children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -2352,18 +2352,21 @@ function YearMonthNav({ displayValue, onPrev, onNext, children }: {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [open]);
 
-  const arrowCls = "px-1.5 py-1.5 text-gray-400 hover:text-indigo-600 active:scale-90 transition-all flex-shrink-0";
+  // 옆 필터 버튼(내 업무만 등)과 정확히 같은 높이(h-7 = py-1.5 + text-xs 한 줄)로 고정 —
+  // 상속에 기대지 않고 각 버튼에 직접 지정해서 어떤 경우에도 높이가 벌어지지 않게 함
+  const arrowCls = "h-7 w-7 flex items-center justify-center text-gray-400 hover:text-indigo-600 active:scale-90 transition-all flex-shrink-0";
 
   return (
-    <div ref={ref} className="relative flex items-center glass-card !rounded-lg !overflow-visible text-xs">
+    <div ref={ref} className="relative flex items-center glass-card !rounded-lg !overflow-visible">
       <button type="button" onClick={onPrev} title="이전" aria-label="이전"
         className={`${arrowCls} border-r border-black/[0.06]`}>
         <ChevronLeft size={12} strokeWidth={2.5} />
       </button>
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 px-2.5 py-1.5 font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
-        {displayValue}
-        <ChevronDown size={10} className="text-gray-400" />
+        className="h-7 flex items-center gap-1 px-2 text-xs font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
+        {/* 자릿수가 바뀌어도(9월 vs 12월) 박스 너비가 흔들리지 않도록 값 부분만 고정폭 */}
+        <span className="text-center tabular-nums" style={valueWidth ? { minWidth: valueWidth } : undefined}>{displayValue}</span>
+        <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />
       </button>
       <button type="button" onClick={onNext} title="다음" aria-label="다음"
         className={`${arrowCls} border-l border-black/[0.06]`}>

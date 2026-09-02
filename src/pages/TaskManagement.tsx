@@ -2353,19 +2353,19 @@ function YearMonthNav({ displayValue, onPrev, onNext, children }: {
   }, [open]);
 
   return (
-    <div ref={ref} className="relative flex items-center gap-0.5 glass-card !rounded-lg !overflow-visible px-1 py-1.5 text-xs">
-      <button type="button" onClick={onPrev} aria-label="이전"
-        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors">
-        <ChevronLeft size={13} />
+    <div ref={ref} className="relative flex items-center gap-1 glass-card !rounded-lg !overflow-visible pl-1 pr-2 py-1.5 text-xs">
+      <button type="button" onClick={onPrev} title="이전" aria-label="이전"
+        className="w-4 h-4 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all flex-shrink-0">
+        <ChevronLeft size={10} strokeWidth={2.5} />
       </button>
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-gray-800 font-semibold hover:bg-black/5 transition-colors">
+        className="flex items-center gap-0.5 text-xs font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
         {displayValue}
-        <ChevronDown size={11} className="text-gray-400" />
+        <ChevronDown size={10} className="text-gray-400" />
       </button>
-      <button type="button" onClick={onNext} aria-label="다음"
-        className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors">
-        <ChevronRight size={13} />
+      <button type="button" onClick={onNext} title="다음" aria-label="다음"
+        className="w-4 h-4 flex items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all flex-shrink-0">
+        <ChevronRight size={10} strokeWidth={2.5} />
       </button>
       {open && (
         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 z-20 bg-white rounded-xl shadow-lg border border-black/[0.06]">

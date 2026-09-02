@@ -1245,6 +1245,11 @@ export function deriveSubtasksForTeam(
   team?.subTaskTypes?.forEach(t => subTaskTypeOrder.set(t.id, orderIdx++));
   activeParts.forEach(p => p.subTaskTypes?.forEach(t => { if (!subTaskTypeOrder.has(t.id)) subTaskTypeOrder.set(t.id, orderIdx++); }));
 
+  // 업무관리 페이지에 나열되는 순서(= sortOrder 기준으로 이미 정렬된 allProjectTasks의
+  // 배열 순서)와 검수 카드 목록 순서를 일치시키기 위한 인덱스 맵
+  const taskListOrder = new Map<string, number>();
+  allProjectTasks.forEach((t, i) => taskListOrder.set(t.id, i));
+
   const reviewStatusToTaskStatus = (rs: string): SubTask['status'] => {
     if (rs === '검수 완료') return '완료';
     if (rs === '검수 중') return '진행 중';
@@ -1300,17 +1305,11 @@ export function deriveSubtasksForTeam(
           );
           // 검수 대상 업무가 휴지통으로 이동했거나 영구삭제된 경우 카드 자체를 만들지 않음
           const reviewLabels = resolveReviewStatusLabels(matchedType as { reviewStatusLabels?: string[] } | undefined);
-          // 검수 대상 업무의 startDate/createdAt은 카드 제목에 박힌 날짜(예: "9/7 냉장고
-          // 신제품")와 실제로 일치하지 않는 경우가 있어(등록 경위에 따라 달라짐), 화면에
-          // 보이는 제목의 날짜 숫자 자체를 파싱해 그 순서대로 정렬한다.
-          const parseTitleMonthDay = (title?: string): number => {
-            const m = title?.match(/^(\d{1,2})\/(\d{1,2})/);
-            return m ? parseInt(m[1], 10) * 100 + parseInt(m[2], 10) : Infinity;
-          };
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
-            .sort((a, b) => parseTitleMonthDay(a.reviewTask?.title) - parseTitleMonthDay(b.reviewTask?.title))
+            // 검수 대상 업무가 업무관리 페이지에 나열된 순서 그대로 보여준다
+            .sort((a, b) => (taskListOrder.get(a.itemId) ?? Infinity) - (taskListOrder.get(b.itemId) ?? Infinity))
             .map(({ itemId, reviewTask }) => {
               const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};

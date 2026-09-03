@@ -82,6 +82,7 @@ export default function PatchNotesPage() {
           height:100vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
           font-family:"Pretendard",-apple-system,"Malgun Gothic",sans-serif;
           line-height:1.65; -webkit-font-smoothing:antialiased;
+          word-break:keep-all; overflow-wrap:break-word;
         }
         @media (prefers-color-scheme: dark){
           .pn-root:not([data-theme="light"]){

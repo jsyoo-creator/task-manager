@@ -3,13 +3,15 @@
   import App from "./app/App.tsx";
   import PrivacyPolicyPage from "./pages/PrivacyPolicyPage.tsx";
   import ClaudeGuidePage from "./pages/ClaudeGuidePage.tsx";
+  import PatchNotesPage from "./pages/PatchNotesPage.tsx";
   import "./styles/index.css";
 
-  // 개인정보처리방침/내부 강의자료는 로그인 없이 열람해야 하므로,
+  // 개인정보처리방침/내부 강의자료/패치노트는 로그인 없이 열람해야 하므로,
   // 앱의 로그인 게이트를 아예 거치지 않도록 라우팅 전에 분기한다. 메뉴/내비게이션에는 노출 안 함.
   const pathname = window.location.pathname.replace(/\/+$/, "");
   const isPrivacyPolicyPath = pathname === "/privacy-policy";
   const isClaudeGuidePath = pathname === "/claude-guide";
+  const isPatchNotesPath = pathname === "/patch-notes";
 
   // STG(스테이징) 환경에서 운영과 혼동하지 않도록 로그인 화면을 포함해 항상 최상단에 표시.
   // 파비콘도 브라우저 탭에서 바로 구분되게 캔버스로 즉석 생성해 덮어씀(별도 이미지 파일 불필요)
@@ -43,6 +45,6 @@
           STG 테스트 환경 — 실제 운영 데이터 아님
         </div>
       )}
-      {isPrivacyPolicyPath ? <PrivacyPolicyPage /> : isClaudeGuidePath ? <ClaudeGuidePage /> : <App />}
+      {isPrivacyPolicyPath ? <PrivacyPolicyPage /> : isClaudeGuidePath ? <ClaudeGuidePage /> : isPatchNotesPath ? <PatchNotesPage /> : <App />}
     </>
   );

@@ -1178,6 +1178,7 @@ export interface Task {
   deletedAt?: string;   // 휴지통: 메인업무 소프트 삭제 시각 (있으면 휴지통에 있는 상태)
   deletedBy?: string;
   deletedSubTasks?: Record<string, DeletedSubTaskEntry>; // 휴지통: 업무는 살아있지만 개별 삭제된 세부업무들
+  authorName?: string; // 이 업무를 등록한 사람 — 삭제 권한이 없어도 본인이 등록한 업무는 삭제 가능하게 하는 데 사용 (기존 업무는 값이 없어 적용 안 됨)
   createdAt: string;
   updatedAt: string;
 }
@@ -1245,6 +1246,11 @@ export function deriveSubtasksForTeam(
   team?.subTaskTypes?.forEach(t => subTaskTypeOrder.set(t.id, orderIdx++));
   activeParts.forEach(p => p.subTaskTypes?.forEach(t => { if (!subTaskTypeOrder.has(t.id)) subTaskTypeOrder.set(t.id, orderIdx++); }));
 
+  // 업무관리 페이지에 나열되는 순서(= sortOrder 기준으로 이미 정렬된 allProjectTasks의
+  // 배열 순서)와 검수 카드 목록 순서를 일치시키기 위한 인덱스 맵
+  const taskListOrder = new Map<string, number>();
+  allProjectTasks.forEach((t, i) => taskListOrder.set(t.id, i));
+
   const reviewStatusToTaskStatus = (rs: string): SubTask['status'] => {
     if (rs === '검수 완료') return '완료';
     if (rs === '검수 중') return '진행 중';
@@ -1303,8 +1309,8 @@ export function deriveSubtasksForTeam(
           return checkedItems
             .map(itemId => ({ itemId, reviewTask: allProjectTasks.find(t => t.id === itemId) }))
             .filter(({ reviewTask }) => reviewTask && !reviewTask.deletedAt)
-            // 검수 작업 자체의 시작일이 아니라, 검수 대상 업무가 등록된(생성된) 순서대로 보여준다
-            .sort((a, b) => (a.reviewTask?.createdAt ?? '').localeCompare(b.reviewTask?.createdAt ?? ''))
+            // 검수 대상 업무가 업무관리 페이지에 나열된 순서 그대로 보여준다
+            .sort((a, b) => (taskListOrder.get(a.itemId) ?? Infinity) - (taskListOrder.get(b.itemId) ?? Infinity))
             .map(({ itemId, reviewTask }) => {
               const itemDates = (entry.reviewDates ?? {})[itemId] ?? {};
               const itemWeeklyHours = (entry.reviewWeeklyHours ?? {})[itemId] ?? {};

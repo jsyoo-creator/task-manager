@@ -1351,7 +1351,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
           alert(`업무 복사 실패: ${e instanceof Error ? e.message : String(e)}`);
         })}
         canManage={canManage}
-        canDelete={canDelete}
+        canDelete={canDelete || (!!task.authorName && task.authorName === currentUserName)}
         assignees={assignees}
         teamMembers={teamMembers}
         tableFields={tableFields}

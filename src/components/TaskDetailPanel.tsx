@@ -1102,7 +1102,7 @@ function MiniAvatar({ name, photoURL }: { name: string; photoURL?: string }) {
 }
 
 export default function TaskDetailPanel({
-  task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete,
+  task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete, canDeleteThisTask,
   metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, baseTeamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
   parentTask, childTasks = [], onRemoveFromGroup, substitutePairs,
@@ -1115,6 +1115,7 @@ export default function TaskDetailPanel({
   parts: TeamPart[];
   canManage: boolean;
   canDelete?: boolean;
+  canDeleteThisTask?: boolean; // 이 업무(전체) 삭제 가능 여부 — 팀 삭제 권한 없어도 본인이 등록한 업무면 true. 없으면 canDelete로 대체(세부업무 삭제 등 다른 canDelete 용도는 그대로 canDelete 사용)
   metaFields?: MetaField[];
   subTaskTypes?: SubTaskType[];
   revisionSteps?: RevisionStep[];
@@ -3105,12 +3106,12 @@ export default function TaskDetailPanel({
       </div>
 
       {/* 하단 액션 */}
-      {(canManage || canDelete) && (
+      {(canManage || (canDeleteThisTask ?? canDelete)) && (
         <div className="px-5 py-3 border-t border-black/[0.08] flex justify-between items-center flex-shrink-0">
           <span className="text-[11px] text-gray-500">
             {task.updatedAt ? `수정 ${new Date(task.updatedAt).toLocaleDateString('ko-KR')}` : ''}
           </span>
-          {(canDelete ?? canManage) && (
+          {(canDeleteThisTask ?? canDelete ?? canManage) && (
             <button onClick={handleDelete}
               className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50">
               <Trash2 size={12} /> 업무 삭제

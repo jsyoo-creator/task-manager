@@ -740,7 +740,7 @@ function App() {
   }, [calendarSubtasks, filteredTasks, activeParts, selectedTeam]);
 
   const addTaskForTeam = (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) =>
-    addTask({ ...data, teamId: activeTeamId ?? '' });
+    addTask({ ...data, teamId: activeTeamId ?? '', authorName: currentUserName });
 
   // 선택한 업무들을 지원팀에 새 업무로 등록 (메인 업무 정보만 복사, 세부업무/시간 데이터는 제외)
   const requestTasksToSupportTeam = async (taskIds: string[], targetTeamId: string, targetCategory: string, targetMonth: string) => {
@@ -1082,6 +1082,7 @@ function App() {
               parts={activeParts}
               canManage={permissions.canEditTasks}
               canDelete={permissions.canDeleteTasks}
+              canDeleteThisTask={permissions.canDeleteTasks || (!!detailTask.authorName && detailTask.authorName === currentUserName)}
               metaFields={resolvedMetaFields}
               subTaskTypes={resolvedSubTaskTypes}
               revisionSteps={resolvedRevisionSteps}

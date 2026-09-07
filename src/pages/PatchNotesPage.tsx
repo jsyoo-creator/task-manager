@@ -19,6 +19,16 @@ interface DayEntry {
 // 최신 날짜가 배열 맨 앞
 const DAYS: DayEntry[] = [
   {
+    date: '9월 7일',
+    items: [
+      {
+        type: '새기능',
+        title: '설정 > 휴일 관리에서 휴일 수정 가능해짐',
+        desc: <>지금까지는 등록해둔 휴일을 삭제만 할 수 있었는데, 이제 연필 아이콘을 눌러 <b>날짜와 이름을 바로 수정</b>할 수 있습니다. 자동으로 불러오는 공휴일(국군의날, 개천절 등)도 마찬가지로 목록에서 수정하거나 삭제할 수 있게 됐습니다. 변경한 내용은 캘린더·위클리 화면에도 그대로 반영됩니다.</>,
+      },
+    ],
+  },
+  {
     date: '9월 3일',
     items: [
       {
@@ -129,7 +139,7 @@ export default function PatchNotesPage() {
       <div className="pn-wrap">
         <div className="pn-brand">PIVOT CREATIVE · 업무관리 시스템 안내</div>
         <h1 className="pn-h1">최근 업데이트 안내</h1>
-        <p className="pn-sub">지난 이틀 동안 업무관리 시스템에 반영된 변경사항을 정리했습니다. 모두 이미 적용되어 지금 바로 확인하실 수 있습니다.</p>
+        <p className="pn-sub">최근 업무관리 시스템에 반영된 변경사항을 정리했습니다. 모두 이미 적용되어 지금 바로 확인하실 수 있습니다.</p>
 
         <div className="pn-legend">
           <div className="pn-legend-row"><TypeChip type="새기능" /> 새로 생긴 기능</div>

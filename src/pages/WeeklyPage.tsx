@@ -21,6 +21,7 @@ interface Props {
   parts?: TeamPart[];
   userPhotoMap?: Map<string, string>;
   customHolidays?: CustomHoliday[];
+  removedPublicHolidays?: string[];
   vacations?: Vacation[];
   currentUserName?: string;
   canSeeAll?: boolean;
@@ -169,7 +170,7 @@ function effectiveStart(dateStr: string, weekMonday: Date): string {
   return fmtDate(dateStr);
 }
 
-export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, customHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType, reviewStatusLabelsBySubTaskType, supportLinkedSubTaskKeys }: Props) {
+export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, customHolidays = [], removedPublicHolidays = [], vacations = [], currentUserName = '', canSeeAll = false, weeklyExportConfig, metaFields = [], onUpdateTask, canManage = false, assignees = [], assigneesPerSubTaskType, reviewStatusLabelsBySubTaskType, supportLinkedSubTaskKeys }: Props) {
   const [copiedPerson, setCopiedPerson] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [onlyMe, setOnlyMe] = useState(false);
@@ -181,10 +182,11 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
 
   const holidayMap = useMemo(() => {
     const map = new Map<string, string>();
-    publicHolidays.forEach(h => map.set(h.date, h.name));
+    const removedSet = new Set(removedPublicHolidays);
+    publicHolidays.forEach(h => { if (!removedSet.has(h.date)) map.set(h.date, h.name); });
     customHolidays.forEach(h => map.set(h.date, h.name));
     return map;
-  }, [publicHolidays, customHolidays]);
+  }, [publicHolidays, customHolidays, removedPublicHolidays]);
 
   // 이번 주 평일 중 공휴일 수 → 목표시간 조정 (40h - 휴일수 × 8h)
   const weekHolidayCount = useMemo(() =>

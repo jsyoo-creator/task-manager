@@ -299,7 +299,7 @@ function App() {
   const { members } = useMembers();
   const { vacations, addVacation, deleteVacation } = useVacations(activeWorkplaceId ?? undefined);
   const { teams, loading: teamsLoading, createTeam, updateTeam, setParts, deleteTeam, updateFormConfig, updateAllFormConfig, clearAllFormConfig, updatePartFormConfig, clearPartFormConfig, updateMetaFields, updatePartMetaFields, clearPartMetaFields, updateSubTaskTypes, updatePartSubTaskTypes, clearPartSubTaskTypes, updateSubTaskGroups, updatePartSubTaskGroups, clearPartSubTaskGroups, updatePartSubTaskTypesAndGroups, clearPartSubTaskTypesAndGroups, updatePartCalendarOrder, clearPartCalendarOrder, updatePartPLShowInCalendar, clearPartPLShowInCalendar, updatePartCopyIncludeDetails, clearPartCopyIncludeDetails, updatePartTaskListTwoLine, clearPartTaskListTwoLine, updatePartMainTaskEndDateLabel, clearPartMainTaskEndDateLabel, updatePartMainTaskEndDateShow, clearPartMainTaskEndDateShow, updatePartMainTaskEndDateColor, clearPartMainTaskEndDateColor, updateRevisionSteps, updatePartRevisionSteps, clearPartRevisionSteps, updatePlMainTaskTypes, updateExcelConfig, updatePartExcelConfig, clearPartExcelConfig, updatePartWeeklyConfig, clearPartWeeklyConfig, updatePartMailFormConfig, clearPartMailFormConfig, reorderTeams } = useTeams(user?.uid, activeWorkplaceId ?? undefined);
-  const { customHolidays, updateHolidays } = useHolidays(activeWorkplaceId ?? undefined);
+  const { customHolidays, removedPublicHolidays, updateHolidayConfig } = useHolidays(activeWorkplaceId ?? undefined);
   const { profileFields, updateProfileFields } = useProfileFields(activeWorkplaceId ?? undefined);
   const { workplaces } = useWorkplaces();
   const { rolePermissions, updateRolePermissions } = useRolePermissions(activeWorkplaceId ?? undefined);
@@ -309,10 +309,11 @@ function App() {
   const { holidays: nextYearHolidays } = usePublicHolidays(currentYear + 1);
   const holidayMap = useMemo(() => {
     const map = new Map<string, string>();
-    [...publicHolidays, ...nextYearHolidays].forEach(h => map.set(h.date, h.name));
+    const removedSet = new Set(removedPublicHolidays);
+    [...publicHolidays, ...nextYearHolidays].forEach(h => { if (!removedSet.has(h.date)) map.set(h.date, h.name); });
     customHolidays.forEach(h => map.set(h.date, h.name));
     return map;
-  }, [publicHolidays, nextYearHolidays, customHolidays]);
+  }, [publicHolidays, nextYearHolidays, customHolidays, removedPublicHolidays]);
 
   // ── 공지 읽음 추적 (localStorage, per-user) ──────────────────────
   const [readNoticeIds, setReadNoticeIds] = useState<Set<string>>(() => new Set());
@@ -948,7 +949,7 @@ function App() {
               <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} mainTaskEndDateShow={selectedTeam?.mainTaskEndDateShow} mainTaskEndDateColor={selectedTeam?.mainTaskEndDateColor} plShowInCalendar={selectedTeam?.plShowInCalendar} />
             )} />
             <Route path="/weekly" element={!menuEnabled('/weekly') ? <Navigate to="/" replace /> : (
-              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} reviewStatusLabelsBySubTaskType={reviewStatusLabelsBySubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} />
+              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} removedPublicHolidays={removedPublicHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} reviewStatusLabelsBySubTaskType={reviewStatusLabelsBySubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} />
             )} />
             <Route path="/vacation" element={!menuEnabled('/vacation') ? <Navigate to="/" replace /> : (
               <VacationPage
@@ -1035,7 +1036,8 @@ function App() {
                     onClearPartMailFormConfig={clearPartMailFormConfig}
                     onReorderTeams={reorderTeams}
                     customHolidays={customHolidays}
-                    onUpdateHolidays={updateHolidays}
+                    removedPublicHolidays={removedPublicHolidays}
+                    onUpdateHolidayConfig={updateHolidayConfig}
                     orphanTaskCount={orphanTaskCount}
                     onCleanupOrphanTasks={() => cleanupOrphanTasks(validCategories)}
                     profileFields={profileFields}

@@ -69,7 +69,8 @@ interface Props {
   onUpdatePartMailFormConfig: (teamId: string, partId: string, config: MailFormPreset[]) => Promise<void>;
   onClearPartMailFormConfig: (teamId: string, partId: string) => Promise<void>;
   customHolidays: CustomHoliday[];
-  onUpdateHolidays: (holidays: CustomHoliday[]) => Promise<void>;
+  removedPublicHolidays: string[];
+  onUpdateHolidayConfig: (updates: { customHolidays?: CustomHoliday[]; removedPublicHolidays?: string[] }) => Promise<void>;
   onReorderTeams: (ordered: Team[]) => Promise<void>;
   orphanTaskCount: number;
   onCleanupOrphanTasks: () => Promise<number>;
@@ -4356,16 +4357,18 @@ function PLMainTaskTypesEditor({ team, onSave }: {
   );
 }
 
-function HolidayEditor({ customHolidays, onSave, canEdit }: {
+function HolidayEditor({ customHolidays, removedPublicHolidays, onSave, canEdit }: {
   customHolidays: CustomHoliday[];
-  onSave: (holidays: CustomHoliday[]) => Promise<void>;
+  removedPublicHolidays: string[];
+  onSave: (updates: { customHolidays?: CustomHoliday[]; removedPublicHolidays?: string[] }) => Promise<void>;
   canEdit: boolean;
 }) {
   const currentYear = new Date().getFullYear();
   const { holidays: publicHolidays, loading } = usePublicHolidays(currentYear);
   const [dateInput, setDateInput] = useState('');
   const [nameInput, setNameInput] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  // 편집 대상 키: 직접등록 휴일은 h.id, 공휴일(API)은 `pub_${date}` (원본 date/name 없이 삭제/수정 처리용)
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editName, setEditName] = useState('');
 
@@ -4374,30 +4377,46 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
     const name = nameInput.trim();
     if (!date || !name) return;
     const newH: CustomHoliday = { id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, date, name, createdAt: new Date().toISOString() };
-    onSave([...customHolidays, newH]);
+    onSave({ customHolidays: [...customHolidays, newH] });
     setDateInput(''); setNameInput('');
   };
 
-  const deleteHoliday = (id: string) => onSave(customHolidays.filter(h => h.id !== id));
+  const deleteHoliday = (h: { id: string; date: string; isCustom: boolean }) => {
+    if (h.isCustom) {
+      onSave({ customHolidays: customHolidays.filter(c => c.id !== h.id) });
+    } else {
+      onSave({ removedPublicHolidays: [...new Set([...removedPublicHolidays, h.date])] });
+    }
+  };
 
-  const startEditHoliday = (h: CustomHoliday) => {
-    setEditingId(h.id); setEditDate(h.date); setEditName(h.name);
+  const startEditHoliday = (h: { id: string; date: string; name: string; isCustom: boolean }) => {
+    setEditingKey(h.isCustom ? h.id : `pub_${h.date}`);
+    setEditDate(h.date); setEditName(h.name);
   };
 
   const cancelEditHoliday = () => {
-    setEditingId(null); setEditDate(''); setEditName('');
+    setEditingKey(null); setEditDate(''); setEditName('');
   };
 
-  const saveEditHoliday = () => {
+  const saveEditHoliday = (h: { id: string; date: string; isCustom: boolean }) => {
     const date = editDate.trim();
     const name = editName.trim();
-    if (!date || !name || !editingId) return;
-    onSave(customHolidays.map(h => h.id === editingId ? { ...h, date, name } : h));
+    if (!date || !name) return;
+    if (h.isCustom) {
+      onSave({ customHolidays: customHolidays.map(c => c.id === h.id ? { ...c, date, name } : c) });
+    } else {
+      // 원본 공휴일을 목록에서 감추고, 수정된 값으로 직접등록 휴일 하나를 새로 만든다
+      const newH: CustomHoliday = { id: `h_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, date, name, createdAt: new Date().toISOString() };
+      onSave({
+        removedPublicHolidays: [...new Set([...removedPublicHolidays, h.date])],
+        customHolidays: [...customHolidays, newH],
+      });
+    }
     cancelEditHoliday();
   };
 
   const allHolidays = [
-    ...publicHolidays.map(h => ({ date: h.date, name: h.name, isCustom: false, id: '' })),
+    ...publicHolidays.filter(h => !removedPublicHolidays.includes(h.date)).map(h => ({ date: h.date, name: h.name, isCustom: false, id: `pub_${h.date}` })),
     ...customHolidays.map(h => ({ date: h.date, name: h.name, isCustom: true, id: h.id })),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -4412,16 +4431,16 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
         </p>
         {allHolidays.length > 0 ? (
           <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 max-h-60 overflow-y-auto">
-            {allHolidays.map((h, i) => (
-              h.isCustom && editingId === h.id ? (
+            {allHolidays.map(h => (
+              editingKey === h.id ? (
                 <div key={h.id} className="flex items-center gap-2 py-1.5 px-2.5 bg-black/2">
                   <DatePicker value={editDate} onChange={setEditDate}
                     btnClassName="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-28 flex-shrink-0" />
                   <input className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 flex-1 min-w-0"
                     value={editName} onChange={e => setEditName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveEditHoliday(); if (e.key === 'Escape') cancelEditHoliday(); }}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEditHoliday(h); if (e.key === 'Escape') cancelEditHoliday(); }}
                     autoFocus />
-                  <button type="button" onClick={saveEditHoliday} disabled={!editDate || !editName.trim()}
+                  <button type="button" onClick={() => saveEditHoliday(h)} disabled={!editDate || !editName.trim()}
                     className="text-[10px] px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors flex-shrink-0">
                     저장
                   </button>
@@ -4431,7 +4450,7 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
                   </button>
                 </div>
               ) : (
-                <div key={h.isCustom ? h.id : `pub_${i}`}
+                <div key={h.id}
                   className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors">
                   <span className="text-xs text-gray-500 font-mono w-24 flex-shrink-0">{h.date}</span>
                   <span className="text-xs text-gray-700 flex-1 truncate">{h.name}</span>
@@ -4440,13 +4459,13 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
                   ) : (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-400 font-medium flex-shrink-0">공휴일</span>
                   )}
-                  {h.isCustom && canEdit && (
+                  {canEdit && (
                     <>
-                      <button type="button" onClick={() => startEditHoliday(customHolidays.find(c => c.id === h.id)!)}
+                      <button type="button" onClick={() => startEditHoliday(h)}
                         className="text-gray-300 hover:text-blue-400 transition-colors ml-0.5">
                         <Pencil size={11} />
                       </button>
-                      <button type="button" onClick={() => deleteHoliday(h.id)}
+                      <button type="button" onClick={() => deleteHoliday(h)}
                         className="text-gray-300 hover:text-red-400 transition-colors">
                         <X size={11} />
                       </button>
@@ -10889,7 +10908,7 @@ export default function SettingsPage({
   teams, teamsLoading, onCreateTeam, onUpdateTeam, onSetParts, onDeleteTeam,
   onUpdateFormConfig, onUpdateAllFormConfig, onClearAllFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, onUpdateMetaFields, onUpdatePartMetaFields, onClearPartMetaFields, onUpdateSubTaskTypes, onUpdatePartSubTaskTypes, onClearPartSubTaskTypes, onUpdateSubTaskGroups, onUpdatePartSubTaskGroups, onClearPartSubTaskGroups, onSavePartTypesAndGroups, onClearPartTypesAndGroups, onUpdatePartCalendarOrder, onClearPartCalendarOrder, onUpdatePartPLShowInCalendar, onClearPartPLShowInCalendar, onUpdatePartCopyIncludeDetails, onClearPartCopyIncludeDetails, onUpdatePartTaskListTwoLine, onClearPartTaskListTwoLine, onUpdatePartMainTaskEndDateLabel, onClearPartMainTaskEndDateLabel, onUpdatePartMainTaskEndDateShow, onClearPartMainTaskEndDateShow, onUpdatePartMainTaskEndDateColor, onClearPartMainTaskEndDateColor, onUpdateRevisionSteps, onUpdatePartRevisionSteps, onClearPartRevisionSteps, onUpdatePlMainTaskTypes, onUpdateExcelConfig, onUpdatePartExcelConfig, onClearPartExcelConfig, onUpdatePartWeeklyConfig, onClearPartWeeklyConfig, onUpdatePartMailFormConfig, onClearPartMailFormConfig,
   onReorderTeams,
-  customHolidays, onUpdateHolidays,
+  customHolidays, removedPublicHolidays, onUpdateHolidayConfig,
   orphanTaskCount, onCleanupOrphanTasks,
   profileFields, onUpdateProfileFields,
   rolePermissions, onUpdateRolePermissions,
@@ -11502,7 +11521,8 @@ export default function SettingsPage({
           <div className="px-5 py-4">
             <HolidayEditor
               customHolidays={customHolidays}
-              onSave={onUpdateHolidays}
+              removedPublicHolidays={removedPublicHolidays}
+              onSave={onUpdateHolidayConfig}
               canEdit={canManageHolidays}
             />
           </div>

@@ -4365,6 +4365,9 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
   const { holidays: publicHolidays, loading } = usePublicHolidays(currentYear);
   const [dateInput, setDateInput] = useState('');
   const [nameInput, setNameInput] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editName, setEditName] = useState('');
 
   const addHoliday = () => {
     const date = dateInput.trim();
@@ -4376,6 +4379,22 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
   };
 
   const deleteHoliday = (id: string) => onSave(customHolidays.filter(h => h.id !== id));
+
+  const startEditHoliday = (h: CustomHoliday) => {
+    setEditingId(h.id); setEditDate(h.date); setEditName(h.name);
+  };
+
+  const cancelEditHoliday = () => {
+    setEditingId(null); setEditDate(''); setEditName('');
+  };
+
+  const saveEditHoliday = () => {
+    const date = editDate.trim();
+    const name = editName.trim();
+    if (!date || !name || !editingId) return;
+    onSave(customHolidays.map(h => h.id === editingId ? { ...h, date, name } : h));
+    cancelEditHoliday();
+  };
 
   const allHolidays = [
     ...publicHolidays.map(h => ({ date: h.date, name: h.name, isCustom: false, id: '' })),
@@ -4394,22 +4413,47 @@ function HolidayEditor({ customHolidays, onSave, canEdit }: {
         {allHolidays.length > 0 ? (
           <div className="rounded-xl border border-black/7 overflow-hidden divide-y divide-black/5 max-h-60 overflow-y-auto">
             {allHolidays.map((h, i) => (
-              <div key={h.isCustom ? h.id : `pub_${i}`}
-                className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors">
-                <span className="text-xs text-gray-500 font-mono w-24 flex-shrink-0">{h.date}</span>
-                <span className="text-xs text-gray-700 flex-1 truncate">{h.name}</span>
-                {h.isCustom ? (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-medium flex-shrink-0">추가</span>
-                ) : (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-400 font-medium flex-shrink-0">공휴일</span>
-                )}
-                {h.isCustom && canEdit && (
-                  <button type="button" onClick={() => deleteHoliday(h.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors ml-0.5">
+              h.isCustom && editingId === h.id ? (
+                <div key={h.id} className="flex items-center gap-2 py-1.5 px-2.5 bg-black/2">
+                  <DatePicker value={editDate} onChange={setEditDate}
+                    btnClassName="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-28 flex-shrink-0" />
+                  <input className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 flex-1 min-w-0"
+                    value={editName} onChange={e => setEditName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEditHoliday(); if (e.key === 'Escape') cancelEditHoliday(); }}
+                    autoFocus />
+                  <button type="button" onClick={saveEditHoliday} disabled={!editDate || !editName.trim()}
+                    className="text-[10px] px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40 transition-colors flex-shrink-0">
+                    저장
+                  </button>
+                  <button type="button" onClick={cancelEditHoliday}
+                    className="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0">
                     <X size={11} />
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div key={h.isCustom ? h.id : `pub_${i}`}
+                  className="flex items-center gap-2 py-1.5 px-2.5 hover:bg-black/2 transition-colors">
+                  <span className="text-xs text-gray-500 font-mono w-24 flex-shrink-0">{h.date}</span>
+                  <span className="text-xs text-gray-700 flex-1 truncate">{h.name}</span>
+                  {h.isCustom ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 font-medium flex-shrink-0">추가</span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-400 font-medium flex-shrink-0">공휴일</span>
+                  )}
+                  {h.isCustom && canEdit && (
+                    <>
+                      <button type="button" onClick={() => startEditHoliday(customHolidays.find(c => c.id === h.id)!)}
+                        className="text-gray-300 hover:text-blue-400 transition-colors ml-0.5">
+                        <Pencil size={11} />
+                      </button>
+                      <button type="button" onClick={() => deleteHoliday(h.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors">
+                        <X size={11} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )
             ))}
           </div>
         ) : (

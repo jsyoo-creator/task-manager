@@ -2176,6 +2176,187 @@ function FormBuilder({ team, onUpdateFormConfig, onUpdateAllFormConfig, onClearA
 }
 
 // ──────────────────────────────────────────
+// 새 업무 등록 관리 — "폼 설정" 탭과 같은 TeamFormConfig 데이터를 그대로 공유하지만,
+// 새 업무 등록 팝업에서 각 항목을 받을지/필수로 받을지만 빠르게 정리하려는 전용 화면.
+// 폭·색상·옵션·의존관계 같은 세부 편집은 여전히 "폼 설정" 탭에서 한다. "전체" 뷰는
+// 목록 화면 전용 개념이라 새 업무 등록에는 관여하지 않으므로 적용 대상에서 제외.
+// 데이터를 공유하므로 여기서 끄는 건 목록/상세 화면에도 함께 반영된다.
+// ──────────────────────────────────────────
+function NewTaskFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfig, onClearPartFormConfig, selectedTarget, setSelectedTarget }: {
+  team: Team;
+  onUpdateFormConfig: (teamId: string, config: TeamFormConfig) => Promise<void>;
+  onUpdatePartFormConfig: (teamId: string, partId: string, config: TeamFormConfig) => Promise<void>;
+  onClearPartFormConfig: (teamId: string, partId: string) => Promise<void>;
+  selectedTarget: 'team' | string;
+  setSelectedTarget: (target: 'team' | string) => void;
+}) {
+  const [flash, setFlash] = useState(false);
+  const doFlash = () => { setFlash(true); setTimeout(() => setFlash(false), 1500); };
+  const [pendingReset, setPendingReset] = useState(false);
+
+  const currentPart = selectedTarget !== 'team' ? team.parts.find(p => p.id === selectedTarget) : undefined;
+  const rawConfig = currentPart?.formConfig ?? team.formConfig;
+  const isInherited = selectedTarget !== 'team' && !currentPart?.formConfig;
+
+  const fields = resolveBuiltinFields(rawConfig);
+  const customFields = rawConfig?.customFields ?? [];
+
+  const saveConfig = (config: TeamFormConfig) => {
+    if (selectedTarget === 'team') onUpdateFormConfig(team.id, config);
+    else onUpdatePartFormConfig(team.id, selectedTarget, config);
+  };
+  const makeConfig = (overrides: Partial<TeamFormConfig>): TeamFormConfig => ({
+    builtinFields: fields,
+    customFields,
+    statusConfigs: rawConfig?.statusConfigs,
+    fieldOrder: rawConfig?.fieldOrder,
+    groupSyncFields: rawConfig?.groupSyncFields,
+    dupeCheckFields: rawConfig?.dupeCheckFields,
+    groupKeepParentIfChildIncomplete: rawConfig?.groupKeepParentIfChildIncomplete,
+    ...overrides,
+  });
+
+  const toggleBuiltinEnabled = (key: BuiltinFieldKey) => {
+    const updated = fields.map(f => f.key === key ? { ...f, enabled: !f.enabled, required: f.enabled ? false : f.required } : f);
+    saveConfig(makeConfig({ builtinFields: updated }));
+  };
+  const toggleBuiltinRequired = (key: BuiltinFieldKey) => {
+    const updated = fields.map(f => f.key === key ? { ...f, required: !f.required } : f);
+    saveConfig(makeConfig({ builtinFields: updated }));
+  };
+  const toggleCustomEnabled = (id: string) => {
+    const updated = customFields.map(f => {
+      if (f.id !== id) return f;
+      const curEnabled = f.enabled !== false;
+      return { ...f, enabled: !curEnabled, required: curEnabled ? false : f.required };
+    });
+    saveConfig(makeConfig({ customFields: updated }));
+  };
+  const toggleCustomRequired = (id: string) => {
+    const updated = customFields.map(f => f.id === id ? { ...f, required: !f.required } : f);
+    saveConfig(makeConfig({ customFields: updated }));
+  };
+
+  // 월/업무명은 등록 폼에서 항상 필수라 "폼 설정" 탭에서도 체크박스를 숨김 — 여기서도 동일하게 취급
+  const FIXED_KEYS: BuiltinFieldKey[] = ['taskMonth', 'title'];
+  const editableBuiltins = fields.filter(f => !FIXED_KEYS.includes(f.key));
+
+  return (
+    <div className="space-y-4">
+      {team.parts.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">적용 대상</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(['team', ...team.parts.map(p => p.id)] as ('team' | string)[]).map(target => {
+              const isTeam = target === 'team';
+              const part = !isTeam ? team.parts.find(p => p.id === target) : null;
+              const hasOwn = !isTeam && !!part?.formConfig;
+              return (
+                <button key={target} onClick={() => setSelectedTarget(target)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    selectedTarget === target
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}>
+                  {part && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${part.color}`} />}
+                  {isTeam ? '팀 기본' : part?.name}
+                  {hasOwn && (
+                    <span className={`text-[10px] px-1 rounded ${selectedTarget === target ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                      별도
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400">
+        새 업무 등록 팝업에서 각 항목을 보여줄지, 필수로 받을지를 정합니다. "폼 설정" 탭과 같은 설정을 공유하므로, 여기서 끈 항목은 목록·상세 화면에서도 함께 숨겨집니다. 항목 이름·순서·색상 등 자세한 편집은 "폼 설정" 탭에서 할 수 있습니다.
+      </p>
+
+      {isInherited && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-xs text-amber-700">팀 기본 설정 상속 중 — 아래를 바꾸면 이 파트만 다르게 저장됩니다</p>
+        </div>
+      )}
+      {!isInherited && selectedTarget !== 'team' && (
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 border border-blue-200">
+          <p className="text-xs text-blue-700">이 파트의 별도 설정이 적용 중</p>
+          {flash ? (
+            <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold ml-3 flex-shrink-0"><Check size={11} />초기화됨</span>
+          ) : (
+            <button
+              onClick={() => setPendingReset(true)}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium ml-3 flex-shrink-0">
+              <RotateCcw size={11} />팀 기본으로 초기화
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-gray-200 overflow-hidden">
+        <div className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+          <span>항목</span><span className="text-center">표시</span><span className="text-center">필수</span>
+        </div>
+        {FIXED_KEYS.map(key => {
+          const label = BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
+          return (
+            <div key={key} className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 items-center border-t border-gray-100 text-xs text-gray-400">
+              <span>{label}</span>
+              <span className="text-center">항상</span>
+              <span className="text-center">항상</span>
+            </div>
+          );
+        })}
+        {editableBuiltins.map(f => {
+          const label = f.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key;
+          return (
+            <div key={f.key} className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 items-center border-t border-gray-100">
+              <span className="text-xs text-gray-700 truncate">{label}</span>
+              <span className="flex justify-center"><PermToggle checked={f.enabled} onChange={() => toggleBuiltinEnabled(f.key)} /></span>
+              <span className="flex justify-center">
+                <input type="checkbox" disabled={!f.enabled} checked={!!f.required}
+                  onChange={() => toggleBuiltinRequired(f.key)}
+                  className="w-3.5 h-3.5 disabled:opacity-30" />
+              </span>
+            </div>
+          );
+        })}
+        {customFields.map(cf => {
+          const enabled = cf.enabled !== false;
+          return (
+            <div key={cf.id} className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 items-center border-t border-gray-100">
+              <span className="text-xs text-gray-700 truncate">{cf.label}</span>
+              <span className="flex justify-center"><PermToggle checked={enabled} onChange={() => toggleCustomEnabled(cf.id)} /></span>
+              <span className="flex justify-center">
+                <input type="checkbox" disabled={!enabled} checked={!!cf.required}
+                  onChange={() => toggleCustomRequired(cf.id)}
+                  className="w-3.5 h-3.5 disabled:opacity-30" />
+              </span>
+            </div>
+          );
+        })}
+        {editableBuiltins.length === 0 && customFields.length === 0 && (
+          <div className="px-3 py-6 text-center text-xs text-gray-400">설정할 항목이 없습니다</div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={pendingReset}
+        taskTitle={currentPart?.name ?? '이 파트'}
+        title="새 업무 등록 설정 초기화"
+        message="이 파트의 등록 설정을 초기화하고 팀 기본을 따르게 할까요?"
+        subMessage='"폼 설정" 탭에서 이 파트에 저장해둔 다른 설정(순서·색상 등)도 함께 초기화됩니다'
+        onConfirm={() => { if (currentPart) { onClearPartFormConfig(team.id, currentPart.id); doFlash(); } setPendingReset(false); }}
+        onCancel={() => setPendingReset(false)}
+      />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────
 // 팀/파트별로 "폼설정(빌트인 필드) + 업무 정보(metaFields) + 추가 정보(customFields)"
 // 후보 중 일부를 체크박스로 골라 TeamFormConfig의 문자열 배열 필드 하나에 저장하는 범용
 // 편집기. 그룹 귀속 동기화 항목, 엑셀 중복 체크 기준 등 "필드 몇 개를 고른다"는 형태의
@@ -8120,11 +8301,13 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
   const [newEmoji, setNewEmoji] = useState('🚀');
   const [saving, setSaving] = useState(false);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
-  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync' | 'substitute'>>({});
+  const [teamTab, setTeamTab] = useState<Record<string, 'parts' | 'form' | 'newtask' | 'meta' | 'subtask' | 'calendar' | 'pl' | 'excel' | 'weekly' | 'mail' | 'permission' | 'support' | 'revision' | 'groupSync' | 'substitute'>>({});
   // 폼 설정의 "적용 대상" 선택값 — 다른 팀 관리 서브탭에 갔다 돌아와도 유지되도록 SettingsPage
   // 레벨에서 관리(FormBuilder 내부 state로 두면 서브탭 전환 시 컴포넌트가 언마운트되면서
   // 조용히 '팀 기본'으로 리셋돼, 사용자가 다른 파트를 편집 중이라 착각한 채 팀 기본에 저장하는 사고로 이어짐)
   const [formBuilderTarget, setFormBuilderTarget] = useState<Record<string, 'team' | 'all' | string>>({});
+  // "새 업무 등록 관리" 탭의 적용 대상 선택값 — 위와 같은 이유로 SettingsPage 레벨에서 관리
+  const [newTaskFieldsTarget, setNewTaskFieldsTarget] = useState<Record<string, 'team' | string>>({});
   // [사고 복구용] 팀별로 "매핑 추론" 대상 파트를 고르는 드롭다운 선택값
   const [incidentMappingPartId, setIncidentMappingPartId] = useState<Record<string, string>>({});
   // [사고 복구용] 팀별로 "PL 매핑 추론" 대상 PL 메인업무 타입을 고르는 드롭다운 선택값
@@ -9813,7 +9996,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                 <div className="bg-black/[0.015]">
                   {/* 탭 */}
                   <div className="flex border-b border-black/5 px-5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-                    {(['parts', 'form', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support', 'groupSync', 'substitute'] as const).map(tab => (
+                    {(['parts', 'form', 'newtask', 'meta', 'subtask', 'calendar', 'revision', 'pl', 'excel', 'weekly', 'mail', 'permission', 'support', 'groupSync', 'substitute'] as const).map(tab => (
                       <button key={tab}
                         onClick={() => setTeamTab(t => ({ ...t, [team.id]: tab }))}
                         className={`flex-shrink-0 px-3 py-2 text-xs font-semibold border-b-2 transition-colors -mb-px ${
@@ -9821,7 +10004,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
                         }`}>
-                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : tab === 'support' ? '지원팀' : tab === 'groupSync' ? '귀속 동기화' : '대무 관리'}
+                        {tab === 'parts' ? '파트 관리' : tab === 'form' ? '폼 설정' : tab === 'newtask' ? '새 업무 등록 관리' : tab === 'meta' ? '업무 정보 필드' : tab === 'subtask' ? '세부 업무' : tab === 'calendar' ? '캘린더 관리' : tab === 'revision' ? '수정단계' : tab === 'pl' ? 'PL업무' : tab === 'excel' ? '엑셀 관리' : tab === 'weekly' ? '위클리 관리' : tab === 'mail' ? '메일 양식' : tab === 'permission' ? '권한' : tab === 'support' ? '지원팀' : tab === 'groupSync' ? '귀속 동기화' : '대무 관리'}
                       </button>
                     ))}
                   </div>
@@ -10163,6 +10346,20 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
                         onClearPartTaskListTwoLine={onClearPartTaskListTwoLine}
                         selectedTarget={formBuilderTarget[team.id] ?? 'team'}
                         setSelectedTarget={(target) => setFormBuilderTarget(prev => ({ ...prev, [team.id]: target }))}
+                      />
+                    </div>
+                  )}
+
+                  {/* 새 업무 등록 관리 탭 */}
+                  {(teamTab[team.id] ?? 'parts') === 'newtask' && (
+                    <div className="px-5 py-4">
+                      <NewTaskFieldsEditor
+                        team={team}
+                        onUpdateFormConfig={onUpdateFormConfig}
+                        onUpdatePartFormConfig={onUpdatePartFormConfig}
+                        onClearPartFormConfig={onClearPartFormConfig}
+                        selectedTarget={newTaskFieldsTarget[team.id] ?? 'team'}
+                        setSelectedTarget={(target) => setNewTaskFieldsTarget(prev => ({ ...prev, [team.id]: target }))}
                       />
                     </div>
                   )}

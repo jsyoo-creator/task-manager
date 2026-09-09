@@ -2201,10 +2201,17 @@ export default function TaskDetailPanel({
                   const reviewMonthAll = '__all__';
                   const reviewMonths = Array.from(new Set(items.map(rt => rt.taskMonth).filter((m): m is string => !!m))).sort();
                   const showReviewMonthTabs = reviewMonths.length >= 2;
+                  // 사용자가 아직 월 필터를 직접 건드리지 않았으면(전체 월 목록에서 매번
+                  // 다 뒤지지 않도록) 현재 월이 후보에 있으면 그걸 기본값으로 보여줌
+                  const currentMonthStr = (() => {
+                    const now = new Date();
+                    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                  })();
+                  const defaultReviewMonth = reviewMonths.includes(currentMonthStr) ? currentMonthStr : reviewMonthAll;
                   const activeReviewMonth = showReviewMonthTabs
                     ? (activeReviewMonthTabs[type.id] && (activeReviewMonthTabs[type.id] === reviewMonthAll || reviewMonths.includes(activeReviewMonthTabs[type.id]))
                         ? activeReviewMonthTabs[type.id]
-                        : reviewMonthAll)
+                        : defaultReviewMonth)
                     : reviewMonthAll;
                   const reviewSearch = (reviewSearchQuery[type.id] ?? '').trim().toLowerCase();
                   const displayedItems = items

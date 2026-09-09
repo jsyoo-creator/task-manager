@@ -3000,8 +3000,9 @@ export default function TaskDetailPanel({
           );
         })()}
 
-        {/* 업무 정보 (PL업무 제외) */}
-        {!task.plTask && <div className="px-5 py-3 border-t border-black/[0.08]">
+        {/* 업무 정보 (PL업무 제외, 태그가 세부업무 그룹에 연결돼 그룹 필터가 걸린
+            업무 — 예: 태그=검수 — 는 기획전 등록 정보가 필요 없으므로 숨김) */}
+        {!task.plTask && !hasActiveSubTaskGroupFilter && <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
             {metaFields.map((mf) => {

@@ -1572,11 +1572,13 @@ export default function TaskDetailPanel({
     const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
     return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;
   });
-  // 이 업무가 "검수 속성"인지 — 그룹 필터가 걸린 이유와 무관하게, 실제로 화면에
-  // 보이는 세부업무 중 검수(review) 타입이 하나라도 있는지로 직접 판단한다.
-  // (그룹 필터는 검수 외의 다른 용도로도 쓰일 수 있어 hasActiveSubTaskGroupFilter를
-  // 그대로 쓰면 검수와 무관한 업무까지 "추가 정보"/"업무 정보"가 함께 사라짐)
-  const hasVisibleReviewSubTask = visibleSubTaskTypes.some(t => t.plFieldType === 'review');
+  // 이 업무가 "검수 속성"인지 — 태그 등 값이 세부업무 그룹에 실제로 연결돼(그룹
+  // 필터가 걸려) 있고, 그 결과 남은 세부업무가 검수(review) 타입일 때만 true.
+  // hasActiveSubTaskGroupFilter만 보면 검수 아닌 다른 그룹에 걸린 업무까지 함께
+  // 사라지고, visibleSubTaskTypes만 보면 그룹 필터가 아예 없는(태그 미지정) 업무도
+  // 그 파트에 검수 타입 세부업무가 정의돼 있기만 하면 늘 걸려버림 — 두 조건을 함께
+  // 봐야 "이 업무가 실제로 검수 그룹으로 필터링된 상태"만 정확히 잡힌다.
+  const hasVisibleReviewSubTask = hasActiveSubTaskGroupFilter && visibleSubTaskTypes.some(t => t.plFieldType === 'review');
   // 직군 지정된 세부업무가 2개 이상의 직군에 걸쳐 있을 때만 탭으로 분리.
   // 직군 미지정 세부업무(공통)는 모든 탭에 항상 표시.
   // 주의: teamMembers는 "현재 팀의 기본 소속원" 기준이라, 접속 시 기본 팀이 아닌

@@ -1105,7 +1105,9 @@ function App() {
                       !t.plTask &&
                       t.projectId === detailTask.projectId &&
                       t.id !== detailTask.id &&
-                      (!detailTask.plTask || !detailTask.plParts?.length || detailTask.plParts.includes(t.category))
+                      (detailTask.plTask
+                        ? (!detailTask.plParts?.length || detailTask.plParts.includes(t.category))
+                        : t.category === detailTask.category)
                     );
                     // 그룹핑된 부모/자식 업무는 제목·월이 같은 채로 둘 다 후보에 남아
                     // 검수 체크리스트에 중복으로 보이므로, 제목+월이 같으면 먼저 나온 것만 남긴다.

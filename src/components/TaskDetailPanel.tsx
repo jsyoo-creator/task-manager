@@ -1572,6 +1572,11 @@ export default function TaskDetailPanel({
     const filterEntry = { ...(task.subTaskData?.[type.id] ?? {}), ...(localSubTaskData[type.id] ?? {}) };
     return filterEntry.assignee === currentUserName || filterEntry.substitute === currentUserName;
   });
+  // 이 업무가 "검수 속성"인지 — 그룹 필터가 걸린 이유와 무관하게, 실제로 화면에
+  // 보이는 세부업무 중 검수(review) 타입이 하나라도 있는지로 직접 판단한다.
+  // (그룹 필터는 검수 외의 다른 용도로도 쓰일 수 있어 hasActiveSubTaskGroupFilter를
+  // 그대로 쓰면 검수와 무관한 업무까지 "추가 정보"/"업무 정보"가 함께 사라짐)
+  const hasVisibleReviewSubTask = visibleSubTaskTypes.some(t => t.plFieldType === 'review');
   // 직군 지정된 세부업무가 2개 이상의 직군에 걸쳐 있을 때만 탭으로 분리.
   // 직군 미지정 세부업무(공통)는 모든 탭에 항상 표시.
   // 주의: teamMembers는 "현재 팀의 기본 소속원" 기준이라, 접속 시 기본 팀이 아닌
@@ -2832,8 +2837,9 @@ export default function TaskDetailPanel({
           )}
         </div>
 
-        {/* 커스텀 폼 필드 (PL업무 제외) */}
-        {!task.plTask && (() => {
+        {/* 추가 정보 - 커스텀 폼 필드 (PL업무 제외, 검수 속성 업무는 기획전 등록
+            정보가 필요 없으므로 숨김) */}
+        {!task.plTask && !hasVisibleReviewSubTask && (() => {
           const allCfs = formConfig?.customFields?.filter(cf => cf.enabled !== false && cf.showIn !== 'list') ?? [];
           // 다른 필드가 이 필드로 얼라이어스되어 이미 그 필드의 행에서 값이 보이고
           // 있다면, 같은 값을 보여주는 행을 또 만들지 않음(중복 방지). 단, A가 B를
@@ -3007,9 +3013,8 @@ export default function TaskDetailPanel({
           );
         })()}
 
-        {/* 업무 정보 (PL업무 제외, 태그가 세부업무 그룹에 연결돼 그룹 필터가 걸린
-            업무 — 예: 태그=검수 — 는 기획전 등록 정보가 필요 없으므로 숨김) */}
-        {!task.plTask && !hasActiveSubTaskGroupFilter && <div className="px-5 py-3 border-t border-black/[0.08]">
+        {/* 업무 정보 (PL업무 제외, 검수 속성 업무는 기획전 등록 정보가 필요 없으므로 숨김) */}
+        {!task.plTask && !hasVisibleReviewSubTask && <div className="px-5 py-3 border-t border-black/[0.08]">
           <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-2.5">업무 정보</p>
           <div className="space-y-2">
             {metaFields.map((mf) => {

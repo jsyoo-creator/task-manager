@@ -2296,27 +2296,29 @@ function NewTaskFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfig,
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-          <span>항목</span><span className="text-center">표시</span><span className="text-center">필수</span>
+      <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+        <div className="flex items-center gap-3 px-3.5 py-2 bg-gray-50 border-b border-gray-200">
+          <span className="flex-1 min-w-0 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">항목</span>
+          <span className="w-14 flex-shrink-0 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide">표시</span>
+          <span className="w-14 flex-shrink-0 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wide">필수</span>
         </div>
         {FIXED_KEYS.map(key => {
           const label = BUILTIN_FIELDS_META.find(m => m.key === key)?.label ?? key;
           return (
-            <div key={key} className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 items-center border-t border-gray-100 text-xs text-gray-400">
-              <span>{label}</span>
-              <span className="text-center">항상</span>
-              <span className="text-center">항상</span>
+            <div key={key} className="flex items-center gap-3 px-3.5 py-2.5 border-t border-gray-100">
+              <span className="flex-1 min-w-0 text-xs text-gray-400 truncate">{label}</span>
+              <span className="w-14 flex-shrink-0 text-center text-[11px] text-gray-300">항상</span>
+              <span className="w-14 flex-shrink-0 text-center text-[11px] text-gray-300">항상</span>
             </div>
           );
         })}
         {editableBuiltins.map(f => {
           const label = f.customLabel ?? BUILTIN_FIELDS_META.find(m => m.key === f.key)?.label ?? f.key;
           return (
-            <div key={f.key} className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 items-center border-t border-gray-100">
-              <span className="text-xs text-gray-700 truncate">{label}</span>
-              <span className="flex justify-center"><PermToggle checked={f.enabled} onChange={() => toggleBuiltinEnabled(f.key)} /></span>
-              <span className="flex justify-center">
+            <div key={f.key} className="flex items-center gap-3 px-3.5 py-2.5 border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
+              <span className="flex-1 min-w-0 text-xs font-medium text-gray-700 truncate">{label}</span>
+              <span className="w-14 flex-shrink-0 flex justify-center"><PermToggle checked={f.enabled} onChange={() => toggleBuiltinEnabled(f.key)} /></span>
+              <span className="w-14 flex-shrink-0 flex justify-center">
                 <input type="checkbox" disabled={!f.enabled} checked={!!f.required}
                   onChange={() => toggleBuiltinRequired(f.key)}
                   className="w-3.5 h-3.5 disabled:opacity-30" />
@@ -2327,10 +2329,10 @@ function NewTaskFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfig,
         {customFields.map(cf => {
           const enabled = cf.enabled !== false;
           return (
-            <div key={cf.id} className="grid grid-cols-[1fr,64px,64px] gap-2 px-3 py-2 items-center border-t border-gray-100">
-              <span className="text-xs text-gray-700 truncate">{cf.label}</span>
-              <span className="flex justify-center"><PermToggle checked={enabled} onChange={() => toggleCustomEnabled(cf.id)} /></span>
-              <span className="flex justify-center">
+            <div key={cf.id} className="flex items-center gap-3 px-3.5 py-2.5 border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
+              <span className="flex-1 min-w-0 text-xs font-medium text-gray-700 truncate">{cf.label}</span>
+              <span className="w-14 flex-shrink-0 flex justify-center"><PermToggle checked={enabled} onChange={() => toggleCustomEnabled(cf.id)} /></span>
+              <span className="w-14 flex-shrink-0 flex justify-center">
                 <input type="checkbox" disabled={!enabled} checked={!!cf.required}
                   onChange={() => toggleCustomRequired(cf.id)}
                   className="w-3.5 h-3.5 disabled:opacity-30" />
@@ -2339,7 +2341,7 @@ function NewTaskFieldsEditor({ team, onUpdateFormConfig, onUpdatePartFormConfig,
           );
         })}
         {editableBuiltins.length === 0 && customFields.length === 0 && (
-          <div className="px-3 py-6 text-center text-xs text-gray-400">설정할 항목이 없습니다</div>
+          <div className="px-3.5 py-6 text-center text-xs text-gray-400 border-t border-gray-100">설정할 항목이 없습니다</div>
         )}
       </div>
 

@@ -18,14 +18,14 @@ export function useFigmaSetupJob(folderName: string | null) {
     return unsub;
   }, [folderName]);
 
-  // 이미 요청된 폴더면 다시 쓰지 않는다 (두 사람이 동시에 눌러도 한 번만 요청됨).
-  // 폴더 없음/실패일 때만 다시 요청할 수 있다.
-  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>) => {
+  // 이미 요청됐거나 처리 중인 폴더면 다시 쓰지 않는다 (두 사람이 동시에 눌러도 한 번만 요청됨).
+  // 폴더 없음/실패일 때, 그리고 세팅완료 뒤 '다시 요청'(again)일 때만 다시 요청할 수 있다.
+  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>, again = false) => {
     const ref = doc(db, FIGMA_SETUP_COLLECTION, data.folderName);
     await runTransaction(db, async tx => {
       const cur = await tx.get(ref);
       const status = cur.exists() ? (cur.data().status as string) : null;
-      if (status && status !== 'no_folder' && status !== 'failed') return;
+      if (status && status !== 'no_folder' && status !== 'failed' && !(again && status === 'done')) return;
       tx.set(ref, {
         ...data,
         workplaceId: data.workplaceId ?? '',

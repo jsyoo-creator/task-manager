@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch } from 'lucide-react';
+import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw } from 'lucide-react';
 import type { Task } from '../types';
 import { folderNameFromTask } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
@@ -43,11 +43,12 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   }
 
   // ── 버튼 ──
-  const request = async () => {
+  const request = async (again = false) => {
     if (!folderName) return;
+    if (again && !window.confirm('Figma에 이미 세팅된 배너·랜딩을 지금 기획서 기준으로 다시 맞춰요.\n(Figma에서 지웠다면 새로 만들어요)\n\n다시 세팅요청할까요?')) return;
     setSending(true); setError('');
     try {
-      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId });
+      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again);
     } catch (e) {
       setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);
@@ -69,7 +70,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   } else if (!status || status === 'no_folder' || status === 'failed') {
     const retry = status === 'failed';
     button = (
-      <button type="button" disabled={!canRequest || sending} onClick={request}
+      <button type="button" disabled={!canRequest || sending} onClick={() => request()}
         title={error || (retry ? `${job?.message || '세팅 중 문제가 생겼어요'} — 다시 요청합니다` : requestTitle)}
         className={`${chip} ${retry ? 'text-red-500 border-red-200 bg-red-50 hover:bg-red-100' : 'text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50'} disabled:opacity-50 disabled:cursor-default`}>
         {sending ? <Loader2 size={11} className="animate-spin" /> : retry ? <AlertCircle size={11} /> : null}
@@ -84,9 +85,20 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
     // 세팅완료 — 누르면 배너 보드(없으면 랜딩)를 연다
     const url = job?.bannerUrl || job?.landingUrl;
     const doneTitle = [job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || '세팅완료';
-    button = url
+    const doneChip = url
       ? <a href={url} target="_blank" rel="noreferrer" title={doneTitle} className={`${chip} text-green-600 border-green-200 bg-green-50 hover:bg-green-100`}><Check size={11} />세팅완료</a>
       : <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={doneTitle}><Check size={11} />세팅완료</span>;
+    // 세팅완료 뒤에도 다시 요청할 수 있게 (기획서가 바뀌었거나 Figma에서 지운 경우)
+    button = (
+      <>
+        {doneChip}
+        <button type="button" disabled={!canRequest || sending} onClick={() => request(true)}
+          title={canRequest ? '기획서 기준으로 다시 세팅요청' : requestTitle}
+          className={`${chip} text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-default`}>
+          {sending ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}다시 세팅요청
+        </button>
+      </>
+    );
   }
 
   return (

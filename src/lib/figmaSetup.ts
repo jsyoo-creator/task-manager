@@ -2,7 +2,8 @@ import type { Task } from '../types';
 
 // 라이브 파트 '1차 기획서' 세부업무의 "Figma 세팅" 요청.
 // 요청은 Firestore figmaSetupJobs/{폴더이름} 문서로 남기고, 디자이너 맥에서 도는 별도 프로그램이
-// 'requested' 문서를 가져가 배너(카피 선반영)와 랜딩을 Figma에 세팅한 뒤 상태를 갱신한다.
+// 'requested' 문서를 가져가 배너(카피 선반영)와 상세페이지(Figma의 랜딩)를 세팅한 뒤 상태를 갱신한다.
+// 화면에서는 '랜딩' 대신 '상세페이지'라고 부른다 (scope 값은 'landing' 그대로).
 // 문서 id를 폴더 이름으로 두어, 같은 업무명(그룹 상·하위 업무)끼리 상태를 같이 보고 중복 요청을 막는다.
 export const FIGMA_SETUP_COLLECTION = 'figmaSetupJobs';
 // 드라이브 작업 폴더 목록. 웹은 드라이브를 볼 수 없어서, 맥 프로그램이 폴더 이름 목록을
@@ -43,7 +44,7 @@ export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskM
 export type FigmaSetupStatus = 'requested' | 'running' | 'done' | 'no_folder' | 'failed';
 // 무엇을 세팅할지 — 처음 요청은 둘 다, 다시 세팅요청 때 고를 수 있음
 export type FigmaSetupScope = 'both' | 'banner' | 'landing';
-export const FIGMA_SETUP_SCOPE_LABEL: Record<FigmaSetupScope, string> = { both: '배너+랜딩', banner: '배너만', landing: '랜딩만' };
+export const FIGMA_SETUP_SCOPE_LABEL: Record<FigmaSetupScope, string> = { both: '배너+상세페이지', banner: '배너만', landing: '상세페이지만' };
 
 export interface FigmaSetupJob {
   id: string;            // = folderName

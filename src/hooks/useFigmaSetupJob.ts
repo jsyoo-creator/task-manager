@@ -26,7 +26,7 @@ export function useFigmaSetupJob(folderName: string | null) {
       const cur = await tx.get(ref);
       const status = cur.exists() ? (cur.data().status as string) : null;
       if (status && status !== 'no_folder' && status !== 'failed' && !(again && status === 'done')) return;
-      // 다시 요청은 merge — 이번에 안 하는 쪽(예: 랜딩만 하면 배너)의 결과 링크는 남긴다
+      // 다시 요청은 merge — 이번에 안 하는 쪽(예: 상세페이지만 하면 배너)의 결과 링크는 남긴다
       tx.set(ref, {
         ...data,
         workplaceId: data.workplaceId ?? '',

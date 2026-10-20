@@ -1,9 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw } from 'lucide-react';
+import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X } from 'lucide-react';
 import type { Task } from '../types';
-import { folderNameFromTask } from '../lib/figmaSetup';
+import { folderNameFromTask, FIGMA_SETUP_SCOPE_LABEL, type FigmaSetupScope } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
-import ConfirmDialog from './ConfirmDialog';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 
 // 라이브 파트 '1차 기획서' 세부업무 카드 안의 Figma 세팅 줄 — 오른쪽에 [폴더 상태] [버튼] 두 가지만 표시.
@@ -45,11 +44,11 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   }
 
   // ── 버튼 ──
-  const request = async (again = false) => {
+  const request = async (again = false, scope: FigmaSetupScope = 'both') => {
     if (!folderName) return;
     setSending(true); setError('');
     try {
-      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again);
+      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope);
     } catch (e) {
       setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);
@@ -106,18 +105,49 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
     <div className="flex items-center justify-end gap-1.5 mt-1 mb-2">
       {folderBadge}
       {button}
-      <ConfirmDialog
-        open={confirmAgain}
-        taskTitle={task.title}
-        title="다시 세팅요청"
-        message="지금 기획서 기준으로 Figma 배너·랜딩을 다시 맞춰요."
-        subMessage="Figma에서 지웠다면 새로 만들어요"
-        icon={<RotateCcw size={24} className="text-indigo-400" />}
-        confirmLabel="다시 세팅요청"
-        tone="primary"
-        onCancel={() => setConfirmAgain(false)}
-        onConfirm={() => { setConfirmAgain(false); request(true); }}
-      />
+      {confirmAgain && (
+        <ScopeDialog taskTitle={task.title} onCancel={() => setConfirmAgain(false)}
+          onPick={scope => { setConfirmAgain(false); request(true, scope); }} />
+      )}
+    </div>
+  );
+}
+
+
+// 다시 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
+function ScopeDialog({ taskTitle, onPick, onCancel }: { taskTitle: string; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
+  const pick = (scope: FigmaSetupScope, primary = false) => (
+    <button onClick={() => onPick(scope)}
+      className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors ${primary ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
+      {FIGMA_SETUP_SCOPE_LABEL[scope]}
+    </button>
+  );
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onCancel}>
+      <div className="w-[380px] mx-4 rounded-2xl bg-white border border-black/8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
+          <h2 className="text-sm font-semibold text-gray-900">다시 세팅요청</h2>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={17} /></button>
+        </div>
+        <div className="px-5 py-6 flex flex-col items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-indigo-50">
+            <RotateCcw size={24} className="text-indigo-400" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px]" title={taskTitle}>{taskTitle}</p>
+            <p className="text-sm text-gray-500 mt-1">무엇을 다시 세팅할까요?</p>
+            <p className="text-xs text-gray-400 mt-1.5">지금 기획서 기준으로 다시 맞춰요 · Figma에서 지웠다면 새로 만들어요</p>
+          </div>
+        </div>
+        <div className="flex gap-2 px-5 pb-3">
+          {pick('banner')}
+          {pick('landing')}
+          {pick('both', true)}
+        </div>
+        <div className="px-5 pb-5">
+          <button onClick={onCancel} className="w-full py-2 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
+        </div>
+      </div>
     </div>
   );
 }

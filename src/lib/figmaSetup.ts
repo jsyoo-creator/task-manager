@@ -41,11 +41,15 @@ export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskM
 }
 
 export type FigmaSetupStatus = 'requested' | 'running' | 'done' | 'no_folder' | 'failed';
+// 무엇을 세팅할지 — 처음 요청은 둘 다, 다시 세팅요청 때 고를 수 있음
+export type FigmaSetupScope = 'both' | 'banner' | 'landing';
+export const FIGMA_SETUP_SCOPE_LABEL: Record<FigmaSetupScope, string> = { both: '배너+랜딩', banner: '배너만', landing: '랜딩만' };
 
 export interface FigmaSetupJob {
   id: string;            // = folderName
   folderName: string;
   status: FigmaSetupStatus;
+  scope?: FigmaSetupScope; // 없으면 both
   workplaceId?: string;
   teamId?: string;
   taskId: string;

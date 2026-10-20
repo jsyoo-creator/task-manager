@@ -1091,6 +1091,9 @@ function App() {
               teamMembers={teamMembers}
               baseTeamMembers={dashboardTeamMembers}
               substitutePairs={selectedTeam?.substitutePairs}
+              teamName={selectedTeam?.name}
+              teamId={selectedTeam?.id}
+              workplaceId={activeWorkplaceId ?? undefined}
               formConfig={resolvedFormConfig}
               teamFormConfig={selectedTeam?.formConfig}
               userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))}

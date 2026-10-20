@@ -4,6 +4,8 @@ import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, Team
 import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds, findSubstitutePartner, resolveReviewStatusLabels } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
+import FigmaSetupButton from './FigmaSetupButton';
+import { isFigmaSetupTarget } from '../lib/figmaSetup';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
 const PANEL_W = 540;
@@ -1105,7 +1107,7 @@ export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete, canDeleteThisTask,
   metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, baseTeamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
-  parentTask, childTasks = [], onRemoveFromGroup, substitutePairs,
+  parentTask, childTasks = [], onRemoveFromGroup, substitutePairs, teamName, teamId, workplaceId,
 }: {
   task: Task;
   onClose: () => void;
@@ -1133,6 +1135,9 @@ export default function TaskDetailPanel({
   parentTask?: Task; // 이 업무가 귀속된 상위(그룹 기준) 업무 — 있으면 담당자/기간이 읽기 전용으로 잠김
   childTasks?: Task[]; // 이 업무에 귀속된 하위 업무 목록 (이 업무가 그룹 기준일 때)
   onRemoveFromGroup?: (taskIds: string[]) => Promise<void>;
+  teamName?: string;    // 라이브 파트 '1차 기획서' Figma 세팅 버튼 표시 조건용
+  teamId?: string;
+  workplaceId?: string;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const todayD = new Date();
@@ -2587,6 +2592,11 @@ export default function TaskDetailPanel({
                         </button>
                       )}
                     </div>
+
+                    {/* 라이브 파트 '1차 기획서': Figma에 배너(카피)·랜딩 세팅 요청 */}
+                    {isFigmaSetupTarget(teamName, task.category, type.name) && (
+                      <FigmaSetupButton task={task} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                    )}
 
                     {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우, 또는 수동으로 지정을 연 경우) */}
                     {(isVacation || entry.substitute || manualSubstituteIds.has(type.id)) && (

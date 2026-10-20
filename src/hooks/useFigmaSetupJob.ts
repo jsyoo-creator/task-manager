@@ -1,27 +1,28 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { FIGMA_SETUP_COLLECTION, type FigmaSetupJob, type FigmaSetupScope } from '../lib/figmaSetup';
+import { FIGMA_SETUP_COLLECTION, type FigmaSetupJob, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 
-// 업무 하나(폴더 하나)의 Figma 세팅 요청 상태를 실시간으로 본다. 문서 하나만 구독한다.
-export function useFigmaSetupJob(folderName: string | null) {
+// 업무 하나(폴더 하나 × 종류 하나)의 Figma 세팅 요청 상태를 실시간으로 본다. 문서 하나만 구독한다.
+export function useFigmaSetupJob(docId: string | null) {
   const [job, setJob] = useState<FigmaSetupJob | null>(null);
-  const [loading, setLoading] = useState(!!folderName);
+  const [loading, setLoading] = useState(!!docId);
 
   useEffect(() => {
-    if (!folderName) { setJob(null); setLoading(false); return; }
+    if (!docId) { setJob(null); setLoading(false); return; }
     setLoading(true);
-    const unsub = onSnapshot(doc(db, FIGMA_SETUP_COLLECTION, folderName), snap => {
+    const unsub = onSnapshot(doc(db, FIGMA_SETUP_COLLECTION, docId), snap => {
       setJob(snap.exists() ? ({ id: snap.id, ...snap.data() } as FigmaSetupJob) : null);
       setLoading(false);
     });
     return unsub;
-  }, [folderName]);
+  }, [docId]);
 
   // 이미 요청됐거나 처리 중인 폴더면 다시 쓰지 않는다 (두 사람이 동시에 눌러도 한 번만 요청됨).
   // 폴더 없음/실패일 때, 그리고 세팅완료 뒤 '다시 요청'(again)일 때만 다시 요청할 수 있다.
-  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>, again = false, scope: FigmaSetupScope = 'both') => {
-    const ref = doc(db, FIGMA_SETUP_COLLECTION, data.folderName);
+  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>, again = false, scope: FigmaSetupScope = 'both', kind: FigmaSetupKind = 'initial') => {
+    if (!docId) return;
+    const ref = doc(db, FIGMA_SETUP_COLLECTION, docId);
     await runTransaction(db, async tx => {
       const cur = await tx.get(ref);
       const status = cur.exists() ? (cur.data().status as string) : null;
@@ -33,6 +34,7 @@ export function useFigmaSetupJob(folderName: string | null) {
         teamId: data.teamId ?? '',
         status: 'requested',
         scope,
+        kind,
         message: '',
         requestedAt: new Date().toISOString(),
       }, { merge: again });

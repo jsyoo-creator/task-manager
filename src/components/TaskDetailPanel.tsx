@@ -5,7 +5,7 @@ import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FI
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import FigmaSetupButton from './FigmaSetupButton';
-import { isFigmaSetupTarget } from '../lib/figmaSetup';
+import { figmaSetupKind } from '../lib/figmaSetup';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
 const PANEL_W = 540;
@@ -2593,10 +2593,13 @@ export default function TaskDetailPanel({
                       )}
                     </div>
 
-                    {/* 라이브 파트 '1차 기획서': Figma에 배너(카피)·랜딩 세팅 요청 */}
-                    {isFigmaSetupTarget(teamName, task.category, type.name) && (
-                      <FigmaSetupButton task={task} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
-                    )}
+                    {/* 라이브 파트 '1차 기획서'(세팅요청)·'기획서 업데이트'(반영요청): Figma 배너·상세페이지 */}
+                    {(() => {
+                      const figmaKind = figmaSetupKind(teamName, task.category, type.name);
+                      return figmaKind && (
+                        <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                      );
+                    })()}
 
                     {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우, 또는 수동으로 지정을 연 경우) */}
                     {(isVacation || entry.substitute || manualSubstituteIds.has(type.id)) && (

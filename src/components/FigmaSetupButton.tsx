@@ -1,22 +1,24 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send } from 'lucide-react';
 import type { Task } from '../types';
-import { folderNameFromTask, FIGMA_SETUP_SCOPE_LABEL, type FigmaSetupScope } from '../lib/figmaSetup';
+import { folderNameFromTask, figmaSetupDocId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 
-// 라이브 파트 '1차 기획서' 세부업무 카드 안의 Figma 세팅 줄 — 오른쪽에 [폴더 상태] [버튼] 두 가지만 표시.
-// 버튼 상태: 세팅요청 → 요청대기(맥이 아직 안 가져감) → 반영중 → 세팅완료 (+ 세팅실패 · 다시 요청)
+// 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [버튼] 두 가지만 표시.
+// 버튼 상태: 세팅요청|반영요청 → 요청대기(맥이 아직 안 가져감) → 반영중 → 세팅완료|반영완료 (+ 실패 · 다시 요청)
 // 자세한 내용(폴더 이름, 실패 이유, 결과 링크)은 마우스를 올리면 보이거나 세팅완료 버튼으로 연다.
-export default function FigmaSetupButton({ task, canManage, currentUserName, workplaceId, teamId }: {
+export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId }: {
   task: Task;
+  kind?: FigmaSetupKind;
   canManage: boolean;
   currentUserName: string;
   workplaceId?: string;
   teamId?: string;
 }) {
   const folderName = folderNameFromTask(task);
-  const { job, loading, requestSetup } = useFigmaSetupJob(folderName);
+  const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
+  const text = FIGMA_SETUP_TEXT[kind];
   const { folders } = useDriveFolders(!!folderName);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +51,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
     if (!folderName) return;
     setSending(true); setError('');
     try {
-      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope);
+      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind);
     } catch (e) {
       setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);
@@ -63,7 +65,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   const requestTitle = !canManage ? '업무 편집 권한이 있어야 요청할 수 있어요'
     : !folderName ? '업무명 형식을 먼저 확인해 주세요'
     : folderKnown && !folderExists ? `드라이브에 "${folderName}" 폴더를 만든 뒤 요청할 수 있어요`
-    : 'Figma에 배너(카피)와 상세페이지를 세팅해 달라고 요청합니다';
+    : kind === 'update' ? '업데이트된 기획서를 Figma 배너·상세페이지에 반영해 달라고 요청합니다' : 'Figma에 배너(카피)와 상세페이지를 세팅해 달라고 요청합니다';
   let button: ReactNode;
 
   if (loading) {
@@ -75,7 +77,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
         title={error || (retry ? `${job?.message || '세팅 중 문제가 생겼어요'} — 다시 요청합니다` : requestTitle)}
         className={`${chip} ${retry ? 'text-red-500 border-red-200 bg-red-50 hover:bg-red-100' : 'text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50'} disabled:opacity-50 disabled:cursor-default`}>
         {sending ? <Loader2 size={11} className="animate-spin" /> : retry ? <AlertCircle size={11} /> : null}
-        {retry ? '세팅실패 · 다시 요청' : '세팅요청'}
+        {retry ? text.failed : text.request}
       </button>
     );
   } else if (status === 'requested') {
@@ -85,18 +87,18 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   } else {
     // 세팅완료 — 누르면 배너 보드(없으면 상세페이지)를 연다
     const url = job?.bannerUrl || job?.landingUrl;
-    const doneTitle = [job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || '세팅완료';
+    const doneTitle = [job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || text.done;
     const doneChip = url
-      ? <a href={url} target="_blank" rel="noreferrer" title={doneTitle} className={`${chip} text-green-600 border-green-200 bg-green-50 hover:bg-green-100`}><Check size={11} />세팅완료</a>
-      : <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={doneTitle}><Check size={11} />세팅완료</span>;
+      ? <a href={url} target="_blank" rel="noreferrer" title={doneTitle} className={`${chip} text-green-600 border-green-200 bg-green-50 hover:bg-green-100`}><Check size={11} />{text.done}</a>
+      : <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={doneTitle}><Check size={11} />{text.done}</span>;
     // 세팅완료 뒤에도 다시 요청할 수 있게 (기획서가 바뀌었거나 Figma에서 지운 경우)
     button = (
       <>
         {doneChip}
         <button type="button" disabled={!canRequest || sending} onClick={() => setDialog('again')}
-          title={canRequest ? '기획서 기준으로 다시 세팅요청' : requestTitle}
+          title={canRequest ? `기획서 기준으로 ${text.again}` : requestTitle}
           className={`${chip} text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-default`}>
-          {sending ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}다시 세팅요청
+          {sending ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}{text.again}
         </button>
       </>
     );
@@ -107,7 +109,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
       {folderBadge}
       {button}
       {dialog && (
-        <ScopeDialog taskTitle={task.title} again={dialog === 'again'} onCancel={() => setDialog(null)}
+        <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} onCancel={() => setDialog(null)}
           onPick={scope => { const again = dialog === 'again'; setDialog(null); request(again, scope); }} />
       )}
     </div>
@@ -116,7 +118,8 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
 
 
 // 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
-function ScopeDialog({ taskTitle, again, onPick, onCancel }: { taskTitle: string; again: boolean; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
+function ScopeDialog({ taskTitle, kind, again, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
+  const t = FIGMA_SETUP_TEXT[kind];
   const pick = (scope: FigmaSetupScope, primary = false) => (
     <button onClick={() => onPick(scope)}
       className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors ${primary ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
@@ -127,7 +130,7 @@ function ScopeDialog({ taskTitle, again, onPick, onCancel }: { taskTitle: string
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onCancel}>
       <div className="w-[380px] mx-4 rounded-2xl bg-white border border-black/8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
-          <h2 className="text-sm font-semibold text-gray-900">{again ? '다시 세팅요청' : '세팅요청'}</h2>
+          <h2 className="text-sm font-semibold text-gray-900">{again ? t.again : t.request}</h2>
           <button onClick={onCancel} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={17} /></button>
         </div>
         <div className="px-5 py-6 flex flex-col items-center gap-4">
@@ -136,8 +139,8 @@ function ScopeDialog({ taskTitle, again, onPick, onCancel }: { taskTitle: string
           </div>
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px]" title={taskTitle}>{taskTitle}</p>
-            <p className="text-sm text-gray-500 mt-1">{again ? '무엇을 다시 세팅할까요?' : '무엇을 세팅할까요?'}</p>
-            <p className="text-xs text-gray-400 mt-1.5">{again ? '지금 기획서 기준으로 다시 맞춰요 · Figma에서 지웠다면 새로 만들어요' : '기획서 기준으로 Figma에 세팅해요'}</p>
+            <p className="text-sm text-gray-500 mt-1">{again ? t.againQuestion : t.question}</p>
+            <p className="text-xs text-gray-400 mt-1.5">{again ? t.againSub : t.sub}</p>
           </div>
         </div>
         <div className="flex gap-2 px-5 pb-3">

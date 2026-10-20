@@ -5,6 +5,10 @@ import type { Task } from '../types';
 // 'requested' 문서를 가져가 배너(카피 선반영)와 랜딩을 Figma에 세팅한 뒤 상태를 갱신한다.
 // 문서 id를 폴더 이름으로 두어, 같은 업무명(그룹 상·하위 업무)끼리 상태를 같이 보고 중복 요청을 막는다.
 export const FIGMA_SETUP_COLLECTION = 'figmaSetupJobs';
+// 드라이브 작업 폴더 목록. 웹은 드라이브를 볼 수 없어서, 맥 프로그램이 폴더 이름 목록을
+// figmaSetupMeta/driveFolders { folders: string[], updatedAt } 문서 하나에 올려 두고(바뀔 때만 갱신) 화면은 이것만 구독한다.
+export const FIGMA_SETUP_META_COLLECTION = 'figmaSetupMeta';
+export const DRIVE_FOLDERS_DOC = 'driveFolders';
 
 const TARGET_TEAM = '라이브/복지&사업자몰'; // 공백은 비교 전에 뺀다 (실제 팀 이름은 '라이브 / 복지&사업자몰')
 const TARGET_PART = '라이브';

@@ -1,4 +1,5 @@
 import { Trash2, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface Props {
   open: boolean;
@@ -8,10 +9,15 @@ interface Props {
   subMessage?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  // 삭제 외 확인에도 쓰도록 — 안 주면 기존 삭제 모양 그대로
+  icon?: ReactNode;
+  confirmLabel?: string;
+  tone?: 'danger' | 'primary';
 }
 
-export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제', message = '업무를 삭제할까요?', subMessage = '삭제 후 복구할 수 없습니다', onConfirm, onCancel }: Props) {
+export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제', message = '업무를 삭제할까요?', subMessage = '삭제 후 복구할 수 없습니다', onConfirm, onCancel, icon, confirmLabel = '삭제', tone = 'danger' }: Props) {
   if (!open) return null;
+  const primary = tone === 'primary';
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
@@ -31,8 +37,8 @@ export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제'
 
         {/* 본문 */}
         <div className="px-5 py-6 flex flex-col items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-red-50">
-            <Trash2 size={24} className="text-red-400" />
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${primary ? 'bg-indigo-50' : 'bg-red-50'}`}>
+            {icon ?? <Trash2 size={24} className="text-red-400" />}
           </div>
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-800 truncate max-w-[260px]" title={taskTitle}>
@@ -53,9 +59,9 @@ export default function ConfirmDialog({ open, taskTitle, title = '업무 삭제'
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors"
+            className={`flex-1 py-2.5 text-sm font-semibold rounded-xl text-white transition-colors ${primary ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-red-500 hover:bg-red-600'}`}
           >
-            삭제
+            {confirmLabel}
           </button>
         </div>
       </div>

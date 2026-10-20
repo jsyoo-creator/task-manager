@@ -3,6 +3,7 @@ import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, Rota
 import type { Task } from '../types';
 import { folderNameFromTask } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
+import ConfirmDialog from './ConfirmDialog';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 
 // 라이브 파트 '1차 기획서' 세부업무 카드 안의 Figma 세팅 줄 — 오른쪽에 [폴더 상태] [버튼] 두 가지만 표시.
@@ -20,6 +21,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   const { folders } = useDriveFolders(!!folderName);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [confirmAgain, setConfirmAgain] = useState(false);
 
   const chip = 'flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border font-medium transition-colors';
 
@@ -45,7 +47,6 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
   // ── 버튼 ──
   const request = async (again = false) => {
     if (!folderName) return;
-    if (again && !window.confirm('Figma에 이미 세팅된 배너·랜딩을 지금 기획서 기준으로 다시 맞춰요.\n(Figma에서 지웠다면 새로 만들어요)\n\n다시 세팅요청할까요?')) return;
     setSending(true); setError('');
     try {
       await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again);
@@ -92,7 +93,7 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
     button = (
       <>
         {doneChip}
-        <button type="button" disabled={!canRequest || sending} onClick={() => request(true)}
+        <button type="button" disabled={!canRequest || sending} onClick={() => setConfirmAgain(true)}
           title={canRequest ? '기획서 기준으로 다시 세팅요청' : requestTitle}
           className={`${chip} text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-default`}>
           {sending ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}다시 세팅요청
@@ -105,6 +106,18 @@ export default function FigmaSetupButton({ task, canManage, currentUserName, wor
     <div className="flex items-center justify-end gap-1.5 mt-1 mb-2">
       {folderBadge}
       {button}
+      <ConfirmDialog
+        open={confirmAgain}
+        taskTitle={task.title}
+        title="다시 세팅요청"
+        message="지금 기획서 기준으로 Figma 배너·랜딩을 다시 맞춰요."
+        subMessage="Figma에서 지웠다면 새로 만들어요"
+        icon={<RotateCcw size={24} className="text-indigo-400" />}
+        confirmLabel="다시 세팅요청"
+        tone="primary"
+        onCancel={() => setConfirmAgain(false)}
+        onConfirm={() => { setConfirmAgain(false); request(true); }}
+      />
     </div>
   );
 }

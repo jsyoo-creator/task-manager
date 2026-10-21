@@ -75,6 +75,8 @@ export interface FigmaSetupJob {
   status: FigmaSetupStatus;
   scope?: FigmaSetupScope; // 없으면 both
   kind?: FigmaSetupKind;   // 없으면 initial
+  planVersion?: string;    // 반영에 쓴 기획서 버전 (예: v2.0)
+  planFile?: string;
   workplaceId?: string;
   teamId?: string;
   taskId: string;

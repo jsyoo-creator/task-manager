@@ -7,6 +7,8 @@ import { FIGMA_SETUP_META_COLLECTION, DRIVE_FOLDERS_DOC } from '../lib/figmaSetu
 export function useDriveFolders(enabled: boolean) {
   const [folders, setFolders] = useState<Set<string> | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | undefined>();
+  // 폴더별 최신 기획서 (파일 이름 버전이 가장 높은 것) — 맥 프로그램이 같이 올린다
+  const [plans, setPlans] = useState<Record<string, { version: string; file: string }>>({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -14,9 +16,12 @@ export function useDriveFolders(enabled: boolean) {
       const data = snap.exists() ? snap.data() : null;
       setFolders(Array.isArray(data?.folders) ? new Set((data!.folders as string[]).map(f => f.normalize('NFC'))) : null);
       setUpdatedAt(data?.updatedAt);
+      const vers = (data?.planVersions ?? {}) as Record<string, string>;
+      const files = (data?.planFiles ?? {}) as Record<string, string>;
+      setPlans(Object.fromEntries(Object.keys({ ...vers, ...files }).map(k => [k.normalize('NFC'), { version: vers[k] ?? '', file: files[k] ?? '' }])));
     });
     return unsub;
   }, [enabled]);
 
-  return { folders, updatedAt };
+  return { folders, updatedAt, plans };
 }

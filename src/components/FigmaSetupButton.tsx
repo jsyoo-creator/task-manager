@@ -21,7 +21,11 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const folderName = folderNameFromTask(task);
   const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
   const text = FIGMA_SETUP_TEXT[kind];
-  const { folders } = useDriveFolders(!!folderName);
+  const { folders, plans } = useDriveFolders(!!folderName);
+  const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
+  // 기획서 업데이트는 지난번에 반영한 버전과 비교한다 (업데이트 기록이 없으면 1차 기획서 세팅 때 버전)
+  const { job: initialJob } = useFigmaSetupJob(kind === 'update' && folderName ? folderName : null);
+  const lastVersion = kind === 'save' ? undefined : (job?.status === 'done' && job.planVersion) || (kind === 'update' ? initialJob?.planVersion : undefined);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   // 세팅요청·다시 세팅요청 모두 팝업에서 범위를 고른다 (first: 처음/실패 후, again: 세팅완료 뒤)
@@ -90,7 +94,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   } else {
     // 세팅완료 — 누르면 배너 보드(없으면 상세페이지)를 연다
     const url = kind === 'save' ? undefined : (job?.bannerUrl || job?.landingUrl);  // 저장은 드라이브라 링크 대신 저장 개수를 툴팁으로
-    const doneTitle = [kind !== 'save' && job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || text.done;
+    const doneTitle = [job?.planVersion && `기획서 ${job.planVersion} 반영`, kind !== 'save' && job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || text.done;
     const doneChip = url
       ? <a href={url} target="_blank" rel="noreferrer" title={doneTitle} className={`${chip} text-green-600 border-green-200 bg-green-50 hover:bg-green-100`}><Check size={11} />{text.done}</a>
       : <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={doneTitle}><Check size={11} />{text.done}</span>;
@@ -112,7 +116,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       {folderBadge}
       {button}
       {dialog && (
-        <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} onCancel={() => setDialog(null)}
+        <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} onCancel={() => setDialog(null)}
           onPick={scope => { const again = dialog === 'again'; setDialog(null); request(again, scope); }} />
       )}
     </div>
@@ -121,7 +125,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
 
 
 // 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
-function ScopeDialog({ taskTitle, kind, again, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
+function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
   const t = FIGMA_SETUP_TEXT[kind];
   const pick = (scope: FigmaSetupScope, primary = false) => (
     <button onClick={() => onPick(scope)}
@@ -145,6 +149,7 @@ function ScopeDialog({ taskTitle, kind, again, onPick, onCancel }: { taskTitle: 
             <p className="text-sm text-gray-500 mt-1">{again ? t.againQuestion : t.question}</p>
             <p className="text-xs text-gray-400 mt-1.5">{again ? t.againSub : t.sub}</p>
           </div>
+          {kind !== 'save' && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} />}
           <UsagePanel />
         </div>
         <div className="flex gap-2 px-5 pb-3">
@@ -232,6 +237,40 @@ function UsagePanel() {
       {u.weekUsed >= 0 && <UsageBar label="이번 주" used={u.weekUsed} resetAt={u.weekResetAt} />}
       <div className={`text-[11px] rounded-lg px-2.5 py-1.5 ${box}`}>{v.text}</div>
       {stale && <div className="text-[10px] text-gray-400">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
+    </div>
+  );
+}
+
+
+// ── 팝업 안 기획서 버전 (파일 이름의 v1.0, v2.0 …) ──
+const verKey = (v?: string) => (v ?? '').replace(/^v/i, '').split('.').map(n => Number(n) || 0);
+const verCmp = (a?: string, b?: string) => {
+  const x = verKey(a), y = verKey(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? 0) - (y[i] ?? 0); if (d) return d; }
+  return 0;
+};
+
+function PlanInfo({ kind, latest, lastVersion }: { kind: FigmaSetupKind; latest?: { version: string; file: string }; lastVersion?: string }) {
+  if (!latest) return <div className="w-full text-[11px] text-gray-400 text-center">기획서 버전 확인 전이에요 (디자이너 맥이 켜지면 확인돼요)</div>;
+  const isNew = !lastVersion || verCmp(latest.version, lastVersion) > 0;
+  const notice = kind === 'update'
+    ? (isNew ? { cls: 'bg-green-50 text-green-700', text: lastVersion ? `새 버전이 있어요 (${lastVersion} → ${latest.version || '버전 없음'})` : `${latest.version || '최신 기획서'}로 반영해요` }
+             : { cls: 'bg-amber-50 text-amber-700', text: `새 버전이 없어요 — 지난번에 ${lastVersion}를 반영했어요. 그래도 다시 반영할 수 있어요` })
+    : null;
+  return (
+    <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5">
+      <div className="flex justify-between text-[11px]">
+        <span className="text-gray-500">사용할 기획서</span>
+        <span className="text-gray-800 font-semibold">{latest.version || '버전 표시 없음'}</span>
+      </div>
+      <div className="text-[10px] text-gray-400 truncate" title={latest.file}>{latest.file}</div>
+      {lastVersion && (
+        <div className="flex justify-between text-[11px]">
+          <span className="text-gray-500">지난번 반영</span>
+          <span className="text-gray-600">{lastVersion}</span>
+        </div>
+      )}
+      {notice && <div className={`text-[11px] rounded-lg px-2.5 py-1.5 ${notice.cls}`}>{notice.text}</div>}
     </div>
   );
 }

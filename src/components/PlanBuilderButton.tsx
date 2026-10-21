@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, Clock, Check, AlertCircle, X, FilePlus2, FilePen, Image as ImageIcon, LayoutList, Layers } from 'lucide-react';
+import { UsagePanel } from './UsagePanel';
 import type { Task } from '../types';
 import { folderNameFromTask } from '../lib/figmaSetup';
 import { PLAN_SCOPE_LABEL, type PlanScope } from '../lib/planDraft';
@@ -54,7 +55,7 @@ export default function PlanBuilderButton({ task, canManage, currentUserName, wo
           </span>
         )}
         <button type="button" disabled={!canRequest} onClick={() => setScopeOpen(true)}
-          title={disabledTitle || (again ? '지난번 내용에 이어서 배너·상세를 추가 작성해요' : '배너 카피·상세페이지 내용을 정리해 1차 기획서(PPT)를 만들어 달라고 요청합니다')}
+          title={disabledTitle || (again ? '지난번 내용에 이어서 상세·배너를 추가 작성해요' : '상세페이지 내용·배너 카피를 정리해 1차 기획서(PPT)를 만들어 달라고 요청합니다')}
           className={`${chip} text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-default`}>
           {again ? <FilePen size={11} /> : <FilePlus2 size={11} />}{again ? '추가 작성하기' : '1차 기획서 만들기'}
         </button>
@@ -101,12 +102,14 @@ function PlanScopeDialog({ taskTitle, again, onPick, onCancel }: { taskTitle: st
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px] mx-auto" title={taskTitle}>{taskTitle}</p>
             <p className="text-sm text-gray-500 mt-1">{again ? '무엇을 추가 작성할까요?' : '무엇을 작성할까요?'}</p>
-            <p className="text-xs text-gray-400 mt-1.5">{again ? '고른 쪽만 고쳐서 새 버전으로 만들고, 나머지는 지난번 그대로 둬요' : '배너 카피와 상세페이지 내용을 정리해 기획서(PPT)로 만들어요'}</p>
+            <p className="text-xs text-gray-400 mt-1.5">{again ? '고른 쪽만 고쳐서 새 버전으로 만들고, 나머지는 지난번 그대로 둬요' : '상세페이지 내용과 배너 카피를 정리해 기획서(PPT)로 만들어요'}</p>
           </div>
+          <UsagePanel />
+          <p className="text-[11px] text-gray-400 text-center">배너만 고르면 Claude를 쓰지 않아 사용량과 상관없이 바로 만들어져요</p>
         </div>
         <div className="flex gap-2 px-5 pb-3">
-          {pick('banner', <ImageIcon size={14} />)}
           {pick('landing', <LayoutList size={14} />)}
+          {pick('banner', <ImageIcon size={14} />)}
           {pick('both', <Layers size={14} />, true)}
         </div>
         <div className="px-5 pb-5">

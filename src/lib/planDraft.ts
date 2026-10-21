@@ -85,10 +85,12 @@ export function bumpVersion(name: string): string {
 
 const yymmdd = (d: Date) => `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
-// 처음 만들 때 기본 파일 이름 — "20261027_10월 결산" → "LGE.COM 라이브커머스_10월결산_HSAD_v1.0_261021"(오늘 날짜)
+// 처음 만들 때 기본 파일 이름 — "20261027_10월 결산" → "LGE.COM 라이브커머스_10월결산_HSAD_v1.0_261027"
+// 끝 날짜는 업무명(폴더) 날짜를 쓴다 (2026-10-22 사용자 요청). 폴더 이름에 날짜가 없을 때만 오늘 날짜.
 export function defaultPlanFileName(folderName: string, today = new Date()): string {
   const name = folderName.replace(/^\d{8}_/, '').replace(/\s+/g, '');
-  return `LGE.COM 라이브커머스_${name}_HSAD_v1.0_${yymmdd(today)}`;
+  const date = folderName.match(/^\d{8}/)?.[0].slice(2) ?? yymmdd(today);
+  return `LGE.COM 라이브커머스_${name}_HSAD_v1.0_${date}`;
 }
 
 // 사용자가 붙인 .pptx는 떼고 앞뒤 공백 정리

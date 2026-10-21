@@ -6,7 +6,7 @@ import { PLAN_SCOPE_LABEL, type PlanScope } from '../lib/planDraft';
 import { usePlanDraft } from '../hooks/usePlanDraft';
 import PlanBuilderModal from './PlanBuilderModal';
 
-// 라이브 파트 '1차 기획서' 세부업무 카드 안, Figma 세팅 줄 위의 기획서 줄 — 오른쪽에 [기획서 상태] [버튼].
+// 라이브 파트 '1차 기획서' 세부업무 카드 안 Figma 줄의 [폴더 상태]와 [세팅요청] 사이에 들어가는 [기획서 상태] [버튼].
 // 버튼 상태: 1차 기획서 만들기 → 요청대기(맥이 아직 안 가져감) → 기획서 생성중 → v1.0 생성됨 + 추가 작성하기 (+ 실패 · 다시 요청)
 // 누르면 범위(배너/상세/둘 다)를 고르고, 편집 화면에서 내용을 정리해 Firestore planDrafts/{폴더이름}에 요청을 남긴다.
 export default function PlanBuilderButton({ task, canManage, currentUserName, workplaceId, teamId }: {
@@ -63,7 +63,7 @@ export default function PlanBuilderButton({ task, canManage, currentUserName, wo
   }
 
   return (
-    <div className="flex items-center justify-end gap-1.5 mt-1">
+    <>
       {content}
       {scopeOpen && (
         <PlanScopeDialog taskTitle={task.title} again={again} onCancel={() => setScopeOpen(false)}
@@ -74,7 +74,7 @@ export default function PlanBuilderButton({ task, canManage, currentUserName, wo
           currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
           requestPlan={requestPlan} onClose={() => setEditorScope(null)} />
       )}
-    </div>
+    </>
   );
 }
 

@@ -2595,16 +2595,14 @@ export default function TaskDetailPanel({
                     </div>
 
                     {/* 라이브 파트 '1차 기획서'(세팅요청)·'기획서 업데이트'(반영요청): Figma 배너·상세페이지 */}
-                    {/* '1차 기획서'는 그 위에 기획서 만들기 줄(배너 카피·상세 워싱본 → 기획서 PPT 요청)도 둔다 */}
+                    {/* '1차 기획서'는 같은 줄의 폴더 상태와 세팅요청 사이에 기획서 만들기 버튼(배너 카피·상세 워싱본 → 기획서 PPT 요청)도 둔다 */}
                     {(() => {
                       const figmaKind = figmaSetupKind(teamName, task.category, type.name);
                       return figmaKind && (
-                        <>
-                          {figmaKind === 'initial' && (
+                        <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
+                          middle={figmaKind === 'initial' && (
                             <PlanBuilderButton task={task} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
-                          )}
-                          <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
-                        </>
+                          )} />
                       );
                     })()}
 

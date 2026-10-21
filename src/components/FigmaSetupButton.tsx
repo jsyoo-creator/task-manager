@@ -6,12 +6,14 @@ import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 import { useClaudeUsage, type ClaudeUsage } from '../hooks/useClaudeUsage';
 
-// 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [버튼] 두 가지만 표시.
+// 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [middle] [버튼].
+// middle: '1차 기획서'에서는 기획서 만들기 버튼이 폴더 상태와 세팅요청 사이에 들어간다.
 // '기획 제작 소재 검수'(kind=save)는 이미지 저장 → 요청대기 → 저장중 → 저장완료 (드라이브 02.디자인)
 // 버튼 상태: 세팅요청|반영요청 → 요청대기(맥이 아직 안 가져감) → 반영중 → 세팅완료|반영완료 (+ 실패 · 다시 요청)
 // 자세한 내용(폴더 이름, 실패 이유, 결과 링크)은 마우스를 올리면 보이거나 세팅완료 버튼으로 연다.
-export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId }: {
+export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId, middle }: {
   task: Task;
+  middle?: ReactNode;
   kind?: FigmaSetupKind;
   canManage: boolean;
   currentUserName: string;
@@ -117,6 +119,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   return (
     <div className="flex items-center justify-end gap-1.5 mt-1 mb-2">
       {folderBadge}
+      {middle}
       {button}
       {dialog && (
         <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt} onCancel={() => setDialog(null)}

@@ -150,6 +150,14 @@ function ScopeDialog({ taskTitle, kind, again, onPick, onCancel }: { taskTitle: 
           {pick('landing')}
           {pick('both', true)}
         </div>
+        {kind === 'save' && (
+          <div className="px-5 pb-3">
+            <button onClick={() => onPick('draft')} title="보드 전체·상세페이지 전체 이미지를 드라이브 00_시안 폴더에만 저장해요"
+              className="w-full py-2.5 text-sm font-semibold rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
+              {FIGMA_SETUP_SCOPE_LABEL.draft} <span className="font-normal text-indigo-400">· 00_시안 폴더</span>
+            </button>
+          </div>
+        )}
         <div className="px-5 pb-5">
           <button onClick={onCancel} className="w-full py-2 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition-colors">취소</button>
         </div>

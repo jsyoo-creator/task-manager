@@ -64,9 +64,10 @@ export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskM
 
 export type FigmaSetupStatus = 'requested' | 'running' | 'done' | 'no_folder' | 'failed';
 // 무엇을 세팅할지 — 처음 요청은 둘 다, 다시 세팅요청 때 고를 수 있음
-export type FigmaSetupScope = 'both' | 'banner' | 'landing';
+// draft = 시안 이미지만 (이미지 저장에서만, 드라이브 00_시안 폴더)
+export type FigmaSetupScope = 'both' | 'banner' | 'landing' | 'draft';
 export type FigmaSetupKind = 'initial' | 'update' | 'save';
-export const FIGMA_SETUP_SCOPE_LABEL: Record<FigmaSetupScope, string> = { both: '배너+상세페이지', banner: '배너만', landing: '상세페이지만' };
+export const FIGMA_SETUP_SCOPE_LABEL: Record<FigmaSetupScope, string> = { both: '배너+상세페이지', banner: '배너만', landing: '상세페이지만', draft: '시안 이미지' };
 
 export interface FigmaSetupJob {
   id: string;            // = folderName

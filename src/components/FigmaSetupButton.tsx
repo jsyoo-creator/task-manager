@@ -148,7 +148,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
             {again ? <RotateCcw size={24} className="text-indigo-400" /> : kind === 'save' ? <Download size={24} className="text-indigo-400" /> : kind === 'image' ? <ImageIcon size={24} className="text-indigo-400" /> : <Send size={24} className="text-indigo-400" />}
           </div>
           <div className="text-center">
-            <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px]" title={taskTitle}>{taskTitle}</p>
+            <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px] mx-auto" title={taskTitle}>{taskTitle}</p>
             <p className="text-sm text-gray-500 mt-1">{again ? t.againQuestion : t.question}</p>
             <p className="text-xs text-gray-400 mt-1.5">{again ? t.againSub : t.sub}</p>
           </div>

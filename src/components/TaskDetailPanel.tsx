@@ -5,6 +5,7 @@ import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FI
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
 import FigmaSetupButton from './FigmaSetupButton';
+import PlanBuilderButton from './PlanBuilderButton';
 import { figmaSetupKind } from '../lib/figmaSetup';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
@@ -2594,10 +2595,16 @@ export default function TaskDetailPanel({
                     </div>
 
                     {/* 라이브 파트 '1차 기획서'(세팅요청)·'기획서 업데이트'(반영요청): Figma 배너·상세페이지 */}
+                    {/* '1차 기획서'는 그 위에 기획서 만들기 줄(배너 카피·상세 워싱본 → 기획서 PPT 요청)도 둔다 */}
                     {(() => {
                       const figmaKind = figmaSetupKind(teamName, task.category, type.name);
                       return figmaKind && (
-                        <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                        <>
+                          {figmaKind === 'initial' && (
+                            <PlanBuilderButton task={task} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                          )}
+                          <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                        </>
                       );
                     })()}
 

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download } from 'lucide-react';
+import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download, Image as ImageIcon } from 'lucide-react';
 import type { Task } from '../types';
 import { folderNameFromTask, figmaSetupDocId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
@@ -21,8 +21,9 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const folderName = folderNameFromTask(task);
   const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
   const text = FIGMA_SETUP_TEXT[kind];
-  const { folders, plans } = useDriveFolders(!!folderName);
+  const { folders, plans, images } = useDriveFolders(!!folderName);
   const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
+  const imageAt = folderName ? images[folderName.normalize('NFC')] : undefined;
   // 기획서 업데이트는 지난번에 반영한 버전과 비교한다 (업데이트 기록이 없으면 1차 기획서 세팅 때 버전)
   const { job: initialJob } = useFigmaSetupJob(kind === 'update' && folderName ? folderName : null);
   const lastVersion = kind === 'save' ? undefined : (job?.status === 'done' && job.planVersion) || (kind === 'update' ? initialJob?.planVersion : undefined);
@@ -67,10 +68,12 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   };
 
   const status = job?.status;
-  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists);
+  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt);
   const requestTitle = !canManage ? '업무 편집 권한이 있어야 요청할 수 있어요'
     : !folderName ? '업무명 형식을 먼저 확인해 주세요'
     : folderKnown && !folderExists ? `드라이브에 "${folderName}" 폴더를 만든 뒤 요청할 수 있어요`
+    : kind === 'image' && folderKnown && !imageAt ? '02.디자인/99_가이드에 banner_img.png를 올린 뒤 요청할 수 있어요'
+    : kind === 'image' ? '99_가이드의 배너 원본 이미지를 Figma 배너에 배치해 달라고 요청합니다'
     : kind === 'save' ? '검수 끝난 배너·상세페이지를 이미지로 드라이브 02.디자인에 저장해 달라고 요청합니다'
     : kind === 'update' ? '업데이트된 기획서를 Figma 배너·상세페이지에 반영해 달라고 요청합니다' : 'Figma에 배너(카피)와 상세페이지를 세팅해 달라고 요청합니다';
   let button: ReactNode;
@@ -116,7 +119,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       {folderBadge}
       {button}
       {dialog && (
-        <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} onCancel={() => setDialog(null)}
+        <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt} onCancel={() => setDialog(null)}
           onPick={scope => { const again = dialog === 'again'; setDialog(null); request(again, scope); }} />
       )}
     </div>
@@ -125,7 +128,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
 
 
 // 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
-function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
+function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; imageAt?: string; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
   const t = FIGMA_SETUP_TEXT[kind];
   const pick = (scope: FigmaSetupScope, primary = false) => (
     <button onClick={() => onPick(scope)}
@@ -142,21 +145,36 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, onPick, 
         </div>
         <div className="px-5 py-6 flex flex-col items-center gap-4">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-indigo-50">
-            {again ? <RotateCcw size={24} className="text-indigo-400" /> : kind === 'save' ? <Download size={24} className="text-indigo-400" /> : <Send size={24} className="text-indigo-400" />}
+            {again ? <RotateCcw size={24} className="text-indigo-400" /> : kind === 'save' ? <Download size={24} className="text-indigo-400" /> : kind === 'image' ? <ImageIcon size={24} className="text-indigo-400" /> : <Send size={24} className="text-indigo-400" />}
           </div>
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px]" title={taskTitle}>{taskTitle}</p>
             <p className="text-sm text-gray-500 mt-1">{again ? t.againQuestion : t.question}</p>
             <p className="text-xs text-gray-400 mt-1.5">{again ? t.againSub : t.sub}</p>
           </div>
-          {kind !== 'save' && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} />}
+          {kind === 'image' && (
+            <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex justify-between text-[11px]">
+              <span className="text-gray-500">배너 원본 이미지 (99_가이드/banner_img.png)</span>
+              <span className={imageAt ? 'text-gray-800 font-semibold' : 'text-red-500 font-semibold'}>{imageAt ? `${fmtTime(imageAt)} 올림` : '없음'}</span>
+            </div>
+          )}
+          {(kind === 'initial' || kind === 'update') && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} />}
           <UsagePanel />
         </div>
-        <div className="flex gap-2 px-5 pb-3">
-          {pick('banner')}
-          {pick('landing')}
-          {pick('both', true)}
-        </div>
+        {kind === 'image' ? (
+          <div className="flex gap-2 px-5 pb-3">
+            <button onClick={() => onPick('banner')} disabled={!imageAt}
+              className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-40">
+              {again ? t.again : t.request}
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2 px-5 pb-3">
+            {pick('banner')}
+            {pick('landing')}
+            {pick('both', true)}
+          </div>
+        )}
         {kind === 'save' && (
           <div className="px-5 pb-3">
             <button onClick={() => onPick('draft')} title="보드 전체·상세페이지 전체 이미지를 드라이브 00_시안 폴더에만 저장해요"

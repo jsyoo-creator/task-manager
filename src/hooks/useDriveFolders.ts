@@ -9,6 +9,8 @@ export function useDriveFolders(enabled: boolean) {
   const [updatedAt, setUpdatedAt] = useState<string | undefined>();
   // 폴더별 최신 기획서 (파일 이름 버전이 가장 높은 것) — 맥 프로그램이 같이 올린다
   const [plans, setPlans] = useState<Record<string, { version: string; file: string }>>({});
+  // 폴더별 배너 원본 이미지(99_가이드/banner_img.png) 수정 시각
+  const [images, setImages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -18,10 +20,11 @@ export function useDriveFolders(enabled: boolean) {
       setUpdatedAt(data?.updatedAt);
       const vers = (data?.planVersions ?? {}) as Record<string, string>;
       const files = (data?.planFiles ?? {}) as Record<string, string>;
+      setImages(Object.fromEntries(Object.entries((data?.images ?? {}) as Record<string, string>).map(([k, v]) => [k.normalize('NFC'), v])));
       setPlans(Object.fromEntries(Object.keys({ ...vers, ...files }).map(k => [k.normalize('NFC'), { version: vers[k] ?? '', file: files[k] ?? '' }])));
     });
     return unsub;
   }, [enabled]);
 
-  return { folders, updatedAt, plans };
+  return { folders, updatedAt, plans, images };
 }

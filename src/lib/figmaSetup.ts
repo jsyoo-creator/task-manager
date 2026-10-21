@@ -14,7 +14,8 @@ export const DRIVE_FOLDERS_DOC = 'driveFolders';
 const TARGET_TEAM = '라이브/복지&사업자몰'; // 공백은 비교 전에 뺀다 (실제 팀 이름은 '라이브 / 복지&사업자몰')
 const TARGET_PART = '라이브';
 // 세부업무 이름 → 요청 종류. '1차 기획서'는 처음 세팅, '기획서 업데이트'는 바뀐 기획서 반영
-const TARGET_SUBTASKS: Record<string, FigmaSetupKind> = { '1차기획서': 'initial', '기획서업데이트': 'update' };
+// '기획 제작 소재 검수'는 검수 끝난 배너·상세페이지 이미지를 드라이브 02.디자인에 저장
+const TARGET_SUBTASKS: Record<string, FigmaSetupKind> = { '1차기획서': 'initial', '기획서업데이트': 'update', '기획제작소재검수': 'save' };
 
 const squash = (s?: string) => (s ?? '').replace(/\s+/g, '');
 
@@ -26,17 +27,20 @@ export function figmaSetupKind(teamName: string | undefined, category: string | 
 
 // 요청 문서 id — 처음 세팅은 폴더 이름 그대로(기존 문서와 호환), 기획서 업데이트는 따로 기록해 두 버튼 상태가 섞이지 않게 한다
 export function figmaSetupDocId(folderName: string, kind: FigmaSetupKind): string {
-  return kind === 'update' ? `${folderName}__update` : folderName;
+  return kind === 'initial' ? folderName : `${folderName}__${kind}`;
 }
 
 // 종류별 화면 문구
-export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; done: string; again: string; failed: string; question: string; againQuestion: string; sub: string; againSub: string }> = {
-  initial: { request: '세팅요청', done: '세팅완료', again: '다시 세팅요청', failed: '세팅실패 · 다시 요청',
+export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; running: string; done: string; again: string; failed: string; question: string; againQuestion: string; sub: string; againSub: string }> = {
+  initial: { request: '세팅요청', running: '반영중', done: '세팅완료', again: '다시 세팅요청', failed: '세팅실패 · 다시 요청',
     question: '무엇을 세팅할까요?', againQuestion: '무엇을 다시 세팅할까요?',
     sub: '기획서 기준으로 Figma에 세팅해요', againSub: '지금 기획서 기준으로 다시 맞춰요 · Figma에서 지웠다면 새로 만들어요' },
-  update: { request: '반영요청', done: '반영완료', again: '다시 반영요청', failed: '반영실패 · 다시 요청',
+  update: { request: '반영요청', running: '반영중', done: '반영완료', again: '다시 반영요청', failed: '반영실패 · 다시 요청',
     question: '업데이트된 기획서를 어디에 반영할까요?', againQuestion: '업데이트된 기획서를 어디에 다시 반영할까요?',
     sub: '최신 기획서 기준으로 Figma의 배너·상세페이지를 고쳐요', againSub: '최신 기획서 기준으로 다시 맞춰요' },
+  save: { request: '이미지 저장', running: '저장중', done: '저장완료', again: '다시 저장', failed: '저장실패 · 다시 요청',
+    question: '어떤 이미지를 저장할까요?', againQuestion: '어떤 이미지를 다시 저장할까요?',
+    sub: 'Figma에서 이미지로 내보내 드라이브 02.디자인에 저장해요', againSub: '지금 Figma 상태로 다시 저장해요 (같은 이름 파일은 덮어써요)' },
 };
 
 // 업무명 "10/6 냉장고&세탁기" → 드라이브 폴더 "20261006_냉장고&세탁기".
@@ -61,7 +65,7 @@ export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskM
 export type FigmaSetupStatus = 'requested' | 'running' | 'done' | 'no_folder' | 'failed';
 // 무엇을 세팅할지 — 처음 요청은 둘 다, 다시 세팅요청 때 고를 수 있음
 export type FigmaSetupScope = 'both' | 'banner' | 'landing';
-export type FigmaSetupKind = 'initial' | 'update';
+export type FigmaSetupKind = 'initial' | 'update' | 'save';
 export const FIGMA_SETUP_SCOPE_LABEL: Record<FigmaSetupScope, string> = { both: '배너+상세페이지', banner: '배너만', landing: '상세페이지만' };
 
 export interface FigmaSetupJob {

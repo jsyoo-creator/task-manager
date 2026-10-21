@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send } from 'lucide-react';
+import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download } from 'lucide-react';
 import type { Task } from '../types';
 import { folderNameFromTask, figmaSetupDocId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 
 // 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [버튼] 두 가지만 표시.
+// '기획 제작 소재 검수'(kind=save)는 이미지 저장 → 요청대기 → 저장중 → 저장완료 (드라이브 02.디자인)
 // 버튼 상태: 세팅요청|반영요청 → 요청대기(맥이 아직 안 가져감) → 반영중 → 세팅완료|반영완료 (+ 실패 · 다시 요청)
 // 자세한 내용(폴더 이름, 실패 이유, 결과 링크)은 마우스를 올리면 보이거나 세팅완료 버튼으로 연다.
 export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId }: {
@@ -65,6 +66,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const requestTitle = !canManage ? '업무 편집 권한이 있어야 요청할 수 있어요'
     : !folderName ? '업무명 형식을 먼저 확인해 주세요'
     : folderKnown && !folderExists ? `드라이브에 "${folderName}" 폴더를 만든 뒤 요청할 수 있어요`
+    : kind === 'save' ? '검수 끝난 배너·상세페이지를 이미지로 드라이브 02.디자인에 저장해 달라고 요청합니다'
     : kind === 'update' ? '업데이트된 기획서를 Figma 배너·상세페이지에 반영해 달라고 요청합니다' : 'Figma에 배너(카피)와 상세페이지를 세팅해 달라고 요청합니다';
   let button: ReactNode;
 
@@ -83,11 +85,11 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   } else if (status === 'requested') {
     button = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title="디자이너 맥이 켜지면 자동으로 시작돼요"><Clock size={11} className="animate-pulse" />요청대기</span>;
   } else if (status === 'running') {
-    button = <span className={`${chip} text-blue-600 border-blue-200 bg-blue-50`} title="Figma에 세팅하고 있어요. 보통 10~30분 걸려요"><Loader2 size={11} className="animate-spin" />반영중</span>;
+    button = <span className={`${chip} text-blue-600 border-blue-200 bg-blue-50`} title={kind === 'save' ? 'Figma에서 이미지를 내보내 드라이브에 저장하고 있어요. 보통 5~15분 걸려요' : 'Figma에 세팅하고 있어요. 보통 10~30분 걸려요'}><Loader2 size={11} className="animate-spin" />{text.running}</span>;
   } else {
     // 세팅완료 — 누르면 배너 보드(없으면 상세페이지)를 연다
-    const url = job?.bannerUrl || job?.landingUrl;
-    const doneTitle = [job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || text.done;
+    const url = kind === 'save' ? undefined : (job?.bannerUrl || job?.landingUrl);  // 저장은 드라이브라 링크 대신 저장 개수를 툴팁으로
+    const doneTitle = [kind !== 'save' && job?.bannerUrl && '배너 보드 열기', job?.message].filter(Boolean).join(' · ') || text.done;
     const doneChip = url
       ? <a href={url} target="_blank" rel="noreferrer" title={doneTitle} className={`${chip} text-green-600 border-green-200 bg-green-50 hover:bg-green-100`}><Check size={11} />{text.done}</a>
       : <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={doneTitle}><Check size={11} />{text.done}</span>;
@@ -135,7 +137,7 @@ function ScopeDialog({ taskTitle, kind, again, onPick, onCancel }: { taskTitle: 
         </div>
         <div className="px-5 py-6 flex flex-col items-center gap-4">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-indigo-50">
-            {again ? <RotateCcw size={24} className="text-indigo-400" /> : <Send size={24} className="text-indigo-400" />}
+            {again ? <RotateCcw size={24} className="text-indigo-400" /> : kind === 'save' ? <Download size={24} className="text-indigo-400" /> : <Send size={24} className="text-indigo-400" />}
           </div>
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-800 truncate max-w-[280px]" title={taskTitle}>{taskTitle}</p>

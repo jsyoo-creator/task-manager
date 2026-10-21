@@ -272,8 +272,8 @@ function PlanInfo({ kind, latest, lastVersion }: { kind: FigmaSetupKind; latest?
   if (!latest) return <div className="w-full text-[11px] text-gray-400 text-center">기획서 버전 확인 전이에요 (디자이너 맥이 켜지면 확인돼요)</div>;
   const isNew = !lastVersion || verCmp(latest.version, lastVersion) > 0;
   const notice = kind === 'update'
-    ? (isNew ? { cls: 'bg-green-50 text-green-700', text: lastVersion ? `새 버전이 있어요 (${lastVersion} → ${latest.version || '버전 없음'})` : `${latest.version || '최신 기획서'}로 반영해요` }
-             : { cls: 'bg-amber-50 text-amber-700', text: `새 버전이 없어요 — 지난번에 ${lastVersion}를 반영했어요. 그래도 다시 반영할 수 있어요` })
+    ? (isNew ? { cls: 'bg-green-50 text-green-700', text: lastVersion ? `새 버전이 있어요 (${lastVersion} → ${latest.version || '버전 없음'}) — 바뀐 글자만 찾아서 반영해요` : `${latest.version || '최신 기획서'}로 반영해요` }
+             : { cls: 'bg-amber-50 text-amber-700', text: `새 버전이 없어요 — 지난번에 ${lastVersion}를 반영했어요. 요청해도 Figma는 바뀌지 않아요` })
     : null;
   return (
     <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5">

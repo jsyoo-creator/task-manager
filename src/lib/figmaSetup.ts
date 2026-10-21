@@ -38,7 +38,7 @@ export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; running
     sub: '기획서 기준으로 Figma에 세팅해요', againSub: '지금 기획서 기준으로 다시 맞춰요 · Figma에서 지웠다면 새로 만들어요' },
   update: { request: '반영요청', running: '반영중', done: '반영완료', again: '다시 반영요청', failed: '반영실패 · 다시 요청',
     question: '업데이트된 기획서를 어디에 반영할까요?', againQuestion: '업데이트된 기획서를 어디에 다시 반영할까요?',
-    sub: '최신 기획서 기준으로 Figma의 배너·상세페이지를 고쳐요', againSub: '최신 기획서 기준으로 다시 맞춰요' },
+    sub: '지난번 반영한 기획서와 비교해 바뀐 글자만 Figma에 반영해요', againSub: '지난번 반영한 기획서와 비교해 바뀐 글자만 반영해요' },
   save: { request: '이미지 저장', running: '저장중', done: '저장완료', again: '다시 저장', failed: '저장실패 · 다시 요청',
     question: '어떤 이미지를 저장할까요?', againQuestion: '어떤 이미지를 다시 저장할까요?',
     sub: 'Figma에서 이미지로 내보내 드라이브 02.디자인에 저장해요', againSub: '지금 Figma 상태로 다시 저장해요 (같은 이름 파일은 덮어써요)' },

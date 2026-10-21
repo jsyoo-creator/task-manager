@@ -8,7 +8,7 @@ import {
 } from '../lib/planTools/bannerCopy';
 import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, PROMO_PREVIEW_CSS, type PromoStructured } from '../lib/planTools/promoParse';
 import {
-  scopeHasBanner, scopeHasLanding, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
+  scopeHasBanner, scopeHasLanding, defaultPlanFileName, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
 } from '../lib/planDraft';
 import { PlanDraftBusyError, type PlanRequest } from '../hooks/usePlanDraft';
@@ -103,8 +103,8 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
   const [fileName, setFileName] = useState(() => {
     if (!draft?.fileName) return defaultPlanFileName(folderName);
     if (draft.status === 'failed') return draft.fileName; // 실패한 요청은 같은 이름으로 다시
-    const prevName = draft.outputFile ? cleanFileName(draft.outputFile) : draft.fileName;
-    return bumpVersion(prevName);
+    // 1차 기획서는 같은 파일을 고쳐 쓰는 구조라 버전은 올리지 않고 그대로 둔다 (2026-10-22 사용자)
+    return draft.outputFile ? cleanFileName(draft.outputFile) : draft.fileName;
   });
   const cleanName = cleanFileName(fileName);
   const noVersion = !!cleanName && !versionFromFileName(cleanName);
@@ -405,7 +405,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
             <p className="text-[11px] text-amber-700 flex items-center gap-1"><TriangleAlert size={12} />파일 이름에 버전(_v1.0 같은)이 없으면 '기획서 업데이트'의 바뀐 부분만 반영이 동작하지 않아요</p>
           )}
           {again && draft?.outputFile && (
-            <p className="text-[11px] text-gray-400 flex items-center gap-1"><Info size={12} />지난 파일 {draft.outputFile}에 이어서 {scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 새 파일로 만들어요</p>
+            <p className="text-[11px] text-gray-400 flex items-center gap-1"><Info size={12} />같은 파일 {draft.outputFile}에서 {scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 저장해요 (버전 그대로)</p>
           )}
           {error && <p className="text-[11px] text-red-500 flex items-center gap-1"><TriangleAlert size={12} />{error}</p>}
         </div>

@@ -72,16 +72,6 @@ export function versionFromFileName(name: string): string {
   return all.length ? `v${all[all.length - 1][1]}` : '';
 }
 
-// 버전 끝자리를 하나 올린다 — v1.0 → v1.1, v1.9 → v1.10, v2 → v2.1. 버전이 없으면 그대로
-export function bumpVersion(name: string): string {
-  const all = [...(name ?? '').matchAll(VERSION_RE)];
-  if (!all.length) return name;
-  const last = all[all.length - 1];
-  const parts = last[1].split('.').map(Number);
-  if (parts.length === 1) parts.push(1); else parts[parts.length - 1] += 1;
-  const at = last.index ?? 0;
-  return name.slice(0, at) + `_v${parts.join('.')}` + name.slice(at + last[0].length);
-}
 
 const yymmdd = (d: Date) => `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 

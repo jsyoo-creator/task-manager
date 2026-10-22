@@ -10,14 +10,16 @@ import { UsagePanel, fmtTime } from './UsagePanel';
 // middle: '1차 기획서'에서는 기획서 만들기 버튼이 폴더 상태와 세팅요청 사이에 들어간다.
 // after: '페이지&배너&히든기획전 디자인'에서는 이미지 반영 버튼 오른쪽에 저장 버튼(kind=save)을 inline으로 더 둔다.
 // inline: 줄과 폴더 상태 없이 버튼만 그린다 (다른 줄 안에 끼워 넣을 때).
+// needDone: 이 종류가 끝나 있어야 요청할 수 있다 (디자인 카드의 저장은 '이미지 반영'을 한 뒤에만).
 // '기획 제작 소재 검수'(kind=save)는 이미지 저장 → 요청대기 → 저장중 → 저장완료 (드라이브 02.디자인)
 // 버튼 상태: 세팅요청|반영요청 → 요청대기(맥이 아직 안 가져감) → 반영중 → 세팅완료|반영완료 (+ 실패 · 다시 요청)
 // 자세한 내용(폴더 이름, 실패 이유, 결과 링크)은 마우스를 올리면 보이거나 세팅완료 버튼으로 연다.
-export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId, middle, after, inline = false }: {
+export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId, middle, after, inline = false, needDone }: {
   task: Task;
   middle?: ReactNode;
   after?: ReactNode;
   inline?: boolean;
+  needDone?: FigmaSetupKind;
   kind?: FigmaSetupKind;
   canManage: boolean;
   currentUserName: string;
@@ -32,6 +34,9 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const imageAt = folderName ? images[folderName.normalize('NFC')] : undefined;
   // 기획서 업데이트는 지난번에 반영한 버전과 비교한다 (업데이트 기록이 없으면 1차 기획서 세팅 때 버전)
   const { job: initialJob } = useFigmaSetupJob(kind === 'update' && folderName ? folderName : null);
+  // 앞 단계(예: 이미지 반영)가 끝나야 요청할 수 있는 버튼
+  const { job: needJob } = useFigmaSetupJob(needDone && folderName ? figmaSetupDocId(folderName, needDone) : null);
+  const needOk = !needDone || needJob?.status === 'done';
   const lastVersion = kind === 'save' ? undefined : (job?.status === 'done' && job.planVersion) || (kind === 'update' ? initialJob?.planVersion : undefined);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -74,8 +79,9 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   };
 
   const status = job?.status;
-  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt);
+  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt) && needOk;
   const requestTitle = !canManage ? '업무 편집 권한이 있어야 요청할 수 있어요'
+    : !needOk ? `${FIGMA_SETUP_TEXT[needDone!].request}을 먼저 한 뒤에 저장할 수 있어요`
     : !folderName ? '업무명 형식을 먼저 확인해 주세요'
     : folderKnown && !folderExists ? `드라이브에 "${folderName}" 폴더를 만든 뒤 요청할 수 있어요`
     : kind === 'image' && folderKnown && !imageAt ? '02.디자인/99_가이드에 banner_img.png를 올린 뒤 요청할 수 있어요'

@@ -8,8 +8,8 @@ import {
 } from '../lib/planTools/bannerCopy';
 import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, PROMO_PREVIEW_CSS, type PromoStructured } from '../lib/planTools/promoParse';
 import {
-  scopeHasBanner, scopeHasLanding, defaultPlanFileName, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
-  type PlanDraft, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
+  scopeHasBanner, scopeHasLanding, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
+  type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
 } from '../lib/planDraft';
 import { PlanDraftBusyError, type PlanRequest } from '../hooks/usePlanDraft';
 
@@ -17,12 +17,16 @@ type Tab = 'banner' | 'landing';
 
 // 기획서 편집 화면 — 상세 탭(판촉 업데이트기 v21 로직) / 배너 탭(배너카피생성기 v14 로직), 기획서 작성 순서가 상세 먼저라 탭도 그 순서, 아래 고정 줄에 파일 이름과 저장 요청.
 // 고른 범위의 탭만 보이고 보낸다. 추가 작성하기·실패 후 다시 요청은 지난번에 보낸 내용으로 채워서 연다.
-export default function PlanBuilderModal({ task, folderName, scope, draft, again, currentUserName, workplaceId, teamId, requestPlan, onClose }: {
+export default function PlanBuilderModal({ task, folderName, scope, draft, seed, again, kind = 'initial', title, baseFile, currentUserName, workplaceId, teamId, requestPlan, onClose }: {
   task: Task;
   folderName: string;
   scope: PlanScope;
   draft: PlanDraft | null;
+  seed: PlanDraft | null;          // 화면을 채울 값 (업데이트는 1차 기획서 입력값을 가져온다)
   again: boolean;
+  kind?: PlanDraftKind;
+  title: string;
+  baseFile?: string;               // 업데이트가 틀로 삼을 지난 결과 파일 (.pptx 포함)
   currentUserName: string;
   workplaceId?: string;
   teamId?: string;
@@ -33,7 +37,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
   const showLanding = scopeHasLanding(scope);
   const [tab, setTab] = useState<Tab>(showLanding ? 'landing' : 'banner');
   const folderDate = liveDateFromFolder(folderName);
-  const prevBanner = draft?.banner;
+  const prevBanner = seed?.banner;
 
   // ── 배너 입력 ──
   const [kvMain, setKvMain] = useState(prevBanner?.kvMain ?? '');
@@ -91,7 +95,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
   const bannerStale = !!generated && generated.key !== inputKey;
 
   // ── 상세 입력 ──
-  const [raw, setRaw] = useState(draft?.landing?.raw ?? '');
+  const [raw, setRaw] = useState(seed?.landing?.raw ?? '');
   const deferredRaw = useDeferredValue(raw);
   // 알림 마감일시는 업무명 앞의 날짜(예: "10/27")로 계산한다 — 업무명 전체를 넘기면 "10/27 10월…"처럼 뒤 숫자 때문에 날짜를 못 읽는다
   const caseDate = (task.title ?? '').trim().match(/^(\d{1,2}\/\d{1,2})/)?.[1] ?? '';
@@ -101,10 +105,15 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
 
   // ── 파일 이름 ──
   const [fileName, setFileName] = useState(() => {
+    if (draft?.status === 'failed' && draft.fileName) return draft.fileName; // 실패한 요청은 같은 이름으로 다시
+    const last = draft?.outputFile || baseFile || '';
+    if (kind === 'update') {
+      // 기획서 업데이트는 고칠 때마다 버전을 올린 새 파일로 남긴다 (2026-10-22 사용자)
+      return last ? bumpVersion(cleanFileName(last)) : defaultPlanFileName(folderName);
+    }
     if (!draft?.fileName) return defaultPlanFileName(folderName);
-    if (draft.status === 'failed') return draft.fileName; // 실패한 요청은 같은 이름으로 다시
     // 1차 기획서는 같은 파일을 고쳐 쓰는 구조라 버전은 올리지 않고 그대로 둔다 (2026-10-22 사용자)
-    return draft.outputFile ? cleanFileName(draft.outputFile) : draft.fileName;
+    return last ? cleanFileName(last) : draft.fileName;
   });
   const cleanName = cleanFileName(fileName);
   const noVersion = !!cleanName && !versionFromFileName(cleanName);
@@ -147,7 +156,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
     }
     setSending(true);
     try {
-      await requestPlan({ folderName, taskId: task.id, taskTitle: task.title, workplaceId, teamId, requestedBy: currentUserName, scope, fileName: cleanName, banner, landing });
+      await requestPlan({ folderName, taskId: task.id, taskTitle: task.title, workplaceId, teamId, requestedBy: currentUserName, scope, fileName: cleanName, banner, landing, baseFile });
       onClose();
     } catch (e) {
       if (e instanceof PlanDraftBusyError) setError('이미 작성 요청을 처리 중이에요');
@@ -166,7 +175,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 flex-shrink-0">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-gray-900">{again ? '추가 작성하기' : '1차 기획서 만들기'}</h2>
+            <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
             <p className="text-[11px] text-gray-400 truncate" title={folderName}>{task.title} · 드라이브 폴더 {folderName}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={17} /></button>
@@ -405,8 +414,11 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
           {noVersion && (
             <p className="text-[11px] text-amber-700 flex items-center gap-1"><TriangleAlert size={12} />파일 이름에 버전(_v1.0 같은)이 없으면 '기획서 업데이트'의 바뀐 부분만 반영이 동작하지 않아요</p>
           )}
-          {again && draft?.outputFile && (
-            <p className="text-[11px] text-gray-400 flex items-center gap-1"><Info size={12} />같은 파일 {draft.outputFile}에서 {scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 저장해요 (버전 그대로)</p>
+          {(draft?.outputFile || baseFile) && (again || kind === 'update') && (
+            <p className="text-[11px] text-gray-400 flex items-center gap-1"><Info size={12} />
+              {kind === 'update'
+                ? `${draft?.outputFile || baseFile}을 바탕으로 ${scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 새 버전 파일로 저장해요`
+                : `같은 파일 ${draft?.outputFile}에서 ${scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 저장해요 (버전 그대로)`}</p>
           )}
           {error && <p className="text-[11px] text-red-500 flex items-center gap-1"><TriangleAlert size={12} />{error}</p>}
         </div>

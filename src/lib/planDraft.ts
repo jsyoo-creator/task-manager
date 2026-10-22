@@ -10,6 +10,11 @@ export const PLAN_DRAFT_COLLECTION = 'planDrafts';
 export const PLAN_HISTORY_MAX = 20;
 
 export type PlanDraftStatus = 'requested' | 'running' | 'done' | 'failed';
+// '1차 기획서'(initial)와 '기획서 업데이트'(update)는 입력값·결과 파일이 달라서 문서를 나눠 쓴다.
+// 업데이트는 1차에 입력한 값을 가져와 시작하고, 저장할 때마다 버전을 올린 새 파일을 만든다.
+export type PlanDraftKind = 'initial' | 'update';
+export const planDraftDocId = (folderName: string, kind: PlanDraftKind = 'initial') =>
+  (kind === 'update' ? `${folderName}__update` : folderName);
 // 이번 요청이 바꾸는 범위 — 화면에서는 '상세'라고 부른다 (값은 figmaSetup과 같은 'landing')
 export type PlanScope = 'banner' | 'landing' | 'both';
 export const PLAN_SCOPE_LABEL: Record<PlanScope, string> = { banner: '배너', landing: '상세', both: '둘 다' };
@@ -83,6 +88,17 @@ export function defaultPlanFileName(folderName: string, today = new Date()): str
   const name = folderName.replace(/^\d{8}_/, '').replace(/\s+/g, '');
   const date = folderName.match(/^\d{8}/)?.[0].slice(2) ?? yymmdd(today);
   return `LGE.COM 라이브커머스_${name}_HSAD_v1.0_${date}`;
+}
+
+// "…_HSAD_v1.0_261027" → "…_HSAD_v1.1_261027" (마지막 자리만 올린다). 버전 표시가 없으면 그대로.
+export function bumpVersion(name: string): string {
+  const all = [...(name ?? '').matchAll(VERSION_RE)];
+  if (!all.length) return name;
+  const last = all[all.length - 1];
+  const parts = last[1].split('.').map(Number);
+  if (parts.length === 1) parts.push(1); else parts[parts.length - 1] += 1;
+  const at = last.index ?? 0;
+  return name.slice(0, at) + `_v${parts.join('.')}` + name.slice(at + last[0].length);
 }
 
 // 사용자가 붙인 .pptx는 떼고 앞뒤 공백 정리

@@ -1763,7 +1763,7 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             </div>
           )}
         </YearMonthNav>
-        {/* 라이브 파트: 그 달 Figma 판(배너·상세페이지) 바로가기 — 월마다 새 판이라 링크는 사람이 등록한다 */}
+        {/* 그 달 Figma 판(배너·상세페이지) 열기·등록 — 월마다 새 판이라 링크는 사람이 등록한다 */}
         {isFigmaBoardScope(teams.find(t => t.id === currentTeamId)?.name, activeCategory) && (
           <FigmaBoardLinks
             month={monthFilter > 0 ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}` : null}

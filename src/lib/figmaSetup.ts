@@ -28,10 +28,9 @@ export function figmaSetupKind(teamName: string | undefined, category: string | 
   return TARGET_SUBTASKS[squash(subTaskName)] ?? null;
 }
 
-// 업무관리 툴바에 월별 Figma 판 바로가기를 띄울 팀·파트인지 (파트 탭이 '전체'여도 띄운다)
+// 업무관리 툴바에 '피그마 설정'을 띄울지 — 라이브 파트 탭에서만 보여 준다 (다른 파트 화면은 건드리지 않음)
 export function isFigmaBoardScope(teamName: string | undefined, category: string | undefined): boolean {
-  if (squash(teamName) !== squash(TARGET_TEAM)) return false;
-  return !category || category === 'all' || squash(category) === squash(TARGET_PART);
+  return squash(teamName) === squash(TARGET_TEAM) && squash(category) === squash(TARGET_PART);
 }
 
 // 요청 문서 id — 처음 세팅은 폴더 이름 그대로(기존 문서와 호환), 기획서 업데이트는 따로 기록해 두 버튼 상태가 섞이지 않게 한다

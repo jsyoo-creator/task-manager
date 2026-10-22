@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Image as ImageIcon, FileText, Pencil, X, ExternalLink } from 'lucide-react';
-import { useFigmaBoards } from '../hooks/useFigmaBoards';
+import { useEffect, useRef, useState } from 'react';
+import { Figma, Image as ImageIcon, FileText, ChevronDown, ExternalLink, Pencil, X } from 'lucide-react';
+import { useFigmaBoards, type FigmaBoard } from '../hooks/useFigmaBoards';
 
-// 업무관리 툴바의 [배너판] [상세페이지판] — 고른 달의 Figma 판을 바로 연다.
-// 월마다 새 판을 쓰기 때문에 링크는 사람이 등록한다 (자동화가 쓰는 보드 링크는 업무별로 따로 남는다).
+// 업무관리 툴바의 [피그마 설정] — 고른 달의 Figma 판(배너판·상세페이지판)을 열고, 링크를 등록한다.
+// 월마다 새 판을 쓰기 때문에 링크는 사람이 넣는다 (자동화가 만든 업무별 보드 링크는 세부업무 카드에 따로 있다).
 export default function FigmaBoardLinks({ month, canManage, currentUserName }: {
   month: string | null;          // 'YYYY-MM' — 월 필터가 '전체'면 null
   canManage: boolean;
@@ -11,59 +11,90 @@ export default function FigmaBoardLinks({ month, canManage, currentUserName }: {
 }) {
   const { boards, save } = useFigmaBoards(true);
   const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const cur = month && boards ? boards[month] : undefined;
   const monthLabel = month ? `${Number(month.slice(5, 7))}월` : '';
+  const done = !!(cur?.banner || cur?.landing);
 
-  const chip = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all glass-card !rounded-lg !overflow-visible';
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
 
-  const link = (kind: 'banner' | 'landing', label: string, Icon: typeof ImageIcon) => {
+  // 판 한 줄 — 등록돼 있으면 눌러서 열고, 없으면 '미등록'
+  const row = (kind: 'banner' | 'landing', label: string, Icon: typeof ImageIcon) => {
     const url = cur?.[kind];
-    if (!month) {
-      return (
-        <span key={kind} className={`${chip} text-gray-300 cursor-default`} title="월을 고르면 그 달 Figma 판을 열 수 있어요">
-          <Icon size={11} />{label}
-        </span>
-      );
-    }
+    const base = 'w-full flex items-center gap-2 px-2.5 h-9 rounded-lg text-xs transition-colors';
     if (!url) {
       return (
-        <button key={kind} type="button" disabled={!canManage} onClick={() => setOpen(true)}
-          title={canManage ? `${monthLabel} ${label} 링크를 등록합니다` : '업무 편집 권한이 있어야 등록할 수 있어요'}
-          className={`${chip} text-gray-400 hover:text-indigo-600 disabled:hover:text-gray-400 disabled:cursor-default`}>
-          <Icon size={11} />{label} 미등록
-        </button>
+        <div className={`${base} text-gray-400`}>
+          <Icon size={12} className="flex-shrink-0" />
+          <span className="flex-1 text-left">{label}</span>
+          <span className="text-[11px] text-gray-300">미등록</span>
+        </div>
       );
     }
     return (
-      <a key={kind} href={url} target="_blank" rel="noreferrer" title={`${monthLabel} ${label} 열기 — ${url}`}
-        className={`${chip} text-gray-600 hover:text-indigo-600`}>
-        <Icon size={11} />{label}<ExternalLink size={10} className="text-gray-300" />
+      <a href={url} target="_blank" rel="noreferrer" title={url} onClick={() => setOpen(false)}
+        className={`${base} text-gray-700 font-medium hover:bg-indigo-50 hover:text-indigo-600`}>
+        <Icon size={12} className="flex-shrink-0" />
+        <span className="flex-1 text-left">{label}</span>
+        <ExternalLink size={11} className="text-gray-300 flex-shrink-0" />
       </a>
     );
   };
 
   return (
-    <>
-      {link('banner', '배너판', ImageIcon)}
-      {link('landing', '상세페이지판', FileText)}
-      {month && canManage && (cur?.banner || cur?.landing) && (
-        <button type="button" onClick={() => setOpen(true)} title={`${monthLabel} Figma 판 링크 수정`}
-          className="flex-shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-indigo-500 transition-colors">
-          <Pencil size={11} />
-        </button>
+    <div ref={ref} className="relative flex-shrink-0">
+      <button type="button" onClick={() => setOpen(o => !o)} title={month ? `${monthLabel} Figma 판 열기·등록` : '월을 고르면 그 달 Figma 판을 열 수 있어요'}
+        className={`h-7 flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all glass-card !rounded-lg !overflow-visible ${
+          done ? 'text-gray-700 hover:text-indigo-600' : 'text-gray-500 hover:text-indigo-600'}`}>
+        <Figma size={11} className={done ? 'text-indigo-500' : 'text-gray-400'} />
+        피그마 설정
+        <ChevronDown size={10} className="text-gray-400 flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1.5 z-20 w-[248px] bg-white rounded-xl shadow-lg border border-black/[0.06] p-1.5 break-keep">
+          <div className="px-2.5 pt-1.5 pb-1 flex items-baseline justify-between">
+            <span className="text-[11px] font-bold text-gray-400">{month ? `${monthLabel} 피그마 판` : '피그마 판'}</span>
+            {cur?.updatedBy && <span className="text-[10px] text-gray-300">{cur.updatedBy} 등록</span>}
+          </div>
+          {month ? (
+            <>
+              {row('banner', '배너판', ImageIcon)}
+              {row('landing', '상세페이지판', FileText)}
+              <div className="mt-1 pt-1.5 border-t border-black/[0.06]">
+                <button type="button" disabled={!canManage} onClick={() => { setEdit(true); setOpen(false); }}
+                  title={canManage ? `${monthLabel} 판 링크를 등록·수정합니다` : '업무 편집 권한이 있어야 등록할 수 있어요'}
+                  className="w-full flex items-center gap-2 px-2.5 h-8 rounded-lg text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-default">
+                  <Pencil size={11} />{done ? '링크 수정' : '링크 등록'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="px-2.5 py-3 text-[11px] text-gray-400 leading-relaxed">월을 고르면 그 달 판을 열 수 있어요.<br />월마다 새 판을 쓰기 때문이에요.</p>
+          )}
+        </div>
       )}
-      {open && month && (
+
+      {edit && month && (
         <BoardDialog month={month} cur={cur} currentUserName={currentUserName}
-          onClose={() => setOpen(false)} onSave={save} />
+          onClose={() => setEdit(false)} onSave={save} />
       )}
-    </>
+    </div>
   );
 }
 
 // 링크 등록 팝업 — 상태가 바뀌어도 높이가 변하지 않게 안내·오류 자리를 고정해 둔다
 function BoardDialog({ month, cur, currentUserName, onClose, onSave }: {
   month: string;
-  cur?: { banner?: string; landing?: string; updatedBy?: string; updatedAt?: string };
+  cur?: FigmaBoard;
   currentUserName: string;
   onClose: () => void;
   onSave: (month: string, v: { banner: string; landing: string }, who: string) => Promise<void>;
@@ -79,7 +110,7 @@ function BoardDialog({ month, cur, currentUserName, onClose, onSave }: {
     return () => window.removeEventListener('keydown', esc);
   }, [onClose]);
 
-  const title = `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월 Figma 판`;
+  const title = `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월 피그마 판`;
   const bad = (v: string) => !!v.trim() && !/^https:\/\/(www\.)?figma\.com\//.test(v.trim());
 
   const submit = async () => {

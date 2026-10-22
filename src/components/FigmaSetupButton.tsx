@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download, Image as ImageIcon } from 'lucide-react';
 import type { Task } from '../types';
-import { folderNameFromTask, figmaSetupDocId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
+import { folderNameFromTask, figmaSetupDocId, boardMonthKey, figmaFileKey, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
+import { useFigmaBoards } from '../hooks/useFigmaBoards';
 import { UsagePanel, fmtTime } from './UsagePanel';
 
 // 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [middle] [버튼] [after].
@@ -32,6 +33,13 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
   const text = FIGMA_SETUP_TEXT[kind];
   const { folders, plans, images } = useDriveFolders(!!folderName);
+  // 월마다 새 판을 쓰므로, 그 달 판이 등록돼 있어야 요청할 수 있다 (툴바 '피그마 설정'에서 등록)
+  const { boards } = useFigmaBoards(!!folderName);
+  const monthKey = folderName ? boardMonthKey(folderName) : '';
+  const board = monthKey && boards ? boards[monthKey] : undefined;
+  const bannerFile = figmaFileKey(board?.banner);
+  const landingFile = figmaFileKey(board?.landing);
+  const noBoard = boards !== null && !bannerFile && !landingFile;
   const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
   const imageAt = folderName ? images[folderName.normalize('NFC')] : undefined;
   // 기획서 업데이트는 지난번에 반영한 버전과 비교한다 (업데이트 기록이 없으면 1차 기획서 세팅 때 버전)
@@ -71,7 +79,8 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
     if (!folderName) return;
     setSending(true); setError('');
     try {
-      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind, account);
+      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind, account,
+        { figmaFile: bannerFile, figmaLandingFile: landingFile });
     } catch (e) {
       setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);
@@ -81,8 +90,10 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   };
 
   const status = job?.status;
-  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt) && needOk;
+  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt) && needOk && !noBoard;
+  const monthLabel = monthKey ? `${Number(monthKey.slice(5, 7))}월` : '';
   const requestTitle = !canManage ? '업무 편집 권한이 있어야 요청할 수 있어요'
+    : noBoard ? `${monthLabel} 피그마 판이 아직 없어요 — 위 '피그마 설정'에서 먼저 등록해 주세요`
     : !needOk ? `${FIGMA_SETUP_TEXT[needDone!].request}을 먼저 한 뒤에 저장할 수 있어요`
     : !folderName ? '업무명 형식을 먼저 확인해 주세요'
     : folderKnown && !folderExists ? `드라이브에 "${folderName}" 폴더를 만든 뒤 요청할 수 있어요`
@@ -129,7 +140,8 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   }
 
   const popup = dialog && (
-    <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt} onCancel={() => setDialog(null)}
+    <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt}
+      hasBanner={!!bannerFile} hasLanding={!!landingFile} monthLabel={monthLabel} onCancel={() => setDialog(null)}
       onPick={(scope, account) => { const again = dialog === 'again'; setDialog(null); request(again, scope, account); }} />
   );
   if (inline) return <>{button}{popup}</>;
@@ -149,12 +161,15 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
 
 
 // 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
-function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; imageAt?: string; onPick: (scope: FigmaSetupScope, account: string) => void; onCancel: () => void }) {
+function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, hasBanner, hasLanding, monthLabel, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; imageAt?: string; hasBanner: boolean; hasLanding: boolean; monthLabel: string; onPick: (scope: FigmaSetupScope, account: string) => void; onCancel: () => void }) {
   const t = FIGMA_SETUP_TEXT[kind];
   const [account, setAccount] = useState('');   // '' = 남은 계정으로 자동
+  // 그 달 판이 등록된 쪽만 고를 수 있다 (배너판만 등록했으면 '상세페이지만'은 비활성)
+  const ok = (scope: FigmaSetupScope) => scope === 'banner' ? hasBanner : scope === 'landing' ? hasLanding : scope === 'both' ? (hasBanner && hasLanding) : (hasBanner || hasLanding);
   const pick = (scope: FigmaSetupScope, primary = false) => (
-    <button onClick={() => onPick(scope, account)}
-      className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors ${primary ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
+    <button onClick={() => onPick(scope, account)} disabled={!ok(scope)}
+      title={ok(scope) ? undefined : `${monthLabel} ${scope === 'landing' ? '상세페이지판' : scope === 'banner' ? '배너판' : '배너판·상세페이지판'} 링크가 등록돼 있어야 해요`}
+      className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-default ${primary ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
       {FIGMA_SETUP_SCOPE_LABEL[scope]}
     </button>
   );
@@ -185,7 +200,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
         </div>
         {kind === 'image' ? (
           <div className="flex gap-2 px-5 pb-3">
-            <button onClick={() => onPick('banner', account)} disabled={!imageAt}
+            <button onClick={() => onPick('banner', account)} disabled={!imageAt || !hasBanner}
               className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-40">
               {again ? t.again : t.request}
             </button>
@@ -199,8 +214,8 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
         )}
         {kind === 'save' && (
           <div className="px-5 pb-3">
-            <button onClick={() => onPick('draft', account)} title="보드 전체·상세페이지 전체 이미지를 드라이브 00_시안 폴더에만 저장해요"
-              className="w-full py-2.5 text-sm font-semibold rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
+            <button onClick={() => onPick('draft', account)} disabled={!ok('draft')} title="보드 전체·상세페이지 전체 이미지를 드라이브 00_시안 폴더에만 저장해요"
+              className="w-full py-2.5 text-sm font-semibold rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-default">
               {FIGMA_SETUP_SCOPE_LABEL.draft} <span className="font-normal text-indigo-400">· 00_시안 폴더</span>
             </button>
           </div>

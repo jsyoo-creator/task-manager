@@ -33,6 +33,17 @@ export function isFigmaBoardScope(teamName: string | undefined, category: string
   return squash(teamName) === squash(TARGET_TEAM) && squash(category) === squash(TARGET_PART);
 }
 
+// Figma 주소에서 파일 키만 뽑는다 (https://www.figma.com/design/<키>/… → <키>)
+export function figmaFileKey(url?: string): string {
+  const m = (url ?? '').match(/figma\.com\/(?:design|file)\/([0-9A-Za-z]{10,})/);
+  return m ? m[1] : '';
+}
+
+// 폴더 이름(20261103_…)이 속한 달 — 월별 Figma 판을 찾는 키 'YYYY-MM'
+export function boardMonthKey(folderName: string): string {
+  return /^\d{8}_/.test(folderName) ? `${folderName.slice(0, 4)}-${folderName.slice(4, 6)}` : '';
+}
+
 // 요청 문서 id — 처음 세팅은 폴더 이름 그대로(기존 문서와 호환), 기획서 업데이트는 따로 기록해 두 버튼 상태가 섞이지 않게 한다
 export function figmaSetupDocId(folderName: string, kind: FigmaSetupKind): string {
   return kind === 'initial' ? folderName : `${folderName}__${kind}`;
@@ -98,5 +109,7 @@ export interface FigmaSetupJob {
   finishedAt?: string;
   bannerUrl?: string;
   landingUrl?: string;
+  figmaFile?: string;          // 이 요청에 쓸 그 달 배너판 파일 키 (맥 워커가 읽는다)
+  figmaLandingFile?: string;   // 상세페이지판이 다른 파일이면 그 키
   message?: string;      // 실패 이유, 확인 필요 항목 요약
 }

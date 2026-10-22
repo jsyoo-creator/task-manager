@@ -7,6 +7,8 @@ import NewTaskModal from '../components/NewTaskModal';
 import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
 import ConfirmDialog from '../components/ConfirmDialog';
+import FigmaBoardLinks from '../components/FigmaBoardLinks';
+import { isFigmaBoardScope } from '../lib/figmaSetup';
 
 interface Props {
   tasks: Task[];
@@ -1761,6 +1763,13 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
             </div>
           )}
         </YearMonthNav>
+        {/* 라이브 파트: 그 달 Figma 판(배너·상세페이지) 바로가기 — 월마다 새 판이라 링크는 사람이 등록한다 */}
+        {isFigmaBoardScope(teams.find(t => t.id === currentTeamId)?.name, activeCategory) && (
+          <FigmaBoardLinks
+            month={monthFilter > 0 ? `${yearFilter}-${String(monthFilter).padStart(2, '0')}` : null}
+            canManage={canManage}
+            currentUserName={currentUserName} />
+        )}
         <button
           onClick={() => setMyTasksOnly(o => !o)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${

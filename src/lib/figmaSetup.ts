@@ -10,6 +10,8 @@ export const FIGMA_SETUP_COLLECTION = 'figmaSetupJobs';
 // figmaSetupMeta/driveFolders { folders: string[], updatedAt } 문서 하나에 올려 두고(바뀔 때만 갱신) 화면은 이것만 구독한다.
 export const FIGMA_SETUP_META_COLLECTION = 'figmaSetupMeta';
 export const DRIVE_FOLDERS_DOC = 'driveFolders';
+// 월별 Figma 판(배너판·상세페이지판) 링크 — 월마다 새 판을 써서 사람이 등록한다. 문서 하나에 월별로 모아 둔다.
+export const FIGMA_BOARDS_DOC = 'boards';
 
 const TARGET_TEAM = '라이브/복지&사업자몰'; // 공백은 비교 전에 뺀다 (실제 팀 이름은 '라이브 / 복지&사업자몰')
 const TARGET_PART = '라이브';
@@ -24,6 +26,12 @@ const squash = (s?: string) => (s ?? '').replace(/\s+/g, '');
 export function figmaSetupKind(teamName: string | undefined, category: string | undefined, subTaskName: string): FigmaSetupKind | null {
   if (squash(teamName) !== squash(TARGET_TEAM) || squash(category) !== squash(TARGET_PART)) return null;
   return TARGET_SUBTASKS[squash(subTaskName)] ?? null;
+}
+
+// 업무관리 툴바에 월별 Figma 판 바로가기를 띄울 팀·파트인지 (파트 탭이 '전체'여도 띄운다)
+export function isFigmaBoardScope(teamName: string | undefined, category: string | undefined): boolean {
+  if (squash(teamName) !== squash(TARGET_TEAM)) return false;
+  return !category || category === 'all' || squash(category) === squash(TARGET_PART);
 }
 
 // 요청 문서 id — 처음 세팅은 폴더 이름 그대로(기존 문서와 호환), 기획서 업데이트는 따로 기록해 두 버튼 상태가 섞이지 않게 한다

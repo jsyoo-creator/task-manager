@@ -1,0 +1,51 @@
+import { useState, useEffect } from 'react';
+import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { FIGMA_SETUP_COLLECTION, type FigmaSetupJob, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
+
+// 업무 하나(폴더 하나 × 종류 하나)의 Figma 세팅 요청 상태를 실시간으로 본다. 문서 하나만 구독한다.
+export function useFigmaSetupJob(docId: string | null) {
+  const [job, setJob] = useState<FigmaSetupJob | null>(null);
+  const [loading, setLoading] = useState(!!docId);
+
+  useEffect(() => {
+    if (!docId) { setJob(null); setLoading(false); return; }
+    setLoading(true);
+    const unsub = onSnapshot(doc(db, FIGMA_SETUP_COLLECTION, docId), snap => {
+      setJob(snap.exists() ? ({ id: snap.id, ...snap.data() } as FigmaSetupJob) : null);
+      setLoading(false);
+    });
+    return unsub;
+  }, [docId]);
+
+  // 이미 요청됐거나 처리 중인 폴더면 다시 쓰지 않는다 (두 사람이 동시에 눌러도 한 번만 요청됨).
+  // 폴더 없음/실패일 때, 그리고 세팅완료 뒤 '다시 요청'(again)일 때만 다시 요청할 수 있다.
+  // files: 그 달 Figma 판(배너판·상세페이지판) 파일 키 — 맥 워커가 이 판에 세팅한다
+  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>, again = false, scope: FigmaSetupScope = 'both', kind: FigmaSetupKind = 'initial', account = '', files?: { figmaFile?: string; figmaLandingFile?: string; figmaBannerPage?: string; figmaLandingPage?: string }) => {
+    if (!docId) return;
+    const ref = doc(db, FIGMA_SETUP_COLLECTION, docId);
+    await runTransaction(db, async tx => {
+      const cur = await tx.get(ref);
+      const status = cur.exists() ? (cur.data().status as string) : null;
+      if (status && status !== 'no_folder' && status !== 'failed' && !(again && status === 'done')) return;
+      // 다시 요청은 merge — 이번에 안 하는 쪽(예: 상세페이지만 하면 배너)의 결과 링크는 남긴다
+      tx.set(ref, {
+        ...data,
+        workplaceId: data.workplaceId ?? '',
+        teamId: data.teamId ?? '',
+        status: 'requested',
+        scope,
+        kind,
+        account,     // 이 요청에 쓸 Claude 계정 이름 (''이면 맥 프로그램이 남은 계정을 고른다)
+        figmaFile: files?.figmaFile ?? '',
+        figmaLandingFile: files?.figmaLandingFile ?? '',
+        figmaBannerPage: files?.figmaBannerPage ?? '',
+        figmaLandingPage: files?.figmaLandingPage ?? '',
+        message: '',
+        requestedAt: new Date().toISOString(),
+      }, { merge: again });
+    });
+  };
+
+  return { job, loading, requestSetup };
+}

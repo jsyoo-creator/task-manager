@@ -4,6 +4,9 @@ import type { Task, TaskStatus, TaskType, TeamPart, MetaField, SubTaskType, Team
 import { DEFAULT_META_FIELDS, getMetaFieldKind, resolveBuiltinFields, BUILTIN_FIELDS_META, resolveStatusConfigs, resolveFieldDepts, partBadgeCls, DEFAULT_REVISION_STEPS, resolveGroupSyncFields, resolveAliasFieldId, findLinkedSubTaskTypeForFieldId, resolveSubTaskGroupIds, findSubstitutePartner, resolveReviewStatusLabels } from '../types';
 import DatePicker from './DatePicker';
 import ConfirmDialog from './ConfirmDialog';
+import FigmaSetupButton from './FigmaSetupButton';
+import PlanBuilderButton from './PlanBuilderButton';
+import { figmaSetupKind } from '../lib/figmaSetup';
 import { getWeekDays, calcHoursInRange, calcReviewTotal } from '../lib/weeklyHours';
 
 const PANEL_W = 540;
@@ -1105,7 +1108,7 @@ export default function TaskDetailPanel({
   task, onClose, onUpdate, onDelete, assignees, parts, canManage, canDelete, canDeleteThisTask,
   metaFields: metaFieldsProp, subTaskTypes = [], revisionSteps = DEFAULT_REVISION_STEPS, teamMembers, baseTeamMembers, formConfig, teamFormConfig, userPhotoMap,
   canSeeAll = true, currentUserName = '', currentUserDept, vacations = [], reviewTasks,
-  parentTask, childTasks = [], onRemoveFromGroup, substitutePairs,
+  parentTask, childTasks = [], onRemoveFromGroup, substitutePairs, teamName, teamId, workplaceId,
 }: {
   task: Task;
   onClose: () => void;
@@ -1133,6 +1136,9 @@ export default function TaskDetailPanel({
   parentTask?: Task; // 이 업무가 귀속된 상위(그룹 기준) 업무 — 있으면 담당자/기간이 읽기 전용으로 잠김
   childTasks?: Task[]; // 이 업무에 귀속된 하위 업무 목록 (이 업무가 그룹 기준일 때)
   onRemoveFromGroup?: (taskIds: string[]) => Promise<void>;
+  teamName?: string;    // 라이브 파트 '1차 기획서' Figma 세팅 버튼 표시 조건용
+  teamId?: string;
+  workplaceId?: string;
 }) {
   const metaFields = metaFieldsProp ?? DEFAULT_META_FIELDS;
   const todayD = new Date();
@@ -2588,9 +2594,16 @@ export default function TaskDetailPanel({
                       )}
                     </div>
 
-                    {/* 대무자 (담당자가 휴가이거나 대무자가 지정된 경우, 또는 수동으로 지정을 연 경우) */}
-                    {(isVacation || entry.substitute || manualSubstituteIds.has(type.id)) && (
-                      <div className="flex items-center gap-2 mb-2">
+                    {/* 라이브 파트 Figma 줄과 대무자를 한 줄에 둔다 — 대무자가 생겨도 카드가 한 줄 더 늘지 않게 */}
+                    {(() => {
+                      const figmaKind = figmaSetupKind(teamName, task.category, type.name);
+                      const showSub = isVacation || entry.substitute || manualSubstituteIds.has(type.id);
+                      if (!figmaKind && !showSub) return null;
+                      return (
+                        <div className="flex items-center gap-2 mt-1 mb-2 flex-wrap">
+                          {showSub && (
+
+                      <div className="flex items-center gap-2">
                         <span className="text-[11px] font-medium text-orange-500 flex-shrink-0">대무자</span>
                         <div className="relative max-w-[120px]" title={isSupportLinked ? '지원팀에서 관리하는 세부업무 — 여기서는 수정할 수 없습니다' : undefined}>
                           <div className="flex items-center justify-between gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 bg-orange-50 border border-orange-200">
@@ -2635,7 +2648,23 @@ export default function TaskDetailPanel({
                           </button>
                         )}
                       </div>
-                    )}
+                          )}
+                          {figmaKind && (
+                            <div className="flex items-center justify-end gap-1.5 ml-auto">
+                              <FigmaSetupButton task={task} kind={figmaKind} bare needDone={figmaKind === 'save' ? 'image' : undefined}
+                                canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
+                                middle={(figmaKind === 'initial' || figmaKind === 'update') && (
+                                  <PlanBuilderButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                                )}
+                                after={figmaKind === 'image' && (
+                                  /* 디자인 '페이지&배너&히든기획전'에서도 검수 카드와 같은 저장 기능 (같은 요청 문서라 상태도 같이 보인다) */
+                                  <FigmaSetupButton task={task} kind="save" inline needDone="image" canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                                )} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* 시작일 / 종료일 */}
                     <div className="flex items-center gap-2 mb-2.5" title={isSupportLinked ? '지원팀에서 관리하는 세부업무 — 여기서는 수정할 수 없습니다' : undefined}>

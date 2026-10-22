@@ -10,15 +10,17 @@ import { UsagePanel, fmtTime } from './UsagePanel';
 // middle: '1차 기획서'에서는 기획서 만들기 버튼이 폴더 상태와 세팅요청 사이에 들어간다.
 // after: '페이지&배너&히든기획전 디자인'에서는 이미지 반영 버튼 오른쪽에 저장 버튼(kind=save)을 inline으로 더 둔다.
 // inline: 줄과 폴더 상태 없이 버튼만 그린다 (다른 줄 안에 끼워 넣을 때).
+// bare: 줄만 없이 폴더 상태까지 그대로 그린다 (대무자와 한 줄에 놓을 때).
 // needDone: 이 종류가 끝나 있어야 요청할 수 있다 (디자인 카드의 저장은 '이미지 반영'을 한 뒤에만).
 // '기획 제작 소재 검수'(kind=save)는 이미지 저장 → 요청대기 → 저장중 → 저장완료 (드라이브 02.디자인)
 // 버튼 상태: 세팅요청|반영요청 → 요청대기(맥이 아직 안 가져감) → 반영중 → 세팅완료|반영완료 (+ 실패 · 다시 요청)
 // 자세한 내용(폴더 이름, 실패 이유, 결과 링크)은 마우스를 올리면 보이거나 세팅완료 버튼으로 연다.
-export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId, middle, after, inline = false, needDone }: {
+export default function FigmaSetupButton({ task, kind = 'initial', canManage, currentUserName, workplaceId, teamId, middle, after, inline = false, bare = false, needDone }: {
   task: Task;
   middle?: ReactNode;
   after?: ReactNode;
   inline?: boolean;
+  bare?: boolean;
   needDone?: FigmaSetupKind;
   kind?: FigmaSetupKind;
   canManage: boolean;
@@ -131,6 +133,8 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       onPick={(scope, account) => { const again = dialog === 'again'; setDialog(null); request(again, scope, account); }} />
   );
   if (inline) return <>{button}{popup}</>;
+  // bare: 줄(flex 래퍼) 없이 칩만 — 대무자 줄과 한 줄에 같이 놓을 때 쓴다
+  if (bare) return <>{folderBadge}{middle}{button}{after}{popup}</>;
 
   return (
     <div className="flex items-center justify-end gap-1.5 mt-1 mb-2">

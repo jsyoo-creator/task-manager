@@ -126,7 +126,7 @@ function PlanScopeDialog({ taskTitle, again, title, isUpdate, onPick, onCancel }
             <p className="text-xs text-gray-400 mt-1.5">{isUpdate ? '지난번 입력 내용이 그대로 열려요 · 고른 쪽만 고쳐 버전을 올린 새 파일로 저장해요'
               : again ? '고른 쪽만 고쳐서 저장하고, 나머지는 지난번 그대로 둬요' : '배너 카피와 상세페이지 내용을 정리해 기획서(PPT)로 만들어요'}</p>
           </div>
-          <UsagePanel account={account} onAccount={setAccount} />
+          <UsagePanel account={account} onAccount={setAccount} jobKind="plan" />
           <p className="text-[11px] text-gray-400 text-center">배너만 고르면 Claude를 쓰지 않아 사용량과 상관없이 바로 만들어져요</p>
         </div>
         <div className="flex gap-2 px-5 pb-3">

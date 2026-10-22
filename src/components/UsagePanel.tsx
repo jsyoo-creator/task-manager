@@ -1,4 +1,5 @@
 import { useClaudeUsage, type ClaudeAccountUsage } from '../hooks/useClaudeUsage';
+import { useJobCost } from '../hooks/useJobCost';
 
 // 팝업 안 Claude 남은 사용량 — Figma 세팅요청 팝업과 1차 기획서 만들기 팝업이 같이 쓴다.
 export const fmtTime = (iso: string) => {
@@ -58,29 +59,37 @@ function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; te
   return { tone: 'ok', text: `${u.name} 계정으로 지금 바로 요청할 수 있어요` };
 }
 
-// '자동'일 때 맥 프로그램이 실제로 쓰는 계정 — 적어 둔 순서대로 쓰다가 한도가 찬 계정은 건너뛴다.
-const autoAccount = (list: ClaudeAccountUsage[]) =>
-  list.find(a => Math.max(a.sessionUsed, a.weekUsed, 0) < 100)
-  ?? [...list].sort((a, b) => Math.max(a.sessionUsed, a.weekUsed, 0) - Math.max(b.sessionUsed, b.weekUsed, 0))[0];
+// '자동'일 때 맥 프로그램이 고르는 계정 — 남은 양이 많은 쪽부터, 이 작업에 필요한 만큼 남은 계정을 쓴다.
+const autoAccount = (list: ClaudeAccountUsage[], need = 0) => {
+  const sorted = [...list].sort((a, b) => tighter(b).left - tighter(a).left);
+  return sorted.find(a => tighter(a).left >= need) ?? sorted[0];
+};
 
 // account: 이번 요청에 쓸 계정 이름 (''이면 남은 계정을 맥 프로그램이 고른다). onAccount를 주면 줄을 눌러 고를 수 있다.
 // 높이가 들쭉날쭉하지 않게 줄 높이와 안내 줄 높이를 고정한다.
-export function UsagePanel({ account = '', onAccount }: { account?: string; onAccount?: (v: string) => void }) {
+export function UsagePanel({ account = '', onAccount, jobKind }: { account?: string; onAccount?: (v: string) => void; jobKind?: string }) {
   const u = useClaudeUsage(true);
+  const costs = useJobCost(true);
+  const cost = jobKind ? costs[jobKind] : undefined;   // 이 작업이 보통 쓰는 세션 사용량 (기록이 쌓이면 표시)
   const shell = 'w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 min-h-[104px] justify-center';
   if (u === undefined) return <div className={`${shell} text-[11px] text-gray-300 text-center`}>Claude 사용량 확인 중…</div>;
   if (u === null) return <div className={`${shell} text-[11px] text-gray-400 text-center`}>Claude 사용량 정보가 아직 없어요 (디자이너 맥이 켜지면 표시돼요)</div>;
   const accounts: ClaudeAccountUsage[] = u.accounts.length ? u.accounts
     : [{ name: '계정', sessionUsed: u.sessionUsed, sessionResetAt: u.sessionResetAt, weekUsed: u.weekUsed, weekResetAt: u.weekResetAt }];
   const auto = !accounts.some(a => a.name === account);
-  const target = auto ? autoAccount(accounts) : accounts.find(a => a.name === account)!;
+  const need = cost ? Math.ceil(cost.sessionPct * 1.2) : 0;   // 평균보다 조금 여유 있게 본다
+  const target = auto ? autoAccount(accounts, need) : accounts.find(a => a.name === account)!;
+  const short = need > 0 && tighter(target).left < need;
   const v = usageVerdict(target);
   const stale = u.checkedAt && Date.now() - new Date(u.checkedAt).getTime() > 15 * 60000;
   const box = v.tone === 'wait' ? 'bg-red-50 text-red-600' : v.tone === 'warn' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700';
   return (
     <div className={shell}>
       <div className="flex items-center justify-between gap-2 px-1.5">
-        <div className="text-[11px] font-semibold text-gray-600">Claude 사용량 (디자이너 맥)</div>
+        <div className="text-[11px] font-semibold text-gray-600 truncate">
+          Claude 사용량 (디자이너 맥)
+          {cost && <span className="font-medium text-gray-400"> · 이 작업 보통 {Math.round(cost.sessionPct)}%</span>}
+        </div>
         {onAccount && accounts.length > 1 && (
           <button type="button" onClick={() => onAccount('')} title="여유 있는 계정을 알아서 고르게 해요"
             className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors ${auto ? 'bg-indigo-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>자동</button>
@@ -90,7 +99,9 @@ export function UsagePanel({ account = '', onAccount }: { account?: string; onAc
         <AccountRow key={a.name} a={a} picked={a.name === target.name} auto={auto}
           onPick={onAccount ? () => onAccount(a.name) : undefined} />
       ))}
-      <div className={`text-[11px] rounded-lg px-2.5 py-1.5 leading-snug ${box}`}>{v.text}</div>
+      <div className={`text-[11px] rounded-lg px-2.5 py-1.5 leading-snug min-h-[38px] flex items-center ${box}`}>
+        {short ? `${target.name} 남은 양이 이 작업에 보통 드는 ${Math.round(cost!.sessionPct)}%보다 적어요 — 중간에 멈출 수 있어요` : v.text}
+      </div>
       {stale && <div className="text-[10px] text-gray-400 px-1.5">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
     </div>
   );

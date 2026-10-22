@@ -177,7 +177,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
             </div>
           )}
           {(kind === 'initial' || kind === 'update') && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} />}
-          <UsagePanel account={account} onAccount={setAccount} />
+          <UsagePanel account={account} onAccount={setAccount} jobKind={kind} />
         </div>
         {kind === 'image' ? (
           <div className="flex gap-2 px-5 pb-3">

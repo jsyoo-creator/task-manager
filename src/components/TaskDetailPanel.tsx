@@ -2599,7 +2599,8 @@ export default function TaskDetailPanel({
                     {(() => {
                       const figmaKind = figmaSetupKind(teamName, task.category, type.name);
                       return figmaKind && (
-                        <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
+                        <FigmaSetupButton task={task} kind={figmaKind} needDone={figmaKind === 'save' ? 'image' : undefined}
+                          canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
                           middle={(figmaKind === 'initial' || figmaKind === 'update') && (
                             <PlanBuilderButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
                           )}

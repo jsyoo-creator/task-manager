@@ -46,17 +46,18 @@ function AccountRow({ a, picked, auto, onPick }: { a: ClaudeAccountUsage; picked
   );
 }
 
-function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; text: string } {
+function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; text: string; sub: string } {
   const full = [u.sessionUsed >= 100 && u.sessionResetAt, u.weekUsed >= 100 && u.weekResetAt].filter(Boolean) as string[];
   if (full.length) {
     const until = full.sort().slice(-1)[0];
-    return { tone: 'wait', text: `${u.name} 한도가 다 찼어요 · ${fmtTime(until)}(${fmtLeft(until)})부터 — 지금 눌러 두면 그때 시작해요` };
+    return { tone: 'wait', text: `${u.name} 한도가 다 찼어요`, sub: `${fmtTime(until)}(${fmtLeft(until)})부터 — 지금 눌러 두면 그때 시작해요` };
   }
   const t = tighter(u);
   if (t.left <= 20) {
-    return { tone: 'warn', text: `${u.name} ${t.label} 남은 양 ${t.left}% — 작업 중 멈출 수 있어요` + (t.resetAt ? ` (${fmtTime(t.resetAt)} 초기화)` : '') };
+    return { tone: 'warn', text: `${u.name} ${t.label} 남음 ${t.left}% — 작업 중 멈출 수 있어요`,
+             sub: t.resetAt ? `${fmtTime(t.resetAt)} 초기화 뒤 이어서 해요` : '' };
   }
-  return { tone: 'ok', text: `${u.name} 계정으로 지금 바로 요청할 수 있어요` };
+  return { tone: 'ok', text: `${u.name}으로 지금 바로 요청할 수 있어요`, sub: '' };
 }
 
 // '자동'일 때 맥 프로그램이 고르는 계정 — 남은 양이 많은 쪽부터, 이 작업에 필요한 만큼 남은 계정을 쓴다.
@@ -99,8 +100,9 @@ export function UsagePanel({ account = '', onAccount, jobKind }: { account?: str
         <AccountRow key={a.name} a={a} picked={a.name === target.name} auto={auto}
           onPick={onAccount ? () => onAccount(a.name) : undefined} />
       ))}
-      <div className={`text-[11px] rounded-lg px-2.5 py-1.5 leading-snug min-h-[38px] flex items-center ${box}`}>
-        {short ? `${target.name} 남은 양이 이 작업에 보통 드는 ${Math.round(cost!.sessionPct)}%보다 적어요 — 중간에 멈출 수 있어요` : v.text}
+      <div className={`text-[11px] rounded-lg px-2.5 py-1 leading-tight h-[40px] flex flex-col justify-center gap-0.5 overflow-hidden ${box}`}>
+        <div className="truncate">{short ? `${target.name} 남은 양이 이 작업 평균 ${Math.round(cost!.sessionPct)}%보다 적어요` : v.text}</div>
+        {(short || v.sub) && <div className="text-[10px] opacity-70 truncate">{short ? '중간에 멈출 수 있어요' : v.sub}</div>}
       </div>
       {stale && <div className="text-[10px] text-gray-400 px-1.5">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
     </div>

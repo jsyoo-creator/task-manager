@@ -273,6 +273,15 @@ function buildPaymentRow(t){
 }
 // renderPaymentBenefitBox()와 유의사항 박스(buildMockLegalHtml) 둘 다 "결제혜택 원문 중 어떤 항목이
 // 히어로 카드인지"를 알아야 해서(카드사별 세부 유의사항을 붙일지 판단) 파싱 로직을 여기 한 곳에 모은다.
+// 기획서 PPT의 'LGE.COM 결제 혜택' 장은 미리보기와 똑같은 히어로 카드·아이콘 행 구조라서,
+// 같은 파싱 결과를 맥 프로그램에도 그대로 넘긴다(파싱을 파이썬으로 또 옮겨 적으면 둘이 어긋난다).
+function buildPaymentStructured(paymentFullText){
+  var heroes = [], rows = [];
+  splitPaymentItems(paymentFullText||'').forEach(function(t){
+    if(isPaymentHeroText(t)) heroes.push(buildPaymentHero(t)); else rows.push(buildPaymentRow(t));
+  });
+  return { heroes: heroes, rows: rows };
+}
 function paymentHeroesFrom(paymentFullText){
   return splitPaymentItems(paymentFullText).filter(isPaymentHeroText).map(buildPaymentHero);
 }
@@ -1145,11 +1154,17 @@ export function promoPreviewHtml(pv: PromoStructured): string {
   return renderMockPage(safe).replace(/ onclick="[^"]*"/g, '').replace(/ target="_blank"/g, ' target="_blank" rel="noreferrer"');
 }
 export function promoSummary(pv: PromoStructured): { chips: PromoChip[]; notes: string[] } { return summarizeParse(pv); }
+export interface PromoPaymentHero { title: string; desc: string; badgePre?: string; badgeNum: string; badgeUnit: string; badgeLabel: string; raw: string }
+export interface PromoPaymentRow { icon: string; label: string; value: string; note: string; raw: string }
+export interface PromoPayment { heroes: PromoPaymentHero[]; rows: PromoPaymentRow[] }
+/** 결제 혜택 원문 → 히어로 카드·아이콘 행 (기획서 PPT 13번 장을 맥 프로그램이 직접 채우는 데 쓴다) */
+export function promoPayment(paymentFullText: string): PromoPayment { return buildPaymentStructured(paymentFullText || ''); }
 /** 이전 저장본과 비교한 변경 목록 (원본 computeChanges) */
 export function promoChanges(prev: PromoStructured | null, cur: PromoStructured): string[] { return computeChanges(prev, cur); }
 
 export {
   parseRawToStructured, computeChanges, diffFields, buildPromoPreviewText, computeLiveDisclaimerLines,
+  buildPaymentStructured,
   computeDeadlineFromCaseName, renderMockPage, PAYMENT_NOTICE_SECTIONS, STANDARD_LEGAL_BOILERPLATE,
 };
 

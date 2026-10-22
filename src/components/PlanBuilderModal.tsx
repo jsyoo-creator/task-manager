@@ -6,7 +6,7 @@ import {
   parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT,
   type BannerHour, type BroadcastType, type BannerGroup, type GenInput,
 } from '../lib/planTools/bannerCopy';
-import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, PROMO_PREVIEW_CSS, type PromoStructured } from '../lib/planTools/promoParse';
+import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, PROMO_PREVIEW_CSS, type PromoStructured } from '../lib/planTools/promoParse';
 import {
   scopeHasBanner, scopeHasLanding, defaultPlanFileName, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
@@ -128,6 +128,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, again
           liveItems: cur.liveItems,
           obsCards: cur.obsCards.map(([code, mainTitle, subTitle, url]) => ({ code, mainTitle, subTitle, url })),
           paymentFullText: cur.paymentFullText,
+          payment: promoPayment(cur.paymentFullText),   // 13번 결제 혜택 장을 맥 프로그램이 직접 채운다
           legalNotes: cur.legalNotes,
         },
         previewText: promoPreviewText(cur),

@@ -1,3 +1,4 @@
+import type { PromoPayment } from './planTools/promoParse';
 import type { BannerCopies } from './planTools/bannerCopy';
 
 // 라이브 파트 '1차 기획서' 세부업무의 "1차 기획서 만들기".
@@ -34,6 +35,7 @@ export interface PlanDraftLanding {
     liveItems: { benefit: string; condition: string; tag: string; detailLines: string[] }[];
     obsCards: { code: string; mainTitle: string; subTitle: string; url: string }[];
     paymentFullText: string;
+    payment?: PromoPayment;
     legalNotes: string;
   };
   previewText: string;

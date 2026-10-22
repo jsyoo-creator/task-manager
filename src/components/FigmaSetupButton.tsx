@@ -171,7 +171,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
             <p className="text-xs text-gray-400 mt-1.5">{again ? t.againSub : t.sub}</p>
           </div>
           {kind === 'image' && (
-            <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex justify-between text-[11px]">
+            <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex justify-between items-center text-[11px] min-h-[46px]">
               <span className="text-gray-500">배너 원본 이미지 (99_가이드/banner_img.png)</span>
               <span className={imageAt ? 'text-gray-800 font-semibold' : 'text-red-500 font-semibold'}>{imageAt ? `${fmtTime(imageAt)} 올림` : '없음'}</span>
             </div>
@@ -219,14 +219,16 @@ const verCmp = (a?: string, b?: string) => {
 };
 
 function PlanInfo({ kind, latest, lastVersion }: { kind: FigmaSetupKind; latest?: { version: string; file: string }; lastVersion?: string }) {
-  if (!latest) return <div className="w-full text-[11px] text-gray-400 text-center">기획서 버전 확인 전이에요 (디자이너 맥이 켜지면 확인돼요)</div>;
+  // 안내 줄 수가 달라도 팝업 높이가 변하지 않게 블록 높이를 고정한다
+  const shell = "w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 min-h-[92px] justify-center";
+  if (!latest) return <div className={`${shell} text-[11px] text-gray-400 text-center`}>기획서 버전 확인 전이에요 (디자이너 맥이 켜지면 확인돼요)</div>;
   const isNew = !lastVersion || verCmp(latest.version, lastVersion) > 0;
   const notice = kind === 'update'
     ? (isNew ? { cls: 'bg-green-50 text-green-700', text: lastVersion ? `새 버전이 있어요 (${lastVersion} → ${latest.version || '버전 없음'}) — 바뀐 글자만 찾아서 반영해요` : `${latest.version || '최신 기획서'}로 반영해요` }
              : { cls: 'bg-amber-50 text-amber-700', text: `새 버전이 없어요 — 지난번에 ${lastVersion}를 반영했어요. 요청해도 Figma는 바뀌지 않아요` })
     : null;
   return (
-    <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5">
+    <div className={shell}>
       <div className="flex justify-between text-[11px]">
         <span className="text-gray-500">사용할 기획서</span>
         <span className="text-gray-800 font-semibold">{latest.version || '버전 표시 없음'}</span>

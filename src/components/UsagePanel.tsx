@@ -20,94 +20,78 @@ const fmtLeft = (iso: string) => {
   return `약 ${Math.floor(h / 24)}일 뒤`;
 };
 
-function UsageBar({ label, used, resetAt }: { label: string; used: number; resetAt: string }) {
-  const left = Math.max(0, 100 - used);
-  const color = used >= 100 ? 'bg-red-400' : used >= 80 ? 'bg-amber-400' : 'bg-indigo-400';
+// 계정 한 줄: [고름 표시] 이름 [막대] 남은 양 — 세션·주간 중 더 빠듯한 쪽만 보여 높이를 일정하게 둔다
+const tighter = (a: ClaudeAccountUsage) => {
+  const sess = a.sessionUsed >= 0 ? 100 - a.sessionUsed : 100;
+  const week = a.weekUsed >= 0 ? 100 - a.weekUsed : 100;
+  return week <= sess
+    ? { left: week, label: '주간', resetAt: a.weekResetAt }
+    : { left: sess, label: '세션', resetAt: a.sessionResetAt };
+};
+
+function AccountRow({ a, picked, auto, onPick }: { a: ClaudeAccountUsage; picked: boolean; auto: boolean; onPick?: () => void }) {
+  const t = tighter(a);
+  const color = t.left <= 0 ? 'bg-red-400' : t.left <= 20 ? 'bg-amber-400' : 'bg-indigo-400';
   return (
-    <div>
-      <div className="flex justify-between text-[11px] mb-1">
-        <span className="text-gray-500">{label}</span>
-        <span className="text-gray-700 font-medium">남은 양 {left}%{resetAt && <span className="text-gray-400 font-normal"> · {fmtTime(resetAt)} 초기화</span>}</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div className={`h-full ${color}`} style={{ width: `${left}%` }} />
-      </div>
-    </div>
+    <button type="button" onClick={onPick} disabled={!onPick}
+      title={onPick ? `${a.name} 계정으로 요청해요` : undefined}
+      className={`w-full flex items-center gap-2 h-7 px-1.5 rounded-lg text-[11px] transition-colors ${onPick ? 'hover:bg-white' : ''} ${picked ? 'bg-white ring-1 ring-indigo-200' : ''}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-none ${picked ? 'bg-indigo-500' : 'bg-gray-300'}`} />
+      <span className={`flex-none w-12 text-left font-semibold ${picked ? 'text-gray-800' : 'text-gray-500'}`}>{a.name || '계정'}</span>
+      <span className="flex-1 h-1.5 rounded-full bg-gray-200/80 overflow-hidden"><span className={`block h-full ${color}`} style={{ width: `${Math.max(0, Math.min(100, t.left))}%` }} /></span>
+      <span className="flex-none w-24 text-right text-gray-600">{t.label} 남음 {Math.max(0, t.left)}%</span>
+      {picked && auto && <span className="flex-none text-[10px] text-indigo-500 font-medium">자동</span>}
+    </button>
   );
 }
 
-// 남은 양 기준으로 판정한다 — 세션과 주간 중 더 빠듯한 쪽을 본다.
-// (전에는 주간 90%부터 경고라서 주간 88%여도 초록색으로 보였다. 2026-10-22 수정)
-const WARN_LEFT = 20;   // 남은 양이 이 % 이하면 경고
 function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; text: string } {
   const full = [u.sessionUsed >= 100 && u.sessionResetAt, u.weekUsed >= 100 && u.weekResetAt].filter(Boolean) as string[];
   if (full.length) {
     const until = full.sort().slice(-1)[0];
-    return { tone: 'wait', text: `지금은 한도가 다 찼어요 · ${fmtTime(until)}(${fmtLeft(until)})부터 요청 가능 — 지금 눌러 두면 그때 자동으로 시작해요` };
+    return { tone: 'wait', text: `${u.name} 한도가 다 찼어요 · ${fmtTime(until)}(${fmtLeft(until)})부터 — 지금 눌러 두면 그때 시작해요` };
   }
-  const sessLeft = u.sessionUsed >= 0 ? 100 - u.sessionUsed : 100;
-  const weekLeft = u.weekUsed >= 0 ? 100 - u.weekUsed : 100;
-  const tight = Math.min(sessLeft, weekLeft);
-  if (tight <= WARN_LEFT) {
-    const weekTighter = weekLeft <= sessLeft;
-    const r = weekTighter ? u.weekResetAt : u.sessionResetAt;
-    return {
-      tone: 'warn',
-      text: `${weekTighter ? '이번 주' : '이번 세션'} 남은 양 ${tight}% — 작업 중 멈출 수 있어요`
-        + (r ? ` (멈추면 ${fmtTime(r)} 초기화 뒤 이어서 해요)` : ''),
-    };
+  const t = tighter(u);
+  if (t.left <= 20) {
+    return { tone: 'warn', text: `${u.name} ${t.label} 남은 양 ${t.left}% — 작업 중 멈출 수 있어요` + (t.resetAt ? ` (${fmtTime(t.resetAt)} 초기화)` : '') };
   }
-  return { tone: 'ok', text: `지금 바로 요청할 수 있어요 (남은 양 ${tight}%)` };
+  return { tone: 'ok', text: `${u.name} 계정으로 지금 바로 요청할 수 있어요` };
 }
 
 // '자동'일 때 맥 프로그램이 실제로 쓰는 계정 — 적어 둔 순서대로 쓰다가 한도가 찬 계정은 건너뛴다.
-// 전부 찼으면 가장 빨리 풀릴(가장 덜 쓴) 계정을 기준으로 안내한다.
 const autoAccount = (list: ClaudeAccountUsage[]) =>
   list.find(a => Math.max(a.sessionUsed, a.weekUsed, 0) < 100)
   ?? [...list].sort((a, b) => Math.max(a.sessionUsed, a.weekUsed, 0) - Math.max(b.sessionUsed, b.weekUsed, 0))[0];
 
-function AccountPicker({ accounts, value, onChange }: { accounts: ClaudeAccountUsage[]; value: string; onChange: (v: string) => void }) {
-  const item = (v: string, label: string) => (
-    <button key={v} type="button" onClick={() => onChange(v)}
-      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors ${value === v ? 'bg-indigo-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-      {label}
-    </button>
-  );
-  return <div className="flex gap-0.5 bg-gray-100/70 rounded-lg p-0.5">{[item('', '자동'), ...accounts.map(a => item(a.name, a.name))]}</div>;
-}
-
-// account: 이번 요청에 쓸 계정 이름 (''이면 남은 쪽을 자동으로). onAccount를 주면 고르는 칸도 같이 보여준다.
+// account: 이번 요청에 쓸 계정 이름 (''이면 남은 계정을 맥 프로그램이 고른다). onAccount를 주면 줄을 눌러 고를 수 있다.
+// 높이가 들쭉날쭉하지 않게 줄 높이와 안내 줄 높이를 고정한다.
 export function UsagePanel({ account = '', onAccount }: { account?: string; onAccount?: (v: string) => void }) {
   const u = useClaudeUsage(true);
-  if (u === undefined) return <div className="w-full text-[11px] text-gray-300 text-center">Claude 사용량 확인 중…</div>;
-  if (u === null) return <div className="w-full text-[11px] text-gray-400 text-center">Claude 사용량 정보가 아직 없어요 (디자이너 맥이 켜지면 표시돼요)</div>;
+  const shell = 'w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 min-h-[104px] justify-center';
+  if (u === undefined) return <div className={`${shell} text-[11px] text-gray-300 text-center`}>Claude 사용량 확인 중…</div>;
+  if (u === null) return <div className={`${shell} text-[11px] text-gray-400 text-center`}>Claude 사용량 정보가 아직 없어요 (디자이너 맥이 켜지면 표시돼요)</div>;
   const accounts: ClaudeAccountUsage[] = u.accounts.length ? u.accounts
-    : [{ name: '', sessionUsed: u.sessionUsed, sessionResetAt: u.sessionResetAt, weekUsed: u.weekUsed, weekResetAt: u.weekResetAt }];
-  const target = accounts.find(a => a.name === account) ?? autoAccount(accounts);
+    : [{ name: '계정', sessionUsed: u.sessionUsed, sessionResetAt: u.sessionResetAt, weekUsed: u.weekUsed, weekResetAt: u.weekResetAt }];
+  const auto = !accounts.some(a => a.name === account);
+  const target = auto ? autoAccount(accounts) : accounts.find(a => a.name === account)!;
   const v = usageVerdict(target);
   const stale = u.checkedAt && Date.now() - new Date(u.checkedAt).getTime() > 15 * 60000;
   const box = v.tone === 'wait' ? 'bg-red-50 text-red-600' : v.tone === 'warn' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700';
   return (
-    <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-2">
+    <div className={shell}>
+      <div className="flex items-center justify-between gap-2 px-1.5">
         <div className="text-[11px] font-semibold text-gray-600">Claude 사용량 (디자이너 맥)</div>
-        {onAccount && accounts.length > 1 && <AccountPicker accounts={accounts} value={account} onChange={onAccount} />}
+        {onAccount && accounts.length > 1 && (
+          <button type="button" onClick={() => onAccount('')} title="여유 있는 계정을 알아서 고르게 해요"
+            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors ${auto ? 'bg-indigo-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>자동</button>
+        )}
       </div>
       {accounts.map(a => (
-        <div key={a.name} className="flex flex-col gap-2">
-          {accounts.length > 1 && (
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
-              {a.name}
-              {a.name === target.name && <span className="text-indigo-500 font-medium">{account ? '· 이 계정으로 요청' : '· 자동으로 이 계정'}</span>}
-            </div>
-          )}
-          {a.sessionUsed >= 0 && <UsageBar label="이번 세션 (약 5시간)" used={a.sessionUsed} resetAt={a.sessionResetAt} />}
-          {a.weekUsed >= 0 && <UsageBar label="이번 주" used={a.weekUsed} resetAt={a.weekResetAt} />}
-          {a.sessionUsed < 0 && a.weekUsed < 0 && <div className="text-[10px] text-gray-400">사용량을 읽지 못했어요</div>}
-        </div>
+        <AccountRow key={a.name} a={a} picked={a.name === target.name} auto={auto}
+          onPick={onAccount ? () => onAccount(a.name) : undefined} />
       ))}
-      <div className={`text-[11px] rounded-lg px-2.5 py-1.5 ${box}`}>{v.text}</div>
-      {stale && <div className="text-[10px] text-gray-400">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
+      <div className={`text-[11px] rounded-lg px-2.5 py-1.5 leading-snug ${box}`}>{v.text}</div>
+      {stale && <div className="text-[10px] text-gray-400 px-1.5">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
     </div>
   );
 }

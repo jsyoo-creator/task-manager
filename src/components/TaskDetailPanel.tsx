@@ -2602,6 +2602,10 @@ export default function TaskDetailPanel({
                         <FigmaSetupButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
                           middle={(figmaKind === 'initial' || figmaKind === 'update') && (
                             <PlanBuilderButton task={task} kind={figmaKind} canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
+                          )}
+                          after={figmaKind === 'image' && (
+                            /* 디자인 '페이지&배너&히든기획전'에서도 검수 카드와 같은 저장 기능을 쓴다 (같은 요청 문서라 상태도 같이 보인다) */
+                            <FigmaSetupButton task={task} kind="save" inline canManage={canManage} currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId} />
                           )} />
                       );
                     })()}

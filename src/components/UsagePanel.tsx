@@ -49,9 +49,11 @@ function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; te
   return { tone: 'ok', text: '지금 바로 요청할 수 있어요' };
 }
 
-// 남은 양이 가장 많은 계정 (쓴 비율이 가장 낮은 쪽)
-const bestAccount = (list: ClaudeAccountUsage[]) =>
-  [...list].sort((a, b) => Math.max(a.sessionUsed, a.weekUsed, 0) - Math.max(b.sessionUsed, b.weekUsed, 0))[0];
+// '자동'일 때 맥 프로그램이 실제로 쓰는 계정 — 적어 둔 순서대로 쓰다가 한도가 찬 계정은 건너뛴다.
+// 전부 찼으면 가장 빨리 풀릴(가장 덜 쓴) 계정을 기준으로 안내한다.
+const autoAccount = (list: ClaudeAccountUsage[]) =>
+  list.find(a => Math.max(a.sessionUsed, a.weekUsed, 0) < 100)
+  ?? [...list].sort((a, b) => Math.max(a.sessionUsed, a.weekUsed, 0) - Math.max(b.sessionUsed, b.weekUsed, 0))[0];
 
 function AccountPicker({ accounts, value, onChange }: { accounts: ClaudeAccountUsage[]; value: string; onChange: (v: string) => void }) {
   const item = (v: string, label: string) => (
@@ -70,7 +72,7 @@ export function UsagePanel({ account = '', onAccount }: { account?: string; onAc
   if (u === null) return <div className="w-full text-[11px] text-gray-400 text-center">Claude 사용량 정보가 아직 없어요 (디자이너 맥이 켜지면 표시돼요)</div>;
   const accounts: ClaudeAccountUsage[] = u.accounts.length ? u.accounts
     : [{ name: '', sessionUsed: u.sessionUsed, sessionResetAt: u.sessionResetAt, weekUsed: u.weekUsed, weekResetAt: u.weekResetAt }];
-  const target = accounts.find(a => a.name === account) ?? bestAccount(accounts);
+  const target = accounts.find(a => a.name === account) ?? autoAccount(accounts);
   const v = usageVerdict(target);
   const stale = u.checkedAt && Date.now() - new Date(u.checkedAt).getTime() > 15 * 60000;
   const box = v.tone === 'wait' ? 'bg-red-50 text-red-600' : v.tone === 'warn' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700';

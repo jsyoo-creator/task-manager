@@ -17,7 +17,7 @@ type Tab = 'banner' | 'landing';
 
 // 기획서 편집 화면 — 상세 탭(판촉 업데이트기 v21 로직) / 배너 탭(배너카피생성기 v14 로직), 기획서 작성 순서가 상세 먼저라 탭도 그 순서, 아래 고정 줄에 파일 이름과 저장 요청.
 // 고른 범위의 탭만 보이고 보낸다. 추가 작성하기·실패 후 다시 요청은 지난번에 보낸 내용으로 채워서 연다.
-export default function PlanBuilderModal({ task, folderName, scope, draft, seed, again, kind = 'initial', title, baseFile, currentUserName, workplaceId, teamId, requestPlan, onClose }: {
+export default function PlanBuilderModal({ task, folderName, scope, draft, seed, again, kind = 'initial', title, baseFile, account = '', currentUserName, workplaceId, teamId, requestPlan, onClose }: {
   task: Task;
   folderName: string;
   scope: PlanScope;
@@ -27,6 +27,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
   kind?: PlanDraftKind;
   title: string;
   baseFile?: string;               // 업데이트가 틀로 삼을 지난 결과 파일 (.pptx 포함)
+  account?: string;                // 팝업에서 고른 Claude 계정 ('' = 자동)
   currentUserName: string;
   workplaceId?: string;
   teamId?: string;
@@ -156,7 +157,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     }
     setSending(true);
     try {
-      await requestPlan({ folderName, taskId: task.id, taskTitle: task.title, workplaceId, teamId, requestedBy: currentUserName, scope, fileName: cleanName, banner, landing, baseFile });
+      await requestPlan({ folderName, taskId: task.id, taskTitle: task.title, workplaceId, teamId, requestedBy: currentUserName, scope, fileName: cleanName, banner, landing, baseFile, account });
       onClose();
     } catch (e) {
       if (e instanceof PlanDraftBusyError) setError('이미 작성 요청을 처리 중이에요');

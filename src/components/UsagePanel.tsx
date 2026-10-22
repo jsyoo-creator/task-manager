@@ -1,4 +1,4 @@
-import { useClaudeUsage, type ClaudeUsage } from '../hooks/useClaudeUsage';
+import { useClaudeUsage, type ClaudeAccountUsage } from '../hooks/useClaudeUsage';
 
 // 팝업 안 Claude 남은 사용량 — Figma 세팅요청 팝업과 1차 기획서 만들기 팝업이 같이 쓴다.
 export const fmtTime = (iso: string) => {
@@ -36,7 +36,7 @@ function UsageBar({ label, used, resetAt }: { label: string; used: number; reset
   );
 }
 
-function usageVerdict(u: ClaudeUsage): { tone: 'ok' | 'warn' | 'wait'; text: string } {
+function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; text: string } {
   const full = [u.sessionUsed >= 100 && u.sessionResetAt, u.weekUsed >= 100 && u.weekResetAt].filter(Boolean) as string[];
   if (full.length) {
     const until = full.sort().slice(-1)[0];
@@ -49,18 +49,50 @@ function usageVerdict(u: ClaudeUsage): { tone: 'ok' | 'warn' | 'wait'; text: str
   return { tone: 'ok', text: '지금 바로 요청할 수 있어요' };
 }
 
-export function UsagePanel() {
+// 남은 양이 가장 많은 계정 (쓴 비율이 가장 낮은 쪽)
+const bestAccount = (list: ClaudeAccountUsage[]) =>
+  [...list].sort((a, b) => Math.max(a.sessionUsed, a.weekUsed, 0) - Math.max(b.sessionUsed, b.weekUsed, 0))[0];
+
+function AccountPicker({ accounts, value, onChange }: { accounts: ClaudeAccountUsage[]; value: string; onChange: (v: string) => void }) {
+  const item = (v: string, label: string) => (
+    <button key={v} type="button" onClick={() => onChange(v)}
+      className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-colors ${value === v ? 'bg-indigo-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+      {label}
+    </button>
+  );
+  return <div className="flex gap-0.5 bg-gray-100/70 rounded-lg p-0.5">{[item('', '자동'), ...accounts.map(a => item(a.name, a.name))]}</div>;
+}
+
+// account: 이번 요청에 쓸 계정 이름 (''이면 남은 쪽을 자동으로). onAccount를 주면 고르는 칸도 같이 보여준다.
+export function UsagePanel({ account = '', onAccount }: { account?: string; onAccount?: (v: string) => void }) {
   const u = useClaudeUsage(true);
   if (u === undefined) return <div className="w-full text-[11px] text-gray-300 text-center">Claude 사용량 확인 중…</div>;
   if (u === null) return <div className="w-full text-[11px] text-gray-400 text-center">Claude 사용량 정보가 아직 없어요 (디자이너 맥이 켜지면 표시돼요)</div>;
-  const v = usageVerdict(u);
+  const accounts: ClaudeAccountUsage[] = u.accounts.length ? u.accounts
+    : [{ name: '', sessionUsed: u.sessionUsed, sessionResetAt: u.sessionResetAt, weekUsed: u.weekUsed, weekResetAt: u.weekResetAt }];
+  const target = accounts.find(a => a.name === account) ?? bestAccount(accounts);
+  const v = usageVerdict(target);
   const stale = u.checkedAt && Date.now() - new Date(u.checkedAt).getTime() > 15 * 60000;
   const box = v.tone === 'wait' ? 'bg-red-50 text-red-600' : v.tone === 'warn' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700';
   return (
     <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-2.5">
-      <div className="text-[11px] font-semibold text-gray-600">Claude 사용량 (디자이너 맥)</div>
-      {u.sessionUsed >= 0 && <UsageBar label="이번 세션 (약 5시간)" used={u.sessionUsed} resetAt={u.sessionResetAt} />}
-      {u.weekUsed >= 0 && <UsageBar label="이번 주" used={u.weekUsed} resetAt={u.weekResetAt} />}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-semibold text-gray-600">Claude 사용량 (디자이너 맥)</div>
+        {onAccount && accounts.length > 1 && <AccountPicker accounts={accounts} value={account} onChange={onAccount} />}
+      </div>
+      {accounts.map(a => (
+        <div key={a.name} className="flex flex-col gap-2">
+          {accounts.length > 1 && (
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+              {a.name}
+              {a.name === target.name && <span className="text-indigo-500 font-medium">{account ? '· 이 계정으로 요청' : '· 자동으로 이 계정'}</span>}
+            </div>
+          )}
+          {a.sessionUsed >= 0 && <UsageBar label="이번 세션 (약 5시간)" used={a.sessionUsed} resetAt={a.sessionResetAt} />}
+          {a.weekUsed >= 0 && <UsageBar label="이번 주" used={a.weekUsed} resetAt={a.weekResetAt} />}
+          {a.sessionUsed < 0 && a.weekUsed < 0 && <div className="text-[10px] text-gray-400">사용량을 읽지 못했어요</div>}
+        </div>
+      ))}
       <div className={`text-[11px] rounded-lg px-2.5 py-1.5 ${box}`}>{v.text}</div>
       {stale && <div className="text-[10px] text-gray-400">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
     </div>

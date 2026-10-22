@@ -27,6 +27,7 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   const { draft: initialDraft } = usePlanDraft(isUpdate ? folderName : null, 'initial');
   const [scopeOpen, setScopeOpen] = useState(false);
   const [editorScope, setEditorScope] = useState<PlanScope | null>(null);
+  const [account, setAccount] = useState('');   // 팝업에서 고른 Claude 계정 ('' = 자동)
 
   const chip = 'flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border font-medium transition-colors';
   const status = draft?.status;
@@ -83,11 +84,11 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
       {content}
       {scopeOpen && (
         <PlanScopeDialog taskTitle={task.title} again={again} title={label} isUpdate={isUpdate} onCancel={() => setScopeOpen(false)}
-          onPick={scope => { setScopeOpen(false); setEditorScope(scope); }} />
+          onPick={(scope, acc) => { setScopeOpen(false); setAccount(acc); setEditorScope(scope); }} />
       )}
       {editorScope && folderName && (
         <PlanBuilderModal task={task} folderName={folderName} scope={editorScope} draft={draft} seed={seed ?? null}
-          again={again} kind={kind} title={label} baseFile={baseFile}
+          again={again} kind={kind} title={label} baseFile={baseFile} account={account}
           currentUserName={currentUserName} workplaceId={workplaceId} teamId={teamId}
           requestPlan={requestPlan} onClose={() => setEditorScope(null)} />
       )}
@@ -99,10 +100,11 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
 // 범위 고르기 팝업 — Figma 세팅요청 팝업(ScopeDialog)과 같은 모양에 선택지 3개
 function PlanScopeDialog({ taskTitle, again, title, isUpdate, onPick, onCancel }: {
   taskTitle: string; again: boolean; title: string; isUpdate: boolean;
-  onPick: (scope: PlanScope) => void; onCancel: () => void;
+  onPick: (scope: PlanScope, account: string) => void; onCancel: () => void;
 }) {
+  const [account, setAccount] = useState('');   // '' = 남은 계정으로 자동
   const pick = (scope: PlanScope, icon: ReactNode, primary = false) => (
-    <button onClick={() => onPick(scope)}
+    <button onClick={() => onPick(scope, account)}
       className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5 ${primary ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
       {icon}{PLAN_SCOPE_LABEL[scope]}
     </button>
@@ -124,7 +126,7 @@ function PlanScopeDialog({ taskTitle, again, title, isUpdate, onPick, onCancel }
             <p className="text-xs text-gray-400 mt-1.5">{isUpdate ? '지난번 입력 내용이 그대로 열려요 · 고른 쪽만 고쳐 버전을 올린 새 파일로 저장해요'
               : again ? '고른 쪽만 고쳐서 저장하고, 나머지는 지난번 그대로 둬요' : '상세페이지 내용과 배너 카피를 정리해 기획서(PPT)로 만들어요'}</p>
           </div>
-          <UsagePanel />
+          <UsagePanel account={account} onAccount={setAccount} />
           <p className="text-[11px] text-gray-400 text-center">배너만 고르면 Claude를 쓰지 않아 사용량과 상관없이 바로 만들어져요</p>
         </div>
         <div className="flex gap-2 px-5 pb-3">

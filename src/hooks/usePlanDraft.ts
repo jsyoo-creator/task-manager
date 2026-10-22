@@ -20,6 +20,7 @@ export interface PlanRequest {
   banner?: PlanDraftBanner;   // scope에 배너가 있을 때만 보낸다
   landing?: PlanDraftLanding; // scope에 상세가 있을 때만 보낸다
   baseFile?: string;          // 이 문서에 지난 결과가 없을 때 틀로 쓸 파일 (업데이트가 1차 기획서를 이어받을 때)
+  account?: string;           // 이 요청에 쓸 Claude 계정 이름 (''이면 맥 프로그램이 남은 계정을 고른다)
 }
 
 // 업무 하나(폴더 하나)의 기획서 작성 요청 상태를 실시간으로 본다. 문서 하나만 구독한다.
@@ -66,6 +67,7 @@ export function usePlanDraft(folderName: string | null, kind: PlanDraftKind = 'i
         requestedAt: now,
         finishedAt: deleteField(),
         scope: req.scope,
+        account: req.account ?? '',
         fileName: req.fileName,
         version: versionFromFileName(req.fileName),
         mode: baseFile ? 'update' : 'create',

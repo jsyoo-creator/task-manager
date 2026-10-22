@@ -56,11 +56,11 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   }
 
   // ── 버튼 ──
-  const request = async (again = false, scope: FigmaSetupScope = 'both') => {
+  const request = async (again = false, scope: FigmaSetupScope = 'both', account = '') => {
     if (!folderName) return;
     setSending(true); setError('');
     try {
-      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind);
+      await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind, account);
     } catch (e) {
       setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);
@@ -123,7 +123,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       {button}
       {dialog && (
         <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt} onCancel={() => setDialog(null)}
-          onPick={scope => { const again = dialog === 'again'; setDialog(null); request(again, scope); }} />
+          onPick={(scope, account) => { const again = dialog === 'again'; setDialog(null); request(again, scope, account); }} />
       )}
     </div>
   );
@@ -131,10 +131,11 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
 
 
 // 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
-function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; imageAt?: string; onPick: (scope: FigmaSetupScope) => void; onCancel: () => void }) {
+function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; imageAt?: string; onPick: (scope: FigmaSetupScope, account: string) => void; onCancel: () => void }) {
   const t = FIGMA_SETUP_TEXT[kind];
+  const [account, setAccount] = useState('');   // '' = 남은 계정으로 자동
   const pick = (scope: FigmaSetupScope, primary = false) => (
-    <button onClick={() => onPick(scope)}
+    <button onClick={() => onPick(scope, account)}
       className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors ${primary ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'border border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}>
       {FIGMA_SETUP_SCOPE_LABEL[scope]}
     </button>
@@ -162,11 +163,11 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
             </div>
           )}
           {(kind === 'initial' || kind === 'update') && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} />}
-          <UsagePanel />
+          <UsagePanel account={account} onAccount={setAccount} />
         </div>
         {kind === 'image' ? (
           <div className="flex gap-2 px-5 pb-3">
-            <button onClick={() => onPick('banner')} disabled={!imageAt}
+            <button onClick={() => onPick('banner', account)} disabled={!imageAt}
               className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-40">
               {again ? t.again : t.request}
             </button>
@@ -180,7 +181,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
         )}
         {kind === 'save' && (
           <div className="px-5 pb-3">
-            <button onClick={() => onPick('draft')} title="보드 전체·상세페이지 전체 이미지를 드라이브 00_시안 폴더에만 저장해요"
+            <button onClick={() => onPick('draft', account)} title="보드 전체·상세페이지 전체 이미지를 드라이브 00_시안 폴더에만 저장해요"
               className="w-full py-2.5 text-sm font-semibold rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors">
               {FIGMA_SETUP_SCOPE_LABEL.draft} <span className="font-normal text-indigo-400">· 00_시안 폴더</span>
             </button>

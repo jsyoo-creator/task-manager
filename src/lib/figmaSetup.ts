@@ -35,7 +35,7 @@ export function figmaSetupDocId(folderName: string, kind: FigmaSetupKind): strin
 export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; running: string; done: string; again: string; failed: string; question: string; againQuestion: string; sub: string; againSub: string }> = {
   initial: { request: '세팅요청', running: '반영중', done: '세팅완료', again: '다시 세팅요청', failed: '세팅실패 · 다시 요청',
     question: '무엇을 세팅할까요?', againQuestion: '무엇을 다시 세팅할까요?',
-    sub: '기획서 기준으로 Figma에 세팅해요', againSub: '지금 기획서 기준으로 다시 맞춰요 · Figma에서 지웠다면 새로 만들어요' },
+    sub: '기획서 기준으로 Figma에 세팅해요', againSub: '지금 기획서로 다시 맞춰요 · Figma에서 지웠으면 새로 만들어요' },
   update: { request: '반영요청', running: '반영중', done: '반영완료', again: '다시 반영요청', failed: '반영실패 · 다시 요청',
     question: '업데이트된 기획서를 어디에 반영할까요?', againQuestion: '업데이트된 기획서를 어디에 다시 반영할까요?',
     sub: '지난번 반영한 기획서와 비교해 바뀐 글자만 Figma에 반영해요', againSub: '지난번 반영한 기획서와 비교해 바뀐 글자만 반영해요' },
@@ -44,7 +44,7 @@ export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; running
     sub: 'Figma에서 이미지로 내보내 드라이브 02.디자인에 저장해요', againSub: '지금 Figma 상태로 다시 저장해요 (같은 이름 파일은 덮어써요)' },
   image: { request: '이미지 반영', running: '반영중', done: '이미지 반영완료', again: '다시 이미지 반영', failed: '이미지 반영실패 · 다시 요청',
     question: '배너에 이미지를 반영할까요?', againQuestion: '배너에 이미지를 다시 반영할까요?',
-    sub: '99_가이드의 banner_img로 배너 규격별 이미지 배치·텍스트 색·커버·BOX 색·상단 홍보 배경을 맞춰요', againSub: '지금 99_가이드의 이미지로 다시 맞춰요' },
+    sub: '99_가이드의 banner_img로 규격별 이미지와 텍스트 색·커버·BOX 색을 맞춰요', againSub: '지금 99_가이드의 이미지로 다시 맞춰요' },
 };
 
 // 업무명 "10/6 냉장고&세탁기" → 드라이브 폴더 "20261006_냉장고&세탁기".

@@ -172,7 +172,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={e => e.stopPropagation()}>
-      <div className="w-full max-w-[1100px] mx-4 h-[90vh] rounded-2xl bg-white border border-black/8 shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full max-w-[1100px] mx-4 h-[90vh] rounded-2xl bg-white border border-black/8 shadow-2xl flex flex-col overflow-hidden break-keep">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 flex-shrink-0">
           <div className="min-w-0">

@@ -22,7 +22,7 @@ const fmtLeft = (iso: string) => {
 
 function UsageBar({ label, used, resetAt }: { label: string; used: number; resetAt: string }) {
   const left = Math.max(0, 100 - used);
-  const color = used >= 100 ? 'bg-red-400' : used >= 85 ? 'bg-amber-400' : 'bg-indigo-400';
+  const color = used >= 100 ? 'bg-red-400' : used >= 80 ? 'bg-amber-400' : 'bg-indigo-400';
   return (
     <div>
       <div className="flex justify-between text-[11px] mb-1">
@@ -36,17 +36,28 @@ function UsageBar({ label, used, resetAt }: { label: string; used: number; reset
   );
 }
 
+// 남은 양 기준으로 판정한다 — 세션과 주간 중 더 빠듯한 쪽을 본다.
+// (전에는 주간 90%부터 경고라서 주간 88%여도 초록색으로 보였다. 2026-10-22 수정)
+const WARN_LEFT = 20;   // 남은 양이 이 % 이하면 경고
 function usageVerdict(u: ClaudeAccountUsage): { tone: 'ok' | 'warn' | 'wait'; text: string } {
   const full = [u.sessionUsed >= 100 && u.sessionResetAt, u.weekUsed >= 100 && u.weekResetAt].filter(Boolean) as string[];
   if (full.length) {
     const until = full.sort().slice(-1)[0];
     return { tone: 'wait', text: `지금은 한도가 다 찼어요 · ${fmtTime(until)}(${fmtLeft(until)})부터 요청 가능 — 지금 눌러 두면 그때 자동으로 시작해요` };
   }
-  if (u.sessionUsed >= 85 || u.weekUsed >= 90) {
-    const r = u.sessionUsed >= 85 ? u.sessionResetAt : u.weekResetAt;
-    return { tone: 'warn', text: `요청 가능 · 남은 양이 적어서 작업 중 멈출 수 있어요 (멈추면 ${fmtTime(r)} 초기화 뒤 이어서 해요)` };
+  const sessLeft = u.sessionUsed >= 0 ? 100 - u.sessionUsed : 100;
+  const weekLeft = u.weekUsed >= 0 ? 100 - u.weekUsed : 100;
+  const tight = Math.min(sessLeft, weekLeft);
+  if (tight <= WARN_LEFT) {
+    const weekTighter = weekLeft <= sessLeft;
+    const r = weekTighter ? u.weekResetAt : u.sessionResetAt;
+    return {
+      tone: 'warn',
+      text: `${weekTighter ? '이번 주' : '이번 세션'} 남은 양 ${tight}% — 작업 중 멈출 수 있어요`
+        + (r ? ` (멈추면 ${fmtTime(r)} 초기화 뒤 이어서 해요)` : ''),
+    };
   }
-  return { tone: 'ok', text: '지금 바로 요청할 수 있어요' };
+  return { tone: 'ok', text: `지금 바로 요청할 수 있어요 (남은 양 ${tight}%)` };
 }
 
 // '자동'일 때 맥 프로그램이 실제로 쓰는 계정 — 적어 둔 순서대로 쓰다가 한도가 찬 계정은 건너뛴다.

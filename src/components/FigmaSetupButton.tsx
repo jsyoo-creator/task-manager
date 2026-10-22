@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download, Image as ImageIcon } from 'lucide-react';
 import type { Task } from '../types';
-import { folderNameFromTask, figmaSetupDocId, boardMonthKey, figmaFileKey, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
+import { folderNameFromTask, figmaSetupDocId, boardMonthKey, figmaFileKey, figmaNodeId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 import { useFigmaBoards } from '../hooks/useFigmaBoards';
@@ -39,6 +39,8 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const board = monthKey && boards ? boards[monthKey] : undefined;
   const bannerFile = figmaFileKey(board?.banner);
   const landingFile = figmaFileKey(board?.landing);
+  const bannerPage = figmaNodeId(board?.banner);     // 그 달 'ㄴ N월 Banner' 페이지
+  const landingPage = figmaNodeId(board?.landing);   // 그 달 '🎪 N월 Live Page'
   const noBoard = boards !== null && !bannerFile && !landingFile;
   const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
   const imageAt = folderName ? images[folderName.normalize('NFC')] : undefined;
@@ -80,7 +82,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
     setSending(true); setError('');
     try {
       await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind, account,
-        { figmaFile: bannerFile, figmaLandingFile: landingFile });
+        { figmaFile: bannerFile, figmaLandingFile: landingFile, figmaBannerPage: bannerPage, figmaLandingPage: landingPage });
     } catch (e) {
       setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);

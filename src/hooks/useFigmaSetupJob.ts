@@ -21,7 +21,7 @@ export function useFigmaSetupJob(docId: string | null) {
   // 이미 요청됐거나 처리 중인 폴더면 다시 쓰지 않는다 (두 사람이 동시에 눌러도 한 번만 요청됨).
   // 폴더 없음/실패일 때, 그리고 세팅완료 뒤 '다시 요청'(again)일 때만 다시 요청할 수 있다.
   // files: 그 달 Figma 판(배너판·상세페이지판) 파일 키 — 맥 워커가 이 판에 세팅한다
-  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>, again = false, scope: FigmaSetupScope = 'both', kind: FigmaSetupKind = 'initial', account = '', files?: { figmaFile?: string; figmaLandingFile?: string }) => {
+  const requestSetup = async (data: Pick<FigmaSetupJob, 'folderName' | 'taskId' | 'taskTitle' | 'requestedBy' | 'workplaceId' | 'teamId'>, again = false, scope: FigmaSetupScope = 'both', kind: FigmaSetupKind = 'initial', account = '', files?: { figmaFile?: string; figmaLandingFile?: string; figmaBannerPage?: string; figmaLandingPage?: string }) => {
     if (!docId) return;
     const ref = doc(db, FIGMA_SETUP_COLLECTION, docId);
     await runTransaction(db, async tx => {
@@ -39,6 +39,8 @@ export function useFigmaSetupJob(docId: string | null) {
         account,     // 이 요청에 쓸 Claude 계정 이름 (''이면 맥 프로그램이 남은 계정을 고른다)
         figmaFile: files?.figmaFile ?? '',
         figmaLandingFile: files?.figmaLandingFile ?? '',
+        figmaBannerPage: files?.figmaBannerPage ?? '',
+        figmaLandingPage: files?.figmaLandingPage ?? '',
         message: '',
         requestedAt: new Date().toISOString(),
       }, { merge: again });

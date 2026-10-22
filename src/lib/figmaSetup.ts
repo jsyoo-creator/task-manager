@@ -39,6 +39,12 @@ export function figmaFileKey(url?: string): string {
   return m ? m[1] : '';
 }
 
+// Figma 주소의 node-id → 노드 id (20497-14768 → 20497:14768). 월별 판은 '그 달 페이지' 링크로 등록한다.
+export function figmaNodeId(url?: string): string {
+  const m = (url ?? '').match(/[?&]node-id=([0-9]+)-([0-9]+)/);
+  return m ? `${m[1]}:${m[2]}` : '';
+}
+
 // 폴더 이름(20261103_…)이 속한 달 — 월별 Figma 판을 찾는 키 'YYYY-MM'
 export function boardMonthKey(folderName: string): string {
   return /^\d{8}_/.test(folderName) ? `${folderName.slice(0, 4)}-${folderName.slice(4, 6)}` : '';
@@ -111,5 +117,7 @@ export interface FigmaSetupJob {
   landingUrl?: string;
   figmaFile?: string;          // 이 요청에 쓸 그 달 배너판 파일 키 (맥 워커가 읽는다)
   figmaLandingFile?: string;   // 상세페이지판이 다른 파일이면 그 키
+  figmaBannerPage?: string;    // 그 달 배너 페이지 노드 id (예: 20497:14768)
+  figmaLandingPage?: string;   // 그 달 상세페이지(Live Page) 노드 id
   message?: string;      // 실패 이유, 확인 필요 항목 요약
 }

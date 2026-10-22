@@ -111,10 +111,11 @@ function BoardDialog({ month, cur, currentUserName, onClose, onSave }: {
   }, [onClose]);
 
   const title = `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월 피그마 판`;
-  const bad = (v: string) => !!v.trim() && !/^https:\/\/(www\.)?figma\.com\//.test(v.trim());
+  // 월마다 그 달 페이지에 작업하므로, 파일 주소가 아니라 '그 달 페이지를 연 링크'(node-id 포함)를 받는다
+  const bad = (v: string) => !!v.trim() && !(/^https:\/\/(www\.)?figma\.com\//.test(v.trim()) && /[?&]node-id=\d+-\d+/.test(v.trim()));
 
   const submit = async () => {
-    if (bad(banner) || bad(landing)) { setError('Figma 주소(https://www.figma.com/…)만 넣을 수 있어요'); return; }
+    if (bad(banner) || bad(landing)) { setError('그 달 페이지를 연 Figma 링크를 넣어 주세요 (주소에 node-id가 있어야 해요)'); return; }
     setSaving(true); setError('');
     try {
       await onSave(month, { banner: banner.trim(), landing: landing.trim() }, currentUserName);
@@ -147,8 +148,8 @@ function BoardDialog({ month, cur, currentUserName, onClose, onSave }: {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={17} /></button>
         </div>
         <div className="px-5 py-5 flex flex-col gap-3">
-          {field('배너판', '배너 보드가 있는 Figma', banner, setBanner)}
-          {field('상세페이지판', '상세페이지가 있는 Figma', landing, setLanding)}
+          {field('배너판', "그 달 'ㄴ N월 Banner' 페이지 링크", banner, setBanner)}
+          {field('상세페이지판', "그 달 'N월 Live Page' 링크", landing, setLanding)}
           <div className="rounded-xl bg-gray-50/60 border border-black/5 px-3 h-[38px] flex flex-col justify-center">
             <p className="text-[11px] text-gray-500 leading-tight">
               {cur?.updatedBy ? `${cur.updatedBy} 등록 · 달이 바뀌면 새 판 링크를 넣어 주세요` : '월마다 새 판을 쓰니 그 달 판 링크를 넣어 주세요'}

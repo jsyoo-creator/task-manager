@@ -15,7 +15,7 @@ import { PlanDraftBusyError, type PlanRequest } from '../hooks/usePlanDraft';
 
 type Tab = 'banner' | 'landing';
 
-// 기획서 편집 화면 — 상세 탭(판촉 업데이트기 v21 로직) / 배너 탭(배너카피생성기 v14 로직), 기획서 작성 순서가 상세 먼저라 탭도 그 순서, 아래 고정 줄에 파일 이름과 저장 요청.
+// 기획서 편집 화면 — 배너 탭(배너카피생성기 v14 로직) / 상세 탭(판촉 업데이트기 v21 로직), 기획서 차례가 배너 먼저 (2026-10-22 기획 확인), 아래 고정 줄에 파일 이름과 저장 요청.
 // 고른 범위의 탭만 보이고 보낸다. 추가 작성하기·실패 후 다시 요청은 지난번에 보낸 내용으로 채워서 연다.
 export default function PlanBuilderModal({ task, folderName, scope, draft, seed, again, kind = 'initial', title, baseFile, account = '', currentUserName, workplaceId, teamId, requestPlan, onClose }: {
   task: Task;
@@ -36,7 +36,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
 }) {
   const showBanner = scopeHasBanner(scope);
   const showLanding = scopeHasLanding(scope);
-  const [tab, setTab] = useState<Tab>(showLanding ? 'landing' : 'banner');
+  const [tab, setTab] = useState<Tab>(showBanner ? 'banner' : 'landing');
   const folderDate = liveDateFromFolder(folderName);
   const prevBanner = seed?.banner;
 
@@ -126,8 +126,19 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     setError('');
     if (!cleanName) { setError('파일 이름을 입력해 주세요'); return; }
     if (INVALID_FILE_CHARS.test(cleanName)) { setError('파일 이름에 쓸 수 없는 글자(\\ / : * ? " < > |)가 있어요'); return; }
-    let landing: PlanDraftLanding | undefined;
     let banner: PlanDraftBanner | undefined;
+    let landing: PlanDraftLanding | undefined;
+    if (showBanner) {
+      if (!kvMain.trim()) { setTab('banner'); setError('배너: KV 카피 메인을 입력해 주세요'); return; }
+      if (!parsedDate) { setTab('banner'); setError('배너: 방송일을 확인해 주세요 (예: 10/27)'); return; }
+      if (!generated) { setTab('banner'); setError("배너: '배너 카피 생성'을 먼저 눌러 주세요"); return; }
+      if (bannerStale) { setTab('banner'); setError("배너: 입력이 바뀌었어요. '배너 카피 생성'을 다시 눌러 결과를 맞춰 주세요"); return; }
+      banner = {
+        kvMain: kvMain.trim(), kvSub: kvSub.trim(), liveDate: parsedDate.iso, liveTime: genInput.timeLabel,
+        product: product.trim(), shortName: shortName.trim(), discount: discount.trim(), broadcastType,
+        copies: copiesFromGroups(generated.groups, edits),
+      };
+    }
     if (showLanding) {
       if (!raw.trim()) { setTab('landing'); setError('상세: 판촉 원문을 붙여넣어 주세요'); return; }
       const cur = parsePromo(raw, caseDate);
@@ -142,17 +153,6 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
           legalNotes: cur.legalNotes,
         },
         previewText: promoPreviewText(cur),
-      };
-    }
-    if (showBanner) {
-      if (!kvMain.trim()) { setTab('banner'); setError('배너: KV 카피 메인을 입력해 주세요'); return; }
-      if (!parsedDate) { setTab('banner'); setError('배너: 방송일을 확인해 주세요 (예: 10/27)'); return; }
-      if (!generated) { setTab('banner'); setError("배너: '배너 카피 생성'을 먼저 눌러 주세요"); return; }
-      if (bannerStale) { setTab('banner'); setError("배너: 입력이 바뀌었어요. '배너 카피 생성'을 다시 눌러 결과를 맞춰 주세요"); return; }
-      banner = {
-        kvMain: kvMain.trim(), kvSub: kvSub.trim(), liveDate: parsedDate.iso, liveTime: genInput.timeLabel,
-        product: product.trim(), shortName: shortName.trim(), discount: discount.trim(), broadcastType,
-        copies: copiesFromGroups(generated.groups, edits),
       };
     }
     setSending(true);
@@ -185,7 +185,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
         {/* 탭 */}
         {showBanner && showLanding && (
           <div className="flex gap-1 px-5 pt-3 flex-shrink-0">
-            {(['landing', 'banner'] as Tab[]).map(t => (
+            {(['banner', 'landing'] as Tab[]).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tab === t ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
                 {t === 'banner' ? '배너' : '상세'}
@@ -418,8 +418,8 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
           {(draft?.outputFile || baseFile) && (again || kind === 'update') && (
             <p className="text-[11px] text-gray-400 flex items-center gap-1"><Info size={12} />
               {kind === 'update'
-                ? `${draft?.outputFile || baseFile}을 바탕으로 ${scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 새 버전 파일로 저장해요`
-                : `같은 파일 ${draft?.outputFile}에서 ${scope === 'both' ? '상세·배너를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 저장해요 (버전 그대로)`}</p>
+                ? `${draft?.outputFile || baseFile}을 바탕으로 ${scope === 'both' ? '배너·상세를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 새 버전 파일로 저장해요`
+                : `같은 파일 ${draft?.outputFile}에서 ${scope === 'both' ? '배너·상세를' : scope === 'banner' ? '배너만' : '상세만'} 고쳐 저장해요 (버전 그대로)`}</p>
           )}
           {error && <p className="text-[11px] text-red-500 flex items-center gap-1"><TriangleAlert size={12} />{error}</p>}
         </div>

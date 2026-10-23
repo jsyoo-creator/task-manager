@@ -78,7 +78,8 @@ export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; running
 // 기본은 6자리(YYMMDD)이고, 예전 8자리(YYYYMMDD) 폴더도 그대로 인식한다 (2026-10-23 규칙 변경).
 // 연도는 방송일(endDate) → 월(taskMonth) → 시작일 순으로 정하고, 12월↔1월처럼 해가 넘어가면 보정한다.
 export function folderNamesFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskMonth' | 'startDate'>): string[] {
-  const m = (task.title ?? '').trim().match(/^(\d{1,2})\/(\d{1,2})\s+(.+)$/);
+  // 맥에서 붙여넣은 업무명은 한글이 자모로 나뉜 NFD일 수 있다 → NFC로 맞춰 요청 문서 id가 갈라지지 않게 (2026-10-23)
+  const m = (task.title ?? '').normalize('NFC').trim().match(/^(\d{1,2})\/(\d{1,2})\s+(.+)$/);
   if (!m) return [];
   const month = Number(m[1]);
   const day = Number(m[2]);

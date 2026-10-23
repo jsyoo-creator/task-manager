@@ -124,6 +124,7 @@ export interface FigmaSetupJob {
   kind?: FigmaSetupKind;   // 없으면 initial
   planVersion?: string;    // 반영에 쓴 기획서 버전 (예: v2.0)
   planFile?: string;
+  planStamp?: string;      // 반영한 기획서 지문 — 같은 파일을 덮어써 고쳤는지 알아볼 때 쓴다
   workplaceId?: string;
   teamId?: string;
   taskId: string;

@@ -5,6 +5,8 @@ import { folderNamesFromTask, resolveFolderName, figmaSetupDocId, boardMonthKey,
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 import { useFigmaBoards } from '../hooks/useFigmaBoards';
+import { useJobQueue, queuePosition, runningLabel } from '../hooks/useJobQueue';
+import { QueueNotice } from './QueueNotice';
 import { UsagePanel, fmtTime } from './UsagePanel';
 
 // 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [middle] [버튼] [after].
@@ -34,6 +36,8 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const { folders, plans, images, folderIds } = useDriveFolders(folderNames.length > 0);
   const folderName = resolveFolderName(folderNames, folders);
   const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
+  // 요청대기일 때만 작업 순서를 읽어 '대기 N번째'를 보여 준다
+  const queue = useJobQueue(job?.status === 'requested');
   const text = FIGMA_SETUP_TEXT[kind];
   // 월마다 새 판을 쓰므로, 그 달 판이 등록돼 있어야 요청할 수 있다 (툴바 '피그마 설정'에서 등록)
   const { boards } = useFigmaBoards(!!folderName);
@@ -129,7 +133,10 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       </button>
     );
   } else if (status === 'requested') {
-    button = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title="디자이너 맥이 켜지면 자동으로 시작돼요"><Clock size={11} className="animate-pulse" />요청대기</span>;
+    const pos = folderName ? queuePosition(queue, 'figmaSetupJobs', figmaSetupDocId(folderName, kind)) : null;
+    const waitTitle = pos ? `대기 ${pos}번째${queue?.running ? ` · 지금 ${runningLabel(queue.running)} 진행 중` : ''}`
+      : '곧 맥 프로그램이 가져가요 (최대 2분) · 디자이너 맥이 꺼져 있으면 켜질 때 시작돼요';
+    button = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title={waitTitle}><Clock size={11} className="animate-pulse" />요청대기</span>;
   } else if (status === 'running') {
     button = <span className={`${chip} text-blue-600 border-blue-200 bg-blue-50`} title={kind === 'save' ? 'Figma에서 이미지를 내보내 드라이브에 저장하고 있어요. 보통 5~15분 걸려요' : 'Figma에 세팅하고 있어요. 보통 10~30분 걸려요'}><Loader2 size={11} className="animate-spin" />{text.running}</span>;
   } else {
@@ -202,6 +209,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
             <p className="text-sm text-gray-500 mt-1">{again ? t.againQuestion : t.question}</p>
             <p className="text-xs text-gray-400 mt-1.5">{again ? t.againSub : t.sub}</p>
           </div>
+          <QueueNotice />
           {kind === 'image' && (
             <div className="w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex justify-between items-center text-[11px] min-h-[46px]">
               <span className="text-gray-500">배너 원본 이미지 (99_가이드/banner_img.png)</span>

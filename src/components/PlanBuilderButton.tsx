@@ -4,9 +4,11 @@ import { UsagePanel } from './UsagePanel';
 import type { Task } from '../types';
 import { folderNamesFromTask, resolveFolderName } from '../lib/figmaSetup';
 import { useDriveFolders } from '../hooks/useDriveFolders';
-import { PLAN_SCOPE_LABEL, type PlanScope, type PlanDraftKind } from '../lib/planDraft';
+import { PLAN_SCOPE_LABEL, planDraftDocId, type PlanScope, type PlanDraftKind } from '../lib/planDraft';
 import { usePlanDraft } from '../hooks/usePlanDraft';
 import PlanBuilderModal from './PlanBuilderModal';
+import { useJobQueue, queuePosition, runningLabel } from '../hooks/useJobQueue';
+import { QueueNotice } from './QueueNotice';
 
 // 세부업무 카드 안 Figma 줄의 [폴더 상태]와 [세팅요청] 사이에 들어가는 [기획서 상태] [버튼].
 // kind=initial('1차 기획서'): 1차 기획서 만들기 → 요청대기 → 기획서 생성중 → v1.0 생성됨 + 추가 작성하기. 같은 파일을 고쳐 쓴다.
@@ -27,6 +29,8 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   const folderName = resolveFolderName(folderNames, folders);
   const isUpdate = kind === 'update';
   const { draft, loading, requestPlan } = usePlanDraft(folderName, kind);
+  // 요청대기일 때만 작업 순서를 읽어 '대기 N번째'를 보여 준다
+  const queue = useJobQueue(draft?.status === 'requested');
   // 업데이트는 1차 기획서에 입력한 값을 가져와 시작한다 (아직 이 카드에서 저장한 적이 없을 때)
   const { draft: initialDraft } = usePlanDraft(isUpdate ? folderName : null, 'initial');
   const [scopeOpen, setScopeOpen] = useState(false);
@@ -53,7 +57,10 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   if (loading) {
     content = <span className={`${chip} text-gray-300 border-gray-200`}><Loader2 size={11} className="animate-spin" />확인 중</span>;
   } else if (status === 'requested') {
-    content = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title={`${draft?.fileName ?? ''} — 디자이너 맥이 켜지면 자동으로 시작돼요`}><Clock size={11} className="animate-pulse" />요청대기</span>;
+    const pos = folderName ? queuePosition(queue, 'planDrafts', planDraftDocId(folderName, kind)) : null;
+    const waitTitle = pos ? `대기 ${pos}번째${queue?.running ? ` · 지금 ${runningLabel(queue.running)} 진행 중` : ''}`
+      : '곧 맥 프로그램이 가져가요 (최대 2분) · 디자이너 맥이 꺼져 있으면 켜질 때 시작돼요';
+    content = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title={`${draft?.fileName ?? ''} — ${waitTitle}`}><Clock size={11} className="animate-pulse" />요청대기</span>;
   } else if (status === 'running') {
     content = <span className={`${chip} text-blue-600 border-blue-200 bg-blue-50`} title={`${draft?.fileName ?? ''} — 기획서(PPT)를 ${isUpdate ? '고치고' : '만들고'} 있어요`}><Loader2 size={11} className="animate-spin" />{isUpdate ? '기획서 수정중' : '기획서 생성중'}</span>;
   } else if (status === 'failed') {
@@ -130,6 +137,7 @@ function PlanScopeDialog({ taskTitle, again, title, isUpdate, onPick, onCancel }
             <p className="text-xs text-gray-400 mt-1.5">{isUpdate ? '지난번 입력이 그대로 열려요 · 고른 쪽만 고쳐 새 버전으로 저장해요'
               : again ? '고른 쪽만 고쳐서 저장하고, 나머지는 지난번 그대로 둬요' : '배너 카피와 상세페이지 내용을 정리해 기획서(PPT)로 만들어요'}</p>
           </div>
+          <QueueNotice />
           <UsagePanel account={account} onAccount={setAccount} jobKind="plan" />
           <p className="text-[11px] text-gray-400 text-center">배너만 고르면 Claude를 쓰지 않아요 · 사용량과 상관없이 바로 만들어져요</p>
         </div>

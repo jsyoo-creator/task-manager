@@ -31,7 +31,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
 }) {
   // 폴더 이름은 261102_이름(기본)·20261102_이름(예전) 중 드라이브에 있는 쪽을 쓴다
   const folderNames = folderNamesFromTask(task);
-  const { folders, plans, images } = useDriveFolders(folderNames.length > 0);
+  const { folders, plans, images, folderIds } = useDriveFolders(folderNames.length > 0);
   const folderName = resolveFolderName(folderNames, folders);
   const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
   const text = FIGMA_SETUP_TEXT[kind];
@@ -74,7 +74,12 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       </span>
     );
   } else if (folderExists || job?.status === 'done' || job?.status === 'running') {
-    folderBadge = <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={`드라이브 폴더: ${folderName}`}><Folder size={11} />폴더 있음</span>;
+    // 드라이브 ID가 올라와 있으면 눌러서 그 폴더를 바로 연다
+    const folderId = folderIds[folderName.normalize('NFC')];
+    folderBadge = folderId
+      ? <a href={`https://drive.google.com/drive/folders/${folderId}`} target="_blank" rel="noreferrer" title={`드라이브 폴더 열기: ${folderName}`}
+          className={`${chip} text-green-600 border-green-200 bg-green-50 hover:bg-green-100`}><Folder size={11} />폴더 있음</a>
+      : <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={`드라이브 폴더: ${folderName}`}><Folder size={11} />폴더 있음</span>;
   } else if (noFolder) {
     folderBadge = <span className={`${chip} text-red-500 border-red-200 bg-red-50`} title={`드라이브에 "${folderName}" 폴더가 없어요`}><FolderX size={11} />폴더 없음</span>;
   } else {

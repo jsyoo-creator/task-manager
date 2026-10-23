@@ -11,6 +11,8 @@ export function useDriveFolders(enabled: boolean) {
   const [plans, setPlans] = useState<Record<string, { version: string; file: string }>>({});
   // 폴더별 배너 원본 이미지(99_가이드/banner_img.png) 수정 시각
   const [images, setImages] = useState<Record<string, string>>({});
+  // 폴더별 드라이브 ID — '폴더 있음'을 눌러 드라이브 폴더를 바로 연다 (맥 프로그램이 드라이브 앱 정보에서 읽어 올린다)
+  const [folderIds, setFolderIds] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!enabled) return;
@@ -21,10 +23,11 @@ export function useDriveFolders(enabled: boolean) {
       const vers = (data?.planVersions ?? {}) as Record<string, string>;
       const files = (data?.planFiles ?? {}) as Record<string, string>;
       setImages(Object.fromEntries(Object.entries((data?.images ?? {}) as Record<string, string>).map(([k, v]) => [k.normalize('NFC'), v])));
+      setFolderIds(Object.fromEntries(Object.entries((data?.folderIds ?? {}) as Record<string, string>).map(([k, v]) => [k.normalize('NFC'), v])));
       setPlans(Object.fromEntries(Object.keys({ ...vers, ...files }).map(k => [k.normalize('NFC'), { version: vers[k] ?? '', file: files[k] ?? '' }])));
     });
     return unsub;
   }, [enabled]);
 
-  return { folders, updatedAt, plans, images };
+  return { folders, updatedAt, plans, images, folderIds };
 }

@@ -106,7 +106,10 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
 
   // ── 파일 이름 ──
   const [fileName, setFileName] = useState(() => {
-    if (draft?.status === 'failed' && draft.fileName) return draft.fileName; // 실패한 요청은 같은 이름으로 다시
+    // 실패한 요청은 같은 이름으로 다시. 단 2026-10-23 폴더 6자리 규칙 직후 버그로 '라이브커머스_261103_이름_…_오늘날짜'처럼
+    // 날짜가 이름에 섞여 저장된 요청은 올바른 기본 이름으로 바꿔 준다
+    if (draft?.status === 'failed' && draft.fileName)
+      return /라이브커머스_\d{6}_/.test(draft.fileName) ? defaultPlanFileName(folderName) : draft.fileName;
     const last = draft?.outputFile || baseFile || '';
     if (kind === 'update') {
       // 기획서 업데이트는 고칠 때마다 버전을 올린 새 파일로 남긴다 (2026-10-22 사용자)

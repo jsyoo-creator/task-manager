@@ -85,8 +85,10 @@ const yymmdd = (d: Date) => `${String(d.getFullYear()).slice(2)}${String(d.getMo
 // 처음 만들 때 기본 파일 이름 — "20261027_10월 결산" → "LGE.COM 라이브커머스_10월결산_HSAD_v1.0_261027"
 // 끝 날짜는 업무명(폴더) 날짜를 쓴다 (2026-10-22 사용자 요청). 폴더 이름에 날짜가 없을 때만 오늘 날짜.
 export function defaultPlanFileName(folderName: string, today = new Date()): string {
-  const name = folderName.replace(/^\d{8}_/, '').replace(/\s+/g, '');
-  const date = folderName.match(/^\d{8}/)?.[0].slice(2) ?? yymmdd(today);
+  // 폴더 이름은 261103_이름(기본)·20261103_이름(예전) 둘 다 온다 (2026-10-23 규칙 변경) — 날짜는 끝 6자리
+  const m = folderName.match(/^(\d{6}|\d{8})_(.*)$/);
+  const name = (m ? m[2] : folderName).replace(/\s+/g, '');
+  const date = m ? m[1].slice(-6) : yymmdd(today);
   return `LGE.COM 라이브커머스_${name}_HSAD_v1.0_${date}`;
 }
 

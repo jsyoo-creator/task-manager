@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download, Image as ImageIcon, FilePen } from 'lucide-react';
 import type { Task } from '../types';
 import { folderNamesFromTask, resolveFolderName, figmaSetupDocId, boardMonthKey, figmaFileKey, figmaNodeId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
@@ -69,6 +69,12 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   // 세팅·반영은 기획서(PPT)를 읽어서 하므로 01.기획에 기획서가 있어야 한다.
   // (이미지 반영·저장은 기획서를 쓰지 않으니 막지 않는다) — folderExists·latestPlan을 쓰므로 반드시 이 아래에 둔다
   const noPlan = (kind === 'initial' || kind === 'update') && folderExists && !latestPlan;
+  // 사람이 기획서를 직접 고쳤는지 — 지난번 반영한 파일과 이름이 다르거나, 같은 파일인데 지문이 바뀌었으면 '수정됨'
+  // (기획서 업데이트 카드는 업데이트 기록이 없으면 1차 기획서 세팅 기록과 비교한다)
+  const reflected = kind === 'update' ? (job?.status === 'done' && job.planFile ? job : initialJob) : kind === 'initial' ? job : null;
+  const planEdited = !!reflected && reflected.status === 'done' && !!reflected.planFile && !!latestPlan
+    && (latestPlan.file !== reflected.planFile || (!!reflected.planStamp && !!latestPlan.stamp && latestPlan.stamp !== reflected.planStamp));
+  const sameFileEdited = planEdited && latestPlan!.file === reflected!.planFile;
   const noFolder = job?.status === 'no_folder' || (folderKnown && !!folderName && !folderExists && job?.status !== 'done');
   let folderBadge: ReactNode;
   if (!folderName) {
@@ -159,19 +165,29 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
     );
   }
 
+  // 반영 요청이 이미 들어가 있거나 도는 중이면 띄우지 않는다
+  const editedBadge = planEdited && job?.status !== 'requested' && job?.status !== 'running' && (
+    <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`}
+      title={`${latestPlan?.modifiedAt ? `${fmtTime(latestPlan.modifiedAt)} 수정` : '기획서가 바뀌었어요'} · ${kind === 'update'
+        ? '반영요청을 누르면 바뀐 글자만 Figma에 반영해요' : "'기획서 업데이트' 카드에서 반영요청하면 바뀐 글자만 Figma에 반영해요"}`}>
+      <FilePen size={11} />기획서 수정됨
+    </span>
+  );
+
   const popup = dialog && (
-    <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt}
+    <ScopeDialog taskTitle={task.title} kind={kind} again={dialog === 'again'} latestPlan={latestPlan} lastVersion={lastVersion || undefined} imageAt={imageAt} sameFileEdited={sameFileEdited}
       hasBanner={!!bannerFile} hasLanding={!!landingFile} monthLabel={monthLabel} onCancel={() => setDialog(null)}
       onPick={(scope, account) => { const again = dialog === 'again'; setDialog(null); request(again, scope, account); }} />
   );
   if (inline) return <>{button}{popup}</>;
   // bare: 줄(flex 래퍼) 없이 칩만 — 대무자 줄과 한 줄에 같이 놓을 때 쓴다
-  if (bare) return <>{folderBadge}{middle}{button}{after}{popup}</>;
+  if (bare) return <>{folderBadge}{middle}{editedBadge}{button}{after}{popup}</>;
 
   return (
     <div className="flex items-center justify-end gap-1.5 mt-1 mb-2">
       {folderBadge}
       {middle}
+      {editedBadge}
       {button}
       {after}
       {popup}
@@ -181,7 +197,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
 
 
 // 세팅요청 팝업 — 앱 확인 팝업(ConfirmDialog)과 같은 모양에 선택지 3개
-function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, hasBanner, hasLanding, monthLabel, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string }; lastVersion?: string; imageAt?: string; hasBanner: boolean; hasLanding: boolean; monthLabel: string; onPick: (scope: FigmaSetupScope, account: string) => void; onCancel: () => void }) {
+function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt, sameFileEdited, hasBanner, hasLanding, monthLabel, onPick, onCancel }: { taskTitle: string; kind: FigmaSetupKind; again: boolean; latestPlan?: { version: string; file: string; modifiedAt?: string }; lastVersion?: string; imageAt?: string; sameFileEdited?: boolean; hasBanner: boolean; hasLanding: boolean; monthLabel: string; onPick: (scope: FigmaSetupScope, account: string) => void; onCancel: () => void }) {
   const t = FIGMA_SETUP_TEXT[kind];
   const [account, setAccount] = useState('');   // '' = 남은 계정으로 자동
   // 그 달 판이 등록된 쪽만 고를 수 있다 (배너판만 등록했으면 '상세페이지만'은 비활성)
@@ -216,7 +232,7 @@ function ScopeDialog({ taskTitle, kind, again, latestPlan, lastVersion, imageAt,
               <span className={imageAt ? 'text-gray-800 font-semibold' : 'text-red-500 font-semibold'}>{imageAt ? `${fmtTime(imageAt)} 올림` : '없음'}</span>
             </div>
           )}
-          {(kind === 'initial' || kind === 'update') && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} />}
+          {(kind === 'initial' || kind === 'update') && <PlanInfo kind={kind} latest={latestPlan} lastVersion={lastVersion} sameFileEdited={sameFileEdited} />}
           <UsagePanel account={account} onAccount={setAccount} jobKind={kind} />
         </div>
         {kind === 'image' ? (
@@ -258,12 +274,14 @@ const verCmp = (a?: string, b?: string) => {
   return 0;
 };
 
-function PlanInfo({ kind, latest, lastVersion }: { kind: FigmaSetupKind; latest?: { version: string; file: string }; lastVersion?: string }) {
+function PlanInfo({ kind, latest, lastVersion, sameFileEdited }: { kind: FigmaSetupKind; latest?: { version: string; file: string; modifiedAt?: string }; lastVersion?: string; sameFileEdited?: boolean }) {
   // 안내 줄 수가 달라도 팝업 높이가 변하지 않게 블록 높이를 고정한다
   const shell = "w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 min-h-[92px] justify-center";
   if (!latest) return <div className={`${shell} text-[11px] text-gray-400 text-center`}>기획서 버전 확인 전이에요 (디자이너 맥이 켜지면 확인돼요)</div>;
   const isNew = !lastVersion || verCmp(latest.version, lastVersion) > 0;
-  const notice = kind === 'update'
+  const notice = kind === 'update' && sameFileEdited
+    ? { cls: 'bg-green-50 text-green-700', text: `기획서가 수정됐어요${latest.modifiedAt ? ` (${fmtTime(latest.modifiedAt)})` : ''} — 지난 반영본과 비교해 바뀐 글자만 반영해요` }
+    : kind === 'update'
     ? (isNew ? { cls: 'bg-green-50 text-green-700', text: lastVersion ? `새 버전이 있어요 (${lastVersion} → ${latest.version || '버전 없음'}) — 바뀐 글자만 찾아서 반영해요` : `${latest.version || '최신 기획서'}로 반영해요` }
              : { cls: 'bg-amber-50 text-amber-700', text: `새 버전이 없어요 — 지난번에 ${lastVersion}를 반영했어요. 요청해도 Figma는 바뀌지 않아요` })
     : null;

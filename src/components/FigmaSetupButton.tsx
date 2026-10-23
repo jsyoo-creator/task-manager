@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Loader2, Clock, Check, AlertCircle, Folder, FolderX, FolderSearch, RotateCcw, X, Send, Download, Image as ImageIcon } from 'lucide-react';
 import type { Task } from '../types';
-import { folderNameFromTask, figmaSetupDocId, boardMonthKey, figmaFileKey, figmaNodeId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
+import { folderNamesFromTask, resolveFolderName, figmaSetupDocId, boardMonthKey, figmaFileKey, figmaNodeId, FIGMA_SETUP_SCOPE_LABEL, FIGMA_SETUP_TEXT, type FigmaSetupScope, type FigmaSetupKind } from '../lib/figmaSetup';
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 import { useFigmaBoards } from '../hooks/useFigmaBoards';
@@ -29,10 +29,12 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   workplaceId?: string;
   teamId?: string;
 }) {
-  const folderName = folderNameFromTask(task);
+  // 폴더 이름은 261102_이름(기본)·20261102_이름(예전) 중 드라이브에 있는 쪽을 쓴다
+  const folderNames = folderNamesFromTask(task);
+  const { folders, plans, images } = useDriveFolders(folderNames.length > 0);
+  const folderName = resolveFolderName(folderNames, folders);
   const { job, loading, requestSetup } = useFigmaSetupJob(folderName ? figmaSetupDocId(folderName, kind) : null);
   const text = FIGMA_SETUP_TEXT[kind];
-  const { folders, plans, images } = useDriveFolders(!!folderName);
   // 월마다 새 판을 쓰므로, 그 달 판이 등록돼 있어야 요청할 수 있다 (툴바 '피그마 설정'에서 등록)
   const { boards } = useFigmaBoards(!!folderName);
   const monthKey = folderName ? boardMonthKey(folderName) : '';
@@ -42,6 +44,9 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const bannerPage = figmaNodeId(board?.banner);     // 그 달 'ㄴ N월 Banner' 페이지
   const landingPage = figmaNodeId(board?.landing);   // 그 달 '🎪 N월 Live Page'
   const noBoard = boards !== null && !bannerFile && !landingFile;
+  // 세팅·반영은 기획서(PPT)를 읽어서 하므로 01.기획에 기획서가 있어야 한다.
+  // (이미지 반영·저장은 기획서를 쓰지 않으니 막지 않는다)
+  const noPlan = (kind === 'initial' || kind === 'update') && folderExists && !latestPlan;
   const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
   const imageAt = folderName ? images[folderName.normalize('NFC')] : undefined;
   // 기획서 업데이트는 지난번에 반영한 버전과 비교한다 (업데이트 기록이 없으면 1차 기획서 세팅 때 버전)
@@ -92,12 +97,13 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   };
 
   const status = job?.status;
-  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt) && needOk && !noBoard;
+  const canRequest = canManage && !!folderName && !(folderKnown && !folderExists) && !(kind === 'image' && folderKnown && !imageAt) && needOk && !noBoard && !noPlan;
   const monthLabel = monthKey ? `${Number(monthKey.slice(5, 7))}월` : '';
   const requestTitle = !canManage ? '업무 편집 권한이 있어야 요청할 수 있어요'
     : noBoard ? `${monthLabel} 피그마 판이 아직 없어요 — 위 '피그마 설정'에서 먼저 등록해 주세요`
     : !needOk ? `${FIGMA_SETUP_TEXT[needDone!].request}을 먼저 한 뒤에 저장할 수 있어요`
     : !folderName ? '업무명 형식을 먼저 확인해 주세요'
+    : noPlan ? '드라이브 01.기획에 기획서(PPT)가 없어요 — 1차 기획서 만들기로 먼저 만들어 주세요'
     : folderKnown && !folderExists ? `드라이브에 "${folderName}" 폴더를 만든 뒤 요청할 수 있어요`
     : kind === 'image' && folderKnown && !imageAt ? '02.디자인/99_가이드에 banner_img.png를 올린 뒤 요청할 수 있어요'
     : kind === 'image' ? '99_가이드의 배너 원본 이미지를 Figma 배너에 배치해 달라고 요청합니다'

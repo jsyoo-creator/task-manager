@@ -47,7 +47,10 @@ export function figmaNodeId(url?: string): string {
 
 // 폴더 이름(20261103_…)이 속한 달 — 월별 Figma 판을 찾는 키 'YYYY-MM'
 export function boardMonthKey(folderName: string): string {
-  return /^\d{8}_/.test(folderName) ? `${folderName.slice(0, 4)}-${folderName.slice(4, 6)}` : '';
+  const d = folderName.split('_')[0] ?? '';
+  if (/^\d{8}$/.test(d)) return `${d.slice(0, 4)}-${d.slice(4, 6)}`;
+  if (/^\d{6}$/.test(d)) return `20${d.slice(0, 2)}-${d.slice(2, 4)}`;
+  return '';
 }
 
 // 요청 문서 id — 처음 세팅은 폴더 이름 그대로(기존 문서와 호환), 기획서 업데이트는 따로 기록해 두 버튼 상태가 섞이지 않게 한다
@@ -71,15 +74,16 @@ export const FIGMA_SETUP_TEXT: Record<FigmaSetupKind, { request: string; running
     sub: '99_가이드의 banner_img로 규격별 이미지와 텍스트 색·커버·BOX 색을 맞춰요', againSub: '지금 99_가이드의 이미지로 다시 맞춰요' },
 };
 
-// 업무명 "10/6 냉장고&세탁기" → 드라이브 폴더 "20261006_냉장고&세탁기".
+// 업무명 "10/6 냉장고&세탁기" → 드라이브 폴더 이름 후보 [261006_냉장고&세탁기, 20261006_냉장고&세탁기].
+// 기본은 6자리(YYMMDD)이고, 예전 8자리(YYYYMMDD) 폴더도 그대로 인식한다 (2026-10-23 규칙 변경).
 // 연도는 방송일(endDate) → 월(taskMonth) → 시작일 순으로 정하고, 12월↔1월처럼 해가 넘어가면 보정한다.
-export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskMonth' | 'startDate'>): string | null {
+export function folderNamesFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskMonth' | 'startDate'>): string[] {
   const m = (task.title ?? '').trim().match(/^(\d{1,2})\/(\d{1,2})\s+(.+)$/);
-  if (!m) return null;
+  if (!m) return [];
   const month = Number(m[1]);
   const day = Number(m[2]);
   const name = m[3].trim();
-  if (month < 1 || month > 12 || day < 1 || day > 31 || !name || name.includes('/')) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31 || !name || name.includes('/')) return [];
   const ref = [task.endDate, task.taskMonth, task.startDate].find(v => /^\d{4}-\d{2}/.test(v ?? ''));
   let year = ref ? Number(ref.slice(0, 4)) : new Date().getFullYear();
   if (ref) {
@@ -87,7 +91,21 @@ export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskM
     if (refMonth - month > 6) year += 1;
     if (month - refMonth > 6) year -= 1;
   }
-  return `${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}_${name}`;
+  const mmdd = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+  return [`${String(year).slice(2)}${mmdd}_${name}`, `${year}${mmdd}_${name}`];
+}
+
+// 실제로 쓸 폴더 이름 — 드라이브에 있는 쪽을 쓰고, 둘 다 없으면 새 규칙(6자리).
+// 폴더 목록을 아직 못 읽었으면(null) 예전 이름을 써서 이미 있는 요청 문서와 어긋나지 않게 한다.
+export function resolveFolderName(names: string[], folders: Set<string> | null): string | null {
+  if (!names.length) return null;
+  if (!folders) return names[1];
+  return names.find(n => folders.has(n.normalize('NFC'))) ?? names[0];
+}
+
+// 예전 호출부 호환 — 새 규칙(6자리) 이름
+export function folderNameFromTask(task: Pick<Task, 'title' | 'endDate' | 'taskMonth' | 'startDate'>): string | null {
+  return folderNamesFromTask(task)[0] ?? null;
 }
 
 export type FigmaSetupStatus = 'requested' | 'running' | 'done' | 'no_folder' | 'failed';

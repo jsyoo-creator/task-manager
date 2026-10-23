@@ -2,7 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { Loader2, Clock, Check, AlertCircle, X, FilePlus2, FilePen, Image as ImageIcon, LayoutList, Layers } from 'lucide-react';
 import { UsagePanel } from './UsagePanel';
 import type { Task } from '../types';
-import { folderNameFromTask } from '../lib/figmaSetup';
+import { folderNamesFromTask, resolveFolderName } from '../lib/figmaSetup';
+import { useDriveFolders } from '../hooks/useDriveFolders';
 import { PLAN_SCOPE_LABEL, type PlanScope, type PlanDraftKind } from '../lib/planDraft';
 import { usePlanDraft } from '../hooks/usePlanDraft';
 import PlanBuilderModal from './PlanBuilderModal';
@@ -20,7 +21,10 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   workplaceId?: string;
   teamId?: string;
 }) {
-  const folderName = folderNameFromTask(task);
+  // 폴더 이름은 261102_이름(기본)·20261102_이름(예전) 중 드라이브에 있는 쪽 — 없으면 새 규칙으로 만든다
+  const folderNames = folderNamesFromTask(task);
+  const { folders } = useDriveFolders(folderNames.length > 0);
+  const folderName = resolveFolderName(folderNames, folders);
   const isUpdate = kind === 'update';
   const { draft, loading, requestPlan } = usePlanDraft(folderName, kind);
   // 업데이트는 1차 기획서에 입력한 값을 가져와 시작한다 (아직 이 카드에서 저장한 적이 없을 때)

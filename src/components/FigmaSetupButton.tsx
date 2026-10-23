@@ -44,9 +44,6 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   const bannerPage = figmaNodeId(board?.banner);     // 그 달 'ㄴ N월 Banner' 페이지
   const landingPage = figmaNodeId(board?.landing);   // 그 달 '🎪 N월 Live Page'
   const noBoard = boards !== null && !bannerFile && !landingFile;
-  // 세팅·반영은 기획서(PPT)를 읽어서 하므로 01.기획에 기획서가 있어야 한다.
-  // (이미지 반영·저장은 기획서를 쓰지 않으니 막지 않는다)
-  const noPlan = (kind === 'initial' || kind === 'update') && folderExists && !latestPlan;
   const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
   const imageAt = folderName ? images[folderName.normalize('NFC')] : undefined;
   // 기획서 업데이트는 지난번에 반영한 버전과 비교한다 (업데이트 기록이 없으면 1차 기획서 세팅 때 버전)
@@ -65,6 +62,9 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   // ── 폴더 상태 ──
   const folderKnown = folders !== null;
   const folderExists = !!folderName && !!folders?.has(folderName.normalize('NFC'));
+  // 세팅·반영은 기획서(PPT)를 읽어서 하므로 01.기획에 기획서가 있어야 한다.
+  // (이미지 반영·저장은 기획서를 쓰지 않으니 막지 않는다) — folderExists·latestPlan을 쓰므로 반드시 이 아래에 둔다
+  const noPlan = (kind === 'initial' || kind === 'update') && folderExists && !latestPlan;
   const noFolder = job?.status === 'no_folder' || (folderKnown && !!folderName && !folderExists && job?.status !== 'done');
   let folderBadge: ReactNode;
   if (!folderName) {

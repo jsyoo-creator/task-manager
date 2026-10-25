@@ -3,8 +3,8 @@ import { X, Loader2, Wand2, Send, TriangleAlert, CircleCheck, Info, ChevronDown 
 import type { Task } from '../types';
 import {
   LIM, gen, autoFill, ben, bannerGroups, copiesFromGroups, editsFromCopies, countOver, normLine, alertTxt,
-  parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT,
-  type BannerHour, type BroadcastType, type BannerGroup, type GenInput,
+  parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT, HOUR_OPTIONS, pairRowId,
+  type BannerHour, type BroadcastType, type BannerGroup, type BannerRow, type GenInput,
 } from '../lib/planTools/bannerCopy';
 import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, PROMO_PREVIEW_CSS, type PromoStructured } from '../lib/planTools/promoParse';
 import {
@@ -73,6 +73,14 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     return { groups: bannerGroups(gen(genInput)), key: inputKey };
   });
   const [edits, setEdits] = useState<Record<string, string[]>>(() => (generated ? editsFromCopies(generated.groups, prevBanner?.copies) : {}));
+  // 줄 하나 고치기 — PC·MO가 함께 들어가는 배너는 짝 행도 같은 문구로 (원본 v18 pairTxt)
+  const rowById = useMemo(() => Object.fromEntries((generated?.groups ?? []).flatMap(gr => gr.rows.map(r => [r.id, r] as [string, BannerRow]))), [generated]);
+  const editLine = (r: BannerRow, li: number, v: string) => setEdits(prev => {
+    const next = { ...prev };
+    const pair = rowById[pairRowId(r.id) ?? ''];
+    for (const row of pair ? [r, pair] : [r]) { const cur = [...(prev[row.id] ?? row.lines)]; cur[li] = v; next[row.id] = cur; }
+    return next;
+  });
   const groupRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const applyKv = (main: string, sub: string) => {
@@ -232,7 +240,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                   <div>
                     <label className={label}>방송 시간</label>
                     <div className="flex gap-1.5">
-                      {([['20', '오후 8시'], ['21', '오후 9시'], ['custom', '직접입력']] as [BannerHour, string][]).map(([v, l]) => (
+                      {HOUR_OPTIONS.map(([v, l]) => (
                         <button key={v} type="button" onClick={() => setHour(v)}
                           className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${hour === v ? 'border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold' : 'border-black/8 text-gray-500 hover:bg-gray-50'}`}>{l}</button>
                       ))}
@@ -335,8 +343,8 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                                       <div key={li}>
                                         <div className={`flex items-center gap-2 rounded-lg border px-2 ${isOver ? 'border-red-200 bg-red-50/50' : 'border-black/8 bg-white'}`}>
                                           <input value={line} spellCheck={false}
-                                            onChange={e => { const v = e.target.value; setEdits(prev => { const cur = [...(prev[r.id] ?? r.lines)]; cur[li] = v; return { ...prev, [r.id]: cur }; }); }}
-                                            onBlur={e => { const v = normLine(e.target.value); if (v !== line) setEdits(prev => { const cur = [...(prev[r.id] ?? r.lines)]; cur[li] = v; return { ...prev, [r.id]: cur }; }); }}
+                                            onChange={e => { const v = e.target.value; editLine(r, li, v); }}
+                                            onBlur={e => { const v = normLine(e.target.value); if (v !== line) editLine(r, li, v); }}
                                             className={`flex-1 min-w-0 py-1.5 text-sm bg-transparent focus:outline-none ${isOver ? 'text-red-600' : 'text-gray-800'}`} />
                                           {lk && <span className={`text-[10px] flex-shrink-0 ${isOver ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{n}/{l}</span>}
                                         </div>

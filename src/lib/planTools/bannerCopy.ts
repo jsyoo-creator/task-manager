@@ -1,6 +1,9 @@
 /* =============================================================================
  * 라이브 배너 카피 생성 로직
- * 원본: Live_배너카피생성기_v14.html (Planning Update 폴더, 문서: Live_배너카피생성기_v14_MD.md) — 2026-10 이식
+ * 원본: Live_배너카피생성기_v18.html (Planning Update 폴더, 문서: Live_배너카피생성기_v18_MD.md) — 2026-10-21 v14 이식, 2026-10-26 v18로 갱신
+ * v18 변경: 인사이더 한도 18자 · 인덕션/광파오븐 · 주방가전/리빙가전 축약명 · 여러 제품은 KV 순서·기호 그대로 ·
+ *          오후 7시 · shorten이 기호만 남는 단어는 건너뜀 · 바텀시트/팝업·썸네일·SNS 메인을 KV 메인카피 축약으로 ·
+ *          에어컨 단독은 'LG 휘센 에어컨' 우선 · PC·MO 짝 행은 같은 문구로
  * 원본 툴과 다시 맞출 수 있도록 함수 이름(gen, shorten, autoFill, prod, prodS, ben, bco, parseBDate,
  * getTimeLabel, getEvLabel, LIM)과 규칙은 원본 그대로 두고, DOM에서 값을 읽던 부분만 인자로 바꿨다.
  * 뺀 것: 미리보기 이미지(base64), 최근 방송(localStorage), 복사·토스트, 설정 서랍(글자수 기준 수정).
@@ -8,7 +11,7 @@
  * ========================================================================== */
 
 // 글자수 기준 (공백 포함) — 원본 LIM 그대로
-export const LIM = { keyMain: 15, keySub: 28, heroMain: 18, heroSub: 28, homeHeroMain: 12, homeHeroSub: 24, pr1: 20, pr2: 20, bt1: 14, pop1: 12, th1: 16, th2: 15, sn1: 16, sn2: 15, in1: 17, in2: 17 } as const;
+export const LIM = { keyMain: 15, keySub: 28, heroMain: 18, heroSub: 28, homeHeroMain: 12, homeHeroSub: 24, pr1: 20, pr2: 20, bt1: 14, pop1: 12, th1: 16, th2: 15, sn1: 16, sn2: 15, in1: 18, in2: 18 } as const;
 export type LimKey = keyof typeof LIM;
 export const LIM_L: Record<LimKey, string> = { keyMain: 'KV 카피 메인', keySub: 'KV 카피 서브', heroMain: '히어로 메인 (라이브)', heroSub: '히어로 서브 (라이브)', homeHeroMain: '히어로 메인 (홈메인)', homeHeroSub: '히어로 서브 (홈메인)', pr1: '홍보배너 1줄', pr2: '홍보배너 2줄', bt1: '바텀시트 메인카피 (MO)', pop1: '팝업 메인카피 (PC)', th1: '썸네일 1줄', th2: '썸네일 2줄', sn1: 'SNS 1줄', sn2: 'SNS 2줄', in1: '인사이더 1줄', in2: '인사이더 2줄' };
 
@@ -22,6 +25,8 @@ const PD: { l: string; k: string[]; f: string }[] = [
   { l: '공기청정기', k: ['공기청정기', '퓨리케어'], f: 'LG 퓨리케어 공기청정기' },
   { l: '정수기', k: ['정수기'], f: 'LG 퓨리케어 정수기' },
   { l: '식기세척기', k: ['식기세척기'], f: 'LG 디오스 식기세척기' },
+  { l: '인덕션', k: ['인덕션'], f: 'LG 디오스 인덕션' },
+  { l: '광파오븐', k: ['광파오븐'], f: 'LG 디오스 광파오븐' },
   { l: 'TV', k: ['TV', '올레드', 'OLED', 'QNED'], f: 'LG TV' },
   { l: '노트북', k: ['노트북', '그램'], f: 'LG 그램 노트북' },
   { l: '사운드바', k: ['사운드바'], f: 'LG 사운드바' },
@@ -31,28 +36,32 @@ const PD: { l: string; k: string[]; f: string }[] = [
   { l: '주방가전', k: ['주방가전'], f: 'LG 주방가전' },
   { l: '가전', k: ['가전'], f: 'LG 가전' },
 ];
+// 축약명 카테고리: 제품군이 아래 제품 2개 이상으로만 이루어지면 카테고리명으로 축약 (원본 그대로)
+const KITCHEN_SET = ['냉장고', '인덕션', '광파오븐', '식기세척기'];
+const LIVING_SET = ['세탁기', '스타일러', '청소기', '건조기'];
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
-// ── 방송 시간 ── hour: '20' | '21' | 'custom' (원본 라디오 값)
-export type BannerHour = '20' | '21' | 'custom';
+// ── 방송 시간 ── hour: '19' | '20' | '21' | 'custom' (원본 라디오 값, v18에 오후 7시 추가)
+export type BannerHour = '19' | '20' | '21' | 'custom';
+export const HOUR_OPTIONS: [BannerHour, string][] = [['19', '오후 7시'], ['20', '오후 8시'], ['21', '오후 9시'], ['custom', '직접입력']];
 export function getTimeLabel(hour: BannerHour, custom = ''): string {
   if (hour === 'custom') return custom.trim() || '오후 8시';
-  return hour === '20' ? '오후 8시' : '오후 9시';
+  return '오후 ' + (+hour - 12) + '시';
 }
 export function getEvLabel(hour: BannerHour, custom = ''): string {
   if (hour === 'custom') {
     const t = custom.trim() || '저녁 8시';
     return t.startsWith('오후') ? t.replace('오후', '저녁') : t;
   }
-  return hour === '20' ? '저녁 8시' : '저녁 9시';
+  return '저녁 ' + (+hour - 12) + '시';
 }
 // 저장된 시간 문구('오후 8시' 등) → 화면 선택값
 export function hourFromLabel(label: string): { hour: BannerHour; custom: string } {
   const t = (label ?? '').trim();
-  if (!t || t === '오후 8시') return { hour: '20', custom: '' };
-  if (t === '오후 9시') return { hour: '21', custom: '' };
-  return { hour: 'custom', custom: t };
+  if (!t) return { hour: '20', custom: '' };
+  const hit = HOUR_OPTIONS.find(([v, l]) => v !== 'custom' && l === t);
+  return hit ? { hour: hit[0], custom: '' } : { hour: 'custom', custom: t };
 }
 
 // ── 방송일 ── 원본과 같은 형식을 인식. 연도를 안 쓰면 baseYear(없으면 올해)
@@ -103,7 +112,7 @@ export function shorten(t: string, lim: number): string {
   let cur = t;
   for (const f of steps) { cur = f(cur).trim(); if (cur.length <= lim) return cur; }
   const tk = cur.split(' ');
-  for (let i = 1; i < tk.length; i++) { const s = tk.slice(i).join(' '); if (s.length <= lim) return s; }
+  for (let i = 1; i < tk.length; i++) { if (/^[&+·ㆍ・/,]$/.test(tk[i])) continue; const s = tk.slice(i).join(' '); if (s.length <= lim) return s; }
   return cur;
 }
 
@@ -116,7 +125,22 @@ export function autoFill(kvMain: string, kvSub: string): { prod?: string; prodS?
   if (mt.length > 1) { const specific = mt.filter(m => !GENERIC.includes(m.l)); if (specific.length) mt = specific; }
   const out: ReturnType<typeof autoFill> = { useMax: /최대/.test(kvMain + ' ' + kvSub) };
   if (mt.length === 1) { out.prod = mt[0].f; out.prodS = mt[0].l; }
-  else if (mt.length > 1) { out.prod = mt.map(m => m.l).join('&'); out.prodS = mt.map(m => m.l).join('&'); }
+  else if (mt.length > 1) {
+    // 여러 제품은 KV 카피에 나온 순서로, 제품 사이 구분 기호도 KV 카피 그대로 (기호가 없으면 &)
+    const raw = kvMain + ' ' + kvSub;
+    const sp = mt.map(m => {
+      let b: { i: number; e: number } | null = null;
+      m.k.forEach(k => { const i = txt.indexOf(k.toUpperCase()); if (i >= 0 && (!b || i < b.i)) b = { i, e: i + k.length }; });
+      const bb = b as { i: number; e: number } | null;
+      return { m, i: bb ? bb.i : 1e9, e: bb ? bb.e : 1e9 };
+    }).sort((a, b) => a.i - b.i);
+    let sep = '&';
+    for (let x = 1; x < sp.length; x++) { if (sp[x].i < sp[x - 1].e) continue; const bt = raw.slice(sp[x - 1].e, sp[x].i), t = bt.trim(); if (t.length === 1 && /[&·ㆍ・+/,]/.test(t)) { sep = bt; break; } }
+    const ls = sp.map(o => o.m.l);
+    const cat = ls.every(l => KITCHEN_SET.includes(l)) ? '주방가전' : ls.every(l => LIVING_SET.includes(l)) ? '리빙가전' : null;
+    out.prod = ls.join(sep);
+    out.prodS = cat || ls.join(sep);
+  }
   const rm = [...(kvMain + ' ' + kvSub).matchAll(/(\d+)\s*%/g)].map(m => m[1]);
   if (rm[0] !== undefined) out.r1 = rm[0];
   if (rm[1] !== undefined) out.r2 = rm[1];
@@ -141,9 +165,15 @@ export function gen(i: GenInput) {
   const prLine1 = full ? full + ' LIVE' : '(날짜 입력 필요) LIVE';
   const bnPart = bn ? ' ' + bn : '';
   const bBn = bn ? b + bnPart : b;
-  const thMain = p.length <= LIM.th1 ? p : ps;
-  const snMain = p.length <= LIM.sn1 ? p : ps;
-  return { full, pr: [prLine1, bn ? ps + bnPart : ps], bt: ['오늘 ' + i.timeLabel + ',', m || '(입력 필요)'], hero: [m, s], th: [thMain, bBn], sn: [snMain, bBn], ins: ['오늘 ' + evLbl + ' ' + ps, bBn], home: [shorten(m, LIM.homeHeroMain), shorten(s, LIM.homeHeroSub)], homeSrc: [m, s] };
+  // 에어컨 단독 방송은 썸네일·SNS 메인에 'LG 휘센 에어컨'을 우선 (v18)
+  const AC = PD.find(x => x.l === '에어컨')!, pv = i.product.trim();
+  const isAC = pv === AC.f || pv === AC.l || i.shortName.trim() === AC.l;
+  const kv = (lim: number) => (m ? shorten(m, lim) : '(입력 필요)');
+  const tl = '오늘 ' + i.timeLabel + ',';
+  const btLim = Math.min(LIM.pop1, LIM.bt1);   // PC·MO 같은 카피라 짧은 쪽(12자) 기준으로 한 번만 축약
+  const thMain = isAC ? AC.f : kv(LIM.th1);
+  const snMain = isAC ? AC.f : kv(LIM.sn1);
+  return { full, pr: [prLine1, bn ? ps + bnPart : ps], btP: [tl, kv(btLim)], btM: [tl, kv(btLim)], hero: [m, s], th: [thMain, bBn], sn: [snMain, bBn], ins: ['오늘 ' + evLbl + ' ' + ps, bBn], home: [shorten(m, LIM.homeHeroMain), shorten(s, LIM.homeHeroSub)], homeSrc: [m, s], src: m, isAC, btLim };
 }
 
 // ── 화면 행 · 저장 모양 ──
@@ -162,11 +192,23 @@ export interface BannerRow {
 }
 export interface BannerGroup { title: string; en: string; rows: BannerRow[]; warn?: string }
 
+// 원본 shNote — 자동 축약했으면 원문을 알려 준다
+const shNote = (o: string, t: string, l: number, x = '') => (o && t && o !== t ? 'ℹ 원문 ' + o.length + '자를 ' + l + '자 기준' + x + '으로 자동 축약했습니다 · 원문: ' + o : '');
+
+// PC·MO가 함께 들어가는 배너는 항상 같은 카피 — 한쪽을 고치면 짝 행도 같은 문구로 (썸네일·SNS 사이즈 행은 서로 독립)
+const PAIR: Record<string, string> = {
+  'homeHero.pc': 'homeHero.mo', 'homeHero.mo': 'homeHero.pc', 'promo.pc': 'promo.mo', 'promo.mo': 'promo.pc',
+  'popup.pc': 'bottomSheet.mo', 'bottomSheet.mo': 'popup.pc', 'liveHero.pc': 'liveHero.mo', 'liveHero.mo': 'liveHero.pc',
+};
+export const pairRowId = (id: string): string | null => PAIR[id] ?? null;
+
 export function bannerGroups(g: ReturnType<typeof gen>): BannerGroup[] {
   const row = (copyKey: CopyKey, slot: 'pc' | 'mo', name: string, en: string, lines: string[], limKeys: (LimKey | null)[], notes?: string[]): BannerRow =>
     ({ id: `${copyKey}.${slot}`, copyKey, slot, name, en, lines, limKeys, notes });
   const hl = [LIM.homeHeroMain, LIM.homeHeroSub];
-  const hn = g.homeSrc.map((o, i) => (o && o !== g.home[i] ? 'ℹ 원문 ' + o.length + '자를 ' + hl[i] + '자 기준으로 자동 축약했습니다 · 원문: ' + o : ''));
+  const hn = g.homeSrc.map((o, i) => shNote(o, g.home[i], hl[i]));
+  const acN = 'ℹ 에어컨 라이브 — KV 카피보다 "LG 휘센 에어컨"을 우선 적용했습니다';
+  const mkN = (t: string, l: number) => (g.isAC ? acN : shNote(g.src, t, l));
   return [
     { title: '홈메인 히어로배너', en: 'main-home_herobanner', rows: [
       row('homeHero', 'pc', 'PC', 'main-home_herobanner_pc', g.home, ['homeHeroMain', 'homeHeroSub'], hn),
@@ -177,20 +219,20 @@ export function bannerGroups(g: ReturnType<typeof gen>): BannerGroup[] {
       row('promo', 'mo', 'MO', 'Promotion_Banner_mo', g.pr, ['pr1', 'pr2']),
     ] },
     { title: '바텀시트 · 팝업', en: 'main-home_bottom / Popup', warn: '블랙 제품은 샤픈·빛효과로 배경 구분 필수', rows: [
-      row('popup', 'pc', 'PC 팝업', 'main-home_Popup_live_PC', g.bt, [null, 'pop1']),
-      row('bottomSheet', 'mo', 'MO 바텀시트', 'main-home_bottom_live_MO', g.bt, [null, 'bt1']),
+      row('popup', 'pc', 'PC 팝업', 'main-home_Popup_live_PC', g.btP, [null, 'pop1'], ['', shNote(g.src, g.btP[1], g.btLim, '(PC·MO 동일 카피)')]),
+      row('bottomSheet', 'mo', 'MO 바텀시트', 'main-home_bottom_live_MO', g.btM, [null, 'bt1'], ['', shNote(g.src, g.btM[1], g.btLim, '(PC·MO 동일 카피)')]),
     ] },
     { title: '라이브 히어로배너', en: 'Lgelive_herobanner', rows: [
       row('liveHero', 'pc', 'PC', 'Lgelive_herobanner_pc', g.hero, ['heroMain', 'heroSub']),
       row('liveHero', 'mo', 'MO', 'Lgelive_herobanner_mo', g.hero, ['heroMain', 'heroSub']),
     ] },
     { title: '방송 썸네일', en: 'Banner_thumb', rows: [
-      row('thumb', 'pc', '900x1200', 'Banner_thumb_900x1200', g.th, ['th1', 'th2']),
-      row('thumb', 'mo', '1080x810', 'Banner_thumb_1080x810', g.th, ['th1', 'th2']),
+      row('thumb', 'pc', '900x1200', 'Banner_thumb_900x1200', g.th, ['th1', 'th2'], [mkN(g.th[0], LIM.th1), '']),
+      row('thumb', 'mo', '1080x810', 'Banner_thumb_1080x810', g.th, ['th1', 'th2'], [mkN(g.th[0], LIM.th1), '']),
     ] },
     { title: 'SNS · 방송안내 썸네일', en: 'Banner_sns', rows: [
-      row('sns', 'pc', '1000x1000', 'thumbnail_1000x1000', g.sn, ['sn1', 'sn2']),
-      row('sns', 'mo', 'SNS 1024', 'Banner_sns_1024', g.sn, ['sn1', 'sn2']),
+      row('sns', 'pc', '1000x1000', 'thumbnail_1000x1000', g.sn, ['sn1', 'sn2'], [mkN(g.sn[0], LIM.sn1), '']),
+      row('sns', 'mo', 'SNS 1024', 'Banner_sns_1024', g.sn, ['sn1', 'sn2'], [mkN(g.sn[0], LIM.sn1), '']),
     ] },
     { title: '인사이더 배너', en: 'Insider_banner', rows: [
       row('insider', 'pc', '인사이더', 'Insider_banner', g.ins, ['in1', 'in2']),

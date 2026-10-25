@@ -1,4 +1,4 @@
-import type { PromoPayment } from './planTools/promoParse';
+import type { PromoPayment, PromoOpts } from './planTools/promoParse';
 import type { BannerCopies } from './planTools/bannerCopy';
 
 // 라이브 파트 '1차 기획서' 세부업무의 "1차 기획서 만들기".
@@ -42,6 +42,8 @@ export interface PlanDraftLanding {
     paymentFullText: string;
     payment?: PromoPayment;
     legalNotes: string;
+    liveCards?: { label: string; main: string; cond: string }[];   // 한정 혜택 2줄 정리 결과 (v38, 기획서 11번 장)
+    opts?: PromoOpts;                                               // 추가 영역·재방송 등 방송 옵션 (다시 열 때 그대로 복원)
   };
   previewText: string;
 }

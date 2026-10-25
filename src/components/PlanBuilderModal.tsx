@@ -3,10 +3,10 @@ import { X, Loader2, Wand2, Send, TriangleAlert, CircleCheck, Info, ChevronDown 
 import type { Task } from '../types';
 import {
   LIM, gen, autoFill, ben, bannerGroups, copiesFromGroups, editsFromCopies, countOver, normLine, alertTxt,
-  parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT,
-  type BannerHour, type BroadcastType, type BannerGroup, type GenInput,
+  parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT, HOUR_OPTIONS, pairRowId,
+  type BannerHour, type BroadcastType, type BannerGroup, type BannerRow, type GenInput,
 } from '../lib/planTools/bannerCopy';
-import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, PROMO_PREVIEW_CSS, type PromoStructured } from '../lib/planTools/promoParse';
+import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, promoLiveCards, promoAuto, defaultPromoOpts, PROMO_PREVIEW_CSS, type PromoStructured, type PromoOpts } from '../lib/planTools/promoParse';
 import {
   scopeHasBanner, scopeHasLanding, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
@@ -73,6 +73,14 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     return { groups: bannerGroups(gen(genInput)), key: inputKey };
   });
   const [edits, setEdits] = useState<Record<string, string[]>>(() => (generated ? editsFromCopies(generated.groups, prevBanner?.copies) : {}));
+  // 줄 하나 고치기 — PC·MO가 함께 들어가는 배너는 짝 행도 같은 문구로 (원본 v18 pairTxt)
+  const rowById = useMemo(() => Object.fromEntries((generated?.groups ?? []).flatMap(gr => gr.rows.map(r => [r.id, r] as [string, BannerRow]))), [generated]);
+  const editLine = (r: BannerRow, li: number, v: string) => setEdits(prev => {
+    const next = { ...prev };
+    const pair = rowById[pairRowId(r.id) ?? ''];
+    for (const row of pair ? [r, pair] : [r]) { const cur = [...(prev[row.id] ?? row.lines)]; cur[li] = v; next[row.id] = cur; }
+    return next;
+  });
   const groupRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const applyKv = (main: string, sub: string) => {
@@ -98,9 +106,14 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
   // ── 상세 입력 ──
   const [raw, setRaw] = useState(seed?.landing?.raw ?? '');
   const deferredRaw = useDeferredValue(raw);
-  // 알림 마감일시는 업무명 앞의 날짜(예: "10/27")로 계산한다 — 업무명 전체를 넘기면 "10/27 10월…"처럼 뒤 숫자 때문에 날짜를 못 읽는다
-  const caseDate = (task.title ?? '').trim().match(/^(\d{1,2}\/\d{1,2})/)?.[1] ?? '';
-  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, caseDate), [deferredRaw, caseDate]);
+  // 판촉 로직(기획팀 도구 v38)은 방송명 전체에서 날짜·제품·쿠킹/냉장고/재방송 단어를 읽는다.
+  // 이 팀은 재방송을 업무명에 '(재)'로 쓰고 원본은 '재방송'만 알아봐서, 넘길 때만 바꿔 준다 (2026-10-26)
+  const promoCase = (task.title ?? '').normalize('NFC').trim().replace(/\(\s*재\s*\)/g, ' 재방송').replace(/\s+/g, ' ');
+  // 추가 영역·재방송 옵션 — 다시 열면 지난번 선택을 그대로 (없으면 원본 기본값)
+  const [opts, setOpts] = useState<PromoOpts>(() => ({ ...defaultPromoOpts(promoCase), ...(seed?.landing?.structured?.opts ?? {}) }));
+  const setOpt = <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => setOpts(o => ({ ...o, [k]: v }));
+  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, opts), [deferredRaw, promoCase, opts]);
+  const promoAutoVal = useMemo(() => promoAuto(pv), [pv]);
   const summary = useMemo(() => promoSummary(pv), [pv]);
   const previewHtml = useMemo(() => (deferredRaw.trim() ? promoPreviewHtml(pv) : ''), [pv, deferredRaw]);
 
@@ -144,16 +157,19 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     }
     if (showLanding) {
       if (!raw.trim()) { setTab('landing'); setError('상세: 판촉 원문을 붙여넣어 주세요'); return; }
-      const cur = parsePromo(raw, caseDate);
+      const cur = parsePromo(raw, promoCase, opts);
       landing = {
         raw,
         structured: {
           notify: cur.notify,
           liveItems: cur.liveItems,
-          obsCards: cur.obsCards.map(([code, mainTitle, subTitle, url]) => ({ code, mainTitle, subTitle, url })),
+          liveCards: promoLiveCards(cur),   // 11번 한정 혜택 — 미리보기와 같은 2줄 정리
+          // 12번 기획전 배너 — 실제 노출 목록(히든 기획전·냉장고 Fit&Max 포함)
+          obsCards: (cur.obsShow ?? cur.obsCards).map(([code, mainTitle, subTitle, url]) => ({ code: code || '', mainTitle: mainTitle || '', subTitle: subTitle || '', url: url || '' })),
           paymentFullText: cur.paymentFullText,
-          payment: promoPayment(cur.paymentFullText),   // 13번 결제 혜택 장을 맥 프로그램이 직접 채운다
+          payment: promoPayment(cur),   // 13번 결제 혜택 장 — 미리보기와 같은 결제혜택 엔진 결과
           legalNotes: cur.legalNotes,
+          opts: cur.opts,
         },
         previewText: promoPreviewText(cur),
       };
@@ -232,7 +248,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                   <div>
                     <label className={label}>방송 시간</label>
                     <div className="flex gap-1.5">
-                      {([['20', '오후 8시'], ['21', '오후 9시'], ['custom', '직접입력']] as [BannerHour, string][]).map(([v, l]) => (
+                      {HOUR_OPTIONS.map(([v, l]) => (
                         <button key={v} type="button" onClick={() => setHour(v)}
                           className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${hour === v ? 'border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold' : 'border-black/8 text-gray-500 hover:bg-gray-50'}`}>{l}</button>
                       ))}
@@ -335,8 +351,8 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                                       <div key={li}>
                                         <div className={`flex items-center gap-2 rounded-lg border px-2 ${isOver ? 'border-red-200 bg-red-50/50' : 'border-black/8 bg-white'}`}>
                                           <input value={line} spellCheck={false}
-                                            onChange={e => { const v = e.target.value; setEdits(prev => { const cur = [...(prev[r.id] ?? r.lines)]; cur[li] = v; return { ...prev, [r.id]: cur }; }); }}
-                                            onBlur={e => { const v = normLine(e.target.value); if (v !== line) setEdits(prev => { const cur = [...(prev[r.id] ?? r.lines)]; cur[li] = v; return { ...prev, [r.id]: cur }; }); }}
+                                            onChange={e => { const v = e.target.value; editLine(r, li, v); }}
+                                            onBlur={e => { const v = normLine(e.target.value); if (v !== line) editLine(r, li, v); }}
                                             className={`flex-1 min-w-0 py-1.5 text-sm bg-transparent focus:outline-none ${isOver ? 'text-red-600' : 'text-gray-800'}`} />
                                           {lk && <span className={`text-[10px] flex-shrink-0 ${isOver ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{n}/{l}</span>}
                                         </div>
@@ -362,6 +378,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
           {tab === 'landing' && showLanding && (
             <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_420px] gap-5 items-start">
               <div className="flex flex-col gap-3 min-w-0">
+                <PromoOptionsPanel opts={opts} auto={promoAutoVal} setOpt={setOpt} input={input} />
                 <div>
                   <label className={label}>판촉 원문 (수급받은 원문 전체를 그대로 붙여넣기)</label>
                   <textarea className={`${input} min-h-[360px] font-mono text-xs leading-relaxed resize-y`} value={raw} onChange={e => setRaw(e.target.value)}
@@ -437,6 +454,56 @@ function KvCounter({ value, lim }: { value: string; lim: number }) {
     <p className={`text-[11px] mt-1 text-right ${n > lim ? 'text-red-500 font-semibold' : n ? 'text-green-600' : 'text-gray-400'}`}>
       {n} / {lim}자{n > lim ? ` · ${n - lim}자 초과` : ''}
     </p>
+  );
+}
+
+// 추가 영역 (기획팀 판촉 업데이트기 v38의 '워싱본 맨 위 추가 영역'과 같은 동작)
+// 쿠킹·냉장고는 자동 판단이 기본이고, 직접 체크/해제하면 그 선택이 우선 — '자동 감지로'로 되돌린다
+function PromoOptionsPanel({ opts, auto, setOpt, input }: {
+  opts: PromoOpts; auto: { cook: boolean; fridge: boolean; hidMains: string[] };
+  setOpt: <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => void; input: string;
+}) {
+  const tri = (k: 'cook' | 'fridge', text: string, hint: string) => {
+    const mode = opts[k], on = mode === 'auto' ? auto[k] : mode === 'on';
+    return (
+      <div className="flex items-center gap-2 min-h-[24px]">
+        <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" className="accent-indigo-500" checked={on} onChange={e => setOpt(k, e.target.checked ? 'on' : 'off')} />
+          {text}
+        </label>
+        <span className="text-[10px] text-gray-400 truncate" title={hint}>{mode === 'auto' ? '자동 감지' : '직접 선택 중'}</span>
+        {mode !== 'auto' && <button type="button" onClick={() => setOpt(k, 'auto')} className="text-[10px] text-indigo-500 hover:underline">자동 감지로</button>}
+      </div>
+    );
+  };
+  return (
+    <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 break-keep">
+      <div className="text-[11px] font-semibold text-gray-500">추가 영역 <span className="font-normal text-gray-400">· 기획팀 판촉 업데이트기 v38과 같은 규칙</span></div>
+      {tri('cook', '주방가전(쿠킹 기획전) 유의사항', '업무명에 "쿠킹"·"주방가전"이 있고 한정 혜택에 주방가전 제품이 2종 이상일 때 자동으로 켜져요')}
+      {tri('fridge', '냉장고 Fit&Max 배너', '업무명·원문에 냉장고가 있으면 OBS 맨 아래에 고정 배너를 자동으로 붙여요')}
+      <div className="flex items-center gap-2 min-h-[24px]">
+        <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" className="accent-indigo-500" checked={opts.hidTotal} onChange={e => setOpt('hidTotal', e.target.checked)} />
+          통합 히든 기획전 추가
+        </label>
+        <span className="text-[10px] text-gray-400 truncate" title="제품명 기획전 배너 — 업무명에서 자동으로 만들어요">제품명 기획전: {auto.hidMains.join(' · ') || '—'}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <input className={`${input} !py-1.5 !text-xs`} value={opts.hidUrl} onChange={e => setOpt('hidUrl', e.target.value)} placeholder="제품명 기획전 URL (선택, 첫 배너에만)" />
+        <input className={`${input} !py-1.5 !text-xs ${opts.hidTotal ? '' : 'opacity-40'}`} disabled={!opts.hidTotal} value={opts.hidUrl2} onChange={e => setOpt('hidUrl2', e.target.value)} placeholder="통합 기획전 URL" />
+      </div>
+      <div className="flex items-center gap-2 min-h-[24px]">
+        <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" className="accent-indigo-500" checked={opts.rebro} onChange={e => setOpt('rebro', e.target.checked)} />
+          재방송 영역
+        </label>
+        <span className="text-[10px] text-gray-400">업무명에 '(재)'·'재방송'이 있으면 자동으로 켜져요</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <input className={`${input} !py-1.5 !text-xs ${opts.rebro ? '' : 'opacity-40'}`} disabled={!opts.rebro} value={opts.orig} onChange={e => setOpt('orig', e.target.value)} placeholder="본방송 일자 (예: 10/22)" />
+        <input className={`${input} !py-1.5 !text-xs ${opts.rebro ? '' : 'opacity-40'}`} disabled={!opts.rebro} value={opts.viewers} onChange={e => setOpt('viewers', e.target.value)} placeholder="실시간 시청자 수 (예: 12.3만)" />
+      </div>
+    </div>
   );
 }
 

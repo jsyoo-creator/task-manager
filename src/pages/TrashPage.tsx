@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { RotateCcw, Trash2 } from 'lucide-react';
+import { useNeedTaskMonths } from '../lib/taskMonths';
 import type { Task, TeamPart } from '../types';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -22,6 +23,7 @@ function fmtDateTime(iso: string): string {
 
 export default function TrashPage({ tasks, parts, canManage, onRestoreTask, onPermanentDeleteTask, onRestoreSubtask, onPermanentDeleteSubtask }: Props) {
   const partColorMap = useMemo(() => new Map((parts ?? []).map(p => [p.name, p.color])), [parts]);
+  useNeedTaskMonths('all');   // 휴지통은 달과 상관없이 모아 보는 곳이라 전 기간을 읽는다
 
   const [pendingPurgeTask, setPendingPurgeTask] = useState<{ id: string; title: string } | null>(null);
   const [pendingPurgeSubtask, setPendingPurgeSubtask] = useState<{ taskId: string; subKey: string; title: string } | null>(null);

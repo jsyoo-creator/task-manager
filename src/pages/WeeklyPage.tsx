@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNeedTaskMonths, ymOf } from '../lib/taskMonths';
 import type { Task, SubTask, TaskStatus, Member, TeamPart, CustomHoliday, Vacation, WeeklyColumnDef, WeeklyExportConfig, MetaField } from '../types';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import SubtaskQuickEditModal from '../components/SubtaskQuickEditModal';
@@ -177,6 +178,8 @@ export default function WeeklyPage({ tasks, subtasks, parts, userPhotoMap, custo
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const effectiveSeeAll = canSeeAll && !onlyMe;
   const { start, end, weekNum, now, weekdays } = useMemo(() => getWeekBounds(weekOffset), [weekOffset]);
+  // 이 주가 걸친 달과 그 전달 — 오래된 달이면 그때 읽는다 (lib/taskMonths.ts)
+  useNeedTaskMonths([ymOf(new Date(start.getFullYear(), start.getMonth() - 1, 1)), ymOf(start), ymOf(end)]);
   const { holidays: publicHolidays } = usePublicHolidays(start.getFullYear());
   const weekLabel = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${weekNum}주차`;
 

@@ -9,6 +9,7 @@ import DatePicker from '../components/DatePicker';
 import ConfirmDialog from '../components/ConfirmDialog';
 import FigmaBoardLinks from '../components/FigmaBoardLinks';
 import { isFigmaBoardScope } from '../lib/figmaSetup';
+import { useNeedTaskMonths } from '../lib/taskMonths';
 
 interface Props {
   tasks: Task[];
@@ -325,7 +326,8 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   });
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('tm_monthFilter');
-    return saved ? Number(saved) : now.getMonth() + 1;
+    // '전체'(0)는 전 기간 업무를 다 읽어서 다시 열 때는 이번 달로 시작한다 (2026-10-26 읽기 한도 절약)
+    return saved && Number(saved) > 0 ? Number(saved) : now.getMonth() + 1;
   });
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -377,6 +379,9 @@ export default function TaskManagement({ tasks, onAddTask, onUpdateTask, onDelet
   const [templateDropOpen, setTemplateDropOpen] = useState(false);
   const [exportParts, setExportParts] = useState<Set<string>>(new Set());
   const [exportMonths, setExportMonths] = useState<Set<number>>(new Set());
+  // 고른 달이 지난달보다 오래됐으면 그 달 업무를 그때 읽는다 ('전체'는 전 기간, 엑셀 내보내기를 열면 그 해 전체) — lib/taskMonths.ts
+  useNeedTaskMonths(monthFilter === 0 ? 'all' : [`${yearFilter}-${String(monthFilter).padStart(2, '0')}`]);
+  useNeedTaskMonths(exportDropOpen ? Array.from({ length: 12 }, (_, i) => `${yearFilter}-${String(i + 1).padStart(2, '0')}`) : null);
   const importDropRef = useRef<HTMLDivElement>(null);
   const [importDropOpen, setImportDropOpen] = useState(false);
   const [importParts, setImportParts] = useState<Set<string>>(new Set());

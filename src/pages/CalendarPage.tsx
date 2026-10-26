@@ -5,6 +5,7 @@ import CategoryTabs from '../components/CategoryTabs';
 import DatePicker from '../components/DatePicker';
 import { useHolidayMap } from '../contexts/HolidaysContext';
 import { getWeekDays, getStartEndDayIdx, calcHoursInRange } from '../lib/weeklyHours';
+import { useNeedTaskMonths, ymOf } from '../lib/taskMonths';
 
 interface Props {
   tasks: Task[];
@@ -153,6 +154,8 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  // 보는 달과 그 전달(전달에 등록해 이번 달까지 이어지는 업무) — 오래된 달이면 그때 읽는다
+  useNeedTaskMonths([ymOf(new Date(year, month - 1, 1)), ymOf(new Date(year, month, 1))]);
   const holidayMap = useHolidayMap();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSubKey, setExpandedSubKey] = useState('');

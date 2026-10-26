@@ -18,6 +18,7 @@ import SeatMapPage from '../pages/SeatMapPage';
 import BoardPage from '../pages/BoardPage';
 import AccountInfoPage from '../pages/AccountInfoPage';
 import TrashPage from '../pages/TrashPage';
+import { TaskMonthsContext, useTaskMonthScope } from '../lib/taskMonths';
 import AdminPage from '../pages/AdminPage';
 import { useTeamNotices } from '../hooks/useTeamNotices';
 import { useAiTools } from '../hooks/useAiTools';
@@ -424,7 +425,9 @@ function App() {
   const currentProject = projects.find(p => p.id === projectId) ?? null;
   const selectedTeam = teams.find(t => t.id === activeTeamId) ?? null;
   const activeParts = selectedTeam?.parts ?? [];
-  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks, groupTasks, removeFromGroup } = useTasks(projectId, activeTeamId, selectedTeam);
+  // 업무는 등록 월 기준으로 나눠 읽는다 — 지난달~ 기본, 더 오래된 달·전체는 화면이 요청할 때 (lib/taskMonths.ts)
+  const [taskMonthScope, requestTaskMonths] = useTaskMonthScope();
+  const { tasks, addTask, updateTask, deleteTask, cleanupOrphanTasks, groupTasks, removeFromGroup } = useTasks(projectId, activeTeamId, selectedTeam, taskMonthScope);
   // 담당자 목록: 이 근무지에서의 기본 팀(defaultTeamIdByWorkplace)이 설정돼 있으면 그 기준으로,
   // 없으면 selectedTeamIds로 판단
   const getDefaultTeamId = (u: { defaultTeamIdByWorkplace?: Record<string, string> }) =>
@@ -654,7 +657,7 @@ function App() {
   // 그 시간이 원본(다른) 팀 위클리에만 보이던 것을 지원팀 자신의 위클리에도 보이게 함.
   // 같은 근무지(프로젝트 1개)의 모든 팀 tasks를 조건부로 불러와, 원본 팀 설정 기준으로 이름을
   // 올바르게 붙인 뒤 지원팀 멤버가 담당/대무인 항목만 걸러 병합한다.
-  const { tasks: allProjectTasksForSupport } = useAllTasks(selectedTeam?.isSupportTeam ? projectId : '');
+  const { tasks: allProjectTasksForSupport } = useAllTasks(selectedTeam?.isSupportTeam ? projectId : '', taskMonthScope);
   const supportCrossTeamData = useMemo(() => {
     if (!selectedTeam?.isSupportTeam) return { tasks: [] as Task[], subtasks: [] as SubTask[] };
     // teamMembers(선택적 소속까지 포함하는 넓은 판정)를 쓰면, 우선선택 팀이 없는 사람이
@@ -913,6 +916,7 @@ function App() {
           roleLabels={roleLabels}
           menuConfig={activeWorkplaceMenuConfig}
         >
+          <TaskMonthsContext.Provider value={requestTaskMonths}>
           <Routes>
             <Route path="/" element={
               <Dashboard tasks={filteredTasks} subtasks={subtasks} project={currentProject} teamName={selectedTeam?.name} parts={activeParts} assignees={teamAssignees} formConfig={effectiveFormConfig} teamFormConfig={selectedTeam?.formConfig} teamMembers={dashboardTeamMembers} revisionSteps={effectiveRevisionSteps} crossTeamTasks={supportCrossTeamData.tasks} crossTeamSubtasks={supportCrossTeamData.subtasks} />
@@ -1052,6 +1056,7 @@ function App() {
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </TaskMonthsContext.Provider>
         </Layout>
 
         {(() => {

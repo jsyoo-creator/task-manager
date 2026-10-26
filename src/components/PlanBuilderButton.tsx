@@ -7,7 +7,7 @@ import { useDriveFolders } from '../hooks/useDriveFolders';
 import { PLAN_SCOPE_LABEL, planDraftDocId, type PlanScope, type PlanDraftKind } from '../lib/planDraft';
 import { usePlanDraft } from '../hooks/usePlanDraft';
 import PlanBuilderModal from './PlanBuilderModal';
-import { useJobQueue, queuePosition, runningLabel } from '../hooks/useJobQueue';
+import { useJobQueue, queuePosition, runningLabel, pickupNote } from '../hooks/useJobQueue';
 import { QueueNotice } from './QueueNotice';
 
 // 세부업무 카드 안 Figma 줄의 [폴더 상태]와 [세팅요청] 사이에 들어가는 [기획서 상태] [버튼].
@@ -63,7 +63,7 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   } else if (status === 'requested') {
     const pos = folderName ? queuePosition(queue, 'planDrafts', planDraftDocId(folderName, kind)) : null;
     const waitTitle = pos ? `대기 ${pos}번째${queue?.running ? ` · 지금 ${runningLabel(queue.running)} 진행 중` : ''}`
-      : '곧 맥 프로그램이 가져가요 (최대 2분) · 디자이너 맥이 꺼져 있으면 켜질 때 시작돼요';
+      : pickupNote().text;
     content = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title={`${draft?.fileName ?? ''} — ${waitTitle}`}><Clock size={11} className="animate-pulse" />요청대기</span>;
   } else if (status === 'running') {
     content = <span className={`${chip} text-blue-600 border-blue-200 bg-blue-50`} title={`${draft?.fileName ?? ''} — 기획서(PPT)를 ${isUpdate ? '고치고' : '만들고'} 있어요`}><Loader2 size={11} className="animate-spin" />{isUpdate ? '기획서 수정중' : '기획서 생성중'}</span>;

@@ -123,7 +123,8 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     // 날짜가 이름에 섞여 저장된 요청은 올바른 기본 이름으로 바꿔 준다
     if (draft?.status === 'failed' && draft.fileName)
       return /라이브커머스_\d{6}_/.test(draft.fileName) ? defaultPlanFileName(folderName) : draft.fileName;
-    const last = draft?.outputFile || baseFile || '';
+    // 업데이트는 드라이브 최신 기획서(baseFile) 다음 버전으로 — 사람이 그 사이 버전을 올렸어도 겹치지 않게
+    const last = (kind === 'update' ? baseFile || draft?.outputFile : draft?.outputFile || baseFile) || '';
     if (kind === 'update') {
       // 기획서 업데이트는 고칠 때마다 버전을 올린 새 파일로 남긴다 (2026-10-22 사용자)
       return last ? bumpVersion(cleanFileName(last)) : defaultPlanFileName(folderName);

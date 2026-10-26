@@ -25,8 +25,10 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
 }) {
   // 폴더 이름은 261102_이름(기본)·20261102_이름(예전) 중 드라이브에 있는 쪽 — 없으면 새 규칙으로 만든다
   const folderNames = folderNamesFromTask(task);
-  const { folders } = useDriveFolders(folderNames.length > 0);
+  const { folders, plans } = useDriveFolders(folderNames.length > 0);
   const folderName = resolveFolderName(folderNames, folders);
+  // 드라이브 01.기획에 있는 가장 높은 버전 기획서 — 사람이 직접 만들거나 고친 파일도 여기 잡힌다
+  const latestPlan = folderName ? plans[folderName.normalize('NFC')] : undefined;
   const isUpdate = kind === 'update';
   const { draft, loading, requestPlan } = usePlanDraft(folderName, kind);
   // 요청대기일 때만 작업 순서를 읽어 '대기 N번째'를 보여 준다
@@ -42,16 +44,18 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   const madeOnce = !!draft?.outputFile;   // 한 번이라도 기획서 파일이 만들어졌으면 '추가 작성하기'
   const again = madeOnce || status === 'done';
   const seed = isUpdate ? ((draft?.banner || draft?.landing) ? draft : initialDraft) : draft;
-  const baseFile = draft?.outputFile || (isUpdate ? initialDraft?.outputFile : '') || '';
+  // 업데이트는 드라이브의 최신 기획서를 바탕으로 고친다 — 웹에서 만든 뒤 사람이 손본 파일, 사람이 처음부터 만든 파일 모두 (2026-10-26)
+  const baseFile = (isUpdate ? latestPlan?.file : '') || draft?.outputFile || (isUpdate ? initialDraft?.outputFile : '') || '';
   const hasSeed = !!(seed?.banner || seed?.landing);
+  const hasBase = hasSeed || !!latestPlan;   // 웹 입력값이 없어도 드라이브에 기획서가 있으면 업데이트 가능
   const times = draft?.history?.length ?? 0;   // 지금까지 요청한 횟수 → 다음 버튼 이름
   const label = isUpdate
     ? (times === 0 ? '기획서 업데이트' : `${times + 1}차 업데이트`)
     : (again ? '추가 작성하기' : '1차 기획서 만들기');
-  const canRequest = canManage && !!folderName && (!isUpdate || hasSeed);
+  const canRequest = canManage && !!folderName && (!isUpdate || hasBase);
   const disabledTitle = !canManage ? '업무 편집 권한이 있어야 만들 수 있어요'
     : !folderName ? '업무명이 "10/27 10월 결산" 형식이어야 기획서를 만들 수 있어요'
-    : (isUpdate && !hasSeed) ? '1차 기획서를 먼저 만들어 주세요 — 그때 입력한 내용을 가져와 수정합니다' : '';
+    : (isUpdate && !hasBase) ? '드라이브 01.기획에 기획서(PPT)가 없어요 — 1차 기획서를 먼저 만들어 주세요' : '';
 
   let content: ReactNode;
   if (loading) {
@@ -81,7 +85,8 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
           </span>
         )}
         <button type="button" disabled={!canRequest} onClick={() => setScopeOpen(true)}
-          title={disabledTitle || (isUpdate ? '1차 기획서에 입력한 내용을 가져와 고치고, 버전을 올린 새 파일로 저장해요'
+          title={disabledTitle || (isUpdate ? (hasSeed ? `1차 기획서에 입력한 내용을 가져와 고치고, ${latestPlan?.file ?? '최신 기획서'}를 바탕으로 버전을 올린 새 파일로 저장해요`
+              : `${latestPlan?.file ?? '드라이브 기획서'}를 바탕으로 고쳐요 — 웹에서 입력한 내용이 없어 빈 칸으로 열려요. 고칠 쪽(배너/상세)만 입력하면 나머지는 파일 그대로 둬요`)
             : again ? '지난번 내용에 이어서 배너·상세를 추가 작성해요' : '배너 카피·상세페이지 내용을 정리해 1차 기획서(PPT)를 만들어 달라고 요청합니다')}
           className={`${chip} text-indigo-600 border-indigo-200 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-default`}>
           {(again || isUpdate) ? <FilePen size={11} /> : <FilePlus2 size={11} />}{label}

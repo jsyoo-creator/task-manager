@@ -4,6 +4,7 @@ import type { AppUser, Team, Workplace } from '../types';
 import { deriveSubtasksForTeam } from '../types';
 import { useProjects } from '../hooks/useProjects';
 import { useAllTasks } from '../hooks/useTasks';
+import { olderMonths, ymOf } from '../lib/taskMonths';
 import { getDailyHoursForWeek, getWeeksInMonth, round2 } from '../lib/userStatusHours';
 
 const DAY_NAMES = ['월', '화', '수', '목', '금'];
@@ -26,7 +27,11 @@ export default function UserStatusTab({ workplaces, users, allTeams }: Props) {
 
   const { projects } = useProjects(workplaceId || undefined);
   const projectId = projects[0]?.id ?? '';
-  const { tasks } = useAllTasks(projectId);
+  // 보는 달과 그 전달만 (지난달보다 오래된 달이면 그 달을 따로 읽는다) — lib/taskMonths.ts
+  const monthScope = useMemo(() => ({ all: false, months: olderMonths([
+    ymOf(new Date(monthCursor.year, monthCursor.month0 - 1, 1)), ymOf(new Date(monthCursor.year, monthCursor.month0, 1))]) }),
+  [monthCursor.year, monthCursor.month0]);
+  const { tasks } = useAllTasks(projectId, monthScope);
   const aliveTasks = useMemo(() => tasks.filter(t => !t.deletedAt), [tasks]);
 
   const teamsInWorkplace = useMemo(

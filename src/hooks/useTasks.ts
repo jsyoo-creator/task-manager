@@ -4,6 +4,7 @@ import {
   doc, query, where, writeBatch, deleteField
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useScopedTasks, DEFAULT_TASK_SCOPE, type TaskMonthScope } from '../lib/taskMonths';
 import type { Task, SubTask, Team, SubTaskType } from '../types';
 import { BUILTIN_FIELDS_META, mergeFormConfig, resolveGroupSyncFields } from '../types';
 
@@ -142,36 +143,31 @@ export async function repairLinkedSupportTaskOrder(teamId: string): Promise<numb
   return toFix.length;
 }
 
-export function useTasks(projectId: string, teamId: string | null, team?: Team | null) {
+export function useTasks(projectId: string, teamId: string | null, team?: Team | null, scope: TaskMonthScope = DEFAULT_TASK_SCOPE) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  // 등록 월 기준으로 나눠 읽는다 (지난달~ 기본, 더 오래된 달은 요청할 때) — lib/taskMonths.ts
+  const raw = useScopedTasks('teamId', projectId && teamId ? teamId : '', scope, 'tasks');
 
   useEffect(() => {
     if (!projectId || !teamId) { setTasks([]); setLoading(false); return; }
-    const q = query(collection(db, 'tasks'), where('teamId', '==', teamId));
-    const unsub = onSnapshot(q,
-      snap => {
-        const sorted = snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as Task))
-          .sort((a, b) => {
-            if (a.sortOrder != null && b.sortOrder != null) {
-              // sortOrder가 완전히 같은 값이면(예: 서로 다른 파트 업무가 과거 버그로 값이
-              // 겹친 경우) 조회할 때마다 순서가 안정적이어야 하므로, Firestore 스냅샷의
-              // 문서 순서(orderBy 없어 비결정적)에 기대지 않고 createdAt으로 한 번 더 확정
-              if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-              return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;
-            }
-            if (a.sortOrder != null) return -1;
-            if (b.sortOrder != null) return 1;
-            return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;
-          });
-        setTasks(sorted);
-        setLoading(false);
-      },
-      err => { console.error('tasks:', err); setLoading(false); }
-    );
-    return unsub;
-  }, [projectId, teamId]);
+    if (raw === null) { setLoading(true); return; }
+    const sorted = [...raw]
+      .sort((a, b) => {
+        if (a.sortOrder != null && b.sortOrder != null) {
+          // sortOrder가 완전히 같은 값이면(예: 서로 다른 파트 업무가 과거 버그로 값이
+          // 겹친 경우) 조회할 때마다 순서가 안정적이어야 하므로, Firestore 스냅샷의
+          // 문서 순서(orderBy 없어 비결정적)에 기대지 않고 createdAt으로 한 번 더 확정
+          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+          return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;
+        }
+        if (a.sortOrder != null) return -1;
+        if (b.sortOrder != null) return 1;
+        return b.createdAt?.localeCompare(a.createdAt ?? '') ?? 0;
+      });
+    setTasks(sorted);
+    setLoading(false);
+  }, [raw, projectId, teamId]);
 
   const addTask = async (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     const now = new Date().toISOString();
@@ -424,20 +420,10 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
 // 지원팀 위클리에서 "다른 팀 업무에 기록된 지원팀 인원의 시간"을 찾아오려면
 // 근무지당 1개인 프로젝트 전체(모든 팀)의 tasks가 필요함 — teamId 필터 없이 projectId로만 조회.
 // 지원팀 화면일 때만 조건부로 구독(projectId를 빈 문자열로 넘기면 비활성화)해 평소엔 비용이 없게 함.
-export function useAllTasks(projectId: string) {
-  const [tasks, setTasks] = useState<Task[]>([]);
-
-  useEffect(() => {
-    if (!projectId) { setTasks([]); return; }
-    const q = query(collection(db, 'tasks'), where('projectId', '==', projectId));
-    const unsub = onSnapshot(q,
-      snap => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task))),
-      err => console.error('allTasks:', err)
-    );
-    return unsub;
-  }, [projectId]);
-
-  return { tasks };
+// 이것도 등록 월 기준으로 나눠 읽는다 (scope를 안 주면 지난달~ 기본 범위만)
+export function useAllTasks(projectId: string, scope: TaskMonthScope = DEFAULT_TASK_SCOPE) {
+  const raw = useScopedTasks('projectId', projectId, scope, 'allTasks');
+  return { tasks: raw ?? [] };
 }
 
 export function useSubTasks(taskId: string) {

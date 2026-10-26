@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { FIGMA_SETUP_META_COLLECTION } from '../lib/figmaSetup';
+import { isQuotaError } from '../lib/dbQuota';
 
 // 디자이너 맥의 Claude 남은 사용량. 맥 프로그램이 figmaSetupMeta/claudeUsage 에 올린다(바뀔 때만).
 // 팝업이 열려 있을 때만 구독한다.
@@ -22,11 +23,14 @@ export interface ClaudeUsage {
   accounts: ClaudeAccountUsage[];  // 계정이 하나뿐이면 길이 1 (예전 문서면 빈 배열)
 }
 
-export function useClaudeUsage(enabled: boolean) {
+// dbBlocked: 이 문서를 읽다가 업무관리 DB 하루 읽기 한도(resource-exhausted)에 걸렸는지 — 사용량 칸에 같이 보여 준다
+export function useClaudeUsage(enabled: boolean): { usage: ClaudeUsage | null | undefined; dbBlocked: boolean } {
   const [usage, setUsage] = useState<ClaudeUsage | null | undefined>(undefined); // undefined=불러오는 중, null=정보 없음
+  const [dbBlocked, setDbBlocked] = useState(false);
   useEffect(() => {
     if (!enabled) return;
     const unsub = onSnapshot(doc(db, FIGMA_SETUP_META_COLLECTION, 'claudeUsage'), snap => {
+      setDbBlocked(false);
       if (!snap.exists()) { setUsage(null); return; }
       const d = snap.data();
       setUsage({
@@ -38,8 +42,11 @@ export function useClaudeUsage(enabled: boolean) {
           weekUsed: Number(a.weekUsed ?? -1), weekResetAt: String(a.weekResetAt ?? ''),
         })),
       });
+    }, err => {
+      if (isQuotaError(err)) setDbBlocked(true);
+      else console.error('[claudeUsage]', err);
     });
     return unsub;
   }, [enabled]);
-  return usage;
+  return { usage, dbBlocked };
 }

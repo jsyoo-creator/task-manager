@@ -1,5 +1,6 @@
 import { useClaudeUsage, type ClaudeAccountUsage } from '../hooks/useClaudeUsage';
 import { useJobCost } from '../hooks/useJobCost';
+import { quotaResetLabel } from '../lib/dbQuota';
 
 // 팝업 안 Claude 남은 사용량 — Figma 세팅요청 팝업과 1차 기획서 만들기 팝업이 같이 쓴다.
 export const fmtTime = (iso: string) => {
@@ -69,10 +70,11 @@ const autoAccount = (list: ClaudeAccountUsage[], need = 0) => {
 // account: 이번 요청에 쓸 계정 이름 (''이면 남은 계정을 맥 프로그램이 고른다). onAccount를 주면 줄을 눌러 고를 수 있다.
 // 높이가 들쭉날쭉하지 않게 줄 높이와 안내 줄 높이를 고정한다.
 export function UsagePanel({ account = '', onAccount, jobKind }: { account?: string; onAccount?: (v: string) => void; jobKind?: string }) {
-  const u = useClaudeUsage(true);
+  const { usage: u, dbBlocked } = useClaudeUsage(true);
   const costs = useJobCost(true);
   const cost = jobKind ? costs[jobKind] : undefined;   // 이 작업이 보통 쓰는 세션 사용량 (기록이 쌓이면 표시)
   const shell = 'w-full rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 min-h-[104px] justify-center';
+  if (dbBlocked) return <div className={shell}><DbLine blocked /></div>;
   if (u === undefined) return <div className={`${shell} text-[11px] text-gray-300 text-center`}>Claude 사용량 확인 중…</div>;
   if (u === null) return <div className={`${shell} text-[11px] text-gray-400 text-center`}>Claude 사용량 정보가 아직 없어요 (디자이너 맥이 켜지면 표시돼요)</div>;
   const accounts: ClaudeAccountUsage[] = u.accounts.length ? u.accounts
@@ -105,6 +107,22 @@ export function UsagePanel({ account = '', onAccount, jobKind }: { account?: str
         {(short || v.sub) && <div className="text-[10px] opacity-70 truncate">{short ? '중간에 멈출 수 있어요' : v.sub}</div>}
       </div>
       {stale && <div className="text-[10px] text-gray-400 px-1.5">마지막 확인 {fmtTime(u.checkedAt)} — 맥이 꺼져 있어 최신이 아닐 수 있어요</div>}
+      <DbLine blocked={false} />
+    </div>
+  );
+}
+
+// 업무관리 DB(무료 요금제) 하루 읽기 한도 상태 — 건수는 못 보고 '찼는지'만 안다 (dbQuota.ts)
+function DbLine({ blocked }: { blocked: boolean }) {
+  if (!blocked) return (
+    <div className="flex items-center gap-1.5 px-1.5 text-[10px] text-gray-400" title="무료 요금제라 하루 읽기 한도가 있어요. 차면 여기에 표시돼요">
+      <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-none" />업무관리 DB 정상
+    </div>
+  );
+  return (
+    <div className="text-[11px] rounded-lg px-2.5 py-1 leading-tight min-h-[40px] flex flex-col justify-center gap-0.5 bg-red-50 text-red-600 break-keep">
+      <div className="font-semibold">업무관리 DB 오늘 읽기 한도 초과</div>
+      <div className="text-[10px] opacity-80">{quotaResetLabel()}에 풀려요 — 그 전엔 요청을 저장할 수 없어요</div>
     </div>
   );
 }

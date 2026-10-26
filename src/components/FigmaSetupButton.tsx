@@ -8,6 +8,7 @@ import { useFigmaBoards } from '../hooks/useFigmaBoards';
 import { useJobQueue, queuePosition, runningLabel, pickupNote } from '../hooks/useJobQueue';
 import { QueueNotice } from './QueueNotice';
 import { UsagePanel, fmtTime } from './UsagePanel';
+import { isQuotaError, quotaMessage } from '../lib/dbQuota';
 
 // 라이브 파트 '1차 기획서'(kind=initial)·'기획서 업데이트'(kind=update) 세부업무 카드 안의 Figma 줄 — 오른쪽에 [폴더 상태] [middle] [버튼] [after].
 // middle: '1차 기획서'에서는 기획서 만들기 버튼이 폴더 상태와 세팅요청 사이에 들어간다.
@@ -104,7 +105,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
       await requestSetup({ folderName, taskId: task.id, taskTitle: task.title, requestedBy: currentUserName, workplaceId, teamId }, again, scope, kind, account,
         { figmaFile: bannerFile, figmaLandingFile: landingFile, figmaBannerPage: bannerPage, figmaLandingPage: landingPage });
     } catch (e) {
-      setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
+      setError(isQuotaError(e) ? quotaMessage() : '요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.');
       console.error('[figmaSetup] request failed', e);
     } finally {
       setSending(false);

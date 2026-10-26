@@ -12,6 +12,7 @@ import {
   type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
 } from '../lib/planDraft';
 import { PlanDraftBusyError, type PlanRequest } from '../hooks/usePlanDraft';
+import { isQuotaError, quotaMessage } from '../lib/dbQuota';
 
 type Tab = 'banner' | 'landing';
 
@@ -181,6 +182,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
       onClose();
     } catch (e) {
       if (e instanceof PlanDraftBusyError) setError('이미 작성 요청을 처리 중이에요');
+      else if (isQuotaError(e)) setError(quotaMessage(true));
       else { setError('요청을 저장하지 못했어요. 잠시 후 다시 눌러 주세요.'); console.error('[planDraft] request failed', e); }
     } finally {
       setSending(false);

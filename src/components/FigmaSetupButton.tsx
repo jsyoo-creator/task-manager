@@ -5,7 +5,7 @@ import { folderNamesFromTask, resolveFolderName, figmaSetupDocId, boardMonthKey,
 import { useFigmaSetupJob } from '../hooks/useFigmaSetupJob';
 import { useDriveFolders } from '../hooks/useDriveFolders';
 import { useFigmaBoards } from '../hooks/useFigmaBoards';
-import { useJobQueue, queuePosition, runningLabel } from '../hooks/useJobQueue';
+import { useJobQueue, queuePosition, runningLabel, pickupNote } from '../hooks/useJobQueue';
 import { QueueNotice } from './QueueNotice';
 import { UsagePanel, fmtTime } from './UsagePanel';
 
@@ -141,7 +141,7 @@ export default function FigmaSetupButton({ task, kind = 'initial', canManage, cu
   } else if (status === 'requested') {
     const pos = folderName ? queuePosition(queue, 'figmaSetupJobs', figmaSetupDocId(folderName, kind)) : null;
     const waitTitle = pos ? `대기 ${pos}번째${queue?.running ? ` · 지금 ${runningLabel(queue.running)} 진행 중` : ''}`
-      : '곧 맥 프로그램이 가져가요 (최대 2분) · 디자이너 맥이 꺼져 있으면 켜질 때 시작돼요';
+      : pickupNote().text;
     button = <span className={`${chip} text-amber-600 border-amber-200 bg-amber-50`} title={waitTitle}><Clock size={11} className="animate-pulse" />요청대기</span>;
   } else if (status === 'running') {
     button = <span className={`${chip} text-blue-600 border-blue-200 bg-blue-50`} title={kind === 'save' ? 'Figma에서 이미지를 내보내 드라이브에 저장하고 있어요. 보통 5~15분 걸려요' : 'Figma에 세팅하고 있어요. 보통 10~30분 걸려요'}><Loader2 size={11} className="animate-spin" />{text.running}</span>;

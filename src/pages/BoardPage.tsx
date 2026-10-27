@@ -616,7 +616,8 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
           </div>
         </div>
 
-        {/* 글쓰기 버튼 — 목록에서만 (팀 게시판 / AI 툴 리스트 공통 위치) */}
+        {/* 오른쪽 버튼 묶음 — 목록에서만 (팀 게시판 / AI 툴 리스트 공통 위치) */}
+        <div className="flex items-center gap-2">
         {activeView !== 'aitools' && activeTeam && view.type === 'list' && (
           <button
             onClick={() => setView({ type: 'write' })}
@@ -635,17 +636,18 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
             <span>AI 툴 추가</span>
           </button>
         )}
-        {/* 런처 설치 — 등록 권한과 무관하게 팀원 모두에게 보인다 */}
+        {/* ArtCraft 런처 — 등록 권한과 무관하게 팀원 모두에게 보인다 */}
         {activeView === 'aitools' && toolView.type === 'list' && (
           <button
             onClick={() => setLauncherOpen(true)}
-            title="Craft 앱(PhotoCraft 등)을 설치·업데이트하는 런처"
+            title="PhotoCraft 등 Craft 앱을 설치·업데이트하는 런처"
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-black/10 text-gray-600 hover:bg-gray-50 text-[13px] font-semibold transition-colors"
           >
             <Download size={14} />
-            <span>런처 설치</span>
+            <span>ArtCraft 런처 설치</span>
           </button>
         )}
+        </div>
       </div>
 
       {/* 뷰 렌더 */}

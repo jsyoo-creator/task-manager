@@ -6,7 +6,7 @@ import {
   parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT, HOUR_OPTIONS, pairRowId,
   type BannerHour, type BroadcastType, type BannerGroup, type BannerRow, type GenInput,
 } from '../lib/planTools/bannerCopy';
-import { parsePromo, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, promoLiveCards, promoAuto, defaultPromoOpts, PROMO_PREVIEW_CSS, type PromoStructured, type PromoOpts } from '../lib/planTools/promoParse';
+import { parsePromo, promoKvOpt, promoJoinProducts, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, promoLiveCards, promoAuto, defaultPromoOpts, PROMO_PREVIEW_CSS, type PromoStructured, type PromoOpts } from '../lib/planTools/promoParse';
 import {
   scopeHasBanner, scopeHasLanding, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
@@ -62,8 +62,10 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
 
   const baseYear = folderDate?.year;
   const parsedDate = useMemo(() => parseBDate(dateText, baseYear), [dateText, baseYear]);
+  // 통합셋팅기 v13: KV에 쓴 제품 나열도 배너·페이지에는 가운데점으로 ("냉장고세탁기"·"냉장고&세탁기" → "냉장고·세탁기")
+  const kvMainJ = promoJoinProducts(kvMain), kvSubJ = promoJoinProducts(kvSub);
   const genInput: GenInput = {
-    kvMain, kvSub, liveDate: parsedDate?.iso ?? '', timeLabel: getTimeLabel(hour, customTime), evLabel: getEvLabel(hour, customTime),
+    kvMain: kvMainJ, kvSub: kvSubJ, liveDate: parsedDate?.iso ?? '', timeLabel: getTimeLabel(hour, customTime), evLabel: getEvLabel(hour, customTime),
     broadcastType, benefit: discount, product, shortName,
   };
   const inputKey = JSON.stringify(genInput);
@@ -113,7 +115,9 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
   // 추가 영역·재방송 옵션 — 다시 열면 지난번 선택을 그대로 (없으면 원본 기본값)
   const [opts, setOpts] = useState<PromoOpts>(() => ({ ...defaultPromoOpts(promoCase), ...(seed?.landing?.structured?.opts ?? {}) }));
   const setOpt = <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => setOpts(o => ({ ...o, [k]: v }));
-  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, opts), [deferredRaw, promoCase, opts]);
+  // 한정 혜택 윗줄 기본값('○○ 라이브')은 원본처럼 KV 메인 카피 → 업무명 순으로 정한다 (통합셋팅기 v13, opts.kv)
+  const optsKv = useMemo<PromoOpts>(() => ({ ...opts, kv: promoKvOpt(kvMainJ, kvSubJ) }), [opts, kvMainJ, kvSubJ]);
+  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, optsKv), [deferredRaw, promoCase, optsKv]);
   const promoAutoVal = useMemo(() => promoAuto(pv), [pv]);
   const summary = useMemo(() => promoSummary(pv), [pv]);
   const previewHtml = useMemo(() => (deferredRaw.trim() ? promoPreviewHtml(pv) : ''), [pv, deferredRaw]);
@@ -152,14 +156,14 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
       if (!generated) { setTab('banner'); setError("배너: '배너 카피 생성'을 먼저 눌러 주세요"); return; }
       if (bannerStale) { setTab('banner'); setError("배너: 입력이 바뀌었어요. '배너 카피 생성'을 다시 눌러 결과를 맞춰 주세요"); return; }
       banner = {
-        kvMain: kvMain.trim(), kvSub: kvSub.trim(), liveDate: parsedDate.iso, liveTime: genInput.timeLabel,
+        kvMain: kvMainJ.trim(), kvSub: kvSubJ.trim(), liveDate: parsedDate.iso, liveTime: genInput.timeLabel,
         product: product.trim(), shortName: shortName.trim(), discount: discount.trim(), broadcastType,
         copies: copiesFromGroups(generated.groups, edits),
       };
     }
     if (showLanding) {
       if (!raw.trim()) { setTab('landing'); setError('상세: 판촉 원문을 붙여넣어 주세요'); return; }
-      const cur = parsePromo(raw, promoCase, opts);
+      const cur = parsePromo(raw, promoCase, optsKv);
       landing = {
         raw,
         structured: {

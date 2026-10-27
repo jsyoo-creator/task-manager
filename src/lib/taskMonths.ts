@@ -67,8 +67,8 @@ export function useScopedTasks(field: 'teamId' | 'projectId', value: string, sco
       parts.current.forEach(p => p.forEach((t, id) => merged.set(id, t)));
       setTasks([...merged.values()]);
     };
-    const open = (key: string, extra: ReturnType<typeof where>[]) => {
-      const q = query(collection(db, 'tasks'), where(field, '==', value), ...extra);
+    const open = (key: string, extra: ReturnType<typeof where> | null) => {
+      const q = extra ? query(collection(db, 'tasks'), where(field, '==', value), extra) : query(collection(db, 'tasks'), where(field, '==', value));
       subs.current.set(key, onSnapshot(q,
         snap => {
           parts.current.set(key, new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() } as Task])));
@@ -76,9 +76,8 @@ export function useScopedTasks(field: 'teamId' | 'projectId', value: string, sco
         },
         err => console.error(`${label}:`, err)));
     };
-    // 휴지통 업무(trashed == true)는 기본으로 안 읽는다 — 휴지통 화면('all')에서만 전부 읽는다 (2026-10-27 읽기 한도)
-    if (scope.all) open('all', []);
-    else open('base', [where('taskMonth', 'in', BASE_MONTHS), where('trashed', '==', false)]);
+    if (scope.all) open('all', null);
+    else open('base', where('taskMonth', 'in', BASE_MONTHS));
     const cur = subs.current;
     return () => { cur.forEach(u => u()); cur.clear(); };
   }, [field, value, scope.all, label]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -88,7 +87,7 @@ export function useScopedTasks(field: 'teamId' | 'projectId', value: string, sco
     if (!value || scope.all) return;
     scope.months.forEach(m => {
       if (subs.current.has(m)) return;
-      subs.current.set(m, onSnapshot(query(collection(db, 'tasks'), where(field, '==', value), where('taskMonth', '==', m), where('trashed', '==', false)),
+      subs.current.set(m, onSnapshot(query(collection(db, 'tasks'), where(field, '==', value), where('taskMonth', '==', m)),
         snap => {
           parts.current.set(m, new Map(snap.docs.map(d => [d.id, { id: d.id, ...d.data() } as Task])));
           if (parts.current.has('base')) {

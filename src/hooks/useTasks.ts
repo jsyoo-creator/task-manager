@@ -36,7 +36,6 @@ function buildLinkedSupportPayload(origin: Task, type: SubTaskType, now: string)
     sortOrder: origin.sortOrder,
     linkedFromTaskId: origin.id,
     linkedFromSubTaskTypeId: type.id,
-    trashed: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -173,7 +172,7 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
   const addTask = async (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     const now = new Date().toISOString();
     const payload = Object.fromEntries(
-      Object.entries({ ...data, trashed: !!data.deletedAt, createdAt: now, updatedAt: now }).filter(([, v]) => v !== undefined)
+      Object.entries({ ...data, createdAt: now, updatedAt: now }).filter(([, v]) => v !== undefined)
     );
     const ref = await addDoc(collection(db, 'tasks'), payload);
 
@@ -224,9 +223,7 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
 
   const updateTask = async (id: string, data: Partial<Task>) => {
     const now = new Date().toISOString();
-    // 휴지통 이동·복구 때 trashed도 같이 맞춘다 — 기본 목록은 trashed == false만 읽는다 (읽기 한도 절약)
-    const trash = 'deletedAt' in data ? { trashed: !!data.deletedAt } : {};
-    await updateDoc(doc(db, 'tasks', id), { ...data, ...trash, updatedAt: now });
+    await updateDoc(doc(db, 'tasks', id), { ...data, updatedAt: now });
 
     // 귀속(그룹) 공유 항목이 바뀌면 이 업무에 귀속된 하위 업무들에도 실시간으로 반영.
     // "무엇이 바뀌었는지"는 tasks state(지연 가능)가 아니라 방금 들어온 data 그대로 사용.
@@ -330,12 +327,12 @@ export function useTasks(projectId: string, teamId: string | null, team?: Team |
         const linked = d.data() as Task;
         if (touchesTrash && !linked.deletedAt) {
           any = true;
-          batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 업무 휴지통 이동으로 자동 이동)', trashed: true, updatedAt: now });
+          batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 업무 휴지통 이동으로 자동 이동)', updatedAt: now });
           return;
         }
         if (touchesDeletedSubTasks && linked.linkedFromSubTaskTypeId && newlyDeletedTypeIds.includes(linked.linkedFromSubTaskTypeId) && !linked.deletedAt) {
           any = true;
-          batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 세부업무 삭제로 자동 이동)', trashed: true, updatedAt: now });
+          batch.update(d.ref, { deletedAt: now, deletedBy: '(원본 세부업무 삭제로 자동 이동)', updatedAt: now });
           return;
         }
         const patch: Record<string, unknown> = {};

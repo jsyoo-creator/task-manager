@@ -46,6 +46,17 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, query, where, orderBy, writeBatch } from 'firebase/firestore';
 import { Star } from 'lucide-react';
 
+// 일회성 마이그레이션은 이미 다 끝났는데 열 때마다 사용자·휴가 등 전체를 다시 읽어 읽기 한도를 썼다(한 번 열 때 약 250건).
+// 브라우저마다 한 번만 돌게 한다 — 모두 멱등이라 다른 브라우저에서 다시 돌아도 데이터는 그대로다. (2026-10-27)
+function migrationDone(key: string): boolean {
+  const k = `tm_migration_${key}_v1`;
+  try {
+    if (localStorage.getItem(k)) return true;
+    localStorage.setItem(k, new Date().toISOString());
+  } catch { /* 저장소를 못 쓰면 예전처럼 돈다 */ }
+  return false;
+}
+
 function App() {
   const { user, loading: authLoading, error: authError, signIn, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const { appUser, loading: roleLoading, updateDisplayName, updateDepartment, updateSelectedTeams, updateDefaultTeam, updateDefaultWorkplace } = useUserRole(user);
@@ -108,7 +119,7 @@ function App() {
   // 일회성 마이그레이션: 근무지 개념 도입 이전 데이터를 'LG전자 공덕TF' 근무지로 태깅.
   // workplaces 컬렉션이 비어있고 workplaceId 없는 팀이 있을 때만 1회 실행 (idempotent).
   useEffect(() => {
-    if (!user) return;
+    if (!user || migrationDone('workplaces')) return;
     (async () => {
       try {
         const wpSnap = await getDocs(collection(db, 'workplaces'));
@@ -149,7 +160,7 @@ function App() {
   // 일회성 백필: 다중 배정(workplaceIds) 도입 이전에 단일 workplaceId로 배정된 사용자 문서를
   // workplaceIds 배열로 보정 (이미 배열이 있으면 건드리지 않는 idempotent 연산).
   useEffect(() => {
-    if (!user) return;
+    if (!user || migrationDone('workplaceIds')) return;
     (async () => {
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
@@ -176,7 +187,7 @@ function App() {
   // 근무지가 공유)였음. 가장 먼저 생성된(=기존 데이터가 쌓인) 근무지로 귀속시켜, 새로
   // 만드는 근무지가 기존 근무지의 설정값을 그대로 물려받지 않도록 분리한다. (idempotent)
   useEffect(() => {
-    if (!user) return;
+    if (!user || migrationDone('workplaceSettings')) return;
     (async () => {
       try {
         const wpSnap = await getDocs(query(collection(db, 'workplaces'), orderBy('createdAt', 'asc')));
@@ -255,7 +266,7 @@ function App() {
   // 가장 먼저 생성된 문서를 정본으로 남기고 나머지가 참조하던 tasks/subtasks의
   // projectId를 정본으로 옮긴 뒤 중복 프로젝트 문서를 삭제한다. (중복이 없으면 no-op)
   useEffect(() => {
-    if (!user || !activeWorkplaceId) return;
+    if (!user || !activeWorkplaceId || migrationDone(`dupProjects_${activeWorkplaceId}`)) return;
     (async () => {
       try {
         const projSnap = await getDocs(query(collection(db, 'projects'), where('workplaceId', '==', activeWorkplaceId)));

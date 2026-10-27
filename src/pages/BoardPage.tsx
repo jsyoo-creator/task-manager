@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Plus, Trash2, Pin, PinOff, Pencil, Sparkles, Download } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, Trash2, Pin, PinOff, Pencil, Sparkles, Download, Loader2 } from 'lucide-react';
 import type { AppUser, Team } from '../types';
 import { usePosts, type Post } from '../hooks/usePosts';
 import AiToolBoard, { type ToolView } from '../components/AiToolBoard';
 import RichTextEditor from '../components/RichTextEditor';
 import CommentSection, { Avatar, formatRelative } from '../components/CommentSection';
 import Pagination from '../components/Pagination';
-import LauncherInstallDialog from '../components/LauncherInstallDialog';
 import { sanitizeRichText, isRichTextEmpty, toDisplayHtml } from '../lib/sanitizeRichText';
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────
@@ -508,8 +507,37 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
   const [activeView, setActiveView] = useState<'aitools' | string>('aitools');
   const [view, setView] = useState<BoardView>({ type: 'list' });
   const [toolView, setToolView] = useState<ToolView>({ type: 'list' });
-  // ArtCraft 런처 설치 안내 (AI 툴 리스트에서만 연다)
-  const [launcherOpen, setLauncherOpen] = useState(false);
+  // ArtCraft 런처 — 누르면 지금 쓰는 운영체제에 맞는 최신 설치 파일을 바로 받는다
+  const [launcherBusy, setLauncherBusy] = useState(false);
+  const downloadLauncher = async () => {
+    if (launcherBusy) return;
+    setLauncherBusy(true);
+    const releases = 'https://github.com/storytold/craft-launcher/releases/latest';
+    try {
+      const ua = navigator.userAgent;
+      const wanted = /Mac/i.test(ua)
+        ? (n: string) => n.endsWith('macos-universal.dmg')
+        : /Win/i.test(ua)
+          ? /arm64|aarch64/i.test(ua)
+            ? (n: string) => n.endsWith('windows-arm64.msi')
+            : (n: string) => n.endsWith('windows-x64.msi')
+          : null;
+      if (!wanted) throw new Error('지원 목록에 없는 운영체제');
+      const res = await fetch('https://api.github.com/repos/storytold/craft-launcher/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const asset = ((await res.json()).assets ?? []).find((a: { name: string }) => wanted(a.name));
+      if (!asset) throw new Error('설치 파일 없음');
+      // 받기만 하고 페이지는 그대로 — 깃허브가 첨부 파일로 내려준다
+      window.location.href = asset.browser_download_url;
+    } catch {
+      // 최신 릴리스를 못 읽으면 직접 고르게 릴리스 페이지를 연다
+      window.open(releases, '_blank', 'noreferrer');
+    } finally {
+      setLauncherBusy(false);
+    }
+  };
   const [listPage, setListPage] = useState(1);
 
   const activeTeamId = activeView === 'aitools' ? null : activeView;
@@ -639,11 +667,12 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
         {/* ArtCraft 런처 — 등록 권한과 무관하게 팀원 모두에게 보인다 */}
         {activeView === 'aitools' && toolView.type === 'list' && (
           <button
-            onClick={() => setLauncherOpen(true)}
-            title="PhotoCraft 등 Craft 앱을 설치·업데이트하는 런처"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-black/10 text-gray-600 hover:bg-gray-50 text-[13px] font-semibold transition-colors"
+            onClick={downloadLauncher}
+            disabled={launcherBusy}
+            title="PhotoCraft 등 Craft 앱을 설치·업데이트하는 런처 — 누르면 설치 파일을 받습니다"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-black/10 text-gray-600 hover:bg-gray-50 disabled:hover:bg-transparent text-[13px] font-semibold transition-colors"
           >
-            <Download size={14} />
+            {launcherBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             <span>ArtCraft 런처 설치</span>
           </button>
         )}
@@ -711,7 +740,6 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
         </>
       )}
 
-      <LauncherInstallDialog open={launcherOpen} onClose={() => setLauncherOpen(false)} />
     </>
   );
 }

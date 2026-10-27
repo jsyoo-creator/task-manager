@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, MessageSquare, Plus, Trash2, Pin, PinOff, Pencil, Sparkles } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, Trash2, Pin, PinOff, Pencil, Sparkles, Download } from 'lucide-react';
 import type { AppUser, Team } from '../types';
 import { usePosts, type Post } from '../hooks/usePosts';
 import AiToolBoard, { type ToolView } from '../components/AiToolBoard';
 import RichTextEditor from '../components/RichTextEditor';
 import CommentSection, { Avatar, formatRelative } from '../components/CommentSection';
 import Pagination from '../components/Pagination';
+import LauncherInstallDialog from '../components/LauncherInstallDialog';
 import { sanitizeRichText, isRichTextEmpty, toDisplayHtml } from '../lib/sanitizeRichText';
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────
@@ -507,6 +508,8 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
   const [activeView, setActiveView] = useState<'aitools' | string>('aitools');
   const [view, setView] = useState<BoardView>({ type: 'list' });
   const [toolView, setToolView] = useState<ToolView>({ type: 'list' });
+  // ArtCraft 런처 설치 안내 (AI 툴 리스트에서만 연다)
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const [listPage, setListPage] = useState(1);
 
   const activeTeamId = activeView === 'aitools' ? null : activeView;
@@ -632,6 +635,17 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
             <span>AI 툴 추가</span>
           </button>
         )}
+        {/* 런처 설치 — 등록 권한과 무관하게 팀원 모두에게 보인다 */}
+        {activeView === 'aitools' && toolView.type === 'list' && (
+          <button
+            onClick={() => setLauncherOpen(true)}
+            title="Craft 앱(PhotoCraft 등)을 설치·업데이트하는 런처"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-black/10 text-gray-600 hover:bg-gray-50 text-[13px] font-semibold transition-colors"
+          >
+            <Download size={14} />
+            <span>런처 설치</span>
+          </button>
+        )}
       </div>
 
       {/* 뷰 렌더 */}
@@ -694,6 +708,8 @@ export default function BoardPage({ appUser, teams, onReadNotice, unreadNoticeCo
           )}
         </>
       )}
+
+      <LauncherInstallDialog open={launcherOpen} onClose={() => setLauncherOpen(false)} />
     </>
   );
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot, runTransaction, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction, deleteField, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { PLAN_DRAFT_COLLECTION, PLAN_HISTORY_MAX, planDraftDocId, versionFromFileName, scopeHasBanner, scopeHasLanding, type PlanDraft, type PlanDraftBanner, type PlanDraftLanding, type PlanDraftKind, type PlanScope, type PlanHistoryEntry } from '../lib/planDraft';
+import type { PromoPrevCase } from '../lib/planTools/promoParse';
+import { PLAN_DRAFT_COLLECTION, PLAN_HISTORY_MAX, planDraftDocId, versionFromFileName, promoCaseName, scopeHasBanner, scopeHasLanding, type PlanDraft, type PlanDraftBanner, type PlanDraftLanding, type PlanDraftKind, type PlanScope, type PlanHistoryEntry } from '../lib/planDraft';
 
 // 이미 요청 대기·작성 중이라 새 요청을 받지 않았을 때 던지는 오류
 export class PlanDraftBusyError extends Error {
@@ -82,4 +83,24 @@ export function usePlanDraft(folderName: string | null, kind: PlanDraftKind = 'i
   };
 
   return { draft, loading, requestPlan };
+}
+
+// 결제혜택 '직전 라이브와 동일'(기획팀 통합셋팅기 v13)에 쓸 지난 방송 목록 — 같은 팀이 상세를 저장한 1차 기획서·업데이트 요청.
+// 원본은 브라우저 저장소의 방송 목록을 쓰지만, 업무관리에서는 사람마다 브라우저가 달라 Firestore 저장분으로 만든다.
+// 이 모드를 고를 때만 한 번 읽는다 (읽기 한도 절약). 같은 폴더에 1차·업데이트가 둘 다 있으면 나중에 요청한 쪽을 쓴다.
+export async function loadPrevLiveCases(teamId: string): Promise<PromoPrevCase[]> {
+  const snap = await getDocs(teamId ? query(collection(db, PLAN_DRAFT_COLLECTION), where('teamId', '==', teamId)) : collection(db, PLAN_DRAFT_COLLECTION));
+  const byFolder = new Map<string, PlanDraft>();
+  snap.forEach(d => {
+    const x = d.data() as PlanDraft;
+    if (!x.landing?.raw?.trim()) return;
+    const prev = byFolder.get(x.folderName);
+    if (!prev || (x.requestedAt ?? '') > (prev.requestedAt ?? '')) byFolder.set(x.folderName, x);
+  });
+  return [...byFolder.values()].map(x => ({
+    id: x.folderName,
+    name: promoCaseName(x.taskTitle),
+    updatedAt: x.requestedAt,
+    promoVersions: [{ rawText: x.landing!.raw, opts: x.landing!.structured?.opts ?? {}, paymentFullText: x.landing!.structured?.paymentFullText ?? '', savedAt: x.requestedAt }],
+  }));
 }

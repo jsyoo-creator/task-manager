@@ -1,15 +1,16 @@
 // @ts-nocheck
 /* =============================================================================
  * 라이브 판촉 원문 → 워싱본(상세페이지 미리보기) 로직
- * 원본: Live_판촉_업데이트기_v38.html (Planning Update 폴더, 문서: Live_판촉_업데이트기_v38_MD.md)
- *       — 2026-10-21 v21 이식, 2026-10-26 v38로 다시 이식
- * 원본 툴과 다시 맞출 수 있도록 원본 스크립트를 거의 그대로 두었다 (함수 이름·본문·var 스타일 유지).
+ * 원본: Live_통합셋팅기_v13.html (Planning Update 폴더, 문서: Live_통합셋팅기_v13_MD.md)
+ *       — 2026-10-21 판촉 업데이트기 v21 이식, 2026-10-26 v38, 2026-10-28 통합셋팅기 v13(= 판촉 v40 + 배너 v18)으로 다시 이식
+ * 원본 툴과 다시 맞출 수 있도록 원본 스크립트를 통째로 두었다 (함수 이름·본문·var 스타일 유지, 화면용 함수도 남아 있지만 부르지 않는다).
  * 바꾼 것:
  *  - 맨 위 '원본 화면 대신 쓰는 층' — 원본은 화면의 방송명 칸(case_name)과 localStorage를 읽는다. 여기서는
- *    __PV_CTX.caseName(업무명)을 넣어 주고, 저장소는 비어 있는 것으로 둔다(직전 라이브 이어받기는 쓰지 않음 →
- *    결제혜택은 판촉 원문 + 월별 결제혜택 시트(opts.paySheet)로 만든다).
- *  - 원본 맨 아래의 이벤트 등록(document.addEventListener)·init() 실행은 뺐다.
- *  - renderParseSummary → summarizeParse (화면 대신 칩 배열을 돌려줌)
+ *    __PV_CTX.caseName(업무명)을 넣어 주고, 저장소는 비어 있는 것으로 둔다(직전 라이브 이어받기·'직전 라이브와 동일'은 쓰지 않음 →
+ *    결제혜택은 판촉 원문 + 월별 결제혜택 시트(opts.paySheet)로 만든다). 원본의 이벤트 등록은 가짜 document라 아무 일도 안 한다.
+ *  - 원본 init()·setStepUi()·onCaseShown() 실행은 뺐다.
+ *  - renderParseSummary + payChipsHtml → summarizeParse (화면 대신 칩 배열을 돌려줌)
+ *  - 한정 혜택 윗줄 기본값(LIVE_DEF_LABEL)은 원본처럼 opts.kv 메인 카피 → 업무명 순으로 매번 다시 정한다(__withPv).
  * 파일 맨 아래의 export만 화면에서 쓴다.
  * ========================================================================== */
 
@@ -22,8 +23,17 @@ var document = {
   querySelector: function(){ return null; }, querySelectorAll: function(){ return []; },
   addEventListener: function(){}, body: { classList: { add: function(){}, remove: function(){}, contains: function(){ return false; } } }
 };
-function __withCase(caseName, fn){ var prev = __PV_CTX.caseName; __PV_CTX.caseName = caseName || ""; try { return fn(); } finally { __PV_CTX.caseName = prev; } }
-/* ---- 여기부터 원본 v38 스크립트 ---- */
+/* 업무명·방송 옵션을 원본이 읽는 자리에 넣고 fn 실행 (원본 collectFormValues가 하던 LIVE_DEF_LABEL·직접 수정 문구 준비 포함) */
+function __withPv(pv, fn){
+  var prev = __PV_CTX.caseName, prevLabel = LIVE_DEF_LABEL, prevTxt = _TXT;
+  __PV_CTX.caseName = (pv && pv.caseName) || "";
+  try {
+    LIVE_DEF_LABEL = liveDefaultLabel(__PV_CTX.caseName, (jparse(pv && pv.opts && pv.opts.kv, {}) || {}).m);
+    setTxtState(pv);
+    return fn();
+  } finally { __PV_CTX.caseName = prev; LIVE_DEF_LABEL = prevLabel; _TXT = prevTxt; }
+}
+/* ---- 여기부터 원본 통합셋팅기 v13 스크립트 ---- */
 
 
 var STORE_KEY = {
@@ -238,7 +248,6 @@ function resolveNotice(sec, c) {
 }
 
 var PayWash = function() {
- "use strict";
  var WD = [ "일", "월", "화", "수", "목", "금", "토" ];
  var ICON_RULES = [ [ /캐시백/, "C" ], [ /포인트|적립/, "P" ], [ /할부/, "/" ], [ /할인/, "%" ] ];
  function iconFor(label, fallback) {
@@ -298,6 +307,59 @@ var PayWash = function() {
  }
  function inRange(b, r) {
   return key(b) >= key(r.s) && key(b) <= key(r.e);
+ }
+ /* v08: 카카오페이 하위 혜택(1) 페이머니/전체 카드, 2) 비씨카드)을 각각의 기간으로 판정 */
+ function kakaoParse(body, b) {
+  var parts = [], cur = null;
+  body.split("\n").forEach(function(ln) {
+   var m = ln.match(/^\s*(\d)\)\s*(.*)$/);
+   if (m) {
+    cur = { head: m[2].trim(), lines: [] };
+    parts.push(cur);
+   } else if (cur) cur.lines.push(ln);
+  });
+  if (!parts.length) return null;
+  /* v11: 하위 혜택에 기간이 없으면 섹션 공통 기간("- 기간: 9/15 ~ 9/30" 등, 1) 앞 줄)을 사용 */
+  var pre = body.split(/^\s*\d\)\s*/m)[0], rgCommon = findRange(pre, b.y);
+  var out = { notes: [], d: null, any: false };
+  var d = { all: null, bc: null, min: null, maxAll: null, maxBc: null, rAll: null, rBc: null, first: /선착순/.test(body), daily: /매일\s*0?0\s*시\s*선착순/.test(body) };
+  var tail = (body.match(/※[^\n]+/) || [])[0] || "";
+  parts.forEach(function(p) {
+   var t = p.head + "\n" + p.lines.join("\n");
+   var isBc = /비씨|BC/i.test(p.head) || !/페이머니|전체\s*카드/.test(p.head) && /비씨\s*카드/.test(t);
+   var nm = isBc ? "비씨카드" : "페이머니/전체 카드";
+   var rt = /(\d+(?:\.\d+)?)\s*%/.exec(t), mn = /(\d[\d,]*)\s*만\s*원\s*이상/.exec(t), mx = /최대\s*(\d[\d,]*)\s*만\s*원/.exec(t), rg = findRange(t, b.y) || rgCommon;
+   if (!rt) {
+    out.notes.push({ k: "warn", m: nm + " 혜택의 할인율을 읽지 못함" });
+    return;
+   }
+   if (rg && !inRange(b, rg)) {
+    out.notes.push({ k: "skip", m: nm + " " + rt[1] + "% → 기간(" + fmt(rg.s, 1) + " ~ " + fmt(rg.e, 1) + ") 밖이라 제외" });
+    return;
+   }
+   out.any = true;
+   if (isBc) { d.bc = rt[1]; d.maxBc = mx ? num(mx[1]) : null; d.rBc = rg; } else { d.all = rt[1]; d.maxAll = mx ? num(mx[1]) : null; d.rAll = rg; }
+   if (mn && !d.min) d.min = num(mn[1]);
+   out.notes.push({ k: "ok", m: nm + " " + rt[1] + "% 포함" + (rg ? " (기간 " + fmt(rg.s, 1) + " ~ " + fmt(rg.e, 1) + ")" : "") });
+  });
+  if (!out.any) return out;
+  var rs = [ d.rAll, d.rBc ].filter(Boolean);
+  d.range = rs.length ? { s: rs.reduce(function(a, r) { return key(r.s) < key(a) ? r.s : a; }, rs[0].s), e: rs.reduce(function(a, r) { return key(r.e) > key(a) ? r.e : a; }, rs[0].e) } : null;
+  d.max = Math.max(d.maxAll || 0, d.maxBc || 0) || null;
+  d.label = d.first ? "선착순 할인" : "즉시 할인";
+  var kind = d.first ? "선착순" : "즉시";
+  function rgt(r) { return r ? fmt(r.s, 1) + " ~ " + fmt(r.e, 1) : ""; }
+  var per = d.rAll && d.rBc && rgt(d.rAll) !== rgt(d.rBc) ? "페이머니/전체 카드 " + rgt(d.rAll) + ", 비씨카드 " + rgt(d.rBc) : rgt(d.range);
+  var lim = "실명 인증 기준 1인당 기간 내 최대 1회" + (d.daily ? ", 매일 00시 선착순" : "");
+  var mxt = function(v) { return v ? "(최대 " + v + "만원)" : ""; };
+  var ben;
+  if (d.all && d.bc) ben = "카카오페이로 " + d.min + "만원 이상 결제 시 페이머니/전체 카드 " + d.all + "%" + mxt(d.maxAll) + ", 카카오페이에 등록된 비씨카드는 " + d.bc + "%" + mxt(d.maxBc) + " " + kind + " 할인이 적용됩니다. (" + lim + ")";
+  else if (d.bc) ben = "카카오페이에 등록된 비씨카드로 " + d.min + "만원 이상 결제 시 " + d.bc + "% " + kind + " 할인이 적용됩니다. (" + (d.maxBc ? "최대 " + d.maxBc + "만원, " : "") + lim + ")";
+  else ben = "카카오페이로 " + d.min + "만원 이상 결제 시 페이머니/전체 카드 " + d.all + "% " + kind + " 할인이 적용됩니다. (" + (d.maxAll ? "최대 " + d.maxAll + "만원, " : "") + lim + ")";
+  if (!per) out.notes.push({ k: "warn", m: "카카오페이 프로모션 기간을 원문에서 찾지 못해 유의사항에 기간을 넣지 못했습니다 — 원문 확인 후 직접 입력" });
+  d.items = [ "프로모션 기간" + (per ? " (" + per + ")" : "") + " 중 " + d.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다.", ben, tail ? tail.replace(/\s+/g, " ").trim() : "※ 선착순 적용여부 및 할인이 적용된 실 결제 금액은 카카오페이 결제창 하단 결제금액을 통해 확인" ];
+  out.d = d;
+  return out;
  }
  function splitSections(text) {
   var secs = [], cur = null;
@@ -500,7 +562,8 @@ var PayWash = function() {
     if (!D.promos.length) delete D.promos;
     return;
    }
-   var rg = kind === "table" ? null : findRange(body, b.y);
+   var KK = kind === "kakao" ? kakaoParse(body, b) : null;
+   var rg = kind === "table" || KK ? null : findRange(body, b.y);
    if (rg && !inRange(b, rg)) {
     S("skip", label + " → 기간(" + fmt(rg.s, 1) + " ~ " + fmt(rg.e, 1) + ")에 방송일 " + bs + "이 속하지 않아 제외");
     return;
@@ -567,6 +630,12 @@ var PayWash = function() {
      delete D.naver;
      return;
     }
+   } else if (kind === "kakao" && KK) {
+    KK.notes.forEach(function(n) { S(n.k, label + " → " + n.m); });
+    if (!KK.any) { S("skip", label + " → 방송일에 진행 중인 카카오페이 혜택이 없어 제외"); return; }
+    if (!KK.d.min) { S("warn", label + " → 조건금액을 읽지 못함"); return; }
+    D.kakao = KK.d;
+    S("warn", "카카오페이 유의사항 문구는 캡처 기반 추정입니다. 원출처와 대조해 주세요.");
    } else if (kind === "kakao") {
     var km = /(\d[\d,]*)만원\s*이상/.exec(body), kx = /최대\s*(\d[\d,]*)만원/.exec(body);
     var kbc = /비씨\s*카드?[^\d%\n]*(\d+(?:\.\d+)?)\s*%/.exec(body), kall = /(?:페이머니|전체\s*카드)[^\d%\n]*(\d+(?:\.\d+)?)\s*%/.exec(body);
@@ -680,6 +749,7 @@ var PayWash = function() {
      u: "%"
     } ];
    }
+   if (kk.label) lb = kk.label;
    R.push({
     icon: "%",
     t: "카카오페이로 " + kk.min + "만원 이상 결제 시 " + lb,
@@ -763,7 +833,7 @@ var PayWash = function() {
   });
   if (D.naver) {
    var nv = D.naver, it7 = [];
-   it7.push("프로모션 기간 (" + (nv.range ? fmt(nv.range.s, 1) + " ~ " + fmt(nv.range.e, 1) : "") + ") 중 " + nv.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다.", "이벤트 기간 결제한 후 결제 취소 시 재결제 건이 이벤트 조건에 부합하면 적립 대상에 포함됩니다.(단, 예산 소진 시 제외)", "네이버페이로 " + nv.min + "만원 이상 결제 시 네이버페이 포인트 " + nv.rate + "% 적립됩니다." + (nv.max ? " (최대 " + nv.max + "만원, 실명 인증 기준 1인당 기간 내 1회)" : ""));
+   it7.push("프로모션 기간" + (nv.range ? " (" + fmt(nv.range.s, 1) + " ~ " + fmt(nv.range.e, 1) + ")" : "") + " 중 " + nv.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다.", "이벤트 기간 결제한 후 결제 취소 시 재결제 건이 이벤트 조건에 부합하면 적립 대상에 포함됩니다.(단, 예산 소진 시 제외)", "네이버페이로 " + nv.min + "만원 이상 결제 시 네이버페이 포인트 " + nv.rate + "% 적립됩니다." + (nv.max ? " (최대 " + nv.max + "만원, 실명 인증 기준 1인당 기간 내 1회)" : ""));
    if (nv.pay && nv.confirm) it7.push("네이버페이 결제 시 " + fmt(nv.pay) + " 결제하신 간편결제 ID로 지급됩니다. (단, " + fmt(nv.confirm) + "까지 배송 완료된 건에 한함)"); else S("warn", "네이버페이 지급일/배송완료 기준일을 읽지 못해 해당 문구를 생략했습니다.");
    it7.push("결제 시 네이버페이 자체적으로 제공하는 카드사별 결제일 할인 및 무이자 할부 혜택을 받으실 수 있으며, LGE.COM의 신용카드사별 혜택(결제일 할인, 무이자 할부, 캐시백 등)은 적용되지 않습니다.", "본 이벤트는 예산 소진 시, 프로모션 게시 여부와 상관없이 별도 공지하지 않고 조기 종료될 수 있습니다.");
    N.push({
@@ -771,7 +841,10 @@ var PayWash = function() {
     items: it7
    });
   }
-  if (D.kakao) {
+  if (D.kakao && D.kakao.items) N.push({
+   title: "카카오페이 간편결제 유의사항",
+   items: D.kakao.items
+  }); else if (D.kakao) {
    var k = D.kakao;
    N.push({
     title: "카카오페이 간편결제 유의사항",
@@ -1332,15 +1405,16 @@ function payWashInfo(pv) {
   warn: ""
  };
  try {
-  var src = paySheetFrom(pv);
+  var src = paySheetByMode(pv);
   if (src) {
    info.has = true;
    info.src = src.src;
-   info.ds = broadcastDateStr(pv);
+   info.ds = src.ds || broadcastDateStr(pv);
+   info.dsLabel = src.dsLabel || "방송일";
    info.inherited = !!src.inherited;
    info.from = src.from || "";
    info.edited = !!src.edited;
-   if (!info.ds) info.warn = '방송일을 읽지 못해 결제혜택을 워싱하지 못했습니다. 방송명에 "10/27"처럼 날짜를 쓰거나, 방송 옵션의 "방송일" 칸에 입력해 주세요.'; else {
+   if (!info.ds) info.warn = '방송일을 읽지 못해 결제혜택을 워싱하지 못했습니다. 방송명 앞에 "10/27"처럼 날짜를 넣어 주세요(⋯ 더보기 → 방송명 수정).'; else {
     var r = PayWash.wash(src.text, info.ds);
     if (r && r.ok) {
      info.res = r;
@@ -1701,7 +1775,7 @@ function renderPaymentBenefitBox(paymentFullText, pvArg) {
  var pm = _W ? payModelFromWash(_W) : payModel(paymentFullText), heroes = pm.heroes, rows = pm.rows;
  var html = '<div class="mockSec mockSec13" id="secPay"><div class="mockPayDark dimmable" data-key="pay"><div class="mockPayDarkTitle">LGE.COM 결제 혜택</div>';
  heroes.forEach(function(h, idx) {
-  html += '<div class="mockPayHero2' + (idx === 0 ? " first" : "") + '"><div class="mockPayHero2Badge">' + (h.badgeNum ? '<div class="mockPayHero2BadgeNum">' + (h.badgePre ? '<span class="mockPayHero2BadgePre">' + escapeHtml(h.badgePre) + " </span>" : "") + escapeHtml(h.badgeNum) + '<span class="mockPayHero2BadgeUnit">' + escapeHtml(h.badgeUnit) + "</span></div>" : "") + '<div class="mockPayHero2BadgeLabel">' + escapeHtml(h.badgeLabel) + "</div></div>" + '<div class="mockPayHero2Body"><div><div class="mockPayHero2Title">' + escapeHtml(h.title) + "</div>" + '<div class="mockPayHero2Desc">' + escapeHtml(h.descLines ? h.descLines.join("\n") : h.desc) + "</div></div>" + '<div class="mockPayHero2More">자세히 보기</div></div></div>';
+  html += '<div class="mockPayHero2' + (idx === 0 ? " first" : "") + '"><div class="mockPayHero2Badge">' + (h.badgeNum ? '<div class="mockPayHero2BadgeNum">' + (h.badgePre ? '<span class="mockPayHero2BadgePre">' + escapeHtml(h.badgePre) + " </span>" : "") + escapeHtml(h.badgeNum) + '<span class="mockPayHero2BadgeUnit">' + escapeHtml(h.badgeUnit) + "</span></div>" : "") + '<div class="mockPayHero2BadgeLabel">' + EH(h.badgeLabel) + "</div></div>" + '<div class="mockPayHero2Body"><div><div class="mockPayHero2Title">' + EH(h.title) + "</div>" + '<div class="mockPayHero2Desc">' + (h.descLines ? h.descLines : [ h.desc ]).map(EH).join("\n") + "</div></div>" + '<div class="mockPayHero2More">자세히 보기</div></div></div>';
  });
  if (rows.length) {
   html += '<div class="mockPayRows">';
@@ -1715,7 +1789,13 @@ function renderPaymentBenefitBox(paymentFullText, pvArg) {
    } else if (r.value) {
     valueHtml = sv ? '<div class="mockPayRow2Value">' + (sv.pre ? escapeHtml(sv.pre) + " " : "") + '<span class="mockPayNum">' + escapeHtml(sv.num) + '</span><span class="mockPayNumUnit">' + escapeHtml(sv.unit) + "</span>" + escapeHtml(sv.rest) + "</div>" : '<div class="mockPayRow2Value">' + escapeHtml(r.value) + "</div>";
    }
-   html += '<div class="mockPayRow2"><div class="mockPayIcon2">' + escapeHtml(r.icon) + "</div>" + '<div class="mockPayRow2Body"><div class="mockPayRow2Label">' + escapeHtml(r.label) + "</div>" + valueHtml + "" + "</div></div>";
+   var _plain = r.seg ? r.seg.map(function(g) {
+    return g.t + g.n + g.u;
+   }).join("") : r.value || "";
+   if (_plain) {
+    if (ED(_plain) !== _plain) valueHtml = '<div class="mockPayRow2Value txtEdit" contenteditable="true" spellcheck="false" data-et="' + _attr(_plain) + '">' + escapeHtml(ED(_plain)) + "</div>"; else valueHtml = valueHtml.replace('<div class="mockPayRow2Value">', '<div class="mockPayRow2Value txtEdit" contenteditable="true" spellcheck="false" data-et="' + _attr(_plain) + '">');
+   }
+   html += '<div class="mockPayRow2"><div class="mockPayIcon2">' + escapeHtml(r.icon) + "</div>" + '<div class="mockPayRow2Body"><div class="mockPayRow2Label">' + EH(r.label) + "</div>" + valueHtml + "" + "</div></div>";
   });
   html += "</div>";
  }
@@ -1923,7 +2003,7 @@ function parseRawToStructured(rawOriginal, obsBank) {
  var raw = stripExcelWrapQuotes(rawOriginal.replace(/\t/g, " ").replace(/ {2,}/g, " "));
  var idx1 = findIdx(raw, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?알림\s*신청/m);
  var idx2 = findIdx(raw, /^[ \t]*(?:(?:[0-9]+[.\)]\s*)?라이브\s*한정|[\[［]\s*라이브\s*[\]］])/m);
- var idx3 = findIdx(raw, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?(?:OBS|기획전)/im);
+ var idx3 = findIdx(raw, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?(?:OBS|기획전|(?![^\n]*(?:구매|증정|쿠폰|할인|%|지급|추첨|https?:))[^\n\t]{1,25}?기획전[^\n\t]{0,15}[ \t]*$)/im);
  var idx4 = findIdx(raw, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?LGE\s*(?:닷컴|전자|\.COM)/im);
  var points = [ idx1, idx2, idx3, idx4 ].filter(function(x) {
   return x >= 0;
@@ -1944,7 +2024,15 @@ function parseRawToStructured(rawOriginal, obsBank) {
  };
  var mCount = s1.match(/[\(（]?\s*([0-9,]+)\s*명\s*[\)）]?(?:\s*추첨)?/);
  if (mCount) {
-  notify.gift = s1.slice(0, mCount.index).replace(/^[^\n]*\n/, "").replace(/^[ \t]*[-•]\s*/, "").replace(/\s*증정\s*$/, "").trim();
+  var _gl = s1.slice(0, mCount.index).split("\n");
+  if (_gl.length > 1) _gl.shift(); else _gl[0] = _gl[0].replace(/^\s*[0-9]+[.)]\s*알림\s*신청[^\-–—·•ㆍ\n]*?(?:판촉|이벤트)?\s*(?=[\-–—·•ㆍ])/, "");
+  _gl = _gl.map(function(l) {
+   return l.replace(/^[\s\-–—·•ㆍ*※▶▷]+/, "").trim();
+  }).filter(Boolean);
+  var _gc = _gl.filter(function(l) {
+   return !/알림\s*신청|까지/.test(l);
+  }), _gp = _gc.length ? _gc : _gl;
+  notify.gift = (_gp[_gp.length - 1] || "").replace(/\s*증정\s*$/, "").trim();
   notify.count = mCount[1].trim() + "명";
  }
  var liveItems = [];
@@ -2007,6 +2095,7 @@ function parseRawToStructured(rawOriginal, obsBank) {
    });
   }
  });
+ liveItems = splitComboCoupons(liveItems);
  liveItems.sort(function(a, b) {
   var aLast = /GS25/i.test(a.benefit) ? 1 : 0;
   var bLast = /GS25/i.test(b.benefit) ? 1 : 0;
@@ -2020,10 +2109,11 @@ function parseRawToStructured(rawOriginal, obsBank) {
  var inlineTitles = {};
  var categoryByUrl = {};
  var rawTabPreserved = rawOriginal.replace(/\r\n?/g, "\n");
- var idx3Tab = findIdx(rawTabPreserved, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?(?:OBS|기획전)/im);
+ var idx3Tab = findIdx(rawTabPreserved, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?(?:OBS|기획전|(?![^\n]*(?:구매|증정|쿠폰|할인|%|지급|추첨|https?:))[^\n\t]{1,25}?기획전[^\n\t]{0,15}[ \t]*$)/im);
  var idx4Tab = findIdx(rawTabPreserved, /^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?LGE\s*(?:닷컴|전자|\.COM)/im);
  var s3Tab = idx3Tab >= 0 ? rawTabPreserved.slice(idx3Tab, idx4Tab >= 0 && idx4Tab > idx3Tab ? idx4Tab : rawTabPreserved.length) : "";
- s3Tab = s3Tab.replace(/^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?(?:OBS|기획전)[^\n\t]*/i, "");
+ var obsHeadTitle = obsHeadName(s3Tab);
+ s3Tab = s3Tab.replace(/^[^\n\t]*/, "");
  function stripBracketAreas(t) {
   return String(t || "").replace(/[\[［][^\]］]*[\]］](?!\s*\()/g, " ").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
  }
@@ -2109,6 +2199,7 @@ function parseRawToStructured(rawOriginal, obsBank) {
     }).filter(Boolean);
     mainTitle = tLines[0] || "";
     subTitle = tLines[1] || "";
+    if (!mainTitle && i === 0 && obsHeadTitle) mainTitle = obsHeadTitle;
    }
    obsCards.push([ code, stripBracketAreas(mainTitle), stripBracketAreas(subTitle), url ]);
   }
@@ -2235,8 +2326,8 @@ var HID_PROD_RE = /김치냉장고|냉장고|세탁기|건조기|에어컨|식�
 function hidAutoMains() {
  var name = (document.getElementById("case_name") || {}).value || "";
  var ev = eventFromCaseName(name);
- if (ev) return [ ev + " 특집" ];
- var p = name.replace(/[0-9]{1,2}\s*[\/\.\-]\s*[0-9]{1,2}(?![0-9\/\.])/, "").replace(/[\(\[]?\s*재방송\s*[\)\]]?/g, " ").replace(/남다르게|라이브/g, " ");
+ if (ev) return [ unifyProdSep(ev) + " 특집" ];
+ var p = stripCaseParens(name).replace(/[0-9]{1,2}\s*[\/\.\-]\s*[0-9]{1,2}(?![0-9\/\.])/, "").replace(/[\(\[]?\s*재방송\s*[\)\]]?/g, " ").replace(/남다르게|라이브/g, " ");
  p = p.replace(HID_NOISE_RE, " ").replace(/\s+/g, " ").trim();
  var found = [], m, first = -1;
  HID_PROD_RE.lastIndex = 0;
@@ -2250,6 +2341,7 @@ function hidAutoMains() {
    return (prefix ? prefix + " " : "") + x + " 특집";
   });
  }
+ p = unifyProdSep(p);
  return p ? [ p + " 라이브" ] : [];
 }
 
@@ -2286,7 +2378,17 @@ function defaultOpts(name) {
   hidUrl: "",
   hidTotal: false,
   hidUrl2: "",
-  payInh: true
+  payInh: true,
+  txtEdit: "",
+  kv: "",
+  addLive: "",
+  addObs: "",
+  liveIcon: "",
+  bn: "",
+  hide: "",
+  payMode: "",
+  payDate: "",
+  order: ""
  };
 }
 
@@ -2315,7 +2417,17 @@ function collectOpts() {
   hidUrl2: gv("opt_hidurl2"),
   payInh: (document.getElementById("chk_payinh") || {
    checked: true
-  }).checked
+  }).checked,
+  txtEdit: gv("opt_txtedit"),
+  kv: gv("opt_kv"),
+  addLive: gv("opt_addlive"),
+  addObs: gv("opt_addobs"),
+  liveIcon: gv("opt_liveicon"),
+  bn: gv("opt_bn"),
+  hide: gv("opt_hide"),
+  payMode: gv("opt_paymode"),
+  payDate: gv("opt_paydate"),
+  order: gv("opt_order")
  };
 }
 
@@ -2336,6 +2448,10 @@ function setOptsUi(opts) {
  if (_bd) _bd.value = o.bdate || "";
  var _oe = document.getElementById("opt_obsedit");
  if (_oe) _oe.value = o.obsEdit || "";
+ [ "txtedit:txtEdit", "kv:kv", "addlive:addLive", "addobs:addObs", "liveicon:liveIcon", "bn:bn", "hide:hide", "paymode:payMode", "paydate:payDate", "order:order" ].forEach(function(x) {
+  var q = x.split(":"), e = document.getElementById("opt_" + q[0]);
+  if (e) e.value = o[q[1]] || "";
+ });
  var _hs = document.getElementById("opt_hid");
  if (_hs) _hs.value = {
   it: 1,
@@ -2428,6 +2544,20 @@ function obsShowCards(pv) {
   return c;
  });
  var o2 = pv.opts || {};
+ var _ad = jparse(o2.addObs, []) || [], _fi = -1;
+ out.forEach(function(r, ix) {
+  if (r[4] === "fixed") _fi = ix;
+ });
+ var _rows = _ad.map(function(a, j) {
+  var k = "add:" + j, e = ed[k] || {}, c = [ "", e.m !== undefined ? e.m : "", e.s !== undefined ? e.s : "", a && a.u || "", "added" ];
+  c._o = [ "", "" ];
+  c._k = k;
+  c._ai = j;
+  return c;
+ });
+ if (_rows.length) {
+  if (_fi >= 0) out.splice.apply(out, [ _fi, 0 ].concat(_rows)); else out = out.concat(_rows);
+ }
  if (o2.hidTotal || o2.hid === "total") {
   var te = ed["hid:total"] || {};
   var tc = [ "", te.m !== undefined ? te.m : HID_TOTAL[0], te.s !== undefined ? te.s : HID_TOTAL[1], o2.hidUrl2 || "", "hidden2" ];
@@ -2499,7 +2629,7 @@ function rebroIconSvg() {
 
 function renderRebroSection(pv) {
  var t = rebroTexts(pv);
- return '<div class="mockSec mockSecRebro" id="secRebro"><div class="mockRebroCard dimmable" data-key="rebro">' + '<div class="mockTitle">' + escapeHtml(t.title).replace("\n", "<br>") + "</div>" + '<div class="mockRebroBox"><div class="mockRebroImg">' + rebroIconSvg() + '</div><div class="mockRebroText">' + '<div class="mockRebroEyebrow">' + escapeHtml(t.eyebrow) + (t.date ? "" : '<span class="missChip reviewOnly">본방송 일자 미입력</span>') + "</div>" + '<div class="mockRebroBig">' + escapeHtml(t.big) + (t.viewersEmpty ? '<span class="missChip reviewOnly">시청자 수 미입력(00.0명)</span>' : "") + "</div>" + "</div></div></div></div>";
+ return '<div class="mockSec mockSecRebro" id="secRebro"><div class="mockRebroCard dimmable" data-key="rebro">' + '<div class="mockTitle">' + t.title.split("\n").map(EH).join("<br>") + "</div>" + '<div class="mockRebroBox"><div class="mockRebroImg">' + rebroIconSvg() + '</div><div class="mockRebroText">' + '<div class="mockRebroEyebrow">' + EH(t.eyebrow) + (t.date ? "" : '<span class="missChip reviewOnly">본방송 일자 미입력</span>') + "</div>" + '<div class="mockRebroBig">' + EH(t.big) + (t.viewersEmpty ? '<span class="missChip reviewOnly">시청자 수 미입력(00.0명)</span>' : "") + "</div>" + "</div></div></div></div>";
 }
 
 function collectFormValues() {
@@ -2509,10 +2639,12 @@ function collectFormValues() {
   if ((o.paySheet || "").trim()) return -1;
   return rawText.search(/^[ \t]*1\.[ \t]*결제일[ \t]*할인/m);
  }();
- var parsed = parseRawToStructured(_cut > 0 ? rawText.slice(0, _cut) : rawText, loadObsBank());
+ var parsed = applyHidden(parseRawToStructured(_cut > 0 ? rawText.slice(0, _cut) : rawText, loadObsBank()), collectOpts());
  var caseNameEl = document.getElementById("case_name");
  parsed.notify.deadline = computeDeadlineFromCaseName(caseNameEl ? caseNameEl.value : "");
  var sourceEl = document.getElementById("pv_source");
+ var _optsNow = collectOpts();
+ LIVE_DEF_LABEL = liveDefaultLabel(caseNameEl ? caseNameEl.value : "", (jparse(_optsNow.kv, {}) || {}).m);
  var _pvOut = {
   notify: parsed.notify,
   liveItems: parsed.liveItems,
@@ -2521,9 +2653,10 @@ function collectFormValues() {
   legalNotes: parsed.legalNotes,
   rawText: rawText,
   sourceChannel: sourceEl ? sourceEl.value : "",
-  opts: collectOpts()
+  opts: _optsNow
  };
  _pvOut.obsShow = obsShowCards(_pvOut);
+ applyCardOrder(_pvOut);
  return _pvOut;
 }
 
@@ -2549,9 +2682,19 @@ function computeChanges(prev, cur) {
  if ((po.cook || "auto") !== (co.cook || "auto") || (po.cookHead || "") !== (co.cookHead || "") || (po.cookRates || "") !== (co.cookRates || "") || (po.cookProds || "") !== (co.cookProds || "")) changes.push("쿠킹 기획전 안내(할인률·제품) 변경");
  if ((po.paySheet || "") !== (co.paySheet || "")) changes.push("결제혜택 수급 원문 변경");
  if ((po.obsEdit || "") !== (co.obsEdit || "")) changes.push("OBS 배너 카피 직접 수정");
+ if ((po.txtEdit || "") !== (co.txtEdit || "")) changes.push("워싱본 문구 직접 수정");
+ if ((po.kv || "") !== (co.kv || "")) changes.push("KV 문구 수정");
+ if ((po.addLive || "") !== (co.addLive || "")) changes.push("한정 혜택 직접 추가/수정");
+ if ((po.addObs || "") !== (co.addObs || "")) changes.push("OBS 배너 직접 추가");
+ if ((po.liveIcon || "") !== (co.liveIcon || "")) changes.push("한정 혜택 아이콘 선택 변경");
  if ((po.bdate || "") !== (co.bdate || "")) changes.push("방송일(결제혜택 기간 판정용) 변경");
  if ((po.hid || "auto") !== (co.hid || "auto") || !!po.hidTotal !== !!co.hidTotal) changes.push("히든 기획전 배너 설정 변경");
+ if ((po.payMode || "") !== (co.payMode || "") || (po.payDate || "") !== (co.payDate || "")) changes.push("결제혜택·유의사항 반영 기준 변경" + (co.payMode === "prev" ? "(직전 라이브와 동일)" : co.payMode === "date" ? "(반영 일자 " + (co.payDate || "-") + ")" : "(판촉안·방송일 기준)"));
+ if ((po.order || "") !== (co.order || "")) changes.push("한정 혜택/OBS 카드 순서 변경");
+ if ((po.hide || "") !== (co.hide || "")) changes.push("한정 혜택/OBS 카드 삭제·되돌리기");
  if (po.payInh !== false !== (co.payInh !== false)) changes.push("결제혜택 직전 라이브 이어받기 " + (co.payInh !== false ? "켬" : "끔"));
+ if (prev && prev.banner && cur.banner) { var _bc = bannerDiffNames(prev.banner, cur.banner); if (_bc.length) changes.push("배너 카피 변경: " + _bc.join(", ")); }
+ if ((po.bn || "") !== (co.bn || "")) changes.push("배너 제품군·할인율/직접 수정 변경");
  return changes;
 }
 
@@ -2565,7 +2708,7 @@ function _isDiscountCoupon(b) {
 
 function couponInfo(pv) {
  var items = (pv.liveItems || []).map(function(it) {
-  return washLive(String(it.benefit || "").replace(/\n/g, " "));
+  return isGs25(it.benefit) ? "" : splitBenefit(it.benefit || "").main;
  }).filter(_isDiscountCoupon);
  var info = {
   has: items.length > 0,
@@ -2653,7 +2796,7 @@ function cookRatesFromRaw(pv) {
  (pv.liveItems || []).forEach(function(it) {
   var sp = splitBenefit(it.benefit), pm = (sp.main || "").match(/([0-9]+(?:\.[0-9]+)?)\s*%/);
   if (!pm) return;
-  var toks = (sp.label || "").split(/[,，、·\/]|\s+/).map(function(t) {
+  var toks = (sp.isDefault ? "" : sp.label || "").split(/[,，、·\/]|\s+/).map(function(t) {
    return t.trim();
   }).filter(function(t) {
    return KITCHEN_TOK.indexOf(t) >= 0;
@@ -2796,7 +2939,7 @@ function liveDisclaimerHtml(pv) {
    inner = escapeHtml(PROD) + '<span class="cookEdit" contenteditable="true" spellcheck="false" data-cook="prods" data-orig="' + _attr(cp.prods) + '">' + escapeHtml(cp.prods) + "</span>";
   } else {
    inner = g.map(function(x, gi) {
-    return gi ? '<span class="capSub">' + escapeHtml(x) + "</span>" : escapeHtml(x);
+    return gi ? '<span class="capSub">' + EH(x) + "</span>" : EH(x);
    }).join("");
   }
   return '<div class="mockCaption mockDisclaimer"><span>' + inner + "</span></div>";
@@ -2833,8 +2976,40 @@ function commitCookEdit(el) {
  }));
 }
 
+document.addEventListener("focusout", function(e) {
+ var t = e.target;
+ if (!(t && t.getAttribute)) return;
+ if (t.getAttribute("data-cook")) commitCookEdit(t);
+ if (t.getAttribute("data-obs")) commitObsEdit(t);
+ if (t.getAttribute("data-et") !== null && t.classList.contains("txtEdit")) commitTxtEdit(t);
+ if (t.getAttribute("data-kv")) commitKv(t);
+ if (t.getAttribute("data-add")) commitAddLive(t);
+});
 
+document.addEventListener("keydown", function(e) {
+ var t = e.target;
+ if (t && t.getAttribute && t.getAttribute("data-cook") && e.key === "Enter" && t.getAttribute("data-cook") !== "rates") {
+  e.preventDefault();
+  t.blur();
+ }
+ if (t && t.getAttribute && t.getAttribute("data-obs") && e.key === "Enter") {
+  e.preventDefault();
+  t.blur();
+ }
+ if (t && t.getAttribute && (t.getAttribute("data-et") !== null || t.getAttribute("data-kv") || t.getAttribute("data-add")) && e.key === "Enter") {
+  e.preventDefault();
+  t.blur();
+ }
+});
 
+document.addEventListener("paste", function(e) {
+ var t = e.target;
+ if (t && t.getAttribute && (t.getAttribute("data-cook") || t.getAttribute("data-obs") || t.getAttribute("data-et") !== null || t.getAttribute("data-kv") || t.getAttribute("data-add"))) {
+  e.preventDefault();
+  var x = (e.clipboardData || window.clipboardData).getData("text");
+  document.execCommand("insertText", false, x);
+ }
+});
 
 function groupCaptionLines(lines) {
  var out = [];
@@ -2844,7 +3019,7 @@ function groupCaptionLines(lines) {
  return out;
 }
 
-var WASH_LIVE_RULES = [ [ /라이브\s*중\s*구매\s*후\s*채팅으로\s*구매\s*인증\s*시/g, "채팅을 통해 구매 인증 시" ], [ /구매인증/g, "구매 인증" ], [ /모바일상품권/g, "모바일 상품권" ], [ /([0-9]+만원)권\s*\(LG혜택\)/g, "$1" ], [ /앱전용\s*(?:할인\s*)?쿠폰/g, "앱전용 할인 쿠폰" ], [ /([^\s])할인쿠폰/g, "$1 할인 쿠폰" ] ];
+var WASH_LIVE_RULES = [ [ /라이브\s*중\s*구매\s*후\s*채팅으로\s*구매\s*인증\s*시/g, "채팅을 통해 구매 인증 시" ], [ /구매인증/g, "구매 인증" ], [ /모바일상품권/g, "모바일 상품권" ], [ /([0-9]+만원)권\s*\(LG혜택\)/g, "$1" ], [ /앱전용\s*(?:할인\s*)?쿠폰/g, "앱전용 할인 쿠폰" ], [ /([^\s])할인\s*쿠폰/g, "$1 할인 쿠폰" ], [ /할인쿠폰/g, "할인 쿠폰" ], [ /방송당일/g, "방송 당일" ], [ /([가-힣]{2,})상품권/g, "$1 상품권" ] ];
 
 function washLive(t) {
  var r = t || "";
@@ -2862,18 +3037,29 @@ function _mdFrom(s) {
 function condSentence(it) {
  var cond = it.condition || "";
  var DT = "([0-9]{1,2}\\s*[월\\/.]\\s*[0-9]{1,2}\\s*일?\\s*(?:\\([월화수목금토일]\\))?)";
- var m1 = cond.match(new RegExp(DT + "\\s*까지\\s*배송\\s*\\/?\\s*설치\\s*완료"));
- var m2 = cond.match(new RegExp(DT + "\\s*까지\\s*(?:순차\\s*)?지급"));
- if (!m1 || !m2) return "";
- var a = _mdFrom(m1[1]), b = _mdFrom(m2[1]);
+ var m1 = cond.match(new RegExp(DT + "\\s*까지\\s*(?:배송|설치)[^0-9\\n]{0,12}?완료"));
+ var m2 = m1 ? cond.slice(m1.index + m1[0].length).match(new RegExp(DT + "\\s*(?:까지|이내|내)?\\s*(?:순차\\s*)?(?:지급|발송|발급|제공|증정|입금)")) : null;
+ var a, b;
+ if (m1 && m2) {
+  a = _mdFrom(m1[1]);
+  b = _mdFrom(m2[1]);
+ } else if (isGs25(it.benefit)) {
+  var _ds = cond.match(new RegExp(DT, "g")) || [];
+  if (_ds.length < 2) return "";
+  a = _mdFrom(_ds[0]);
+  b = _mdFrom(_ds[1]);
+ } else return "";
  if (!a || !b) return "";
  if (!(it.benefit || "").trim()) return "";
  var sp = splitBenefit(it.benefit), label = sp.isDefault ? "" : sp.label, main = sp.main;
  var head = (label ? label + " " : "") + main + (/증정|추첨/.test(main) ? " 혜택은 " : " 증정 혜택은 ");
  if (!/라이브\s*중/.test(head)) head = head.replace(/채팅을\s*통해\s*구매\s*인증\s*시/, "라이브 중 채팅을 통해 구매 인증 시");
  var s = head + a + "까지 배송/설치 완료자 대상으로 " + b + "내 순차 지급 예정입니다.";
- var idm = cond.match(/ID\s*당\s*([0-9]+)\s*([회개])/);
- if (idm) s += " (ID당 " + idm[1] + idm[2] + " 증정)";
+ var idm = (cond + " " + (it.benefit || "") + " " + (it.detailLines || []).join(" ")).match(/ID\s*당\s*([0-9]+)\s*([회개])?/);
+ if (idm) {
+  var _unit = isGs25(it.benefit) ? "개" : idm[2] || "개";
+  s += " (ID당 " + idm[1] + _unit + " 증정)";
+ } else if (isGs25(it.benefit)) s += " (ID당 1개 증정)";
  return s;
 }
 
@@ -2883,16 +3069,19 @@ function computeCondLines(pv) {
  }).map(function(it, i) {
   var sent = condSentence(it);
   if (sent) return i + 1 + ". " + sent;
+  var hs = hsCondSentence(it);
+  if (hs) return i + 1 + ". " + hs;
   return i + 1 + ". " + (it.benefit ? it.benefit.split("\n")[0] + " 관련 지급조건: " : "지급조건: ") + normDates(it.condition);
  });
 }
 
 function buildPromoPreviewText(pv) {
+ setTxtState(pv);
  var lines = [];
  lines.push("알림 신청 판촉 = 방송 알림 신청 이벤트");
  var l1 = [];
  if (pv.notify.deadline) l1.push(pv.notify.deadline + " 알림 신청 시");
- if (pv.notify.gift) l1.push(applyGiftTrademark(pv.notify.gift) + " 증정");
+ if (pv.notify.gift) l1.push(applyGiftTrademark(notifyGiftClean(pv.notify.gift)) + " 증정");
  if (pv.notify.count) l1.push("추첨 " + pv.notify.count);
  lines.push(l1.join(" \n"));
  lines.push("");
@@ -2915,6 +3104,12 @@ function buildPromoPreviewText(pv) {
    lines.push(_sp.label + "\n" + _sp.main);
   }
   lines.push("");
+ });
+ (jparse(pv.opts && pv.opts.addLive, []) || []).forEach(function(x) {
+  if (x && (x.t || x.m)) {
+   lines.push((x.t || "") + "\n" + (x.m || ""));
+   lines.push("");
+  }
  });
  lines.push("[라이브 한정판촉 디스클레이머영역 / 고정이나 텍스트 내용은 변동있음]");
  var disclaimerLines = computeLiveDisclaimerLines(pv);
@@ -2939,6 +3134,9 @@ function buildPromoPreviewText(pv) {
  }
  var _Wc = payWashFor(pv);
  lines.push(_Wc ? _Wc.text : pv.paymentFullText || "-");
+ lines = lines.map(function(l) {
+  return String(l).split("\n").map(EDN).join("\n");
+ });
  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
@@ -3116,7 +3314,7 @@ function splitBenefit(benefit) {
  if (main.length > LIVE_MAIN_MAX) mainOver = true;
  var isDefault = !label;
  return {
-  label: label || "남다르게 라이브",
+  label: label || LIVE_DEF_LABEL,
   main: main,
   isDefault: isDefault,
   dropped: dropped,
@@ -3141,15 +3339,15 @@ function _amtParts(text) {
 function mockBenefitLines(benefit) {
  if (!benefit || !benefit.trim()) return '<span class="mockEmpty">(혜택 미입력)</span>';
  var sp = splitBenefit(benefit);
- return '<div class="mockBenefitLabel">' + escapeHtml(sp.label) + '</div><div class="mockBenefitMain">' + escapeHtml(sp.main) + "</div>";
+ return '<div class="mockBenefitLabel">' + EH(sp.label) + '</div><div class="mockBenefitMain">' + EH(sp.main) + "</div>";
 }
 
 function legalBulletHtml(text) {
  var body = (text || "").replace(/^[0-9]+\.\s*/, "");
  var sub = body.split("\n");
- var html = '<div class="legalBullet">· ' + escapeHtml(sub[0]) + "</div>";
+ var html = '<div class="legalBullet">· ' + EH(sub[0]) + "</div>";
  for (var i = 1; i < sub.length; i++) {
-  html += '<div class="legalBullet" style="padding-left:1.4em;">' + escapeHtml(sub[i]) + "</div>";
+  html += '<div class="legalBullet" style="padding-left:1.4em;">' + EH(sub[i]) + "</div>";
  }
  return html;
 }
@@ -3180,7 +3378,7 @@ function buildMockLegalHtml(pv) {
  if (matchedSections.length) {
   html += '<div class="legalHeading" style="margin-top:14px;">LGE.COM 구매혜택 관련 안내</div>';
   matchedSections.forEach(function(sec, idx) {
-   html += '<div class="legalHeading" style="margin-top:12px;">' + (idx + 1) + ") " + escapeHtml(sec.heading) + "</div>" + '<div class="accSubBody">';
+   html += '<div class="legalHeading" style="margin-top:12px;">' + (idx + 1) + ") " + EH(sec.heading) + "</div>" + '<div class="accSubBody">';
    sec.bullets.forEach(function(l) {
     html += legalBulletHtml(l);
    });
@@ -3267,20 +3465,236 @@ function notifyIconHtml(gift) {
  return giftIconSvg(46);
 }
 
+function jparse(s, fb) {
+ try {
+  var v = JSON.parse(s);
+  return v === null || v === undefined ? fb : v;
+ } catch (e) {
+  return fb;
+ }
+}
+
+var _TXT = {}, LIVE_DEF_LABEL = "000 라이브";
+
+function setTxtState(pv) {
+ _TXT = jparse(pv && pv.opts && pv.opts.txtEdit, {}) || {};
+}
+
+function _hasK(o, k) {
+ return Object.prototype.hasOwnProperty.call(o, k);
+}
+
+function ED(t) {
+ t = String(t == null ? "" : t);
+ return _hasK(_TXT, t) ? _TXT[t] : t;
+}
+
+function EDN(line) {
+ var s = String(line), m = s.match(/^([0-9]+\.\s)([\s\S]*)$/), t = (m ? m[2] : s).trim();
+ if (t && _hasK(_TXT, t)) return (m ? m[1] : "") + _TXT[t];
+ return s;
+}
+
+function EH(t) {
+ t = String(t == null ? "" : t);
+ if (!t) return "";
+ return '<span class="txtEdit" contenteditable="true" spellcheck="false" data-et="' + _attr(t) + '" data-ph="·">' + escapeHtml(ED(t)) + "</span>";
+}
+
+function optGet(id) {
+ var e = document.getElementById(id);
+ return e ? jparse(e.value, null) : null;
+}
+
+function optSet(id, val) {
+ var e = document.getElementById(id);
+ if (!e) return;
+ var empty = val === null || val === undefined || Array.isArray(val) && !val.length || typeof val === "object" && !Array.isArray(val) && !Object.keys(val).length;
+ e.value = empty ? "" : JSON.stringify(val);
+ e.dispatchEvent(new Event("input", {
+  bubbles: true
+ }));
+}
+
+function _cleanEditText(el) {
+ return (el.innerText || "").replace(/\u00a0/g, " ").replace(/\s*\n\s*/g, " ").trim();
+}
+
+function commitTxtEdit(el) {
+ var orig = el.getAttribute("data-et") || "", v = _cleanEditText(el), m = optGet("opt_txtedit") || {};
+ var prev = _hasK(m, orig) ? m[orig] : orig;
+ if (v === prev) return;
+ if (v === orig || v.replace(/\s+/g, "") === orig.replace(/\s+/g, "")) delete m[orig]; else m[orig] = v;
+ optSet("opt_txtedit", m);
+}
+
+function commitKv(el) {
+ var f = el.getAttribute("data-kv"), orig = el.getAttribute("data-orig") || "", v = _cleanEditText(el), ov = optGet("opt_kv") || {};
+ var prev = ov[f] !== undefined ? ov[f] : orig;
+ if (v === prev) return;
+ if (v === orig) delete ov[f]; else ov[f] = v;
+ optSet("opt_kv", ov);
+}
+
+function commitAddLive(el) {
+ var i = Number(el.getAttribute("data-i")), f = el.getAttribute("data-add"), v = _cleanEditText(el), a = optGet("opt_addlive") || [];
+ if (!a[i] || (a[i][f] || "") === v) return;
+ a[i][f] = v;
+ optSet("opt_addlive", a);
+}
+
+function notifyGiftClean(g) {
+ return String(g || "").replace(/^[\s\-–—·•ㆍ*※▶▷]+/, "").trim();
+}
+
+function productTitleOf(base) {
+ return unifyProdSep(stripCaseParens(base).replace(/[0-9]{1,2}\s*[\/\.\-]\s*[0-9]{1,2}(?![0-9\/\.])/, " ").replace(/[\(\[]?\s*재방송\s*[\)\]]?/g, " ").replace(/남다르게|라이브|특집/g, " ").replace(HID_NOISE_RE, " ").replace(/\s+/g, " ").trim());
+}
+
+function liveDefaultLabel(name, kvMain) {
+ var base = kvMain !== undefined && kvMain !== null && String(kvMain).trim() ? kvMain : name;
+ return (productTitleOf(base) || "000") + " 라이브";
+}
+
+function kvInfo(pv) {
+ var name = (document.getElementById("case_name") || {}).value || "", o = pv.opts || {}, ov = jparse(o.kv, {}) || {};
+ var d = parseDateFromCaseName(name), dateAuto = "0. 00 (0) 오후 0시";
+ if (d) {
+  var dw = weekdayOf(d.month, d.day) || "0", h = airInfo(pv).hour;
+  dateAuto = d.month + ". " + d.day + " (" + dw + ") " + (h < 12 ? "오전" : "오후") + " " + (h % 12 === 0 ? 12 : h % 12) + "시";
+ }
+ var mainAuto = (productTitleOf(name) || "000") + " 라이브";
+ return {
+  dateAuto: dateAuto,
+  mainAuto: mainAuto,
+  d: ov.d !== undefined ? ov.d : dateAuto,
+  m: ov.m !== undefined ? ov.m : mainAuto,
+  s: ov.s !== undefined ? ov.s : ""
+ };
+}
+
+function renderKvSection(pv) {
+ var k = kvInfo(pv);
+ var logo = '<svg class="mockKvLogo" width="102" height="14" viewBox="0 0 102 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><text x="0" y="12" font-size="13" font-weight="800" fill="#000" letter-spacing="-0.3">LGE.COM</text><rect x="68.5" y="0" width="33.5" height="14" rx="7" fill="#EA1917"/><text x="85.25" y="10.4" text-anchor="middle" font-size="8.5" font-weight="800" fill="#fff" letter-spacing="0.5">LIVE</text></svg>';
+ function ce(cls, f, orig, val, ph) {
+  return '<div class="' + cls + ' obsEdit" contenteditable="true" spellcheck="false" data-kv="' + f + '" data-orig="' + _attr(orig) + '" data-ph="' + ph + '">' + escapeHtml(val) + "</div>";
+ }
+ return '<div class="mockSecLabel reviewOnly" style="border-top:0;padding-top:8px;">KV (최상단 · 검수용 라벨) — 점선 영역을 클릭해 날짜·메인카피·서브카피를 수정합니다. 메인카피의 제품명은 한정 혜택 윗줄 기본값("{제품명} 라이브")에 쓰입니다. 화면의 다른 문구도 클릭해서 직접 수정할 수 있습니다(마우스를 올리면 점선 표시).</div>' + '<div class="mockKv dimmable" id="secKv" data-key="kv"><div class="mockKvTop"><div class="mockKvHead">' + logo + ce("mockKvDate", "d", k.dateAuto, k.d, "0. 00 (0) 오후 0시") + '</div><div class="mockKvTitle">' + ce("mockKvMain", "m", k.mainAuto, k.m, "메인 카피 입력") + ce("mockKvSub", "s", "", k.s, "서브 카피 입력 (2줄)") + '</div><div class="mockKvImg reviewOnly">KV 제품 이미지 영역 (이 도구에서는 표시하지 않음)</div></div>' + '<div class="mockKvBtns"><div class="mockKvBtn dark">알림 신청하기</div><div class="mockKvBtn line">일정 추가하기</div></div></div>';
+}
+
+var ICON_TYPES = [ [ "", "자동" ], [ "appcoupon", "앱전용 할인 쿠폰" ], [ "coupon", "할인 쿠폰" ], [ "voucher", "상품권" ], [ "gift", "선물" ] ];
+
+function iconByType(type, amtText, fallbackText) {
+ var ap = _amtParts(amtText || fallbackText || "");
+ if (type === "appcoupon") return ticketIconSvg(true, "앱전용 할인 쿠폰", ap.num, ap.pre);
+ if (type === "coupon") return ticketIconSvg(true, "할인 쿠폰", ap.num, ap.pre);
+ if (type === "voucher") return ticketIconSvg(false, "상품권", ap.num, ap.pre);
+ return giftIconSvg(48);
+}
+
+function iconCtlHtml(onType, onAmt, cur, amt, ph, extra) {
+ var opts = ICON_TYPES.map(function(t) {
+  return '<option value="' + t[0] + '"' + (cur === t[0] ? " selected" : "") + ">" + t[1] + "</option>";
+ }).join("");
+ return '<div class="addCtl reviewOnly">아이콘 <select onchange="' + onType + '">' + opts + '</select> 금액·할인율 <input type="text" size="10" value="' + _attr(amt || "") + '" placeholder="' + ph + '" onchange="' + onAmt + '">' + (extra || "") + "</div>";
+}
+
+function setLiveIcon(i, f, v) {
+ var m = optGet("opt_liveicon") || {}, c = m[i] || {};
+ c[f] = v;
+ if (!c.t && !c.a) delete m[i]; else m[i] = c;
+ optSet("opt_liveicon", m);
+}
+
+function addLiveItem() {
+ var a = optGet("opt_addlive") || [];
+ a.push({
+  ic: "appcoupon",
+  t: LIVE_DEF_LABEL,
+  m: "",
+  a: ""
+ });
+ optSet("opt_addlive", a);
+}
+
+function setAddLive(i, f, v) {
+ var a = optGet("opt_addlive") || [];
+ if (!a[i]) return;
+ a[i][f] = v;
+ optSet("opt_addlive", a);
+}
+
+function delAddLive(i) {
+ var a = optGet("opt_addlive") || [];
+ a.splice(i, 1);
+ optSet("opt_addlive", a);
+}
+
+function addObsItem() {
+ var a = optGet("opt_addobs") || [];
+ a.push({
+  u: ""
+ });
+ optSet("opt_addobs", a);
+}
+
+function setAddObsUrl(i, v) {
+ var a = optGet("opt_addobs") || [];
+ if (!a[i]) return;
+ a[i].u = v.trim();
+ optSet("opt_addobs", a);
+}
+
+function delAddObs(i) {
+ var a = optGet("opt_addobs") || [], ed = optGet("opt_obsedit") || {}, n = {};
+ a.splice(i, 1);
+ Object.keys(ed).forEach(function(k) {
+  var m = k.match(/^add:([0-9]+)$/);
+  if (!m) {
+   n[k] = ed[k];
+   return;
+  }
+  var j = Number(m[1]);
+  if (j === i) return;
+  n["add:" + (j > i ? j - 1 : j)] = ed[k];
+ });
+ var box = document.getElementById("opt_obsedit");
+ if (box) box.value = Object.keys(n).length ? JSON.stringify(n) : "";
+ optSet("opt_addobs", a);
+}
+
+function addObsCtl(r) {
+ return '<div class="addCtl reviewOnly">직접 추가 배너 · URL <input type="text" class="addUrlIn" value="' + _attr(r[3] || "") + '" placeholder="랜딩 URL (선택)" onchange="setAddObsUrl(' + r._ai + ', this.value)"><button type="button" class="addDel" onclick="delAddObs(' + r._ai + ')">삭제</button></div>';
+}
+
+function addedLiveHtml(pv) {
+ var a = jparse((pv.opts || {}).addLive, []) || [], html = "";
+ a.forEach(function(x, i) {
+  x = x || {};
+  html += '<div class="mockAddWrap" data-ok="a:' + i + '"><div class="mockBenefitRow dimmable" data-key="live:a' + i + '"><div class="mockImg small sv">' + iconByType(x.ic, x.a, x.m) + "</div><div>" + '<div class="mockBenefitLabel obsEdit" contenteditable="true" spellcheck="false" data-add="t" data-i="' + i + '" data-ph="윗줄 입력">' + escapeHtml(x.t || "") + "</div>" + '<div class="mockBenefitMain obsEdit" contenteditable="true" spellcheck="false" data-add="m" data-i="' + i + '" data-ph="아랫줄 입력">' + escapeHtml(x.m || "") + "</div>" + "</div></div>" + iconCtlHtml("setAddLive(" + i + ",'ic',this.value)", "setAddLive(" + i + ",'a',this.value)", x.ic || "appcoupon", x.a, "예: 10% · 1만원", '<button type="button" class="addDel" onclick="delAddLive(' + i + ')">삭제</button> <span>· 직접 추가 혜택</span>') + "</div>";
+ });
+ return html;
+}
+
 function renderMockPage(pv) {
+ setTxtState(pv);
  var html = '<div class="mockPage">';
- html += '<div class="mockSec mockSec03" id="secNotify"><div class="mockEventCard dimmable" data-key="notify">' + '<div class="mockTitle">방송 알림 신청 이벤트</div>' + '<div class="mockEventContent">' + '<div class="mockHero"><div class="mockImg sv">' + notifyIconHtml(pv.notify.gift) + '</div><div class="mockHeroText">' + "<div>" + escapeHtml(pv.notify.deadline || "(마감일시 미입력)") + " 알림 신청 시</div>" + '<div class="mockHeroGift">' + escapeHtml(applyGiftTrademark(pv.notify.gift) || "(사은품 미입력)") + " 증정</div>" + "<div>추첨 " + escapeHtml(pv.notify.count || "-") + "</div>" + "</div></div>" + '<div class="mockCaptionList"><div class="mockCaption mockDisclaimer">알림 신청 시 추첨 대상에 자동 응모되며, 회원 정보에 등록된 휴대폰 번호로 방송 알림을 위한 문자가 발송됩니다</div></div>' + "</div></div></div>";
+ html += renderKvSection(pv);
+ html += '<div class="mockSec mockSec03" id="secNotify"><div class="mockEventCard dimmable" data-key="notify">' + '<div class="mockTitle">방송 알림 신청 이벤트</div>' + '<div class="mockEventContent">' + '<div class="mockHero"><div class="mockImg sv">' + notifyIconHtml(pv.notify.gift) + '</div><div class="mockHeroText">' + "<div>" + EH((pv.notify.deadline || "(마감일시 미입력)") + " 알림 신청 시") + "</div>" + '<div class="mockHeroGift">' + EH((applyGiftTrademark(notifyGiftClean(pv.notify.gift)) || "(사은품 미입력)") + " 증정") + "</div>" + "<div>" + EH("추첨 " + (pv.notify.count || "-")) + "</div>" + "</div></div>" + '<div class="mockCaptionList"><div class="mockCaption mockDisclaimer"><span>' + EH("알림 신청 시 추첨 대상에 자동 응모되며, 회원 정보에 등록된 휴대폰 번호로 방송 알림을 위한 문자가 발송됩니다") + "</span></div></div>" + "</div></div></div>";
  if (pv.opts && pv.opts.rebro) html += renderRebroSection(pv);
  html += '<div class="mockSec mockSec04" id="secLive"><div class="mockTitle">라이브에서 준비한 한정 혜택</div>';
  html += '<div class="mockBenefitList">';
  if (pv.liveItems && pv.liveItems.length) {
+  var _li = jparse(pv.opts && pv.opts.liveIcon, {}) || {};
   pv.liveItems.forEach(function(it, i) {
-   html += '<div class="mockBenefitRow dimmable" data-key="live:' + i + '"><div class="mockImg small sv">' + benefitIconHtml(it.benefit) + "</div><div>" + mockBenefitLines(it.benefit) + "</div></div>";
+   var ov = _li[i] || {}, ico = ov.t ? iconByType(ov.t, ov.a, splitBenefit(it.benefit).main) : benefitIconHtml(it.benefit);
+   html += '<div class="mockAddWrap" data-ok="' + _attr("p:" + it.benefit) + '"><div class="mockBenefitRow dimmable" data-key="live:' + i + '"><div class="mockImg small sv">' + ico + "</div><div>" + mockBenefitLines(it.benefit) + "</div></div>" + iconCtlHtml("setLiveIcon(" + i + ",'t',this.value)", "setLiveIcon(" + i + ",'a',this.value)", ov.t || "", ov.a, "비우면 자동", '<button type="button" class="addDel" onclick="hideLiveCard(' + i + ')">삭제</button> <span>· 원문에서 인식한 혜택</span>') + "</div>";
   });
- } else {
+ } else if (!jparse(pv.opts && pv.opts.addLive, []).length) {
   html += '<div class="mockEmpty">등록된 판촉이 없습니다.</div>';
  }
- html += "</div>";
+ html += addedLiveHtml(pv);
+ html += '</div><button type="button" class="addPlus reviewOnly" onclick="addLiveItem()">＋ 혜택 추가 (판촉을 나눠 각각 기재할 때)</button>';
  html += liveDisclaimerHtml(pv);
  html += "</div>";
  html += '<div id="secObs"><div class="mockSecLabel reviewOnly">OBS 랜딩링크 (검수용 라벨 · 실제 화면에는 제목 없이 배너만 노출) — 점선 영역을 클릭하면 메인/서브 카피를 바로 수정할 수 있습니다</div>';
@@ -3291,12 +3705,12 @@ function renderMockPage(pv) {
    var code = r[0], main = r[1], sub = r[2];
    var href = code ? getObsBaseUrl() + code : r[3] || "#";
    var _ok = r._k || obsKeyOf(r, i), _oo = r._o || [ main || "", sub || "" ], _isH = isHidRow(r);
-   html += '<div class="mockLinkWrap dimmable" data-key="obs:' + (r[4] === "hidden" ? "hid" + (r._hn || "") : r[4] === "hidden2" ? "hid2" : i - _obsList.filter(isHidRow).length) + '"><div class="mockLinkRow" data-href="' + escapeHtml(href) + '">' + '<div class="mockLinkImg">' + obsIconHtml((main || "") + " " + (sub || "") + " " + (r[3] || "")) + "</div>" + '<div class="mockLinkBody"><div class="mockLinkText">' + '<div class="mockLinkMain obsEdit" contenteditable="true" spellcheck="false" data-obs="main" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[0]) + '" data-ph="메인 타이틀 입력">' + escapeHtml(main || "") + "</div>" + '<div class="mockLinkSub obsEdit" contenteditable="true" spellcheck="false" data-obs="sub" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[1]) + '" data-ph="서브 타이틀 입력">' + escapeHtml(sub || "") + "</div>" + '</div><a class="mockChevron" href="' + escapeHtml(href) + '" target="_blank" aria-label="기획전 열기"><i></i></a></div></div>' + '<div class="mockLinkUrl reviewOnly">' + escapeHtml(r[3] || "(URL 없음)") + (r[4] === "hidden" ? " · 제품명 기획전 배너(맨 위 고정 · KV 카피)" : "") + (r[4] === "hidden2" ? " · 통합 히든 기획전 배너(선택 추가)" : "") + (main ? "" : " · ⚠ 메인 타이틀 미입력 (위 점선 영역에 직접 입력)") + (r[4] === "fixed" ? " · 냉장고 포함 라이브 고정 배너" : "") + (r._o && (r[1] !== r._o[0] || r[2] !== r._o[1]) ? " · 직접 수정됨" : "") + "</div></div>";
+   html += '<div class="mockLinkWrap dimmable" data-ok="' + _attr(obsOrderKey(r)) + '" data-key="obs:' + (r[4] === "hidden" ? "hid" + (r._hn || "") : r[4] === "hidden2" ? "hid2" : i - _obsList.filter(isHidRow).length) + '"><div class="mockLinkRow" data-href="' + escapeHtml(href) + '">' + '<div class="mockLinkImg">' + obsIconHtml((main || "") + " " + (sub || "") + " " + (r[3] || "")) + "</div>" + '<div class="mockLinkBody"><div class="mockLinkText">' + '<div class="mockLinkMain obsEdit" contenteditable="true" spellcheck="false" data-obs="main" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[0]) + '" data-ph="메인 타이틀 입력">' + escapeHtml(main || "") + "</div>" + '<div class="mockLinkSub obsEdit" contenteditable="true" spellcheck="false" data-obs="sub" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[1]) + '" data-ph="서브 타이틀 입력">' + escapeHtml(sub || "") + "</div>" + '</div><a class="mockChevron" href="' + escapeHtml(href) + '" target="_blank" aria-label="기획전 열기"><i></i></a></div></div>' + (r[4] === "added" ? addObsCtl(r) : r[4] === "hidden" ? "" : obsDelBtn(r)) + '<div class="mockLinkUrl reviewOnly"' + (r[4] === "added" ? ' style="display:none"' : "") + ">" + escapeHtml(r[3] || "(URL 없음)") + (r[4] === "hidden" ? " · 제품명 기획전 배너(맨 위 고정 · KV 카피)" : "") + (r[4] === "hidden2" ? " · 통합 히든 기획전 배너(선택 추가)" : "") + (main ? "" : " · ⚠ 메인 타이틀 미입력 (위 점선 영역에 직접 입력)") + (r[4] === "fixed" ? " · 냉장고 포함 라이브 고정 배너" : "") + (r._o && (r[1] !== r._o[0] || r[2] !== r._o[1]) ? " · 직접 수정됨" : "") + "</div></div>";
   });
  } else {
   html += '<div class="mockEmpty" style="padding:0 20px 12px;">등록된 OBS 카드가 없습니다.</div>';
  }
- html += "</div></div>";
+ html += '</div><div style="padding:0 20px 12px;"><button type="button" class="addPlus reviewOnly" style="margin-top:0" onclick="addObsItem()">＋ 배너 추가 (동일 사이즈 · 직접 입력)</button></div></div>';
  if (pv.paymentFullText || payWashFor(pv)) {
   html += renderPaymentBenefitBox(pv.paymentFullText, pv);
  } else {
@@ -3340,6 +3754,10 @@ function renderParseSummary(pv) {
  (pv.liveItems || []).forEach(function(it, i) {
   if (!it.benefit || isGs25(it.benefit)) return;
   var sp = splitBenefit(it.benefit), no = "한정 혜택 " + (i + 1) + ": ";
+  if (sp.isDefault) h += _chip(/^000 /.test(sp.label) ? "warn" : "info", no + (/^000 /.test(sp.label) ? '제품명을 읽지 못해 윗줄을 "000 라이브"로 표시 — KV 메인카피에 제품명을 입력해 주세요' : '윗줄 기본값 "' + sp.label + '" 사용 (KV 메인카피·방송명 기준)'));
+  if (sp.labelDropped && sp.labelDropped.length) h += _chip("info", no + "윗줄 글자 수 한도(" + LIVE_LABEL_MAX + '자)로 "' + sp.labelDropped.join(" ") + '" 생략 — 유의사항에는 전체 표기');
+  if (sp.tiers) h += _chip("warn", no + '금액 구간 상품권 → "' + sp.main + '"로 표기하고 구간은 유의사항으로 이동 (양식 추정 · 실제 페이지와 대조)');
+  if (sp.targets) h += _chip("info", no + "대상 품목은 카드에서 빼고 유의사항으로 이동");
   if (sp.dropped && sp.dropped.length) h += _chip("warn", no + "글자 수 한도(" + LIVE_MAIN_MAX + '자)로 "' + sp.dropped.join('", "') + '" 생략');
   if (sp.dropCnt) h += _chip("info", no + "사은품 추첨 인원(" + sp.dropCnt + ")은 표기하지 않음(실제 페이지 기준)");
   if (sp.note) h += _chip("info", no + '제품군별 할인률이 달라 아랫줄을 "최대"로 표기 (' + sp.note + ")");
@@ -3353,7 +3771,7 @@ function renderParseSummary(pv) {
  if (!cards.length) h += _chip("warn", "OBS 링크 없음"); else {
   h += _chip("ok", "OBS 링크 " + cards.length + "건");
   if (noTitle) h += _chip("bad", "OBS 타이틀 미입력 " + noTitle + "건");
-  if (unconfirmed) h += _chip("warn", "OBS 타이틀 미등록 " + unconfirmed + '건 (원문 추정 · 아래 "OBS 공통 배너 카피 관리"에 등록하면 확정)');
+  if (unconfirmed) h += _chip("warn", "OBS 타이틀 미등록 " + unconfirmed + '건 (원문 추정 · ⋯ 더보기 → "OBS 공통 배너 카피 관리"에 등록하면 확정)');
  }
  if (fridgeOn(pv)) h += _chip("info", "냉장고 포함 → OBS 맨 아래에 고정 배너(Fit & Max 냉장고, 김치냉장고) 자동 추가");
  if (pv.opts && pv.opts.rebro) {
@@ -3362,45 +3780,7 @@ function renderParseSummary(pv) {
   if (!rt0.date) h += _chip("warn", "재방송: 본방송 일자 미입력");
   if (rt0.viewersEmpty) h += _chip("info", "재방송: 실시간 시청자 수 미입력 → 00.0명으로 표시");
  }
- var _pwi = payWashInfo(pv);
- var payItems = pv.paymentFullText ? splitPaymentItems(pv.paymentFullText) : [];
- if (_pwi.res) {
-  h += _chip(_pwi.inherited ? "info" : "ok", "결제혜택: 방송일(" + _pwi.ds + ") 기준 워싱 적용 · " + _pwi.src);
-  (_pwi.sum || []).forEach(function(x) {
-   h += _chip(x.k === "warn" ? "warn" : x.k === "skip" ? "info" : "ok", x.m);
-  });
- } else if (_pwi.has) {
-  h += _chip("warn", _pwi.warn || "결제혜택 워싱을 적용하지 못했습니다");
-  (_pwi.sum || []).filter(function(x) {
-   return x.k === "warn";
-  }).forEach(function(x) {
-   h += _chip("warn", x.m);
-  });
- }
- if (_pwi.res) {} else if (payItems.length) {
-  var heroN = payItems.filter(isPaymentHeroText).length;
-  h += _chip("ok", "결제혜택 " + payItems.length + "건 (히어로 " + heroN + " · 아이콘행 " + (payItems.length - heroN) + ")");
- } else h += _chip("warn", "결제혜택 미인식");
  h += pv.legalNotes ? _chip("ok", "유의사항 원문 사용") : _chip("info", "유의사항 표준 문구 자동 삽입");
- var secs = matchedNotices(pv);
- if (secs.length) h += _chip("ok", "카드사 세부 유의사항 " + secs.length + "종");
- var notes = [];
- var curQ = Math.floor(today.getMonth() / 3) + 1;
- secs.forEach(function(sec) {
-  sec.bullets.forEach(function(b) {
-   var qm = b.match(/([1-4])분기\s*정책/);
-   if (qm && Number(qm[1]) !== curQ) notes.push('"' + sec.heading + '"의 표준 문구에 "' + qm[1] + '분기 정책"이 들어 있습니다(현재 달력 기준 ' + curQ + "분기). 2026.10.20자 10월 결산 PPT에도 같은 문구가 있어 현행 노출 문구와는 일치하지만, 카드사 정책 변경 공지 시 최신 기획서와 대조하세요.");
-   var em = b.match(/심의필[^()]*\([0-9.]+~\s*(\d{4})\.(\d{2})\.(\d{2})\)/);
-   if (em) {
-    var end = new Date(Number(em[1]), Number(em[2]) - 1, Number(em[3]));
-    var days = Math.floor((end - today) / 864e5);
-    if (days < 0) notes.push("여신금융협회 심의필 유효기간(" + em[1] + "." + em[2] + "." + em[3] + ")이 지났습니다. 최신 심의번호로 교체가 필요합니다."); else if (days <= 45) notes.push("여신금융협회 심의필 유효기간이 " + days + "일 남았습니다(" + em[1] + "." + em[2] + "." + em[3] + ").");
-   }
-  });
- });
- notes.forEach(function(t) {
-  h += '<div class="sumNote">⚠ ' + escapeHtml(t) + "</div>";
- });
  var tmp = document.createElement("div");
  tmp.innerHTML = h;
  var okH = "", alertH = "", okN = 0, alN = 0;
@@ -3427,8 +3807,8 @@ function renderWashVisual() {
  var f = document.getElementById("frame"), keepTop = f ? f.scrollTop : 0;
  syncOptUi();
  var pv = collectFormValues();
- wrap.innerHTML = renderMockPage(pv);
- applyChangeMarks(renderDiffBar(getDiffContext(pv)));
+ wrap.innerHTML = pageHtmlFix(renderMockPage(pv));
+ renderDiffBar(getDiffContext(pv));
  if (f && keepTop) {
   var sb = f.style.scrollBehavior;
   f.style.scrollBehavior = "auto";
@@ -3439,7 +3819,8 @@ function renderWashVisual() {
  updateDirtyBadge();
  updateTabSpy();
  var ta = document.getElementById("pageContentArea");
- if (ta) ta.value = buildPromoPreviewText(pv);
+ if (ta) ta.value = pageTextFix(buildPromoPreviewText(pv));
+ afterWashRender(pv);
 }
 
 function buildCompareRows(a, b) {
@@ -3474,6 +3855,7 @@ function buildCompareRows(a, b) {
   push("OBS" + (i + 1) + " 링크", ao[3], bo[3]);
  }
  push("결제/유의", a && a.paymentFullText, b && b.paymentFullText);
+ if (a && a.banner && b && b.banner) bannerCompareRows(a.banner, b.banner).forEach(function(r) { push(r[0], r[1], r[2]); });
  return rows;
 }
 
@@ -3572,9 +3954,9 @@ function closeMenu() {
 }
 
 function openShare() {
+ openDrawer("share");
  var d = document.getElementById("shareDetails");
  if (!d) return;
- d.open = true;
  d.scrollIntoView({
   behavior: "smooth",
   block: "center"
@@ -3656,7 +4038,7 @@ function gotoSec(id) {
 }
 
 function updateTabSpy() {
- var ids = [ "secNotify", "secRebro", "secLive", "secObs", "secPay", "secLegal" ], cur = ids[0];
+ var ids = [ "secKv", "secNotify", "secRebro", "secLive", "secObs", "secPay", "secLegal" ], cur = ids[0];
  var f = document.getElementById("frame"), inner = frameIsScroll();
  var base = inner ? f.getBoundingClientRect().top : 140;
  ids.forEach(function(id) {
@@ -3688,7 +4070,8 @@ function toggleOnlyChanged() {
 }
 
 function _sameVer(a, b) {
- return JSON.stringify([ a.notify, a.liveItems, a.obsCards, a.paymentFullText ]) === JSON.stringify([ b.notify, b.liveItems, b.obsCards, b.paymentFullText ]);
+ var ba = a.banner && b.banner ? [ a.banner, b.banner ] : [ 0, 0 ];
+ return JSON.stringify([ a.notify, a.liveItems, a.obsCards, a.paymentFullText, ba[0] ]) === JSON.stringify([ b.notify, b.liveItems, b.obsCards, b.paymentFullText, ba[1] ]);
 }
 
 function rowKey(label) {
@@ -3712,7 +4095,8 @@ function getDiffContext(pv) {
   notify: pv.notify,
   liveItems: pv.liveItems,
   obsCards: pv.obsCards,
-  paymentFullText: pv.paymentFullText
+  paymentFullText: pv.paymentFullText,
+  banner: bannerSnapshot(pv)
  };
  if (!_sameVer(latest, cur)) return {
   mode: "unsaved",
@@ -3854,6 +4238,7 @@ function openNewCase() {
    onOk: function(v0) {
     var v = normalizeCaseName(v0);
     if (v !== String(v0 || "").trim()) showToast('방송명을 "' + v + '"(으)로 인식했습니다');
+    else if (!parseDateFromCaseName(v)) showToast("방송명에 날짜가 없어 알림 마감·결제혜택·배너 날짜를 계산할 수 없습니다. 앞에 날짜(예: 10/22)를 넣어 주세요");
     var exists = loadData(STORE_KEY.cases).some(function(x) {
      return x.name === v;
     });
@@ -3894,9 +4279,10 @@ function loadOrCreateCase() {
  }
  currentCaseId = c.id;
  document.getElementById("promoCard").style.display = "block";
- document.getElementById("optRow").style.display = "flex";
- document.getElementById("promoTitle").innerHTML = "판촉정보 입력: " + escapeHtml(name) + (c.promoVersions.length ? '<span class="versionTag">v' + c.promoVersions.length + "</span>" : "");
- document.getElementById("caseStatus").textContent = isNew ? '"' + name + '" 방송을 새로 등록했습니다. 원본 판촉을 붙여넣고 저장해 주세요.' : '"' + name + '" 방송의 최신 판촉을 불러왔습니다. (v' + (c.promoVersions.length || 0) + ")";
+ onCaseShown(true);
+ 
+ document.getElementById("promoTitle").innerHTML = "" + escapeHtml(name) + (c.promoVersions.length ? '<span class="versionTag">v' + c.promoVersions.length + "</span>" : "");
+ document.getElementById("caseStatus").textContent = isNew ? '"' + name + '" 방송을 새로 등록했습니다. 원본 판촉을 붙여넣고 오른쪽 워싱본을 바로 수정하세요. 최종 저장은 ② 배너 워싱에서 합니다.' : '"' + name + '" 방송의 최신 판촉을 불러왔습니다. (v' + (c.promoVersions.length || 0) + ")";
  var last = c.promoVersions.length ? c.promoVersions[c.promoVersions.length - 1] : null;
  document.getElementById("pv_raw").value = last ? last.rawText || "" : "";
  document.getElementById("pv_source").value = last ? last.sourceChannel || "" : "";
@@ -3929,7 +4315,8 @@ function deleteCase() {
    }));
    currentCaseId = null;
    document.getElementById("promoCard").style.display = "none";
-   document.getElementById("optRow").style.display = "none";
+   onCaseShown(false);
+   
    document.getElementById("case_name").value = "";
    document.getElementById("caseStatus").textContent = '"' + c.name + '" 방송을 삭제했습니다.';
    refreshCaseSelect();
@@ -3965,7 +4352,7 @@ function resetCaseHistory() {
    currentCaseId = cc.id;
    document.getElementById("pv_raw").value = "";
    document.getElementById("pv_source").value = "";
-   document.getElementById("promoTitle").innerHTML = "판촉정보 입력: " + escapeHtml(cc.name);
+   document.getElementById("promoTitle").innerHTML = "" + escapeHtml(cc.name);
    document.getElementById("caseStatus").textContent = '"' + cc.name + '" 방송의 판촉 히스토리가 초기화되었습니다. 원본 판촉을 새로 붙여넣고 저장해 주세요.';
    renderHistoryPanel();
    renderWashVisual();
@@ -4006,7 +4393,7 @@ function renameCase() {
    saveData(STORE_KEY.cases, cases);
    currentCaseId = cc.id;
    document.getElementById("case_name").value = newName;
-   document.getElementById("promoTitle").innerHTML = "판촉정보 입력: " + escapeHtml(newName) + (cc.promoVersions.length ? '<span class="versionTag">v' + cc.promoVersions.length + "</span>" : "");
+   document.getElementById("promoTitle").innerHTML = "" + escapeHtml(newName) + (cc.promoVersions.length ? '<span class="versionTag">v' + cc.promoVersions.length + "</span>" : "");
    document.getElementById("caseStatus").textContent = '방송명이 "' + oldName + '"에서 "' + newName + '"(으)로 수정되었습니다.';
    refreshCaseSelect();
    renderWashVisual();
@@ -4033,7 +4420,8 @@ function resetAllCases() {
    saveData(STORE_KEY.cases, []);
    currentCaseId = null;
    document.getElementById("promoCard").style.display = "none";
-   document.getElementById("optRow").style.display = "none";
+   onCaseShown(false);
+   
    document.getElementById("case_name").value = "";
    document.getElementById("caseStatus").textContent = '모든 방송/판촉 데이터가 초기화되었습니다. "+ 새 방송"으로 새로 시작해 주세요.';
    refreshCaseSelect();
@@ -4054,6 +4442,7 @@ function savePromo() {
  if (!c) return;
  var prev = c.promoVersions.length ? c.promoVersions[c.promoVersions.length - 1] : null;
  var cur = collectFormValues();
+ cur.banner = bannerSnapshot(cur);
  var changes = computeChanges(prev, cur);
  var ver = {
   version: c.promoVersions.length + 1,
@@ -4065,14 +4454,16 @@ function savePromo() {
   paymentFullText: cur.paymentFullText,
   sourceChannel: cur.sourceChannel || "",
   opts: cur.opts,
+  banner: cur.banner,
   changeLog: prev ? changes.length ? changes : [ "변경 사항 없음(문구 수정 등)" ] : [ "최초 등록" ]
  };
  c.promoVersions.push(ver);
  saveData(STORE_KEY.cases, cases);
  document.getElementById("caseStatus").textContent = '"' + c.name + '" v' + ver.version + " 저장 완료 (변경 " + (prev ? changes.length : 0) + "건) — 원본 판촉 내용도 히스토리에 함께 백업되었습니다.";
- document.getElementById("promoTitle").innerHTML = "판촉정보 입력: " + escapeHtml(c.name) + '<span class="versionTag">v' + ver.version + "</span>";
+ document.getElementById("promoTitle").innerHTML = "" + escapeHtml(c.name) + '<span class="versionTag">v' + ver.version + "</span>";
  renderWashVisual();
  renderHistoryPanel();
+ refreshCaseSelect();
 }
 
 function renderHistoryPanel() {
@@ -4126,7 +4517,7 @@ function exportAll() {
  var url = URL.createObjectURL(blob);
  var a = document.createElement("a");
  a.href = url;
- a.download = "라이브판촉_데이터_" + (new Date).toISOString().slice(0, 10) + ".json";
+ a.download = "Live_통합셋팅기_데이터_" + (new Date).toISOString().slice(0, 10) + ".json";
  document.body.appendChild(a);
  a.click();
  document.body.removeChild(a);
@@ -4189,14 +4580,14 @@ function loadExample() {
  guardUnsaved(function() {
   openDlg({
    title: "예시 데이터로 체험할까요?",
-   msg: '"예시) 8월 세탁기 라이브" 방송을 만들고(또는 불러오고) 예시 원문을 입력창에 채웁니다. 이미 저장된 내용은 바뀌지 않으며, "이 내용으로 저장"을 눌러야 버전이 만들어집니다.',
+   msg: '"예시) 8월 세탁기 라이브" 방송을 만들고(또는 불러오고) 예시 원문을 입력창에 채웁니다. 이미 저장된 내용은 바뀌지 않으며, ② 배너 워싱에서 "최종 저장(확정)"을 눌러야 버전이 만들어집니다.',
    okLabel: "채우기",
    onOk: function() {
     document.getElementById("case_name").value = "예시) 8월 세탁기 라이브";
     loadOrCreateCase();
     document.getElementById("pv_raw").value = EXAMPLE_RAW;
     renderWashVisual();
-    showToast("예시 원문을 채웠습니다. 오른쪽 워싱본을 확인해 보세요");
+    showToast("예시 원문을 채웠습니다. 오른쪽 워싱본을 바로 수정한 뒤 ② 배너 워싱으로 넘어가세요");
    }
   });
  });
@@ -4310,9 +4701,10 @@ function init() {
  orow.addEventListener("change", scheduleLiveRefresh);
 }
 
+/* init(); — 업무관리에서는 화면 초기화 안 함 */
 
 function eventFromCaseName(caseName) {
- var n = (caseName || "").replace(/[0-9]{1,2}\s*[\/\.\-]\s*[0-9]{1,2}(?![0-9\/\.])\s*/, "").trim();
+ var n = stripCaseParens(caseName || "").replace(/[0-9]{1,2}\s*[\/\.\-]\s*[0-9]{1,2}(?![0-9\/\.])\s*/, "").trim();
  var m = n.match(/([0-9]{1,2}월\s*\S.*?)\s*(?:라이브|특집)?\s*$/);
  return m ? m[1].trim() : "";
 }
@@ -4326,89 +4718,1545 @@ function hour24(airTime) {
  return h;
 }
 
+/* ── v03: 방송명 괄호 내용 제외 — (최종) [재] （LG） 【단독】 등. 날짜·재방송 판정은 원래 방송명 그대로 사용 ── */
+function stripCaseParens(s) {
+ return String(s || "").replace(/[\(（\[【［][^\)）\]】］]*[\)）\]】］]/g, " ").replace(/[\(（\[【［\)）\]】］]/g, " ").replace(/\s+/g, " ").trim();
+}
+/* ── v02 표기 통일 ── */
+/* 방송명에서 읽은 제품 나열: & ＆ + / ㆍ ・ (앞뒤 공백 포함) → "·" (예: 냉장고&세탁기 → 냉장고·세탁기) */
+function unifyProdSep(s) {
+ return String(s || "").replace(/\s*(?:[&＆+ㆍ・·]|(?<=[가-힣A-Za-z])\s*\/(?=\s*[가-힣A-Za-z]))\s*/g, "·").replace(/·{2,}/g, "·").replace(/^·|·$/g, "").trim();
+}
+/* 화면·복사 문구의 "할인쿠폰" → "할인 쿠폰" (원문·수정 키는 그대로 두고 표시만) */
+function pageTextFix(t) {
+ return String(t == null ? "" : t).replace(/([^\s>])할인\s*쿠폰/g, "$1 할인 쿠폰").replace(/할인쿠폰/g, "할인 쿠폰");
+}
+function pageHtmlFix(h) {
+ return String(h || "").replace(/>([^<]+)</g, function(m, t) { return ">" + pageTextFix(t) + "<"; });
+}
 
-/* 원본 renderParseSummary를 화면 대신 칩 배열로 돌려주게 바꾼 것 (OBS 공통 배너 카피 뱅크는 업무관리에 없어 뺐다) */
-function summarizeParse(pv, today) {
- function _chip(k, s) { return { kind: k, text: s }; }
- var chips = [], notes = [];
- if (!pv || !(pv.rawText || "").trim()) return { chips: chips, notes: notes };
- today = today || new Date;
- var n = pv.notify || {};
- if (n.gift && n.count) chips.push(_chip("ok", "알림 신청 ✓ " + n.gift + " · " + n.count)); else chips.push(_chip("bad", "알림 신청 " + (n.gift ? "" : "사은품 ") + (n.count ? "" : "인원 ") + "미인식"));
- if (!n.deadline) chips.push(_chip("warn", "알림 마감일시 미확인 (방송명에 날짜가 있어야 자동 계산)"));
- var liveN = (pv.liveItems || []).length;
- chips.push(liveN ? _chip("ok", "한정 혜택 " + liveN + "건") : _chip("bad", "한정 혜택 미인식"));
- (pv.liveItems || []).forEach(function(it, i) {
-  if (!it.benefit || isGs25(it.benefit)) return;
-  var sp = splitBenefit(it.benefit), no = "한정 혜택 " + (i + 1) + ": ";
-  if (sp.dropped && sp.dropped.length) chips.push(_chip("warn", no + "글자 수 한도(" + LIVE_MAIN_MAX + '자)로 "' + sp.dropped.join('", "') + '" 생략'));
-  if (sp.dropCnt) chips.push(_chip("info", no + "사은품 추첨 인원(" + sp.dropCnt + ")은 표기하지 않음(실제 페이지 기준)"));
-  if (sp.note) chips.push(_chip("info", no + '제품군별 할인률이 달라 아랫줄을 "최대"로 표기 (' + sp.note + ")"));
-  if (sp.mainOver) chips.push(_chip("warn", no + "아랫줄 " + sp.main.length + "자 — 한도 " + LIVE_MAIN_MAX + "자 초과(직접 줄여주세요)"));
-  if (sp.labelOver) chips.push(_chip("warn", no + "윗줄 " + sp.label.length + "자 — 한도 " + LIVE_LABEL_MAX + "자 초과(직접 줄여주세요)"));
+/* ── 배너 버전 비교 보조 ── */
+function bannerDiffNames(a, b) {
+ var ma = {}, out = [];
+ (a || []).forEach(function(x) { ma[x.g] = x.t; });
+ (b || []).forEach(function(x) { if (ma[x.g] !== x.t) out.push(x.g); });
+ return out;
+}
+function bannerCompareRows(a, b) {
+ var ma = {}, mb = {}, names = [];
+ (a || []).forEach(function(x) { ma[x.g] = x.t; if (names.indexOf(x.g) < 0) names.push(x.g); });
+ (b || []).forEach(function(x) { mb[x.g] = x.t; if (names.indexOf(x.g) < 0) names.push(x.g); });
+ return names.map(function(n) {
+  var s = function(t) { return String(t || "").replace(/^\[[^\]]*\]\n?/, "").replace(/\n/g, " / "); };
+  return [ "배너 · " + n, s(ma[n]), s(mb[n]) ];
  });
- var cards = pv.obsCards || [], noTitle = 0, unconfirmed = 0;
- cards.forEach(function(r) {
-  if (!r[1]) noTitle++;
+}
+
+/* ── v04: OBS 헤더명 ("3. 까사미아 기획전" → OBS 타이틀 후보) ── */
+function obsHeadName(sec) {
+ var h = String(sec || "").split("\n")[0].replace(/\t[\s\S]*$/, "").replace(/^[ \t]*[\[［]?\s*(?:[0-9]+[.\)]\s*)?/, "").replace(/[\]］]\s*$/, "").trim();
+ if (!h || /OBS|기본\s*판촉/i.test(h)) return "";
+ return h;
+}
+/* ── v04: "A% ○○ 쿠폰 + B% ○○ 쿠폰" 묶음 → 카드 2장 ── */
+function splitComboCoupons(items) {
+ var out = [];
+ (items || []).forEach(function(it) {
+  var b = String(it.benefit || ""), m;
+  if (b.indexOf("\n") < 0 && (m = b.match(/^(.*?)\s*((?:최대\s*)?[0-9]+(?:\.[0-9]+)?\s*(?:%|만\s*원|원)[^+]*?쿠폰)\s*\+\s*((?:최대\s*)?[0-9]+(?:\.[0-9]+)?\s*(?:%|만\s*원|원)[^+]*?쿠폰)\s*(?:증정|지급|발급)?\s*$/))) {
+   var pre = m[1].trim();
+   [ m[2], m[3] ].forEach(function(c) {
+    out.push(Object.assign({}, it, { benefit: (pre ? pre + " " : "") + c.replace(/\s+/g, " ").trim(), detailLines: (it.detailLines || []).slice() }));
+   });
+  } else out.push(it);
  });
- if (!cards.length) chips.push(_chip("warn", "OBS 링크 없음")); else {
-  chips.push(_chip("ok", "OBS 링크 " + cards.length + "건"));
-  if (noTitle) chips.push(_chip("bad", "OBS 타이틀 미입력 " + noTitle + "건"));
-  if (unconfirmed) chips.push(_chip("warn", "OBS 타이틀 미등록 " + unconfirmed + '건 (원문 추정 · 아래 "OBS 공통 배너 카피 관리"에 등록하면 확정)'));
+ return out;
+}
+/* ── v04: 한정 혜택 카드 — 금액 구간 상품권·대상 품목·추가 증정·윗줄 글자 수 맞춤 ── */
+var _splitBenefitV03 = splitBenefit;
+splitBenefit = function(benefit) {
+ var r = _splitBenefitV03(benefit);
+ if (r.fixed) return r;
+ var main = r.main, m, tiers = "", targets = "";
+ if (m = main.match(/\s*\(\s*대상\s*품목\s*[:：]\s*([^()]*)\)/)) {
+  targets = m[1].replace(/\s+/g, " ").trim();
+  main = main.replace(m[0], " ");
  }
- if (fridgeOn(pv)) chips.push(_chip("info", "냉장고 포함 → OBS 맨 아래에 고정 배너(Fit & Max 냉장고, 김치냉장고) 자동 추가"));
- if (pv.opts && pv.opts.rebro) {
-  var rt0 = rebroTexts(pv);
-  chips.push(_chip("ok", "재방송 영역 포함"));
-  if (!rt0.date) chips.push(_chip("warn", "재방송: 본방송 일자 미입력"));
-  if (rt0.viewersEmpty) chips.push(_chip("info", "재방송: 실시간 시청자 수 미입력 → 00.0명으로 표시"));
+ if (m = main.match(/\s*\(([^()]*[0-9]\s*만\s*원[^()]*)\)/)) {
+  var amts = (m[1].match(/[0-9]+(?:\.[0-9]+)?(?=\s*만\s*원)/g) || []).map(parseFloat);
+  if (amts.length >= 2) {
+   tiers = m[1].replace(/\s*-\s*/g, " ").replace(/\s+/g, " ").trim();
+   main = main.replace(m[0], " ").replace(/\s+/g, " ").trim() + " 최대 " + Math.max.apply(null, amts) + "만원";
+  }
  }
- var _pwi = payWashInfo(pv);
- var payItems = pv.paymentFullText ? splitPaymentItems(pv.paymentFullText) : [];
+ main = main.replace(/추가\s*$/, "추가 증정").replace(/\s+/g, " ").trim();
+ r.main = main;
+ r.tiers = tiers;
+ r.targets = targets;
+ r.labelFull = r.label;
+ if (r.label.length > LIVE_LABEL_MAX && !r.isDefault) {
+  var tk = r.label.split(" "), suf = /구매\s*인증\s*시$/.test(r.label) ? 3 : /(?:구매|가입|신청|이용|결제)\s*시$/.test(r.label) ? 2 : 0, p = tk.length - suf - 1, drop = [];
+  if (suf && p >= 2) {
+   var i = p - 1;
+   while (tk.join(" ").length > LIVE_LABEL_MAX && i >= 1) {
+    drop.unshift(tk[i]);
+    tk.splice(i, 1);
+    i--;
+   }
+   if (tk.join(" ").length <= LIVE_LABEL_MAX) {
+    r.label = tk.join(" ");
+    r.labelDropped = drop;
+   }
+  }
+ }
+ r.labelOver = r.label.length > LIVE_LABEL_MAX;
+ r.mainOver = r.main.length > LIVE_MAIN_MAX;
+ return r;
+};
+/* ── v04: 날짜형이 아닌 지급조건 → 유의사항 문장 (홈스타일 양식 · 추정) ── */
+function _hsSpace(t) {
+ return String(t || "").replace(/배송\s*완료/g, "배송 완료").replace(/주문\s*상품/g, "주문 상품").replace(/단품\s*구매자/g, "단품 구매자").replace(/\s+/g, " ").trim();
+}
+function _ro(w) {
+ var c = String(w || "").slice(-1).charCodeAt(0) - 44032;
+ if (c < 0 || c > 11171) return "로";
+ var j = c % 28;
+ return j === 0 || j === 8 ? "로" : "으로";
+}
+function hsCondSentence(it) {
+ if (!it || !it.condition || isGs25(it.benefit)) return "";
+ var sp = splitBenefit(it.benefit);
+ if (sp.fixed || sp.isDefault) return "";
+ var parts = [];
+ String(it.condition).split(/\s+\/\s+/).forEach(function(x) {
+  var pm = x.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+  if (pm && pm[1]) { parts.push(pm[1]); parts.push(pm[2]); } else parts.push(x);
+ });
+ parts = parts.map(_hsSpace).filter(Boolean);
+ var lead = "", subs = [];
+ parts.forEach(function(x) {
+  var m = x.match(/^배송 완료 후\s*([0-9]+)\s*일\s*(?:이내|내)\s*(.*?)\s*(발송|지급|발급)(?:\s*예정)?$/);
+  if (m && !lead) lead = "배송 완료 후 " + m[1] + "일 이내 " + (m[2] ? m[2] + _ro(m[2]) + " " : "") + m[3] + " 예정입니다.";
+  else subs.push(x);
+ });
+ if (!lead && !sp.targets && !sp.tiers) return "";
+ if (!lead && sp.targets) lead = "대상 품목(" + sp.targets + ") 구매 시 적용됩니다.";
+ else if (sp.targets) subs.unshift("대상 품목: " + sp.targets);
+ if (sp.tiers) subs.unshift("증정 금액: " + sp.tiers);
+ var gift = sp.main.replace(/\s*최대\s*[0-9.]+\s*만\s*원$/, "");
+ var head = (sp.labelFull || sp.label) + " " + gift + (/(?:증정|추첨)$/.test(gift) ? " 혜택은 " : " 증정 혜택은 ");
+ return normDates(head + lead) + subs.map(function(s) { return "\n- " + s; }).join("");
+}
+
+/* ── v05: 생성된 카드 삭제(숨김) — opts.hide = { live:[혜택 원문], obs:[URL|PE코드|t:타이틀] } ── */
+function hideState(o) {
+ var h = jparse(o && o.hide, {}) || {};
+ if (!Array.isArray(h.live)) h.live = [];
+ if (!Array.isArray(h.obs)) h.obs = [];
+ return h;
+}
+function obsHideKey(r) {
+ return r[3] || r[0] || "t:" + (r._o && r._o[0] || r[1] || "");
+}
+function applyHidden(parsed, opts) {
+ var h = hideState(opts);
+ if (h.live.length) parsed.liveItems = parsed.liveItems.filter(function(it) { return h.live.indexOf(it.benefit) < 0; });
+ if (h.obs.length) parsed.obsCards = parsed.obsCards.filter(function(r) { return h.obs.indexOf(obsHideKey(r)) < 0; });
+ return parsed;
+}
+function _saveHide(h) {
+ optSet("opt_hide", h.live.length || h.obs.length ? h : null);
+}
+function hideLiveCard(i) {
+ var pv = collectFormValues(), it = pv.liveItems[i];
+ if (!it) return;
+ var h = hideState(pv.opts);
+ if (h.live.indexOf(it.benefit) < 0) h.live.push(it.benefit);
+ var li = optGet("opt_liveicon") || {}, n = {};
+ Object.keys(li).forEach(function(k) {
+  var j = Number(k);
+  if (j === i) return;
+  n[j > i ? j - 1 : j] = li[k];
+ });
+ var e = document.getElementById("opt_liveicon");
+ if (e) e.value = Object.keys(n).length ? JSON.stringify(n) : "";
+ _saveHide(h);
+ showToast("혜택 카드를 삭제했습니다 · \"추가 영역\"에서 되돌릴 수 있습니다");
+}
+function obsDelBtn(r) {
+ var t = r[4] === "fixed" ? "fridge" : r[4] === "hidden2" ? "hid2" : "card";
+ return '<div class="addCtl reviewOnly"><button type="button" class="addDel obsDel" data-k="' + _attr(obsHideKey(r)) + '" onclick="hideObsCard(this.getAttribute(\'data-k\'),\'' + t + '\')">배너 삭제</button><span>· ' + (t === "fridge" ? "냉장고 고정 배너(추가 영역 체크 해제와 같음)" : t === "hid2" ? "통합 히든 기획전(추가 영역 체크 해제와 같음)" : "원문에서 인식한 배너") + "</span></div>";
+}
+function hideObsCard(key, type) {
+ if (type === "fridge") {
+  var c = document.getElementById("chk_fridge");
+  if (c) { c.checked = false; c.dispatchEvent(new Event("change", { bubbles: true })); }
+  return;
+ }
+ if (type === "hid2") {
+  var t = document.getElementById("chk_hidtotal");
+  if (t) { t.checked = false; t.dispatchEvent(new Event("change", { bubbles: true })); }
+  return;
+ }
+ var h = hideState({ hide: (document.getElementById("opt_hide") || {}).value });
+ if (h.obs.indexOf(key) < 0) h.obs.push(key);
+ _saveHide(h);
+ showToast("OBS 배너를 삭제했습니다 · \"추가 영역\"에서 되돌릴 수 있습니다");
+}
+function unhideCard(kind, i) {
+ var h = hideState({ hide: (document.getElementById("opt_hide") || {}).value });
+ if (kind === "all") { h.live = []; h.obs = []; } else h[kind].splice(i, 1);
+ _saveHide(h);
+}
+function renderHideBox(pv) {
+ var box = document.getElementById("hideBox");
+ if (!box) return;
+ var h = hideState(pv.opts), n = h.live.length + h.obs.length;
+ if (!n) { box.innerHTML = ""; return; }
+ var rows = h.live.map(function(b, i) {
+  return '<div class="hideItem"><span class="k">혜택</span><span title="' + _attr(b) + '">' + escapeHtml(b.replace(/\n/g, " / ")) + '</span><button type="button" class="btn small secondary" onclick="unhideCard(\'live\',' + i + ')">되돌리기</button></div>';
+ }).concat(h.obs.map(function(k, i) {
+  return '<div class="hideItem"><span class="k">OBS</span><span title="' + _attr(k) + '">' + escapeHtml(k.replace(/^t:/, "")) + '</span><button type="button" class="btn small secondary" onclick="unhideCard(\'obs\',' + i + ')">되돌리기</button></div>';
+ }));
+ box.innerHTML = '<div class="cardHead" style="margin:14px 0 6px;"><h3>삭제한 카드 ' + n + '건</h3><span class="hint">원문에서 인식했지만 페이지에서 뺀 카드</span><button type="button" class="btn small secondary act" onclick="unhideCard(\'all\')">모두 되돌리기</button></div><div class="hideList">' + rows.join("") + "</div>";
+}
+
+/* ── v06: 제품명 나열 → 가운데점(·) 필수 — "냉장고세탁기", "냉장고 세탁기", "냉장고&세탁기" → "냉장고·세탁기" ── */
+var PROD_JOIN_WORDS = "김치냉장고|냉장고|세탁기|건조기|워시타워|워시콤보|스타일러|식기세척기|공기청정기|정수기|제습기|가습기|청소기|에어컨|인덕션|광파오븐|오븐|전자레인지|TV|모니터|노트북|사운드바|프로젝터";
+var PROD_JOIN_RE = new RegExp("(" + PROD_JOIN_WORDS + ")\\s*(?:[&＆+/ㆍ・·,，]\\s*)?(?=(?:" + PROD_JOIN_WORDS + "))", "g");
+function joinProducts(s) {
+ return String(s == null ? "" : s).replace(PROD_JOIN_RE, "$1·");
+}
+var _unifyProdSepV05 = unifyProdSep;
+unifyProdSep = function(s) {
+ return joinProducts(_unifyProdSepV05(s));
+};
+/* KV 메인·서브: 직접 입력한 값도 표시·배너에는 가운데점으로 통일 */
+var _kvInfoV05 = kvInfo;
+kvInfo = function(pv) {
+ var k = _kvInfoV05(pv);
+ k.m = joinProducts(k.m);
+ k.s = joinProducts(k.s);
+ return k;
+};
+/* 워싱본 KV 아래 배너 기준 글자 수 안내 (검수용) */
+function renderKvCount(pv) {
+ var t = document.querySelector("#washVisual #secKv .mockKvTitle");
+ if (!t) return;
+ var k = kvInfo(pv), lm = BN_LIM.keyMain, ls = BN_LIM.keySub, nm = String(k.m || "").trim().length, ns = String(k.s || "").trim().length;
+ var d = document.createElement("div");
+ d.className = "kvCnt reviewOnly" + (nm > lm || ns > ls ? " warn" : "");
+ d.textContent = "배너 기준 · 메인 " + nm + "/" + lm + "자" + (nm > lm ? " (" + (nm - lm) + "자 초과)" : "") + " · 서브 " + ns + "/" + ls + "자" + (ns > ls ? " (" + (ns - ls) + "자 초과)" : "");
+ t.appendChild(d);
+}
+
+/* ── v07: 라이브 한정 혜택 — 제품 2개 이상은 ", " 구분 / 앱전용 할인 쿠폰 표기 규칙 ── */
+var LIVE_PROD_SEP_RE = new RegExp("(" + PROD_JOIN_WORDS + ")\\s*(?:[\\/／&＆+ㆍ・·,，]\\s*)?(?=(?:" + PROD_JOIN_WORDS + "))", "g");
+function liveProdComma(s) {
+ return String(s == null ? "" : s).replace(LIVE_PROD_SEP_RE, "$1, ").replace(/\s*,\s*/g, ", ");
+}
+function liveProdList(s) {
+ var re = new RegExp(PROD_JOIN_WORDS, "g"), out = [], m;
+ while ((m = re.exec(String(s || "")))) if (out.indexOf(m[0]) < 0) out.push(m[0]);
+ return out;
+}
+/* "세탁기/스타일러 앱전용 10% 할인쿠폰" → 윗줄 "세탁기, 스타일러" / 아랫줄 "10% 앱전용 할인 쿠폰" */
+function liveCouponWash(r) {
+ var full = (r.isDefault ? "" : r.label) + " " + r.main;
+ if (!/쿠폰/.test(r.main) || !/앱전용|할인\s*쿠폰|할인쿠폰/.test(full)) return r;
+ var app = /앱전용/.test(full), extra = !app && /추가\s*할인/.test(full);
+ var rates = [], m, re = /([0-9]+(?:\.[0-9]+)?)\s*%/g;
+ while ((m = re.exec(full))) rates.push(parseFloat(m[1]));
+ var val = "", pre = "";
+ if (rates.length) {
+  var uniq = rates.filter(function(v, i) { return rates.indexOf(v) === i; });
+  val = Math.max.apply(null, rates) + "%";
+  pre = uniq.length > 1 || /최대/.test(full) ? "최대 " : "";
+  if (uniq.length > 1 && !r.note) {
+   var pr = [], pm, pre2 = new RegExp("(" + PROD_JOIN_WORDS + ")\\s*([0-9]+(?:\\.[0-9]+)?)\\s*%", "g");
+   while ((pm = pre2.exec(full))) pr.push(pm[1] + " " + pm[2] + "%");
+   if (pr.length) r.note = pr.join(", ");
+  }
+ } else if ((m = full.match(/([0-9][0-9,]*(?:\.[0-9]+)?)\s*만\s*원/))) {
+  val = m[1] + "만원";
+  pre = /최대/.test(full) ? "최대 " : "";
+ } else return r;
+ r.main = pre + val + " " + (app ? "앱전용 할인 쿠폰" : extra ? "추가 할인 쿠폰" : "할인 쿠폰");
+ var prods = liveProdList(full);
+ if (prods.length >= 2 || r.isDefault && prods.length === 1) {
+  r.label = prods.join(", ");
+  r.isDefault = false;
+ } else if (!r.isDefault) {
+  var lb = r.label.replace(/(?:최대\s*)?[0-9]+(?:\.[0-9]+)?\s*(?:%|만\s*원)/g, " ").replace(/앱전용|추가|할인|쿠폰|구매\s*시$/g, " ").replace(/[\/／&＆+,，·]\s*$/, "").replace(/\s+/g, " ").trim();
+  if (lb) r.label = lb; else { r.label = LIVE_DEF_LABEL; r.isDefault = true; }
+ }
+ return r;
+}
+var _splitBenefitV04 = splitBenefit;
+splitBenefit = function(benefit) {
+ var r = _splitBenefitV04(benefit);
+ if (r.fixed) return r;
+ r = liveCouponWash(r);
+ if (!r.isDefault) r.label = liveProdComma(r.label);
+ r.main = liveProdComma(r.main);
+ r.labelOver = r.label.length > LIVE_LABEL_MAX;
+ r.mainOver = r.main.length > LIVE_MAIN_MAX;
+ return r;
+};
+
+/* ── v08: 결제혜택 · 유의사항 반영 기준 ──
+   opts.payMode = "" (판촉안 · 방송일 기준, 기본) | "prev" (직전 라이브와 동일) | "date" (판촉안 · 반영 일자 opts.payDate 기준) */
+function _isoOfMD(s) {
+ var d = parseDateFromCaseName(String(s || ""));
+ if (!d) return "";
+ var z = function(n) { return (n < 10 ? "0" : "") + n; };
+ return inferYear(d.month, d.day) + "-" + z(d.month) + "-" + z(d.day);
+}
+function _mdOfIso(iso) {
+ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+ return m ? fmtMD(+m[2], +m[3]) : "";
+}
+/* 저장된 방송 c의 최신 버전이 실제로 쓴 결제혜택 원문·기준일 (직전 라이브 동일 모드를 위해 재현) */
+function caseWashSpec(c, depth) {
+ if (!c || depth > 8 || !c.promoVersions || !c.promoVersions.length) return null;
+ var v = c.promoVersions[c.promoVersions.length - 1] || {}, o = v.opts || {};
+ if (o.payMode === "prev") {
+  var pc = prevLiveCase(c.id, c.name, [ c.id ]);
+  var sp = caseWashSpec(pc, depth + 1);
+  return sp ? Object.assign({}, sp, { via: c.name }) : null;
+ }
+ var own = ownPaySheet({ opts: o, rawText: v.rawText, paymentFullText: v.paymentFullText }), text = "";
+ if (own && own.full) text = own.text; else {
+  var inh = o.payInh === false ? null : inheritedPayBase(c.id, c.name, 0, [ c.id ]);
+  text = inh && own ? PayWash.merge(inh.text, own.text) : inh ? inh.text : own ? own.text : "";
+ }
+ if (!text) return null;
+ text = PayWash.ensureTable(text).text;
+ var ds = o.payMode === "date" && _isoOfMD(o.payDate) ? _isoOfMD(o.payDate) : _isoOfMD(c.name) || _isoOfMD(o.bdate);
+ return { text: text, ds: ds, name: c.name, dateMode: o.payMode === "date" };
+}
+function paySheetByMode(pv) {
+ var o = pv.opts || {}, nm = (document.getElementById("case_name") || {}).value || "";
+ if (o.payMode === "prev") {
+  var pc = prevLiveCase(currentCaseId, nm, [ currentCaseId ]), sp = caseWashSpec(pc, 0);
+  if (sp && sp.ds) return { text: sp.text, ds: sp.ds, dsLabel: "직전 라이브 기준일", src: "직전 라이브(" + sp.name + ")와 동일하게 반영 · " + _mdOfIso(sp.ds) + " 기준" + (sp.via ? " (" + sp.via + " 경유)" : ""), notes: [ { k: "info", m: "결제혜택·유의사항: 직전 라이브(" + sp.name + ") 셋팅을 그대로 사용 — 이번 판촉의 결제혜택 원문은 반영하지 않음" } ], inherited: true, from: sp.name, prevSame: true };
+  var r0 = paySheetFrom(pv);
+  if (r0) r0.notes = (r0.notes || []).concat([ { k: "warn", m: "직전 라이브 셋팅을 찾지 못해 판촉안 기준으로 반영했습니다(저장된 이전 방송 없음)" } ]);
+  return r0;
+ }
+ var r = paySheetFrom(pv);
+ if (r && o.payMode === "date") {
+  var iso = _isoOfMD(o.payDate);
+  if (iso) {
+   r.ds = iso;
+   r.dsLabel = "반영 일자";
+   r.notes = (r.notes || []).concat([ { k: "info", m: "결제혜택·유의사항: 반영 일자 " + _mdOfIso(iso) + " 기준으로 기간 혜택 포함/제외 (방송일 " + (_mdOfIso(broadcastDateStr(pv)) || "-") + ")" } ]);
+  } else r.notes = (r.notes || []).concat([ { k: "warn", m: "반영 일자를 읽지 못해 방송일 기준으로 반영했습니다 (예: 10/15)" } ]);
+ }
+ return r;
+}
+function onPayMode(which, el) {
+ var m = document.getElementById("opt_paymode");
+ if (!m) return;
+ m.value = el.checked ? which : "";
+ var other = document.getElementById(which === "prev" ? "chk_paydate" : "chk_payprev");
+ if (el.checked && other) other.checked = false;
+ if (which === "date" && el.checked) {
+  var d = document.getElementById("opt_paydate");
+  if (d && !d.value.trim()) setTimeout(function() { d.focus(); }, 30);
+ }
+ m.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function syncPayModeUi_v08_unused(/* 원본에서 v09 같은 이름 함수가 뒤에 다시 나와 덮어씀 — 모듈은 중복 선언이 안 돼 이름만 바꿈 */ pv) {
+ var o = pv.opts || {}, a = document.getElementById("chk_payprev"), b = document.getElementById("chk_paydate"), d = document.getElementById("opt_paydate");
+ if (a) a.checked = o.payMode === "prev";
+ if (b) b.checked = o.payMode === "date";
+ if (d) d.disabled = o.payMode !== "date";
+ var nm = (document.getElementById("case_name") || {}).value || "", pc = prevLiveCase(currentCaseId, nm, [ currentCaseId ]);
+ var pn = document.getElementById("payPrevName");
+ if (pn) pn.textContent = pc ? "(" + pc.name + ")" : "(저장된 직전 라이브 없음)";
+ if (a) a.disabled = !pc && o.payMode !== "prev";
+ var note = document.getElementById("payModeNote"), bd = _mdOfIso(broadcastDateStr(pv)) || "방송일 미확인";
+ if (note) note.innerHTML = o.payMode === "prev" ? "직전 라이브의 결제혜택·유의사항을 <b>그대로</b> 씁니다. 이번 판촉의 결제혜택 원문은 쓰지 않습니다." : o.payMode === "date" ? "판촉안 내용을 <b>" + (_mdOfIso(_isoOfMD(o.payDate)) || "반영 일자") + "</b> 기준으로 반영합니다 (그 날짜에 진행 중인 혜택만). 방송일: " + bd : "기본: 판촉안 내용을 <b>방송일 " + bd + "</b> 기준으로 반영합니다.";
+}
+
+/* ── v09: 결제혜택 카드 정리 (반영 기준 3택 + 상태 1줄 + 결제혜택 인식 결과 분리) ── */
+function setPayMode(m) {
+ var a = document.getElementById("chk_payprev"), b = document.getElementById("chk_paydate");
+ if (m === "prev") { if (a) a.checked = true; onPayMode("prev", a); }
+ else if (m === "date") { if (b) b.checked = true; onPayMode("date", b); }
+ else {
+  if (a) a.checked = false;
+  if (b) b.checked = false;
+  var h = document.getElementById("opt_paymode");
+  if (h) { h.value = ""; h.dispatchEvent(new Event("input", { bubbles: true })); }
+ }
+}
+function syncPayModeUi(pv) {
+ var o = pv.opts || {}, mode = o.payMode === "prev" || o.payMode === "date" ? o.payMode : "";
+ var a = document.getElementById("chk_payprev"), b = document.getElementById("chk_paydate");
+ if (a) a.checked = mode === "prev";
+ if (b) b.checked = mode === "date";
+ var nm = (document.getElementById("case_name") || {}).value || "", pc = prevLiveCase(currentCaseId, nm, [ currentCaseId ]);
+ [].slice.call(document.querySelectorAll("#paySeg button")).forEach(function(x) {
+  x.classList.toggle("on", x.getAttribute("data-m") === mode);
+  x.setAttribute("aria-checked", String(x.getAttribute("data-m") === mode));
+ });
+ var sp = document.getElementById("segPrev");
+ if (sp) sp.disabled = !pc && mode !== "prev";
+ var pn = document.getElementById("payPrevName");
+ if (pn) pn.textContent = pc ? pc.name : "저장된 직전 라이브 없음";
+ var dr = document.getElementById("payDateRow"), d = document.getElementById("opt_paydate");
+ if (dr) dr.style.display = mode === "date" ? "" : "none";
+ if (d) d.disabled = mode !== "date";
+ var src = document.getElementById("paySrcBox");
+ if (src) src.style.display = mode === "prev" ? "none" : "";
+ var pi = payWashInfo(pv), bd = _mdOfIso(broadcastDateStr(pv)) || "방송일 미확인";
+ var basis = pi.ds ? _mdOfIso(pi.ds) : "";
+ var st = document.getElementById("payState"), note = document.getElementById("payModeNote");
+ var stTxt, stCls = pi.res ? "ok" : pi.has ? "warn" : "off";
+ if (mode === "prev") stTxt = pc ? "직전 라이브 동일 · " + pc.name + (basis ? " (" + basis + " 기준)" : "") : "직전 라이브 없음";
+ else if (mode === "date") stTxt = "판촉안 · " + (basis && pi.dsLabel === "반영 일자" ? basis : "반영 일자 미입력") + " 기준";
+ else stTxt = "판촉안 · 방송일 " + bd + " 기준";
+ if (!pi.has && !(pv.paymentFullText || "").trim()) { stTxt += " · 결제혜택 원문 없음"; stCls = "warn"; } else if (!pi.has) stCls = "ok";
+ if (st) { st.textContent = stTxt; st.className = "payState " + stCls; }
+ if (note) note.textContent = mode === "prev" ? "직전 라이브가 실제로 쓴 결제혜택·유의사항을 그대로 씁니다. 이번 판촉의 결제혜택 원문은 쓰지 않습니다." : mode === "date" ? "판촉안 결제혜택 중 반영 일자에 진행 중인 혜택만 씁니다. (방송일 " + bd + ")" : "판촉안 결제혜택 중 방송일에 진행 중인 혜택만 씁니다.";
+}
+function payChipsHtml(pv) {
+ var _pwi = payWashInfo(pv), h = "", today = new Date;
+ var srcTxt = _pwi.src ? String(_pwi.src).replace(/\s*·\s*[0-9.()월화수목금토일]+\s*기준$/, "") : "";
  if (_pwi.res) {
-  chips.push(_chip(_pwi.inherited ? "info" : "ok", "결제혜택: 방송일(" + _pwi.ds + ") 기준 워싱 적용 · " + _pwi.src));
+  if (srcTxt) h += _chip("info", "원문: " + srcTxt);
   (_pwi.sum || []).forEach(function(x) {
-   chips.push(_chip(x.k === "warn" ? "warn" : x.k === "skip" ? "info" : "ok", x.m));
+   if (/^결제혜택·유의사항:/.test(x.m)) return;
+   h += _chip(x.k === "warn" ? "warn" : x.k === "skip" ? "info" : "ok", x.m);
   });
  } else if (_pwi.has) {
-  chips.push(_chip("warn", _pwi.warn || "결제혜택 워싱을 적용하지 못했습니다"));
-  (_pwi.sum || []).filter(function(x) {
-   return x.k === "warn";
-  }).forEach(function(x) {
-   chips.push(_chip("warn", x.m));
-  });
+  h += _chip("warn", _pwi.warn || "결제혜택 워싱을 적용하지 못했습니다");
+  (_pwi.sum || []).filter(function(x) { return x.k === "warn"; }).forEach(function(x) { h += _chip("warn", x.m); });
+ } else {
+  var payItems = pv.paymentFullText ? splitPaymentItems(pv.paymentFullText) : [];
+  h += payItems.length ? _chip("ok", "결제혜택 " + payItems.length + "건") : _chip("warn", "결제혜택 원문 없음 — 판촉 원문 'LGE닷컴 전사 판촉' 또는 결제혜택 수급 원문을 넣어 주세요");
  }
- if (_pwi.res) {} else if (payItems.length) {
-  var heroN = payItems.filter(isPaymentHeroText).length;
-  chips.push(_chip("ok", "결제혜택 " + payItems.length + "건 (히어로 " + heroN + " · 아이콘행 " + (payItems.length - heroN) + ")"));
- } else chips.push(_chip("warn", "결제혜택 미인식"));
- chips.push(pv.legalNotes ? _chip("ok", "유의사항 원문 사용") : _chip("info", "유의사항 표준 문구 자동 삽입"));
- var secs = matchedNotices(pv);
- if (secs.length) chips.push(_chip("ok", "카드사 세부 유의사항 " + secs.length + "종"));
- var curQ = Math.floor(today.getMonth() / 3) + 1;
+ var secs = matchedNotices(pv), curQ = Math.floor(today.getMonth() / 3) + 1, notes = [];
+ if (secs.length) h += _chip("ok", "카드사 세부 유의사항 " + secs.length + "종");
  secs.forEach(function(sec) {
   sec.bullets.forEach(function(b) {
    var qm = b.match(/([1-4])분기\s*정책/);
-   if (qm && Number(qm[1]) !== curQ) notes.push('"' + sec.heading + '"의 표준 문구에 "' + qm[1] + '분기 정책"이 들어 있습니다(현재 달력 기준 ' + curQ + "분기). 2026.10.20자 10월 결산 PPT에도 같은 문구가 있어 현행 노출 문구와는 일치하지만, 카드사 정책 변경 공지 시 최신 기획서와 대조하세요.");
+   if (qm && Number(qm[1]) !== curQ && notes.indexOf("q") < 0) { notes.push("q"); h += _chip("info", "무이자 표준 문구에 \"" + qm[1] + "분기 정책\" 표기 — 현행 노출 문구와 같지만 카드사 정책 변경 시 최신 기획서와 대조"); }
    var em = b.match(/심의필[^()]*\([0-9.]+~\s*(\d{4})\.(\d{2})\.(\d{2})\)/);
    if (em) {
-    var end = new Date(Number(em[1]), Number(em[2]) - 1, Number(em[3]));
-    var days = Math.floor((end - today) / 864e5);
-    if (days < 0) notes.push("여신금융협회 심의필 유효기간(" + em[1] + "." + em[2] + "." + em[3] + ")이 지났습니다. 최신 심의번호로 교체가 필요합니다."); else if (days <= 45) notes.push("여신금융협회 심의필 유효기간이 " + days + "일 남았습니다(" + em[1] + "." + em[2] + "." + em[3] + ").");
+    var days = Math.floor((new Date(+em[1], +em[2] - 1, +em[3]) - today) / 864e5);
+    if (days < 0) h += _chip("bad", "신한 심의필 유효기간(" + em[1] + "." + em[2] + "." + em[3] + ") 만료 — 최신 심의번호로 교체 필요");
+    else if (days <= 45) h += _chip("warn", "신한 심의필 유효기간 " + days + "일 남음(" + em[1] + "." + em[2] + "." + em[3] + ")");
    }
   });
  });
+ return h;
+}
+function renderPaySummaryBox(pv) {
+ var box = document.getElementById("paySummary");
+ if (!box) return;
+ var tmp = document.createElement("div");
+ tmp.innerHTML = payChipsHtml(pv);
+ var okH = "", alH = "", okN = 0, alN = 0;
+ [].slice.call(tmp.children).forEach(function(el) {
+  if (el.classList.contains("ok") || el.classList.contains("info")) { okH += el.outerHTML; okN++; } else { alH += el.outerHTML; alN++; }
+ });
+ box.innerHTML = '<div class="psHead"><span class="psLine">결제혜택 인식 ' + okN + "항목 정상" + (alN ? ' · <b style="color:#8a5a00;">확인 필요 ' + alN + "건</b>" : "") + "</span></div>" + (alH ? '<div class="parseSummary">' + alH + "</div>" : "") + (okH ? '<details class="psDetails"><summary>포함·제외 내역 보기</summary><div class="parseSummary">' + okH + "</div></details>" : "");
+}
+
+/* ── v09: 변경 하이라이트 — 이전 버전 대비 바뀐 판촉·결제혜택·유의사항을 워싱본에 배경색으로 표시 ── */
+var HL_UNITS = [ [ "KV", "#secKv .mockKvDate, #secKv .mockKvMain, #secKv .mockKvSub" ], [ "알림 신청", "#secNotify .mockEventCard" ], [ "재방송", "#secRebro .mockRebroCard" ], [ "한정 혜택", "#secLive .mockBenefitRow" ], [ "한정 혜택 안내", "#secLive .mockCaption" ], [ "OBS", "#secObs .mockLinkWrap" ], [ "결제혜택", "#secPay .mockPayHero2, #secPay .mockPayRow2" ], [ "유의사항", "#secLegal .legalBullet, #secLegal .legalHeading" ] ];
+var HL_OFF = false, _hlCache = { k: null, t: null };
+function _hlText(el) {
+ var c = el.cloneNode(true);
+ [].slice.call(c.querySelectorAll(".reviewOnly,.addCtl,.missChip,.kvCnt,.addDel")).forEach(function(x) { x.parentNode.removeChild(x); });
+ var t = c.textContent;
+ if (el.classList.contains("mockLinkWrap")) {
+  var u = el.querySelector(".mockLinkUrl");
+  if (u) t += " " + u.textContent.split(" · ")[0];
+ }
+ return t.replace(/\s+/g, " ").trim();
+}
+function _hlCollect(root) {
+ var out = {};
+ HL_UNITS.forEach(function(u) {
+  out[u[0]] = [].slice.call(root.querySelectorAll(u[1])).map(function(el) { return { el: el, t: _hlText(el) }; });
+ });
+ return out;
+}
+function hlBaseline() {
+ var c = currentCase();
+ if (!c || !c.promoVersions || !c.promoVersions.length) return null;
+ var vs = c.promoVersions, last = vs[vs.length - 1];
+ if (isDirty()) return { v: last, label: "저장본 v" + last.version + " 대비" };
+ if (vs.length >= 2) return { v: vs[vs.length - 2], label: "v" + vs[vs.length - 2].version + " → v" + last.version };
+ return null;
+}
+function pvFromVersion(v) {
+ var name = (document.getElementById("case_name") || {}).value || "", o = Object.assign(defaultOpts(name), v.opts || {}), raw = v.rawText || "";
+ var cut = (o.paySheet || "").trim() ? -1 : raw.search(/^[ \t]*1\.[ \t]*결제일[ \t]*할인/m);
+ LIVE_DEF_LABEL = liveDefaultLabel(name, (jparse(o.kv, {}) || {}).m);
+ var parsed = applyHidden(parseRawToStructured(cut > 0 ? raw.slice(0, cut) : raw, loadObsBank()), o);
+ parsed.notify.deadline = computeDeadlineFromCaseName(name);
+ var pv = { notify: parsed.notify, liveItems: parsed.liveItems, obsCards: parsed.obsCards, paymentFullText: parsed.paymentFullText, legalNotes: parsed.legalNotes, rawText: raw, sourceChannel: v.sourceChannel || "", opts: o };
+ pv.obsShow = obsShowCards(pv);
+ return applyCardOrder(pv);
+}
+function _hlBaseTexts(base, curPv) {
+ var key = currentCaseId + "|" + base.v.version + "|" + base.v.savedAt + "|" + ((document.getElementById("case_name") || {}).value || "") + "|" + JSON.stringify(loadObsBank()).length;
+ if (_hlCache.k === key) return _hlCache.t;
+ var saved = LIVE_DEF_LABEL, t = null;
+ try {
+  var div = document.createElement("div");
+  div.innerHTML = pageHtmlFix(renderMockPage(pvFromVersion(base.v)));
+  var col = _hlCollect(div);
+  t = {};
+  Object.keys(col).forEach(function(k) { t[k] = col[k].map(function(x) { return x.t; }); });
+ } catch (e) { t = null; }
+ LIVE_DEF_LABEL = saved;
+ setTxtState(curPv);
+ _hlCache = { k: key, t: t };
+ return t;
+}
+function pageHighlight(pv) {
+ var wrap = document.getElementById("washVisual"), bar = document.getElementById("hlBar");
+ if (!wrap) return;
+ [].slice.call(wrap.querySelectorAll(".hlChg")).forEach(function(x) { x.classList.remove("hlChg"); });
+ var base = hlBaseline(), db = document.getElementById("diffBar");
+ if (!bar && db) { bar = document.createElement("div"); bar.id = "hlBar"; db.parentNode.insertBefore(bar, db.nextSibling); }
+ if (!base) { if (bar) bar.innerHTML = ""; return; }
+ var bt = _hlBaseTexts(base, pv);
+ if (!bt) { if (bar) bar.innerHTML = ""; return; }
+ var cur = _hlCollect(wrap), total = 0, removed = 0, parts = [];
+ Object.keys(cur).forEach(function(k) {
+  var pool = (bt[k] || []).slice(), n = 0;
+  cur[k].forEach(function(u) {
+   var i = pool.indexOf(u.t);
+   if (i >= 0) pool.splice(i, 1); else { u.el.classList.add("hlChg"); var dm = u.el.closest(".dimmable"); if (dm) dm.classList.add("chgd"); n++; }
+  });
+  var del = Math.max(0, (bt[k] || []).length - cur[k].length);
+  removed += del;
+  if (n || del) parts.push(k + (n ? " " + n : "") + (del ? " (삭제 " + del + ")" : ""));
+  total += n;
+ });
+ document.body.classList.toggle("hlOff", HL_OFF);
+ if (bar) bar.innerHTML = total || removed ? '<div class="hlInfo"><span class="hlSw"></span><b>변경 하이라이트 ' + total + "곳</b>" + (removed ? " · 빠진 항목 " + removed + "곳" : "") + " <span>(" + escapeHtml(base.label) + ")</span><span class=\"hlParts\">" + escapeHtml(parts.join(" · ")) + '</span><a onclick="HL_OFF=!HL_OFF;document.body.classList.toggle(\'hlOff\',HL_OFF);this.textContent=HL_OFF?\'하이라이트 켜기\':\'하이라이트 끄기\'">' + (HL_OFF ? "하이라이트 켜기" : "하이라이트 끄기") + "</a></div>" : '<div class="hlInfo none">' + escapeHtml(base.label) + " · 페이지 문구 변경 없음</div>";
+}
+
+/* ── v13: 한정 혜택·OBS 카드 드래그 앤 드롭 순서 변경 — opts.order = { live:[키], obs:[키] } ──
+   한정 혜택 키: "p:"+원문 혜택(자동 인식) / "a:"+n(직접 추가)  ·  OBS 키: obsOrderKey(r) */
+function orderState(o) {
+ var s = jparse(o && o.order, {}) || {};
+ if (!Array.isArray(s.live)) s.live = [];
+ if (!Array.isArray(s.obs)) s.obs = [];
+ return s;
+}
+function obsOrderKey(r) {
+ if (r[4] === "hidden") return "h:" + (r._hn || 1);
+ if (r[4] === "hidden2") return "h2";
+ if (r[4] === "fixed") return "f:" + (r[0] || r[3] || "");
+ if (r[4] === "added") return "a:" + r._ai;
+ return "u:" + obsHideKey(r);
+}
+function _sortByKeys(list, keyOf, keys) {
+ if (!keys.length) return list;
+ return list.map(function(x, i) { var k = keys.indexOf(keyOf(x)); return { x: x, s: k >= 0 ? k : 1e4 + i }; }).sort(function(a, b) { return a.s - b.s; }).map(function(o) { return o.x; });
+}
+function applyCardOrder(pv) {
+ var s = orderState(pv.opts);
+ var pk = s.live.filter(function(k) { return /^p:/.test(k); });
+ if (pk.length) pv.liveItems = _sortByKeys(pv.liveItems || [], function(it) { return "p:" + it.benefit; }, pk);
+ if (s.obs.length && pv.obsShow) pv.obsShow = _sortByKeys(pv.obsShow, obsOrderKey, s.obs);
+ return pv;
+}
+/* 직접 추가 혜택은 자동 인식 카드 사이에 끼울 수 있도록 화면 순서를 맞춤 */
+function placeLiveCards(pv) {
+ var list = document.querySelector("#secLive .mockBenefitList");
+ if (!list) return;
+ var keys = orderState(pv.opts).live;
+ var items = [].slice.call(list.children).filter(function(e) { return e.classList.contains("mockAddWrap"); });
+ if (!keys.length || !items.length) return;
+ _sortByKeys(items, function(e) { return e.getAttribute("data-ok"); }, keys).forEach(function(e) { list.appendChild(e); });
+}
+function commitCardOrder(kind) {
+ var sel = kind === "live" ? "#secLive .mockBenefitList > .mockAddWrap" : "#secObs .mockLinkList > .mockLinkWrap";
+ var keys = [].slice.call(document.querySelectorAll(sel)).map(function(e) { return e.getAttribute("data-ok"); }).filter(Boolean);
+ var s = orderState({ order: (document.getElementById("opt_order") || {}).value });
+ if (kind === "live") {
+  /* 아이콘 직접 선택값(자동 인식 카드 순번 기준)을 새 순서로 옮김 */
+  var pv = collectFormValues(), oldKeys = (pv.liveItems || []).map(function(it) { return "p:" + it.benefit; });
+  var newKeys = keys.filter(function(k) { return /^p:/.test(k); }), li = optGet("opt_liveicon") || {}, n = {};
+  Object.keys(li).forEach(function(i) { var j = newKeys.indexOf(oldKeys[Number(i)]); if (j >= 0) n[j] = li[i]; });
+  var e = document.getElementById("opt_liveicon");
+  if (e) e.value = Object.keys(n).length ? JSON.stringify(n) : "";
+ }
+ s[kind] = keys;
+ optSet("opt_order", s.live.length || s.obs.length ? s : null);
+ showToast(kind === "live" ? "한정 혜택 순서를 바꿨습니다" : "OBS 배너 순서를 바꿨습니다");
+}
+function resetCardOrder() {
+ var s = orderState({ order: (document.getElementById("opt_order") || {}).value }), pv = collectFormValues();
+ /* 원래 순서로: 아이콘 선택값도 원문 순서 기준으로 되돌림 */
+ var cur = (pv.liveItems || []).map(function(it) { return "p:" + it.benefit; });
+ var o2 = Object.assign({}, pv.opts, { order: "" }), base = applyHidden(parseRawToStructured(pv.rawText || "", loadObsBank()), o2);
+ var orig = (base.liveItems || []).map(function(it) { return "p:" + it.benefit; }), li = optGet("opt_liveicon") || {}, n = {};
+ Object.keys(li).forEach(function(i) { var j = orig.indexOf(cur[Number(i)]); if (j >= 0) n[j] = li[i]; });
+ var e = document.getElementById("opt_liveicon");
+ if (e) e.value = Object.keys(n).length ? JSON.stringify(n) : "";
+ optSet("opt_order", null);
+}
+/* 직접 추가 혜택·배너 삭제 시 순서 키(a:n) 보정 */
+function _shiftAddKeys(kind, i) {
+ var s = orderState({ order: (document.getElementById("opt_order") || {}).value });
+ if (!s[kind].length) return;
+ s[kind] = s[kind].filter(function(k) { return k !== "a:" + i; }).map(function(k) { var m = k.match(/^a:(\d+)$/); return m && +m[1] > i ? "a:" + (+m[1] - 1) : k; });
+ var e = document.getElementById("opt_order");
+ if (e) e.value = s.live.length || s.obs.length ? JSON.stringify(s) : "";
+}
+var _delAddLiveV12 = delAddLive;
+delAddLive = function(i) { _shiftAddKeys("live", i); _delAddLiveV12(i); };
+var _delAddObsV12 = delAddObs;
+delAddObs = function(i) { _shiftAddKeys("obs", i); _delAddObsV12(i); };
+
+/* 드래그 핸들 · 드롭 위치 표시 */
+function addDragHandles() {
+ [ [ "#secLive .mockBenefitList > .mockAddWrap", "live" ], [ "#secObs .mockLinkList > .mockLinkWrap", "obs" ] ].forEach(function(x) {
+  [].slice.call(document.querySelectorAll(x[0])).forEach(function(w) {
+   if (w.querySelector(":scope > .dragH")) return;
+   var h = document.createElement("span");
+   h.className = "dragH reviewOnly";
+   h.setAttribute("draggable", "true");
+   h.setAttribute("data-kind", x[1]);
+   h.title = "드래그해서 순서 변경";
+   h.textContent = "⋮⋮";
+   w.insertBefore(h, w.firstChild);
+   w.classList.add("dndItem");
+  });
+ });
+}
+var _dnd = null;
+document.addEventListener("dragstart", function(e) {
+ var h = e.target && e.target.closest && e.target.closest(".dragH");
+ if (!h) return;
+ var item = h.parentNode;
+ _dnd = { item: item, kind: h.getAttribute("data-kind") };
+ item.classList.add("dragging");
+ try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "card"); e.dataTransfer.setDragImage(item, 20, 20); } catch (err) {}
+});
+document.addEventListener("dragover", function(e) {
+ if (!_dnd) return;
+ var t = e.target && e.target.closest && e.target.closest(".dndItem");
+ if (!t || t === _dnd.item || t.parentNode !== _dnd.item.parentNode) return;
+ e.preventDefault();
+ var r = t.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+ [].slice.call(t.parentNode.querySelectorAll(".dropB,.dropA")).forEach(function(x) { x.classList.remove("dropB", "dropA"); });
+ t.classList.add(after ? "dropA" : "dropB");
+});
+document.addEventListener("drop", function(e) {
+ if (!_dnd) return;
+ var t = e.target && e.target.closest && e.target.closest(".dndItem");
+ if (t && t !== _dnd.item && t.parentNode === _dnd.item.parentNode) {
+  e.preventDefault();
+  var after = t.classList.contains("dropA");
+  t.parentNode.insertBefore(_dnd.item, after ? t.nextSibling : t);
+  var k = _dnd.kind;
+  _dndEnd();
+  commitCardOrder(k);
+ }
+});
+function _dndEnd() {
+ if (_dnd && _dnd.item) _dnd.item.classList.remove("dragging");
+ [].slice.call(document.querySelectorAll(".dropB,.dropA")).forEach(function(x) { x.classList.remove("dropB", "dropA"); });
+ _dnd = null;
+}
+document.addEventListener("dragend", _dndEnd);
+function renderOrderNote(pv) {
+ var box = document.getElementById("hideBox");
+ if (!box) return;
+ var s = orderState(pv.opts), old = document.getElementById("orderNote");
+ if (old) old.parentNode.removeChild(old);
+ if (!s.live.length && !s.obs.length) return;
+ var d = document.createElement("div");
+ d.id = "orderNote";
+ d.className = "hideItem";
+ d.style.marginTop = "12px";
+ d.innerHTML = '<span class="k">순서</span><span>' + [ s.live.length && "한정 혜택", s.obs.length && "OBS 배너" ].filter(Boolean).join(" · ") + ' 순서를 직접 바꾼 상태입니다</span><button type="button" class="btn small secondary" onclick="resetCardOrder()">원래 순서로</button>';
+ box.parentNode.insertBefore(d, box);
+}
+
+/* ===================================================================
+   통합셋팅기 v13 — 2단계 흐름 (① 판촉·페이지 셋팅 → ② 배너 워싱) — v13에서 판촉 업데이트·페이지 수정 단계 통합
+   - 앞 단계로 넘어갈 때 저장 안 된 변경이 있으면 "저장(새 버전)"과 같은 동작 후 이동
+   - 뒤로 갈 때는 저장하지 않음(미저장 표시 유지)
+   =================================================================== */
+var STEP = 1;
+var STEP_NAMES = { 1: "판촉·페이지 셋팅", 2: "배너 워싱" };
+var STEP_MAX = 2;
+
+function setStepUi() {
+ document.body.classList.remove("step1", "step2");
+ document.body.classList.add("step" + STEP);
+ [].slice.call(document.querySelectorAll(".stp")).forEach(function(b) {
+  var s = Number(b.getAttribute("data-s"));
+  b.classList.toggle("on", s === STEP);
+  b.classList.toggle("done", s < STEP);
+  b.disabled = !currentCaseId;
+  b.setAttribute("aria-current", s === STEP ? "step" : "false");
+ });
+ var prev = document.getElementById("navPrev"), next = document.getElementById("navNext"), note = document.getElementById("navNote");
+ if (prev) prev.style.visibility = STEP > 1 ? "visible" : "hidden";
+ if (next) {
+  next.style.display = STEP < STEP_MAX ? "" : "none";
+  next.textContent = STEP < STEP_MAX ? "다음: " + STEP_NAMES[STEP + 1] + " →" : "";
+ }
+ if (note) note.textContent = STEP < STEP_MAX ? "넘어가도 저장되지 않음 · 최종 저장은 배너 워싱에서" : "최종 저장해야 새 버전이 만들어집니다";
+ var fs = document.getElementById("navSave");
+ if (fs) fs.style.display = STEP === STEP_MAX ? "" : "none";
+}
+
+function goStep(n) {
+ n = Number(n);
+ if (!(n >= 1 && n <= STEP_MAX)) return;
+ if (!currentCaseId) {
+  showToast("먼저 방송을 선택하거나 새로 만들어 주세요.");
+  return;
+ }
+ if (n === STEP) return;
+ var ae = document.activeElement;
+ if (ae && ae.blur && ae !== document.body) ae.blur();
+ STEP = n;
+ setStepUi();
+ renderWashVisual();
+ window.scrollTo(0, 0);
+}
+
+function onCaseShown(on) {
+ document.body.classList.toggle("noCase", !on);
+ var es = document.getElementById("emptyState");
+ if (es) es.style.display = on ? "none" : "";
+ var sb = document.getElementById("saveBtn");
+ if (sb) sb.disabled = !on;
+ STEP = 1;
+ setStepUi();
+}
+
+/* 워싱본 렌더 직후 훅 (renderWashVisual 끝에서 호출) */
+function afterWashRender(pv) {
+ syncKvForm(pv);
+ renderHideBox(pv);
+ placeLiveCards(pv);
+ addDragHandles();
+ renderOrderNote(pv);
+ renderKvCount(pv);
+ syncPayModeUi(pv);
+ renderPaySummaryBox(pv);
+ pageHighlight(pv);
+ var bn = document.getElementById("bdateNote");
+ if (bn) {
+  var d = parseDateFromCaseName((document.getElementById("case_name") || {}).value || "");
+  bn.innerHTML = d ? "방송일: <b>" + fmtMD(d.month, d.day) + "</b> (방송명에서 자동)" : '<span style="color:#a12020;font-weight:700;">방송명에 날짜가 없습니다</span> → ⋯ 더보기 → 방송명 수정에서 "10/22 …"처럼 앞에 날짜를 넣어 주세요';
+ }
+ if (STEP === 2) renderBanners(pv);
+}
+
+/* ── ② KV 카피 폼 (워싱본 KV 영역과 같은 값: opts.kv) ── */
+function syncKvForm(pv) {
+ var k = kvInfo(pv);
+ [ [ "kvM", "m" ], [ "kvS", "s" ], [ "kvD", "d" ], [ "kvM3", "m" ], [ "kvS3", "s" ] ].forEach(function(x) {
+  var e = document.getElementById(x[0]);
+  if (e && document.activeElement !== e && e.value !== k[x[1]]) e.value = k[x[1]];
+ });
+ kvCounters();
+}
+
+function kvCounters() {
+ function one(id, lim) {
+  var e = document.getElementById(id), cc = document.getElementById(id + "cc");
+  if (!e || !cc) return;
+  var n = e.value.trim().length;
+  cc.textContent = n + " / " + lim + "자" + (n > lim ? " · " + (n - lim) + "자 초과" : "");
+  cc.className = "cc " + (n > lim ? "warn" : n ? "ok" : "");
+  var cd = document.getElementById(id + "cand"), ls = bnTrimCands(e.value, lim);
+  if (cd) {
+   if (ls.length) {
+    cd.classList.add("show");
+    cd.innerHTML = "<b>축약 제안</b>" + ls.map(function(s) {
+     return '<button type="button" data-v="' + _attr(s) + '" onclick="kvPick(\'' + id + "',this.getAttribute('data-v'))\">" + escapeHtml(s) + " (" + s.length + "자)</button>";
+    }).join("");
+   } else {
+    cd.classList.remove("show");
+    cd.innerHTML = "";
+   }
+  }
+ }
+ one("kvM", BN_LIM.keyMain);
+ one("kvS", BN_LIM.keySub);
+ one("kvM3", BN_LIM.keyMain);
+ one("kvS3", BN_LIM.keySub);
+ var a = document.getElementById("kvMlim"), b = document.getElementById("kvSlim");
+ if (a) a.textContent = BN_LIM.keyMain;
+ if (b) b.textContent = BN_LIM.keySub;
+}
+
+function kvPick(id, v) {
+ var e = document.getElementById(id);
+ if (!e) return;
+ e.value = v;
+ onKvForm(/^kvM/.test(id) ? "m" : "s", e);
+}
+
+function onKvForm(f, el) {
+ var k = kvInfo({ opts: collectOpts() });
+ var orig = f === "d" ? k.dateAuto : f === "m" ? k.mainAuto : "";
+ var v = el.value.replace(/\s+/g, " ").trim(), ov = optGet("opt_kv") || {};
+ if (v === orig) delete ov[f]; else ov[f] = v;
+ optSet("opt_kv", ov);
+ [ [ "kvM", "m" ], [ "kvS", "s" ], [ "kvM3", "m" ], [ "kvS3", "s" ] ].forEach(function(x) {
+  var e = document.getElementById(x[0]);
+  if (e && e !== el && x[1] === f) e.value = el.value;
+ });
+ kvCounters();
+}
+
+/* ── 설정 · 관리 서랍 ── */
+function openDrawer(sec) {
+ document.getElementById("drawerOv").hidden = false;
+ document.getElementById("drawer").hidden = false;
+ sec = sec || "obs";
+ [].slice.call(document.querySelectorAll("#drawer .dsec")).forEach(function(s) {
+  s.classList.toggle("on", s.getAttribute("data-d") === sec);
+ });
+ [].slice.call(document.querySelectorAll("#drawer .dtabs .tab")).forEach(function(t) {
+  t.classList.toggle("on", t.getAttribute("data-d") === sec);
+ });
+ if (sec === "lim") bnBuildLim();
+ if (sec === "obs") renderObsBankList();
+}
+
+function closeDrawer() {
+ document.getElementById("drawerOv").hidden = true;
+ document.getElementById("drawer").hidden = true;
+}
+
+document.addEventListener("keydown", function(e) {
+ if (e.key === "Escape") {
+  var d = document.getElementById("drawer");
+  if (d && !d.hidden) closeDrawer();
+ }
+});
+
+/* v13: 버전은 ② 배너 워싱의 "최종 저장(확정)"에서만 생성 (단계 이동은 저장하지 않음) */
+function finalSave() {
+ if (!currentCaseId) { showToast("먼저 방송을 선택하거나 새로 만들어 주세요."); return; }
+ if (STEP !== STEP_MAX) { goStep(STEP_MAX); showToast("배너 카피까지 확인한 뒤 최종 저장해 주세요"); return; }
+ var ae = document.activeElement;
+ if (ae && ae.blur && ae !== document.body) ae.blur();
+ if (!isDirty()) { showToast("바뀐 내용이 없어 새 버전을 만들지 않았습니다"); return; }
+ savePromo();
+ var c = currentCase();
+ showToast("v" + (c ? c.promoVersions.length : "") + " 최종 저장 완료 (페이지 + 배너)");
+}
+
+/* ===================================================================
+   ② 배너 워싱 — 라이브 배너 카피 생성기 v18 규칙 이식
+   입력: ② 페이지의 KV 카피(opts.kv) · 방송명 날짜 · 방송 시간 · 재방송
+   저장: opts.bn (JSON) = { prod, prodS, pt, pst, rt, r1, r2, r3, mx, cb, ed:{행키:{o,v}} }
+         ed.o = 수정 당시 자동 카피, ed.v = 직접 수정 문구 → KV가 바뀌면 "자동 카피가 바뀜" 안내
+   =================================================================== */
+var BN_LIM_DEF = { keyMain: 15, keySub: 28, heroMain: 18, heroSub: 28, homeHeroMain: 12, homeHeroSub: 24, pr1: 20, pr2: 20, bt1: 14, pop1: 12, th1: 16, th2: 15, sn1: 16, sn2: 15, in1: 18, in2: 18 };
+var BN_LIM_L = { keyMain: "KV 카피 메인", keySub: "KV 카피 서브", heroMain: "라이브 히어로 메인", heroSub: "라이브 히어로 서브", homeHeroMain: "홈메인 히어로 메인", homeHeroSub: "홈메인 히어로 서브", pr1: "상단홍보 1줄", pr2: "상단홍보 2줄", bt1: "바텀시트(MO) 메인카피", pop1: "팝업(PC) 메인카피", th1: "썸네일 1줄", th2: "썸네일 2줄", sn1: "SNS 1줄", sn2: "SNS 2줄", in1: "인사이더 1줄", in2: "인사이더 2줄" };
+var BN_LIM_KEY = "lts_bn_lim_v1";
+var BN_LIM = (function() {
+ var o = Object.assign({}, BN_LIM_DEF);
+ try {
+  var s = JSON.parse(localStorage.getItem(BN_LIM_KEY) || "{}") || {};
+  Object.keys(o).forEach(function(k) {
+   if (Number(s[k]) > 0) o[k] = Number(s[k]);
+  });
+ } catch (e) {}
+ return o;
+})();
+var BN_PD = [
+ { l: "에어컨", k: [ "에어컨", "휘센" ], f: "LG 휘센 에어컨" },
+ { l: "냉장고", k: [ "냉장고", "디오스" ], f: "LG 디오스 냉장고" },
+ { l: "세탁기", k: [ "세탁기", "트롬", "워시타워", "워시콤보" ], f: "LG 트롬 세탁기" },
+ { l: "건조기", k: [ "건조기" ], f: "LG 트롬 건조기" },
+ { l: "제습기", k: [ "제습기" ], f: "LG 휘센 제습기" },
+ { l: "스타일러", k: [ "스타일러" ], f: "LG 스타일러" },
+ { l: "공기청정기", k: [ "공기청정기", "퓨리케어" ], f: "LG 퓨리케어 공기청정기" },
+ { l: "정수기", k: [ "정수기" ], f: "LG 퓨리케어 정수기" },
+ { l: "식기세척기", k: [ "식기세척기" ], f: "LG 디오스 식기세척기" },
+ { l: "인덕션", k: [ "인덕션" ], f: "LG 디오스 인덕션" },
+ { l: "광파오븐", k: [ "광파오븐" ], f: "LG 디오스 광파오븐" },
+ { l: "TV", k: [ "TV", "올레드", "OLED", "QNED" ], f: "LG TV" },
+ { l: "노트북", k: [ "노트북", "그램" ], f: "LG 그램 노트북" },
+ { l: "사운드바", k: [ "사운드바" ], f: "LG 사운드바" },
+ { l: "청소기", k: [ "청소기", "코드제로" ], f: "LG 코드제로 청소기" },
+ { l: "침대", k: [ "침대", "시몬스", "매트리스" ], f: "시몬스 침대" },
+ { l: "소파", k: [ "소파", "알로소" ], f: "알로소 소파" },
+ { l: "주방가전", k: [ "주방가전" ], f: "LG 주방가전" },
+ { l: "가전", k: [ "가전" ], f: "LG 가전" }
+];
+/* 축약명 카테고리: 제품군이 아래 제품 2개 이상으로만 이루어지면 카테고리명으로 축약 */
+var BN_KITCHEN_SET = [ "냉장고", "인덕션", "광파오븐", "식기세척기" ];
+var BN_LIVING_SET = [ "세탁기", "스타일러", "청소기", "건조기" ];
+
+function bnShorten(t, lim) {
+ t = (t || "").trim().replace(/\s+/g, " ");
+ if (!t || t.length <= lim) return t;
+ var steps = [ function(x) { return x.replace(/^LG\s+/, ""); }, function(x) { return x.replace(/베스트 특집/, "특집"); }, function(x) { return x.replace(/할인 혜택/, "혜택"); } ];
+ var cur = t;
+ for (var i = 0; i < steps.length; i++) {
+  cur = steps[i](cur).trim();
+  if (cur.length <= lim) return cur;
+ }
+ var tk = cur.split(" ");
+ for (var j = 1; j < tk.length; j++) {
+  if (/^[&+·ㆍ・\/,]$/.test(tk[j])) continue;
+  var s = tk.slice(j).join(" ");
+  if (s.length <= lim) return s;
+ }
+ return cur;
+}
+
+function bnTrimCands(t, lim) {
+ t = (t || "").trim().replace(/\s+/g, " ");
+ if (t.length <= lim) return [];
+ var tk = t.split(" "), cs = [], i;
+ function add(x) { if (cs.indexOf(x) < 0) cs.push(x); }
+ for (i = 1; i < tk.length; i++) add(tk.slice(i).join(" "));
+ for (i = tk.length - 1; i >= 1; i--) add(tk.slice(0, i).join(" "));
+ if (t.indexOf(",") >= 0) {
+  var p = t.split(",").map(function(s) { return s.trim(); });
+  if (p.length > 1) { add(p.slice(1).join(" ").trim()); add(p[0]); }
+ }
+ var sub = t.replace(/^LG\s*/, "").replace(/베스트 특집/, "특집").replace(/할인 혜택/, "혜택").replace(/\s+/g, " ").trim();
+ if (sub && sub !== t) add(sub);
+ var v = cs.filter(function(c) { return c.length > 0 && c.length <= lim && !/^[&+·ㆍ・\/,]/.test(c); });
+ v.sort(function(a, b) { return b.length - a.length; });
+ return v.slice(0, 5);
+}
+
+/* KV 카피에서 제품군·축약명·할인율 자동 인식 (v18 autoFill과 같은 규칙) */
+function bnAuto(main, sub) {
+ var raw = (main || "") + " " + (sub || ""), txt = raw.toUpperCase(), out = { prod: "", prodS: "", r: [ "", "", "" ], mx: /최대/.test(raw) };
+ var mt = BN_PD.filter(function(p) { return p.k.some(function(k) { return txt.indexOf(k.toUpperCase()) >= 0; }); });
+ if (mt.length > 1) {
+  var ls0 = mt.map(function(m) { return m.l; });
+  mt = mt.filter(function(m) { return !ls0.some(function(o) { return o !== m.l && o.indexOf(m.l) >= 0; }); });
+ }
+ var GENERIC = [ "가전", "주방가전" ];
+ if (mt.length > 1) {
+  var specific = mt.filter(function(m) { return GENERIC.indexOf(m.l) < 0; });
+  if (specific.length) mt = specific;
+ }
+ if (mt.length === 1) {
+  out.prod = mt[0].f;
+  out.prodS = mt[0].l;
+ } else if (mt.length > 1) {
+  var sp = mt.map(function(m) {
+   var b = null;
+   m.k.forEach(function(k) {
+    var i = txt.indexOf(k.toUpperCase());
+    if (i >= 0 && (!b || i < b.i)) b = { i: i, e: i + k.length };
+   });
+   return { m: m, i: b ? b.i : 1e9, e: b ? b.e : 1e9 };
+  }).sort(function(a, b) { return a.i - b.i; });
+  var sep = "&";
+  for (var x = 1; x < sp.length; x++) {
+   if (sp[x].i < sp[x - 1].e) continue;
+   var bt = raw.slice(sp[x - 1].e, sp[x].i), t = bt.trim();
+   if (t.length === 1 && /[&·ㆍ・+\/,]/.test(t)) { sep = bt; break; }
+  }
+  var ls = sp.map(function(o) { return o.m.l; });
+  var cat = ls.every(function(l) { return BN_KITCHEN_SET.indexOf(l) >= 0; }) ? "주방가전" : ls.every(function(l) { return BN_LIVING_SET.indexOf(l) >= 0; }) ? "리빙가전" : null;
+  sep = "·"; /* v06: 제품 나열은 가운데점 필수 */
+  out.prod = ls.join(sep);
+  out.prodS = cat || ls.join(sep);
+ }
+ var rm = [], re = /(\d+)\s*%/g, m;
+ while ((m = re.exec(raw))) rm.push(m[1]);
+ for (var k = 0; k < 3; k++) if (rm[k] !== undefined) out.r[k] = rm[k];
+ return out;
+}
+
+/* 페이지(①·②)에서 받아오는 값 */
+function bnSource(pv) {
+ var k = kvInfo(pv), o = pv.opts || {};
+ var name = (document.getElementById("case_name") || {}).value || "";
+ var d = parseDateFromCaseName(name) || parseDateFromCaseName(o.bdate || "");
+ var ds = "", h = null, mi = 0, fromKv = false;
+ var km = String(k.d || "").match(/([0-9]{1,2})\s*\.\s*([0-9]{1,2})\s*\(\s*([월화수목금토일])\s*\)\s*(오전|오후)?\s*([0-9]{1,2})\s*시(?:\s*([0-9]{1,2})\s*분)?/);
+ if (km && Number(km[1]) >= 1 && Number(km[1]) <= 12) {
+  ds = Number(km[1]) + "." + Number(km[2]) + "(" + km[3] + ")";
+  h = Number(km[5]);
+  if (km[4] === "오후" && h < 12) h += 12;
+  if (km[4] === "오전" && h === 12) h = 0;
+  mi = km[6] ? Number(km[6]) : 0;
+  fromKv = !!(jparse(o.kv, {}) || {}).d;
+ } else if (d) {
+  ds = fmtMD(d.month, d.day);
+  h = airInfo(pv).hour;
+ }
+ var hh = h === null ? 20 : h, ap = hh < 12 ? "오전" : "오후", h12 = hh % 12 === 0 ? 12 : hh % 12;
+ var tl = ap + " " + h12 + "시" + (mi ? " " + mi + "분" : "");
+ var ev = (hh >= 12 ? "저녁" : "오전") + " " + h12 + "시" + (mi ? " " + mi + "분" : "");
+ return {
+  main: String(k.m || "").replace(/\s+/g, " ").trim(),
+  sub: String(k.s || "").replace(/\s+/g, " ").trim(),
+  mainAuto: k.mainAuto,
+  ds: ds,
+  timeLabel: tl,
+  evLabel: ev,
+  full: ds ? ds + " " + tl : "",
+  fromKv: fromKv,
+  bc: o.rebro ? "재방송" : "라이브"
+ };
+}
+
+function bnState(pv) {
+ var s = jparse(pv && pv.opts && pv.opts.bn, {}) || {};
+ if (!s.ed || typeof s.ed !== "object") s.ed = {};
+ return s;
+}
+
+function bnInputs(pv) {
+ var src = bnSource(pv), st = bnState(pv), au = bnAuto(src.main, src.sub);
+ var I = Object.assign({}, src);
+ I.auto = au;
+ I.st = st;
+ I.prodV = st.pt ? st.prod || "" : au.prod;
+ I.prodSV = st.pst ? st.prodS || "" : au.prodS;
+ if (st.rt) {
+  I.r = [ st.r1 || "", st.r2 || "", st.r3 || "" ];
+  I.mx = !!st.mx;
+ } else {
+  I.r = au.r.slice();
+  I.mx = au.mx;
+ }
+ I.cb = st.cb || "";
+ return I;
+}
+
+function bnBen(I) {
+ if (I.cb.trim()) return I.cb.trim();
+ var b = String(I.r[0] || "").trim(), cp = String(I.r[1] || "").trim(), cd = String(I.r[2] || "").trim();
+ if (!b) return I.mx ? "최대 할인" : "";
+ var s = (I.mx ? "최대 " : "") + b + "% 할인";
+ if (cp) s += " + " + cp + "% 쿠폰";
+ if (cd) s += " + " + cd + "% 카드";
+ return s;
+}
+
+function bnGen(I) {
+ var m = I.main, s = I.sub, b = I.bc, bn = bnBen(I);
+ var p = I.prodV.trim() || "(입력 필요)", ps = I.prodSV.trim() || p;
+ var prLine1 = I.full ? I.full + " LIVE" : "(날짜 입력 필요) LIVE";
+ var bnPart = bn ? " " + bn : "";
+ var bBn = bn ? b + bnPart : b;
+ var AC = BN_PD[0];
+ var isAC = I.prodV.trim() === AC.f || I.prodV.trim() === AC.l || I.prodSV.trim() === AC.l;
+ var kv = function(lim) { return m ? bnShorten(m, lim) : "(입력 필요)"; };
+ var tl = "오늘 " + I.timeLabel + ",";
+ var btLim = Math.min(BN_LIM.pop1, BN_LIM.bt1);
+ return {
+  full: I.full,
+  pr: [ prLine1, bn ? ps + bnPart : ps ],
+  btP: [ tl, kv(btLim) ],
+  btM: [ tl, kv(btLim) ],
+  hero: [ m, s ],
+  th: [ isAC ? AC.f : kv(BN_LIM.th1), bBn ],
+  sn: [ isAC ? AC.f : kv(BN_LIM.sn1), bBn ],
+  ins: [ "오늘 " + I.evLabel + " " + ps, bBn ],
+  home: [ bnShorten(m, BN_LIM.homeHeroMain), bnShorten(s, BN_LIM.homeHeroSub) ],
+  homeSrc: [ m, s ],
+  src: m,
+  isAC: isAC,
+  btLim: btLim
+ };
+}
+
+function bnShNote(o, t, l, x) {
+ return o && t && o !== t ? "ℹ 원문 " + o.length + "자를 " + l + "자 기준" + (x || "") + "으로 자동 축약했습니다 · 원문: " + o : "";
+}
+
+function bnAlertTxt(n, l) {
+ return "⚠ 글자수 초과 — 현재 " + n + "자 / 기준 " + l + "자 (" + (n - l) + "자 초과)";
+}
+
+/* 배너 모델: 그룹 → 행(이미지) → 줄(키·자동값·수정값·한도·안내) */
+function bnModel(pv) {
+ var I = bnInputs(pv), g = bnGen(I), ed = I.st.ed;
+ var acN = 'ℹ 에어컨 라이브 — KV 카피보다 "LG 휘센 에어컨"을 우선 적용했습니다';
+ var mkN = function(t, l) { return g.isAC ? acN : bnShNote(g.src, t, l); };
+ var hl = [ BN_LIM.homeHeroMain, BN_LIM.homeHeroSub ];
+ var hn = g.homeSrc.map(function(o, i) { return o && o !== g.home[i] ? "ℹ 원문 " + o.length + "자를 " + hl[i] + "자 기준으로 자동 축약했습니다 · 원문: " + o : ""; });
+ var btN = [ "", bnShNote(g.src, g.btP[1], g.btLim, "(PC·MO 동일 카피)") ];
+ var G = [
+  { id: "home", name: "홈메인 히어로배너", en: "main-home_herobanner", cl: "홈메인 히어로배너", rows: [
+   { id: "PC", nm: "PC", en: "main-home_herobanner_pc", img: "homehero_pc", lines: g.home, lk: [ "homeHeroMain", "homeHeroSub" ], notes: hn },
+   { id: "MO", nm: "MO", en: "main-home_herobanner_mo", img: "homehero_mo", lines: g.home, lk: [ "homeHeroMain", "homeHeroSub" ], notes: hn } ] },
+  { id: "promo", name: "상단홍보배너", en: "Promotion_Banner", cl: "상단홍보배너", rows: [
+   { id: "PC", nm: "PC", en: "Promotion_Banner_pc", img: "promo_pc", lines: g.pr, lk: [ "pr1", "pr2" ] },
+   { id: "MO", nm: "MO", en: "Promotion_Banner_mo", img: "promo_mo", lines: g.pr, lk: [ "pr1", "pr2" ] } ] },
+  { id: "bottom", name: "바텀시트 · 팝업", en: "main-home_bottom / Popup", cl: "바텀시트 · 팝업", warn: "⚠️ <b>블랙 제품</b>은 샤픈·빛효과로 배경 구분 필수", rows: [
+   { id: "PC", nm: "PC 팝업", en: "main-home_Popup_live_PC", img: "bottom_pc", lines: g.btP, lk: [ null, "pop1" ], notes: btN },
+   { id: "MO", nm: "MO 바텀시트", en: "main-home_bottom_live_MO", img: "bottom_mo", lines: g.btM, lk: [ null, "bt1" ], notes: btN } ] },
+  { id: "hero", name: "라이브 히어로배너", en: "Lgelive_herobanner", cl: "히어로배너 - KV", kv: true, rows: [
+   { id: "PC", nm: "PC", en: "Lgelive_herobanner_pc", img: "hero_pc", lines: g.hero, lk: [ "heroMain", "heroSub" ] },
+   { id: "MO", nm: "MO", en: "Lgelive_herobanner_mo", img: "hero_mo", lines: g.hero, lk: [ "heroMain", "heroSub" ] } ] },
+  { id: "cal", name: "캘린더 썸네일", en: "Lgelive_720x720", cl: "캘린더 썸네일", nocopy: true, rows: [
+   { id: "cal", nm: "캘린더", en: "Lgelive_720x720", img: "calendar", nc: true } ] },
+  { id: "thumb", name: "방송 썸네일", en: "Banner_thumb", cl: "방송 썸네일", rows: [
+   { id: "900", nm: "900x1200", en: "Banner_thumb_900x1200", img: "thumb_1", lines: g.th, lk: [ "th1", "th2" ], notes: [ mkN(g.th[0], BN_LIM.th1), "" ] },
+   { id: "1080", nm: "1080x810", en: "Banner_thumb_1080x810", img: "thumb_2", lines: g.th, lk: [ "th1", "th2" ], notes: [ mkN(g.th[0], BN_LIM.th1), "" ] } ] },
+  { id: "sns", name: "SNS · 방송안내 썸네일", en: "Banner_sns", cl: "SNS", rows: [
+   { id: "1000", nm: "1000x1000", en: "thumbnail_1000x1000", img: "thumb_1000", lines: g.sn, lk: [ "sn1", "sn2" ], notes: [ mkN(g.sn[0], BN_LIM.sn1), "" ] },
+   { id: "1024", nm: "SNS 1024", en: "Banner_sns_1024", img: "sns_1", lines: g.sn, lk: [ "sn1", "sn2" ], notes: [ mkN(g.sn[0], BN_LIM.sn1), "" ] },
+   { id: "1200", nm: "SNS 1200", en: "Banner_sns_1200", img: "sns_2", nc: true } ] },
+  { id: "ins", name: "인사이더 배너", en: "Insider_banner", cl: "인사이더", rows: [
+   { id: "ins", nm: "인사이더", en: "Insider_banner", img: "insider", lines: g.ins, lk: [ "in1", "in2" ] } ] }
+ ];
+ G.forEach(function(gr) {
+  gr.rows.forEach(function(r) {
+   r.gid = gr.id;
+   r.pair = /^PC/.test(r.nm) ? "MO" : /^MO/.test(r.nm) ? "PC" : null;
+   if (r.nc) { r.L = []; return; }
+   r.L = (r.lines || []).map(function(auto, i) {
+    auto = auto || "";
+    var key = gr.id + ":" + r.id + ":" + i, e = ed[key], lk = r.lk && r.lk[i] || null;
+    var val = e ? String(e.v) : auto;
+    var n = val.length, lim = lk ? BN_LIM[lk] : null;
+    return { key: key, i: i, auto: auto, val: val, lk: lk, lim: lim, n: n, over: lim !== null && n > lim, edited: !!e && e.v !== auto, stale: !!e && e.o !== auto && e.v !== auto, note: r.notes && r.notes[i] || "" };
+   });
+  });
+ });
+ return { I: I, g: g, groups: G };
+}
+
+/* 버전 저장·비교용 스냅샷: [{g:그룹명, t:복사 텍스트}] */
+function bannerSnapshot(pv) {
+ try {
+  var M = bnModel(pv);
+  return M.groups.filter(function(gr) { return !gr.nocopy; }).map(function(gr) {
+   return { g: gr.name, t: bnGroupText(gr) };
+  });
+ } catch (e) {
+  return null;
+ }
+}
+
+function bnGroupText(gr) {
+ var rows = gr.rows.filter(function(r) { return !r.nc; });
+ if (!rows.length) return "";
+ var label = "[" + gr.cl + "]";
+ var bl = rows.map(function(r) { return { nm: r.nm, lines: r.L.map(function(l) { return l.val.trim(); }) }; });
+ var same = bl.every(function(b) { return b.lines.join("\n") === bl[0].lines.join("\n"); });
+ return same ? label + "\n" + bl[0].lines.join("\n") : bl.map(function(b) { return label + " " + b.nm + "\n" + b.lines.join("\n"); }).join("\n\n");
+}
+
+/* ── 화면 ── */
+var _bnM = null;
+
+function renderBanners(pv) {
+ var box = document.getElementById("bnResults");
+ if (!box || !currentCaseId) return;
+ if (box.contains(document.activeElement) && document.activeElement.classList.contains("bnTxt")) return;
+ pv = pv || collectFormValues();
+ var M = bnModel(pv);
+ _bnM = M;
+ bnRenderInputs(M.I);
+ var h = '<div class="bnBar" id="bnBar"></div>';
+ M.groups.forEach(function(gr, gi) {
+  h += '<div class="bnGrp" data-g="' + gr.id + '"><div class="bnGrpT"><span class="gn">' + escapeHtml(gr.name) + ' <span class="en">' + escapeHtml(gr.en) + "</span></span>" + (gr.nocopy ? "" : '<span class="bnGb"></span><button type="button" class="bnGcp" onclick="bnCopyGroup(' + gi + ',this)">그룹 복사</button>') + "</div>";
+  if (gr.warn) h += '<p class="bnWarnP">' + gr.warn + "</p>";
+  gr.rows.forEach(function(r, ri) {
+   var img = r.img && typeof TH !== "undefined" && TH[r.img] ? '<div class="bnImg"><img src="' + TH[r.img] + '" alt=""></div>' : '<div class="bnImg"></div>';
+   if (r.nc) {
+    h += '<div class="bnRow nc">' + img + '<div class="bnCopy"><div class="bnNm">' + escapeHtml(r.nm) + ' <span class="en">' + escapeHtml(r.en) + '</span></div><div class="bnCt">카피 없음 · 이미지 전용</div></div></div>';
+    return;
+   }
+   var lines = r.L.map(function(l) {
+    var ce = ' contenteditable="true" spellcheck="false" role="textbox" title="클릭해서 직접 수정 · Enter로 확정" data-bk="' + _attr(l.key) + '"' + (l.lk ? ' data-lk="' + l.lk + '"' : "");
+    var s = '<div class="bnLine' + (l.over ? " over" : "") + (l.edited ? " edited" : "") + '"><span class="bnTxt"' + ce + ">" + escapeHtml(l.val) + "</span>" + (l.lk ? '<span class="bnLc">' + l.n + "/" + l.lim + "</span>" : "") + "</div>";
+    if (l.lk) s += '<div class="bnAlert">' + bnAlertTxt(l.n, l.lim) + "</div>";
+    if (l.stale) s += '<div class="bnStale">⚠ KV 카피가 바뀌어 자동 카피는 「' + escapeHtml(l.auto) + '」입니다 · 직접 수정한 문구 유지 중<button type="button" onclick="bnRevert(\'' + l.key + "')\">자동 카피로</button></div>";
+    if (l.note && !l.edited) s += '<div class="bnInfo">' + escapeHtml(l.note) + "</div>";
+    return s;
+   }).join("");
+   h += '<div class="bnRow' + (gr.kv ? " kv" : "") + '" data-r="' + gi + ":" + ri + '">' + img + '<div class="bnCopy"><div class="bnNm">' + escapeHtml(r.nm) + ' <span class="en">' + escapeHtml(r.en) + '</span></div><div class="bnCt">' + lines + '</div><button type="button" class="bnCp" onclick="bnCopyRow(' + gi + "," + ri + ',this)">복사</button></div></div>';
+  });
+  h += "</div>";
+ });
+ var y = window.scrollY;
+ box.innerHTML = h;
+ if (y) window.scrollTo(0, y);
+ bnUpdateSummary();
+}
+
+function bnRenderInputs(I) {
+ function set(id, v) {
+  var e = document.getElementById(id);
+  if (e && document.activeElement !== e && e.value !== v) e.value = v;
+ }
+ function txt(id, v, empty) {
+  var e = document.getElementById(id);
+  if (!e) return;
+  e.textContent = v || empty;
+  e.classList.toggle("empty", !v);
+ }
+ txt("bnSrcM", I.main, "(메인 카피 없음)");
+ txt("bnSrcS", I.sub, "(서브 카피 없음)");
+ txt("bnSrcD", I.full + (I.fromKv ? " · KV 날짜 기준" : ""), "날짜 미확인");
+ txt("bnSrcB", I.bc, "");
+ var w = [], nM = I.main.length, nS = I.sub.length;
+ if (!I.main || /^000 /.test(I.main)) w.push("KV 메인카피에 제품명이 없습니다 → 왼쪽 KV 카피에 입력해 주세요");
+ if (nM > BN_LIM.keyMain) w.push("KV 메인 " + nM + "자 · 기준 " + BN_LIM.keyMain + "자 초과(" + (nM - BN_LIM.keyMain) + "자)");
+ if (nS > BN_LIM.keySub) w.push("KV 서브 " + nS + "자 · 기준 " + BN_LIM.keySub + "자 초과(" + (nS - BN_LIM.keySub) + "자)");
+ if (!I.full) w.push("방송 날짜를 읽지 못했습니다 → ⋯ 더보기 → 방송명 수정에서 방송명 앞에 날짜(예: 10/22)를 넣어 주세요");
+ if (!I.prodV.trim() && !I.prodSV.trim()) w.push("제품군을 인식하지 못했습니다 → 아래 제품군·축약명을 입력해 주세요");
+ var wb = document.getElementById("bnSrcWarn");
+ if (wb) wb.innerHTML = w.map(function(x) { return '<div class="srcWarn">' + escapeHtml(x) + "</div>"; }).join("");
+ /* v10: 칸에는 직접 입력값만, 자동 인식값은 회색 안내(placeholder)로 */
+ function ph(id, v, base) {
+  var e = document.getElementById(id);
+  if (e) e.placeholder = v ? "자동: " + v : base;
+ }
+ set("bnProd", I.st.pt ? I.st.prod || "" : "");
+ set("bnProdS", I.st.pst ? I.st.prodS || "" : "");
+ ph("bnProd", I.auto.prod, "제품군 (자동 인식 없음)");
+ ph("bnProdS", I.auto.prodS, "축약명 (자동 인식 없음)");
+ [ "bnR1", "bnR2", "bnR3" ].forEach(function(id, i) {
+  set(id, I.st.rt ? I.st["r" + (i + 1)] || "" : "");
+  ph(id, I.auto.r[i] ? I.auto.r[i] + "%" : "", [ "기본%", "쿠폰%", "카드%" ][i]);
+ });
+ var mx = document.getElementById("bnMx");
+ if (mx) mx.checked = !!I.mx;
+ set("bnCb", I.cb);
+ function tag(id, manual) {
+  var e = document.getElementById(id);
+  if (e) e.innerHTML = manual ? '<span class="autoTag man">직접 입력</span>' : "";
+ }
+ tag("bnProdTag", I.st.pt);
+ tag("bnProdSTag", I.st.pst);
+ tag("bnRateTag", I.st.rt);
+ var man = [ I.st.pt && "제품군", I.st.pst && "축약명", I.st.rt && "할인율", I.cb && "커스텀 문구" ].filter(Boolean);
+ var as = document.getElementById("bnAccState");
+ if (as) { as.textContent = man.length ? "직접 입력 중: " + man.join(", ") : "배너 일괄 수정 시 사용"; as.className = "accS" + (man.length ? " man" : ""); }
+ var ab = document.getElementById("bnAutoBtn");
+ if (ab) ab.style.display = I.st.pt || I.st.pst || I.st.rt || I.cb ? "" : "none";
+}
+
+function bnSave(st) {
+ var clean = {};
+ if (st.pt) { clean.pt = true; clean.prod = st.prod || ""; }
+ if (st.pst) { clean.pst = true; clean.prodS = st.prodS || ""; }
+ if (st.rt) { clean.rt = true; clean.r1 = st.r1 || ""; clean.r2 = st.r2 || ""; clean.r3 = st.r3 || ""; clean.mx = !!st.mx; }
+ if (st.cb) clean.cb = st.cb;
+ if (st.ed && Object.keys(st.ed).length) clean.ed = st.ed;
+ optSet("opt_bn", Object.keys(clean).length ? clean : null);
+}
+
+function bnCurState() {
+ return bnState({ opts: { bn: (document.getElementById("opt_bn") || {}).value || "" } });
+}
+
+function bnSetIn(f, v) {
+ var st = bnCurState();
+ if (f === "prod") { st.prod = v; st.pt = v.trim() !== ""; }
+ if (f === "prodS") { st.prodS = v; st.pst = v.trim() !== ""; }
+ if (f === "cb") st.cb = v;
+ if (f === "rate") {
+  if (!st.rt && _bnM) {
+   /* 처음 직접 입력할 때: 비어 있는 다른 칸은 자동 인식값으로 채워 둠 */
+   [ "bnR1", "bnR2", "bnR3" ].forEach(function(id, i) {
+    var e = document.getElementById(id);
+    if (e && !e.value && e !== document.activeElement && _bnM.I.auto.r[i]) e.value = _bnM.I.auto.r[i];
+   });
+  }
+  st.rt = true;
+  st.r1 = document.getElementById("bnR1").value.trim();
+  st.r2 = document.getElementById("bnR2").value.trim();
+  st.r3 = document.getElementById("bnR3").value.trim();
+  st.mx = document.getElementById("bnMx").checked;
+ }
+ bnSave(st);
+}
+
+function bnResetAuto() {
+ var st = bnCurState();
+ delete st.pt; delete st.pst; delete st.rt;
+ st.prod = st.prodS = "";
+ bnSave(st);
+ [ "bnProd", "bnProdS", "bnR1", "bnR2", "bnR3" ].forEach(function(id) {
+  var e = document.getElementById(id);
+  if (e) e.value = "";
+ });
+ renderBanners();
+}
+
+/* 결과 행 직접 수정 */
+function bnLineOf(key) {
+ if (!_bnM) return null;
+ var p = key.split(":"), out = null;
+ _bnM.groups.forEach(function(gr) {
+  if (gr.id !== p[0]) return;
+  gr.rows.forEach(function(r) {
+   if (r.id === p[1] && r.L) out = { gr: gr, r: r, l: r.L[Number(p[2])] };
+  });
+ });
+ return out;
+}
+
+function bnPairKey(key) {
+ var x = bnLineOf(key);
+ if (!x || !x.r.pair) return null;
+ var o = x.gr.rows.filter(function(r) { return r.id === x.r.pair; })[0];
+ return o ? x.gr.id + ":" + o.id + ":" + key.split(":")[2] : null;
+}
+
+function bnNorm(s) {
+ return String(s || "").replace(/ /g, " ").replace(/\s*\n\s*/g, " ");
+}
+
+function bnLiveCount(t) {
+ var line = t.closest(".bnLine");
+ if (!line) return;
+ var v = bnNorm(t.textContent), lk = t.getAttribute("data-lk");
+ if (lk) {
+  var n = v.length, l = BN_LIM[lk], lc = line.querySelector(".bnLc"), al = line.nextElementSibling;
+  if (lc) lc.textContent = n + "/" + l;
+  line.classList.toggle("over", n > l);
+  if (al && al.classList.contains("bnAlert")) al.textContent = bnAlertTxt(n, l);
+ }
+ var x = bnLineOf(t.getAttribute("data-bk"));
+ line.classList.toggle("edited", !!x && v.trim() !== x.l.auto);
+ var br = t.closest(".bnRow");
+ if (br) bnResetDone(br);
+}
+
+function bnCommit(t) {
+ var key = t.getAttribute("data-bk"), x = bnLineOf(key);
+ if (!x) return;
+ var v = bnNorm(t.textContent).trim();
+ if (t.textContent !== v) t.textContent = v;
+ var st = bnCurState(), changed = false;
+ function put(k, auto) {
+  var cur = st.ed[k];
+  if (v === auto) {
+   if (cur) { delete st.ed[k]; changed = true; }
+  } else if (!cur || cur.v !== v) {
+   st.ed[k] = { o: auto, v: v };
+   changed = true;
+  }
+ }
+ put(key, x.l.auto);
+ var pk = bnPairKey(key);
+ if (pk) {
+  var y = bnLineOf(pk);
+  if (y) put(pk, y.l.auto);
+ }
+ if (changed) bnSave(st);
+ setTimeout(function() { renderBanners(); }, 0);
+}
+
+function bnRevert(key) {
+ var st = bnCurState();
+ delete st.ed[key];
+ var pk = bnPairKey(key);
+ if (pk) delete st.ed[pk];
+ bnSave(st);
+ renderBanners();
+}
+
+document.addEventListener("input", function(e) {
+ var t = e.target;
+ if (!(t && t.classList && t.classList.contains("bnTxt"))) return;
+ bnLiveCount(t);
+ var pk = bnPairKey(t.getAttribute("data-bk"));
+ if (pk) {
+  var o = document.querySelector('#bnResults .bnTxt[data-bk="' + pk + '"]');
+  if (o) {
+   var v = bnNorm(t.textContent);
+   if (o.textContent !== v) o.textContent = v;
+   bnLiveCount(o);
+  }
+ }
+ bnUpdateSummary();
+});
+document.addEventListener("focusout", function(e) {
+ var t = e.target;
+ if (t && t.classList && t.classList.contains("bnTxt")) bnCommit(t);
+});
+document.addEventListener("keydown", function(e) {
+ var t = e.target;
+ if (e.key === "Enter" && t && t.classList && t.classList.contains("bnTxt")) {
+  e.preventDefault();
+  t.blur();
+ }
+});
+document.addEventListener("paste", function(e) {
+ var t = e.target;
+ if (!(t && t.classList && t.classList.contains("bnTxt"))) return;
+ e.preventDefault();
+ var tx = bnNorm((e.clipboardData || window.clipboardData).getData("text"));
+ if (document.execCommand) document.execCommand("insertText", false, tx);
+});
+
+/* 요약 바 · 이동 */
+function bnUpdateSummary() {
+ var res = document.getElementById("bnResults"), bar = document.getElementById("bnBar");
+ if (!res || !bar) return;
+ var bad = 0, pass = 0, total = 0, links = [];
+ [].slice.call(res.querySelectorAll(".bnGrp")).forEach(function(gr, i) {
+  total++;
+  var n = gr.querySelectorAll(".bnLine.over").length, gb = gr.querySelector(".bnGb");
+  if (gb) { gb.className = "bnGb " + (n ? "bad" : "ok"); gb.textContent = n ? "초과 " + n + "건" : "통과"; }
+  if (n) {
+   bad += n;
+   links.push('<button type="button" class="bnJl" onclick="bnJump(' + i + ')">' + escapeHtml(gr.querySelector(".gn").firstChild.textContent.trim()) + " · " + n + "건</button>");
+  } else pass++;
+ });
+ var chip = bad ? '<span class="bnSc bad">⚠ 글자수 초과 ' + bad + "건</span>" : '<span class="bnSc ok">✔ 전체 통과</span>';
+ bar.innerHTML = chip + '<span class="bnJls">' + links.join("") + '</span><span class="bnSbn">' + total + "개 그룹 중 " + pass + '개 통과 · 카피를 클릭하면 직접 수정</span><button type="button" class="bnCopyAll" onclick="bnCopyAll(this)">전체 복사</button>';
+}
+
+function bnJump(i) {
+ var gr = document.querySelectorAll("#bnResults .bnGrp")[i];
+ if (!gr) return;
+ var l = gr.querySelector(".bnLine.over");
+ if (!l) return;
+ var b = l.closest(".bnRow");
+ if (b.scrollIntoView) b.scrollIntoView({ behavior: "smooth", block: "center" });
+ b.classList.remove("flash");
+ void b.offsetWidth;
+ b.classList.add("flash");
+}
+
+/* 복사 (화면에 보이는 = 수정 반영된 문구) */
+function bnDomLines(br) {
+ return [].slice.call(br.querySelectorAll(".bnTxt")).map(function(e) { return bnNorm(e.textContent).trim(); });
+}
+function bnDone(btn, on) {
+ btn.classList.toggle("done", on);
+ btn.textContent = on ? "✔ 복사됨" : btn.classList.contains("bnGcp") ? "그룹 복사" : "복사";
+}
+function bnResetDone(br) {
+ var b = br.querySelector(".bnCp");
+ if (b) bnDone(b, false);
+ var gr = br.closest(".bnGrp"), gb = gr && gr.querySelector(".bnGcp");
+ if (gb) bnDone(gb, false);
+}
+function bnCopyRow(gi, ri, btn) {
+ var br = btn.closest(".bnRow");
+ copyText(bnDomLines(br).join("\n"));
+ bnDone(btn, true);
+}
+function bnCopyGroup(gi, btn) {
+ if (!_bnM) return;
+ copyText(bnGroupText(_bnM.groups[gi]));
+ var gr = btn.closest(".bnGrp");
+ [].slice.call(gr.querySelectorAll(".bnCp")).forEach(function(b) { bnDone(b, true); });
+ bnDone(btn, true);
+}
+function bnCopyAll() {
+ if (!_bnM) return;
+ var parts = [ "[날짜] " + (_bnM.g.full || "(날짜 미확인)") ];
+ _bnM.groups.forEach(function(gr) {
+  if (gr.nocopy) return;
+  var t = bnGroupText(gr);
+  if (t) parts.push("", t);
+ });
+ copyText(parts.join("\n"));
+ [].slice.call(document.querySelectorAll("#bnResults .bnCp,#bnResults .bnGcp")).forEach(function(b) { bnDone(b, true); });
+}
+
+/* 글자수 기준 설정 (이 브라우저에 저장) */
+function bnBuildLim() {
+ var w = document.getElementById("bnLimIn");
+ if (!w) return;
+ w.innerHTML = Object.keys(BN_LIM).map(function(k) {
+  return "<div><span>" + escapeHtml(BN_LIM_L[k]) + '</span><input type="number" min="1" value="' + BN_LIM[k] + '" data-k="' + k + '" onchange="bnLimSet(this)"></div>';
+ }).join("");
+}
+function bnLimSet(el) {
+ var k = el.getAttribute("data-k"), v = parseInt(el.value, 10);
+ if (!(v > 0)) { el.value = BN_LIM[k]; return; }
+ BN_LIM[k] = v;
+ try { localStorage.setItem(BN_LIM_KEY, JSON.stringify(BN_LIM)); } catch (e) {}
+ kvCounters();
+ if (STEP === 2) renderBanners();
+}
+function bnLimReset() {
+ Object.keys(BN_LIM_DEF).forEach(function(k) { BN_LIM[k] = BN_LIM_DEF[k]; });
+ try { localStorage.removeItem(BN_LIM_KEY); } catch (e) {}
+ bnBuildLim();
+ kvCounters();
+ if (STEP === 2) renderBanners();
+}
+
+/* setStepUi(); — 업무관리에서는 실행 안 함 */
+/* onCaseShown(false); — 업무관리에서는 실행 안 함 */
+
+
+/* 원본 renderParseSummary(판촉 인식) + payChipsHtml(결제혜택 인식)을 화면 대신 칩 배열로 돌려주게 바꾼 것
+ * (OBS 공통 배너 카피 뱅크는 업무관리에 없어 '미등록' 칩은 뺐다) */
+function summarizeParse(pv) {
+ function _c(k, s) { return { kind: k, text: s }; }
+ var chips = [], notes = [];
+ if (!pv || !(pv.rawText || "").trim()) return { chips: chips, notes: notes };
+ var n = pv.notify || {};
+ if (n.gift && n.count) chips.push(_c("ok", "알림 신청 ✓ " + n.gift + " · " + n.count)); else chips.push(_c("bad", "알림 신청 " + (n.gift ? "" : "사은품 ") + (n.count ? "" : "인원 ") + "미인식"));
+ if (!n.deadline) chips.push(_c("warn", "알림 마감일시 미확인 (방송명에 날짜가 있어야 자동 계산)"));
+ var liveN = (pv.liveItems || []).length;
+ chips.push(liveN ? _c("ok", "한정 혜택 " + liveN + "건") : _c("bad", "한정 혜택 미인식"));
+ (pv.liveItems || []).forEach(function(it, i) {
+  if (!it.benefit || isGs25(it.benefit)) return;
+  var sp = splitBenefit(it.benefit), no = "한정 혜택 " + (i + 1) + ": ";
+  if (sp.isDefault) chips.push(_c(/^000 /.test(sp.label) ? "warn" : "info", no + (/^000 /.test(sp.label) ? '제품명을 읽지 못해 윗줄을 "000 라이브"로 표시 — KV 메인카피에 제품명을 입력해 주세요' : '윗줄 기본값 "' + sp.label + '" 사용 (KV 메인카피·방송명 기준)')));
+  if (sp.labelDropped && sp.labelDropped.length) chips.push(_c("info", no + "윗줄 글자 수 한도(" + LIVE_LABEL_MAX + '자)로 "' + sp.labelDropped.join(" ") + '" 생략 — 유의사항에는 전체 표기'));
+  if (sp.tiers) chips.push(_c("warn", no + '금액 구간 상품권 → "' + sp.main + '"로 표기하고 구간은 유의사항으로 이동 (양식 추정 · 실제 페이지와 대조)'));
+  if (sp.targets) chips.push(_c("info", no + "대상 품목은 카드에서 빼고 유의사항으로 이동"));
+  if (sp.dropped && sp.dropped.length) chips.push(_c("warn", no + "글자 수 한도(" + LIVE_MAIN_MAX + '자)로 "' + sp.dropped.join('", "') + '" 생략'));
+  if (sp.dropCnt) chips.push(_c("info", no + "사은품 추첨 인원(" + sp.dropCnt + ")은 표기하지 않음(실제 페이지 기준)"));
+  if (sp.note) chips.push(_c("info", no + '제품군별 할인률이 달라 아랫줄을 "최대"로 표기 (' + sp.note + ")"));
+  if (sp.mainOver) chips.push(_c("warn", no + "아랫줄 " + sp.main.length + "자 — 한도 " + LIVE_MAIN_MAX + "자 초과(직접 줄여주세요)"));
+  if (sp.labelOver) chips.push(_c("warn", no + "윗줄 " + sp.label.length + "자 — 한도 " + LIVE_LABEL_MAX + "자 초과(직접 줄여주세요)"));
+ });
+ var cards = pv.obsCards || [], noTitle = 0;
+ cards.forEach(function(r) { if (!r[1]) noTitle++; });
+ if (!cards.length) chips.push(_c("warn", "OBS 링크 없음")); else {
+  chips.push(_c("ok", "OBS 링크 " + cards.length + "건"));
+  if (noTitle) chips.push(_c("bad", "OBS 타이틀 미입력 " + noTitle + "건"));
+ }
+ if (fridgeOn(pv)) chips.push(_c("info", "냉장고 포함 → OBS 맨 아래에 고정 배너(Fit & Max 냉장고, 김치냉장고) 자동 추가"));
+ if (pv.opts && pv.opts.rebro) {
+  var rt0 = rebroTexts(pv);
+  chips.push(_c("ok", "재방송 영역 포함"));
+  if (!rt0.date) chips.push(_c("warn", "재방송: 본방송 일자 미입력"));
+  if (rt0.viewersEmpty) chips.push(_c("info", "재방송: 실시간 시청자 수 미입력 → 00.0명으로 표시"));
+ }
+ chips.push(pv.legalNotes ? _c("ok", "유의사항 원문 사용") : _c("info", "유의사항 표준 문구 자동 삽입"));
+ // 결제혜택 인식 (원본은 '결제혜택 · 유의사항' 카드에 따로 표시) — 칩 HTML을 배열로 바꿔 붙인다
+ var re = /<span class="chip (\w+)">([\s\S]*?)<\/span>/g, m;
+ var unesc = function(s) { return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&"); };
+ var ph = payChipsHtml(pv);
+ while ((m = re.exec(ph))) chips.push(_c(m[1], "결제혜택: " + unesc(m[2]).replace(/^결제혜택:?\s*/, "")));
  return { chips: chips, notes: notes };
 }
 
 
 /* ================= 화면에서 쓰는 타입·함수 ================= */
-/** 원본 opts (방송별 옵션) — defaultOpts와 같은 키 */
+/** 원본 opts (방송별 옵션) — defaultOpts와 같은 키. 문자열 필드 중 kv·hide·order·addLive·addObs·liveIcon·txtEdit·bn은 원본처럼 JSON 문자열 */
 export interface PromoOpts {
   rebro: boolean; orig: string; viewers: string; fridge: 'auto' | 'on' | 'off'; air: string;
   cook: 'auto' | 'on' | 'off'; cookHead: string; cookRates: string; cookProds: string;
   paySheet: string; bdate: string; obsEdit: string;
   hid: 'auto' | 'it' | 'lgAll'; hidUrl: string; hidTotal: boolean; hidUrl2: string; payInh: boolean;
+  txtEdit: string; kv: string; addLive: string; addObs: string; liveIcon: string; bn: string;
+  hide: string; payMode: '' | 'prev' | 'date'; payDate: string; order: string;
 }
 export interface PromoLiveItem { benefit: string; condition: string; tag: string; detailLines: string[] }
 /** 원본 collectFormValues 결과 + 업무명 — JSON으로 그대로 저장 가능 */
@@ -4416,7 +6264,7 @@ export interface PromoStructured {
   notify: { gift: string; count: string; deadline: string };
   liveItems: PromoLiveItem[];
   obsCards: any[];          // 원문에서 읽은 OBS 배너 [code, main, sub, url]
-  obsShow?: any[];          // 실제 노출 목록 (히든 기획전·냉장고 Fit&Max 배너 포함)
+  obsShow?: any[];          // 실제 노출 목록 (히든 기획전·냉장고 Fit&Max 배너 포함, opts.order 순서)
   paymentFullText: string;
   legalNotes: string;
   rawText: string;
@@ -4428,14 +6276,22 @@ export interface PromoChip { kind: 'ok' | 'warn' | 'bad' | 'info'; text: string 
 
 export function defaultPromoOpts(caseName: string): PromoOpts { return defaultOpts(caseName || ''); }
 
-/** 판촉 원문 → 구조화 (원본 collectFormValues와 같은 방식). caseName은 업무명 전체(예: "11/2 냉장고&쿠킹") */
+/** KV 메인·서브(배너 탭 입력값)를 원본 opts.kv 모양으로 — 한정 혜택 윗줄 기본값·페이지 KV가 이 값을 따른다 */
+export function promoKvOpt(main: string, sub: string): string {
+  var o = {};
+  if ((main || '').trim()) o.m = main.trim();
+  if ((sub || '').trim()) o.s = sub.trim();
+  return Object.keys(o).length ? JSON.stringify(o) : '';
+}
+
+/** 판촉 원문 → 구조화 (원본 collectFormValues·pvFromVersion과 같은 방식). caseName은 업무명 전체(예: "11/2 냉장고&쿠킹") */
 export function parsePromo(raw: string, caseName: string, opts?: Partial<PromoOpts>): PromoStructured {
-  return __withCase(caseName, function(){
+  var o = Object.assign(defaultOpts(caseName || ''), opts || {});
+  return __withPv({ caseName: caseName, opts: o }, function(){
     var rawText = raw || '';
-    var o = Object.assign(defaultOpts(caseName || ''), opts || {});
     // 결제혜택 시트가 있으면 원문 전체, 없으면 '1. 결제일 할인' 앞까지만 판촉으로 읽는다 (결제혜택은 원문 전체로 엔진이 따로 읽음)
     var cut = (o.paySheet || '').trim() ? -1 : rawText.search(/^[ \t]*1\.[ \t]*결제일[ \t]*할인/m);
-    var parsed = parseRawToStructured(cut > 0 ? rawText.slice(0, cut) : rawText, []);
+    var parsed = applyHidden(parseRawToStructured(cut > 0 ? rawText.slice(0, cut) : rawText, []), o);
     parsed.notify.deadline = computeDeadlineFromCaseName(caseName || '');
     var pv = {
       notify: parsed.notify, liveItems: parsed.liveItems, obsCards: parsed.obsCards,
@@ -4443,57 +6299,59 @@ export function parsePromo(raw: string, caseName: string, opts?: Partial<PromoOp
       rawText: rawText, sourceChannel: '', opts: o, caseName: caseName || '',
     };
     pv.obsShow = obsShowCards(pv);
-    return pv;
+    return applyCardOrder(pv);
   });
 }
-/** 워싱본 텍스트(섹션별 순서대로, 사내 공유·기획서 디스클레이머용) */
+/** 워싱본 텍스트(섹션별 순서대로, 사내 공유·기획서 디스클레이머용) — 원본처럼 '할인 쿠폰' 띄어쓰기 표시 보정 */
 export function promoPreviewText(pv: PromoStructured): string {
-  return __withCase(pv.caseName, function(){ return buildPromoPreviewText(pv); });
+  return __withPv(pv, function(){ return pageTextFix(buildPromoPreviewText(pv)); });
 }
-/** 실제 상세페이지처럼 보이는 미리보기 HTML — 원본의 클릭·직접 수정(점선 영역)은 뺀다.
+/** 실제 상세페이지처럼 보이는 미리보기 HTML — 원본의 클릭·직접 수정(점선 영역)·끌기 핸들은 뺀다.
  *  OBS 링크 URL은 따옴표·꺾쇠 같은 글자를 %인코딩해 속성이 깨지지 않게 한다. */
 export function promoPreviewHtml(pv: PromoStructured): string {
   var safeUrl = function(u){ return (u || '').replace(/["'<>`\s]/g, function(c){ return encodeURIComponent(c); }); };
   var fix = function(list){ return (list || []).map(function(r){ var c = Object.assign(r.slice(), r); c[3] = safeUrl(c[3]); return c; }); };
   var safe = Object.assign({}, pv, { obsCards: fix(pv.obsCards), obsShow: pv.obsShow ? fix(pv.obsShow) : undefined });
-  return __withCase(pv.caseName, function(){ return renderMockPage(safe); })
-    .replace(/ onclick="[^"]*"/g, '').replace(/ contenteditable="[^"]*"/g, '')
+  return __withPv(pv, function(){ return pageHtmlFix(renderMockPage(safe)); })
+    .replace(/ on(?:click|change|input|dragstart|keydown)="[^"]*"/g, '').replace(/ contenteditable="[^"]*"/g, '').replace(/ draggable="[^"]*"/g, '')
     .replace(/ target="_blank"/g, ' target="_blank" rel="noreferrer"');
 }
 export function promoSummary(pv: PromoStructured): { chips: PromoChip[]; notes: string[] } {
-  return __withCase(pv.caseName, function(){ return summarizeParse(pv); });
+  return __withPv(pv, function(){ return summarizeParse(pv); });
 }
 export interface PromoPaymentHero { title: string; desc: string; descLines?: string[]; badgePre?: string; badgeNum: string; badgeUnit: string; badgeLabel: string; raw?: string }
 export interface PromoPaymentRow { icon: string; label: string; value: string; note: string; raw?: string }
 export interface PromoPayment { heroes: PromoPaymentHero[]; rows: PromoPaymentRow[] }
 /** 결제 혜택 → 히어로 카드·아이콘 행 (미리보기와 같은 PayWash 결과, 기획서 PPT 13번 장을 맥 프로그램이 채운다) */
 export function promoPayment(pv: PromoStructured): PromoPayment {
-  return __withCase(pv.caseName, function(){ return payModelFor(pv); });
+  return __withPv(pv, function(){ return payModelFor(pv); });
 }
 /** 한정 혜택 카드 — 미리보기와 같은 2줄 정리(윗줄·아랫줄) + 지급조건 문장 (기획서 11번 장) */
 export function promoLiveCards(pv: PromoStructured): { label: string; main: string; cond: string }[] {
-  return __withCase(pv.caseName, function(){
+  return __withPv(pv, function(){
     return (pv.liveItems || []).map(function(it){
       if (!(it.benefit || '').trim()) return { label: '', main: '', cond: '' };
       var sp = splitBenefit(it.benefit);
-      return { label: sp.label || '', main: sp.main || '', cond: condSentence(it) || '' };
+      return { label: pageTextFix(sp.label || ''), main: pageTextFix(sp.main || ''), cond: pageTextFix(condSentence(it) || '') };
     });
   });
 }
 /** 자동 판단 결과 — '추가 영역' 체크의 자동 값 표시용 (사용자가 직접 고르기 전) */
 export function promoAuto(pv: PromoStructured): { cook: boolean; fridge: boolean; hidMains: string[] } {
-  return __withCase(pv.caseName, function(){
+  return __withPv(pv, function(){
     var a = Object.assign({}, pv, { opts: Object.assign({}, pv.opts, { cook: 'auto', fridge: 'auto' }) });
     return { cook: !!cookOn(a), fridge: !!fridgeOn(a), hidMains: hidAutoMains() };
   });
 }
 /** 이전 저장본과 비교한 변경 목록 (원본 computeChanges) */
 export function promoChanges(prev: PromoStructured | null, cur: PromoStructured): string[] { return computeChanges(prev, cur); }
+/** 제품명 나열 → 가운데점 (v06: "냉장고세탁기"·"냉장고&세탁기" → "냉장고·세탁기") — 배너 KV 카피에도 쓴다 */
+export function promoJoinProducts(s: string): string { return joinProducts(s); }
 
 export {
   parseRawToStructured, computeChanges, buildPromoPreviewText, renderMockPage, computeDeadlineFromCaseName,
-  splitBenefit, normalizeGiftMain, condSentence, PayWash,
+  splitBenefit, normalizeGiftMain, condSentence, PayWash, joinProducts,
 };
 
-// 미리보기 HTML용 CSS — 원본 v38 <style>에서 미리보기에 쓰는 규칙만 .promo-preview 안으로 한정 (검수 라벨·직접 수정 표시는 숨김)
-export const PROMO_PREVIEW_CSS: string = ".promo-preview .btn.small{padding:4px 10px;font-size:12px;}.promo-preview .mockPage{width:100%;max-width:390px;margin:8px auto 0;background:#fff;box-shadow:0 0 0 1px var(--line);overflow:hidden;font-family:'Pretendard','Pretendard Variable',-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;letter-spacing:-0.04em;color:#000;}.promo-preview .mockSec{display:flex;flex-direction:column;align-items:center;background:#fff;}.promo-preview .mockEmpty{color:#8a8a8a;font-size:12px;}.promo-preview .mockSecLabel{font-size:11px;color:#9a9a9a;padding:20px 20px 6px;letter-spacing:0;border-top:1px dashed #e5e5e5;margin-top:0;}.promo-preview .mockSec03{padding:64px 20px 0;}.promo-preview .mockEventCard{width:100%;background:#E3E0DC;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockTitle{font-size:22px;line-height:140%;font-weight:700;text-align:center;color:#000;}.promo-preview .mockEventContent{display:flex;flex-direction:column;gap:16px;}.promo-preview .mockHero{display:flex;align-items:center;gap:10px;}.promo-preview .mockImg{width:68px;height:68px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:#c9c9c9;}.promo-preview .mockImg.small{width:48px;height:48px;font-size:16px;border-radius:6px;background:#fff;}.promo-preview .mockHeroText{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:140%;color:#000;}.promo-preview .mockHeroGift{font-weight:600;font-size:18px;line-height:140%;}.promo-preview .mockCaptionList{display:flex;flex-direction:column;gap:2px;}.promo-preview .mockEventContent .mockCaptionList{padding-top:16px;border-top:1px solid #CACACA;}.promo-preview .mockCaption{display:flex;gap:5px;font-size:12px;line-height:140%;color:#262626;letter-spacing:-0.04em;}.promo-preview .mockCaption>span{min-width:0;}.promo-preview .mockCaption:before{content:'';flex:none;width:2px;height:2px;border-radius:50%;background:#262626;margin:8px 3px 0;}.promo-preview .mockSec04{padding:64px 20px;}.promo-preview .mockSec04 .mockTitle{font-size:26px;padding-bottom:16px;width:100%;}.promo-preview .mockBenefitList{width:100%;display:flex;flex-direction:column;gap:8px;}.promo-preview .mockBenefitRow{display:flex;align-items:center;gap:16px;background:#F4F4F4;border:1px solid #E1E1E1;border-radius:6px;padding:19px 15px;min-height:88px;box-sizing:border-box;}.promo-preview .mockBenefitRow>div:last-child{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px;}.promo-preview .mockBenefitLabel{font-size:12px;line-height:140%;font-weight:500;color:#262626;}.promo-preview .mockBenefitMain{font-size:14px;line-height:130%;font-weight:600;color:#000;}.promo-preview .mockSec04 .mockCaptionList{width:100%;padding-top:16px;}.promo-preview .mockLinkList{width:100%;display:flex;flex-direction:column;background:#fff;}.promo-preview .mockLinkWrap{padding:0 20px 12px;}.promo-preview .mockLinkRow{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;gap:8px;width:100%;min-height:88px;padding:0 20px 0 0;border-radius:8px;color:inherit;background:#EBD2CE;}.promo-preview .mockLinkWrap:nth-child(8n+2) .mockLinkRow{background:#CCE2EE;}.promo-preview .mockLinkWrap:nth-child(8n+3) .mockLinkRow{background:#CCEED7;}.promo-preview .mockLinkWrap:nth-child(8n+4) .mockLinkRow{background:#F2E7B9;}.promo-preview .mockLinkWrap:nth-child(8n+5) .mockLinkRow{background:#D3E6E5;}.promo-preview .mockLinkWrap:nth-child(8n+6) .mockLinkRow{background:#EAD1E5;}.promo-preview .mockLinkWrap:nth-child(8n+7) .mockLinkRow{background:#D2D8E6;}.promo-preview .mockLinkWrap:nth-child(8n+8) .mockLinkRow{background:#D9E8C1;}.promo-preview .mockLinkImg{width:82px;height:88px;flex:none;display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(0,0,0,.25);}.promo-preview .mockLinkBody{flex:1;min-width:0;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:11.73px;}.promo-preview .mockLinkText{flex:1;min-width:0;max-width:200px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 0;}.promo-preview .obsEdit{outline:none;cursor:text;border-radius:2px;border-bottom:1px dashed rgba(232,89,12,.75);min-height:1.4em;word-break:keep-all;}.promo-preview .obsEdit:hover{background:rgba(255,244,229,.7);}.promo-preview .obsEdit:focus{background:#FFE3BF;}.promo-preview .obsEdit:empty:before{content:attr(data-ph);color:rgba(0,0,0,.32);font-weight:400;}.promo-preview .mockLinkMain{font-size:18px;line-height:140%;font-weight:600;letter-spacing:-0.04em;color:#000;opacity:.8;}.promo-preview .mockLinkSub{font-size:14px;line-height:140%;font-weight:500;letter-spacing:-0.03em;color:#262626;opacity:.7;}.promo-preview .mockChevron{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center;text-decoration:none;}.promo-preview .mockChevron i{display:block;width:8px;height:8px;border-top:1.4px solid #000;border-right:1.4px solid #000;transform:rotate(45deg);margin-left:-3px;}.promo-preview .mockLinkUrl{font-size:10px;color:var(--accent-2);margin:4px 2px 0;word-break:break-all;font-family:monospace;user-select:all;letter-spacing:0;}.promo-preview .mockSec13{padding:64px 20px 0;}.promo-preview .mockPayDark{width:100%;box-sizing:border-box;background:#000;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:20px;}.promo-preview .mockPayDarkTitle{color:#fff;font-size:22px;line-height:140%;font-weight:700;text-align:center;}.promo-preview .mockPayHero2{background:#262626;border-radius:8px;padding:16px;min-height:111px;box-sizing:border-box;display:flex;align-items:center;gap:12px;}.promo-preview .mockPayHero2Badge{color:#fff;flex:none;width:90px;display:flex;flex-direction:column;gap:2px;}.promo-preview .mockPayHero2BadgeNum{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:28px;font-weight:700;line-height:100%;letter-spacing:-0.05em;white-space:nowrap;}.promo-preview .mockPayHero2.first .mockPayHero2BadgeNum{font-size:32px;}.promo-preview .mockPayHero2BadgeUnit{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:13px;font-weight:700;letter-spacing:-0.03em;margin-left:1px;}.promo-preview .mockPayHero2BadgePre{font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;font-size:12px;font-weight:600;letter-spacing:-0.02em;margin-right:1px;}.promo-preview .mockPayHero2BadgeLabel{font-size:13px;font-weight:600;line-height:140%;}.promo-preview .mockPayHero2Body{min-width:0;flex:1;display:flex;flex-direction:column;gap:12px;justify-content:center;}.promo-preview .mockPayHero2Title{color:#FD312E;font-size:14px;font-weight:600;line-height:130%;}.promo-preview .mockPayHero2Desc{color:#fff;font-size:12px;line-height:140%;white-space:pre-line;}.promo-preview .mockPayHero2More{color:#fff;font-size:11px;line-height:140%;text-decoration:underline;}.promo-preview .mockPayRows{display:flex;flex-direction:column;gap:16px;}.promo-preview .mockPayRow2{display:flex;align-items:center;gap:8px;}.promo-preview .mockPayIcon2{width:40px;height:40px;box-sizing:border-box;padding:8px;border-radius:4px;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;font-family:'Lexend Mega','Pretendard',sans-serif;font-size:18px;font-weight:700;flex:none;}.promo-preview .mockPayRow2Body{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;padding:4px 0;}.promo-preview .mockPayRow2Label{color:#fff;font-size:14px;font-weight:500;line-height:140%;letter-spacing:-0.04em;}.promo-preview .mockPayRow2Value{color:#FD312E;font-size:14px;font-weight:600;line-height:130%;}.promo-preview .mockPayNum{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:21px;font-weight:700;line-height:18px;}.promo-preview .mockPayNumUnit{margin-left:3px;font-family:'Lexend Mega','Pretendard',sans-serif;font-size:13px;font-weight:700;letter-spacing:-0.03em;}.promo-preview .mockSec14{padding:64px 20px 40px;align-items:stretch;}.promo-preview .mockLegalCta{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;line-height:100%;color:#000;letter-spacing:-0.02em;}.promo-preview .mockLegal{margin-top:16px;background:#F4F4F4;border-radius:8px;padding:20px 16px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockLegalTitle{font-size:13px;font-weight:600;line-height:18px;letter-spacing:-0.02em;color:#000;}.promo-preview .mockLegalBody{font-size:12px;line-height:140%;color:#262626;letter-spacing:-0.04em;}.promo-preview .legalBullet{padding-left:9px;text-indent:-9px;margin-bottom:2px;}.promo-preview .legalBullet:last-child{margin-bottom:0;}.promo-preview .legalHeading{font-weight:600;color:#000;margin:12px 0 4px;}.promo-preview .legalHeading:first-child{margin-top:0;}.promo-preview .frame .mockPage{box-shadow:none;margin-top:0;}.promo-preview body.onlyChg .dimmable:not(.chgd){opacity:.22;}.promo-preview .missChip{display:inline-block;font-size:10.5px;font-weight:700;color:#a12020;background:#fdecec;border:1px solid #f3c3c3;border-radius:999px;padding:1px 7px;margin-left:6px;letter-spacing:0;vertical-align:middle;}.promo-preview .accSubBody{padding-top:6px;}.promo-preview .mockIconSvg{display:block;}.promo-preview .mockImg.sv{background:transparent;overflow:visible;position:relative;}.promo-preview .mockImg.sv .mockIconSvg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}.promo-preview .mockImg.small{position:relative;overflow:visible;}.promo-preview .mockImg.small.sv{width:48px;height:48px;}.promo-preview .mockSecRebro{padding:64px 20px 0;}.promo-preview .mockRebroCard{width:100%;background:#E3E0DC;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockRebroCard .mockTitle{letter-spacing:-0.04em;}.promo-preview .mockRebroBox{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;min-height:68px;padding:0;}.promo-preview .mockRebroImg{flex:none;width:68px;height:68px;display:flex;align-items:center;justify-content:center;}.promo-preview .mockRebroText{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;padding-right:10px;}.promo-preview .mockRebroEyebrow{font-family:'Pretendard',\"Malgun Gothic\",sans-serif;font-weight:400;font-size:14px;line-height:140%;letter-spacing:-0.04em;color:#000;}.promo-preview .mockRebroBig{font-family:'Pretendard',\"Malgun Gothic\",sans-serif;font-weight:600;font-size:18px;line-height:140%;letter-spacing:-0.04em;color:#FD312E;}.promo-preview .cookEdit{border-bottom:1px dashed #E8590C;background:#FFF4E5;border-radius:2px;outline:none;cursor:text;}.promo-preview .cookEdit:focus{background:#FFE3BF;}.promo-preview .capSub.cookEdit{display:block;padding-left:.33em;}.promo-preview .mockCaption .capSub{display:block;padding-left:.33em;}.promo-preview .reviewOnly{display:none}.promo-preview .obsEdit{border-bottom:none;cursor:default}";
+// 미리보기 HTML용 CSS — 원본 v38(+ 통합셋팅기 v13의 KV 영역) <style>에서 미리보기에 쓰는 규칙만 .promo-preview 안으로 한정 (검수 라벨·직접 수정 표시는 숨김)
+export const PROMO_PREVIEW_CSS: string = ".promo-preview .btn.small{padding:4px 10px;font-size:12px;}.promo-preview .mockPage{width:100%;max-width:390px;margin:8px auto 0;background:#fff;box-shadow:0 0 0 1px var(--line);overflow:hidden;font-family:'Pretendard','Pretendard Variable',-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;letter-spacing:-0.04em;color:#000;}.promo-preview .mockSec{display:flex;flex-direction:column;align-items:center;background:#fff;}.promo-preview .mockEmpty{color:#8a8a8a;font-size:12px;}.promo-preview .mockSecLabel{font-size:11px;color:#9a9a9a;padding:20px 20px 6px;letter-spacing:0;border-top:1px dashed #e5e5e5;margin-top:0;}.promo-preview .mockSec03{padding:64px 20px 0;}.promo-preview .mockEventCard{width:100%;background:#E3E0DC;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockTitle{font-size:22px;line-height:140%;font-weight:700;text-align:center;color:#000;}.promo-preview .mockEventContent{display:flex;flex-direction:column;gap:16px;}.promo-preview .mockHero{display:flex;align-items:center;gap:10px;}.promo-preview .mockImg{width:68px;height:68px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:#c9c9c9;}.promo-preview .mockImg.small{width:48px;height:48px;font-size:16px;border-radius:6px;background:#fff;}.promo-preview .mockHeroText{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:140%;color:#000;}.promo-preview .mockHeroGift{font-weight:600;font-size:18px;line-height:140%;}.promo-preview .mockCaptionList{display:flex;flex-direction:column;gap:2px;}.promo-preview .mockEventContent .mockCaptionList{padding-top:16px;border-top:1px solid #CACACA;}.promo-preview .mockCaption{display:flex;gap:5px;font-size:12px;line-height:140%;color:#262626;letter-spacing:-0.04em;}.promo-preview .mockCaption>span{min-width:0;}.promo-preview .mockCaption:before{content:'';flex:none;width:2px;height:2px;border-radius:50%;background:#262626;margin:8px 3px 0;}.promo-preview .mockSec04{padding:64px 20px;}.promo-preview .mockSec04 .mockTitle{font-size:26px;padding-bottom:16px;width:100%;}.promo-preview .mockBenefitList{width:100%;display:flex;flex-direction:column;gap:8px;}.promo-preview .mockBenefitRow{display:flex;align-items:center;gap:16px;background:#F4F4F4;border:1px solid #E1E1E1;border-radius:6px;padding:19px 15px;min-height:88px;box-sizing:border-box;}.promo-preview .mockBenefitRow>div:last-child{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px;}.promo-preview .mockBenefitLabel{font-size:12px;line-height:140%;font-weight:500;color:#262626;}.promo-preview .mockBenefitMain{font-size:14px;line-height:130%;font-weight:600;color:#000;}.promo-preview .mockSec04 .mockCaptionList{width:100%;padding-top:16px;}.promo-preview .mockLinkList{width:100%;display:flex;flex-direction:column;background:#fff;}.promo-preview .mockLinkWrap{padding:0 20px 12px;}.promo-preview .mockLinkRow{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;gap:8px;width:100%;min-height:88px;padding:0 20px 0 0;border-radius:8px;color:inherit;background:#EBD2CE;}.promo-preview .mockLinkWrap:nth-child(8n+2) .mockLinkRow{background:#CCE2EE;}.promo-preview .mockLinkWrap:nth-child(8n+3) .mockLinkRow{background:#CCEED7;}.promo-preview .mockLinkWrap:nth-child(8n+4) .mockLinkRow{background:#F2E7B9;}.promo-preview .mockLinkWrap:nth-child(8n+5) .mockLinkRow{background:#D3E6E5;}.promo-preview .mockLinkWrap:nth-child(8n+6) .mockLinkRow{background:#EAD1E5;}.promo-preview .mockLinkWrap:nth-child(8n+7) .mockLinkRow{background:#D2D8E6;}.promo-preview .mockLinkWrap:nth-child(8n+8) .mockLinkRow{background:#D9E8C1;}.promo-preview .mockLinkImg{width:82px;height:88px;flex:none;display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(0,0,0,.25);}.promo-preview .mockLinkBody{flex:1;min-width:0;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:11.73px;}.promo-preview .mockLinkText{flex:1;min-width:0;max-width:200px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 0;}.promo-preview .obsEdit{outline:none;cursor:text;border-radius:2px;border-bottom:1px dashed rgba(232,89,12,.75);min-height:1.4em;word-break:keep-all;}.promo-preview .obsEdit:hover{background:rgba(255,244,229,.7);}.promo-preview .obsEdit:focus{background:#FFE3BF;}.promo-preview .obsEdit:empty:before{content:attr(data-ph);color:rgba(0,0,0,.32);font-weight:400;}.promo-preview .mockLinkMain{font-size:18px;line-height:140%;font-weight:600;letter-spacing:-0.04em;color:#000;opacity:.8;}.promo-preview .mockLinkSub{font-size:14px;line-height:140%;font-weight:500;letter-spacing:-0.03em;color:#262626;opacity:.7;}.promo-preview .mockChevron{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center;text-decoration:none;}.promo-preview .mockChevron i{display:block;width:8px;height:8px;border-top:1.4px solid #000;border-right:1.4px solid #000;transform:rotate(45deg);margin-left:-3px;}.promo-preview .mockLinkUrl{font-size:10px;color:var(--accent-2);margin:4px 2px 0;word-break:break-all;font-family:monospace;user-select:all;letter-spacing:0;}.promo-preview .mockSec13{padding:64px 20px 0;}.promo-preview .mockPayDark{width:100%;box-sizing:border-box;background:#000;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:20px;}.promo-preview .mockPayDarkTitle{color:#fff;font-size:22px;line-height:140%;font-weight:700;text-align:center;}.promo-preview .mockPayHero2{background:#262626;border-radius:8px;padding:16px;min-height:111px;box-sizing:border-box;display:flex;align-items:center;gap:12px;}.promo-preview .mockPayHero2Badge{color:#fff;flex:none;width:90px;display:flex;flex-direction:column;gap:2px;}.promo-preview .mockPayHero2BadgeNum{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:28px;font-weight:700;line-height:100%;letter-spacing:-0.05em;white-space:nowrap;}.promo-preview .mockPayHero2.first .mockPayHero2BadgeNum{font-size:32px;}.promo-preview .mockPayHero2BadgeUnit{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:13px;font-weight:700;letter-spacing:-0.03em;margin-left:1px;}.promo-preview .mockPayHero2BadgePre{font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;font-size:12px;font-weight:600;letter-spacing:-0.02em;margin-right:1px;}.promo-preview .mockPayHero2BadgeLabel{font-size:13px;font-weight:600;line-height:140%;}.promo-preview .mockPayHero2Body{min-width:0;flex:1;display:flex;flex-direction:column;gap:12px;justify-content:center;}.promo-preview .mockPayHero2Title{color:#FD312E;font-size:14px;font-weight:600;line-height:130%;}.promo-preview .mockPayHero2Desc{color:#fff;font-size:12px;line-height:140%;white-space:pre-line;}.promo-preview .mockPayHero2More{color:#fff;font-size:11px;line-height:140%;text-decoration:underline;}.promo-preview .mockPayRows{display:flex;flex-direction:column;gap:16px;}.promo-preview .mockPayRow2{display:flex;align-items:center;gap:8px;}.promo-preview .mockPayIcon2{width:40px;height:40px;box-sizing:border-box;padding:8px;border-radius:4px;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;font-family:'Lexend Mega','Pretendard',sans-serif;font-size:18px;font-weight:700;flex:none;}.promo-preview .mockPayRow2Body{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;padding:4px 0;}.promo-preview .mockPayRow2Label{color:#fff;font-size:14px;font-weight:500;line-height:140%;letter-spacing:-0.04em;}.promo-preview .mockPayRow2Value{color:#FD312E;font-size:14px;font-weight:600;line-height:130%;}.promo-preview .mockPayNum{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:21px;font-weight:700;line-height:18px;}.promo-preview .mockPayNumUnit{margin-left:3px;font-family:'Lexend Mega','Pretendard',sans-serif;font-size:13px;font-weight:700;letter-spacing:-0.03em;}.promo-preview .mockSec14{padding:64px 20px 40px;align-items:stretch;}.promo-preview .mockLegalCta{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;line-height:100%;color:#000;letter-spacing:-0.02em;}.promo-preview .mockLegal{margin-top:16px;background:#F4F4F4;border-radius:8px;padding:20px 16px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockLegalTitle{font-size:13px;font-weight:600;line-height:18px;letter-spacing:-0.02em;color:#000;}.promo-preview .mockLegalBody{font-size:12px;line-height:140%;color:#262626;letter-spacing:-0.04em;}.promo-preview .legalBullet{padding-left:9px;text-indent:-9px;margin-bottom:2px;}.promo-preview .legalBullet:last-child{margin-bottom:0;}.promo-preview .legalHeading{font-weight:600;color:#000;margin:12px 0 4px;}.promo-preview .legalHeading:first-child{margin-top:0;}.promo-preview .frame .mockPage{box-shadow:none;margin-top:0;}.promo-preview body.onlyChg .dimmable:not(.chgd){opacity:.22;}.promo-preview .missChip{display:inline-block;font-size:10.5px;font-weight:700;color:#a12020;background:#fdecec;border:1px solid #f3c3c3;border-radius:999px;padding:1px 7px;margin-left:6px;letter-spacing:0;vertical-align:middle;}.promo-preview .accSubBody{padding-top:6px;}.promo-preview .mockIconSvg{display:block;}.promo-preview .mockImg.sv{background:transparent;overflow:visible;position:relative;}.promo-preview .mockImg.sv .mockIconSvg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}.promo-preview .mockImg.small{position:relative;overflow:visible;}.promo-preview .mockImg.small.sv{width:48px;height:48px;}.promo-preview .mockSecRebro{padding:64px 20px 0;}.promo-preview .mockRebroCard{width:100%;background:#E3E0DC;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockRebroCard .mockTitle{letter-spacing:-0.04em;}.promo-preview .mockRebroBox{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;min-height:68px;padding:0;}.promo-preview .mockRebroImg{flex:none;width:68px;height:68px;display:flex;align-items:center;justify-content:center;}.promo-preview .mockRebroText{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;padding-right:10px;}.promo-preview .mockRebroEyebrow{font-family:'Pretendard',\"Malgun Gothic\",sans-serif;font-weight:400;font-size:14px;line-height:140%;letter-spacing:-0.04em;color:#000;}.promo-preview .mockRebroBig{font-family:'Pretendard',\"Malgun Gothic\",sans-serif;font-weight:600;font-size:18px;line-height:140%;letter-spacing:-0.04em;color:#FD312E;}.promo-preview .cookEdit{border-bottom:1px dashed #E8590C;background:#FFF4E5;border-radius:2px;outline:none;cursor:text;}.promo-preview .cookEdit:focus{background:#FFE3BF;}.promo-preview .capSub.cookEdit{display:block;padding-left:.33em;}.promo-preview .mockCaption .capSub{display:block;padding-left:.33em;}.promo-preview .reviewOnly{display:none}.promo-preview .obsEdit{border-bottom:none;cursor:default}.promo-preview .mockKv{width:100%;background:#fff;}.promo-preview .mockKvTop{box-sizing:border-box;height:440px;padding:46px 35px;display:flex;flex-direction:column;align-items:center;gap:7px;background:#fff;position:relative;}.promo-preview .mockKvHead{width:215px;height:18px;display:flex;align-items:flex-start;gap:7px;flex:none;}.promo-preview .mockKvLogo{width:102px;height:14px;margin-top:2px;flex:none;display:block;}.promo-preview .mockKvDate{flex:1;min-width:0;height:18px;font-size:15px;line-height:18px;font-weight:500;letter-spacing:-0.04em;color:#000;white-space:nowrap;}.promo-preview .mockKvTitle{width:320px;display:flex;flex-direction:column;align-items:center;gap:10px;}.promo-preview .mockKvMain{max-width:320px;font-size:32px;line-height:130%;font-weight:700;letter-spacing:-0.05em;text-align:center;color:#000;word-break:keep-all;}.promo-preview .mockKvSub{width:211px;min-height:40px;font-size:14px;line-height:140%;font-weight:500;letter-spacing:-0.03em;text-align:center;color:#000;}.promo-preview .mockKvImg{position:absolute;left:35px;right:35px;bottom:24px;height:190px;border:1px dashed #d4d4d4;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#b0b0b0;letter-spacing:0;}.promo-preview .mockKvBtns{box-sizing:border-box;height:84px;padding:20px;background:#F1EFEC;display:flex;gap:12px;}.promo-preview .mockKvBtn{flex:1;min-width:145px;height:44px;border-radius:30px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:-0.04em;box-sizing:border-box;}.promo-preview .mockKvBtn.dark{background:#000;color:#fff;}.promo-preview .mockKvBtn.line{border:1px solid #000;color:#000;}.promo-preview .mockAddWrap{display:flex;flex-direction:column;gap:4px;}.promo-preview .txtEdit{outline:none;cursor:default;}.promo-preview .addCtl,.promo-preview .addPlus,.promo-preview .dragH{display:none}";

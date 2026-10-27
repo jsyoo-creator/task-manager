@@ -1,6 +1,7 @@
 /* =============================================================================
  * 라이브 배너 카피 생성 로직
  * 원본: Live_배너카피생성기_v18.html (Planning Update 폴더, 문서: Live_배너카피생성기_v18_MD.md) — 2026-10-21 v14 이식, 2026-10-26 v18로 갱신
+ * 2026-10-28 통합셋팅기 v13(배너 카피 생성기를 판촉 업데이트기와 합친 도구) 반영: 규칙은 v18 그대로, 여러 제품 구분기호만 '·' 고정(v13 문서 v06)
  * v18 변경: 인사이더 한도 18자 · 인덕션/광파오븐 · 주방가전/리빙가전 축약명 · 여러 제품은 KV 순서·기호 그대로 ·
  *          오후 7시 · shorten이 기호만 남는 단어는 건너뜀 · 바텀시트/팝업·썸네일·SNS 메인을 KV 메인카피 축약으로 ·
  *          에어컨 단독은 'LG 휘센 에어컨' 우선 · PC·MO 짝 행은 같은 문구로
@@ -138,6 +139,7 @@ export function autoFill(kvMain: string, kvSub: string): { prod?: string; prodS?
     for (let x = 1; x < sp.length; x++) { if (sp[x].i < sp[x - 1].e) continue; const bt = raw.slice(sp[x - 1].e, sp[x].i), t = bt.trim(); if (t.length === 1 && /[&·ㆍ・+/,]/.test(t)) { sep = bt; break; } }
     const ls = sp.map(o => o.m.l);
     const cat = ls.every(l => KITCHEN_SET.includes(l)) ? '주방가전' : ls.every(l => LIVING_SET.includes(l)) ? '리빙가전' : null;
+    sep = '·'; // 통합셋팅기 v13: 제품 나열은 가운데점 필수 (v18의 'KV 기호 따라감, 없으면 &' 대체)
     out.prod = ls.join(sep);
     out.prodS = cat || ls.join(sep);
   }

@@ -21,6 +21,10 @@ export const PLAN_SCOPE_LABEL: Record<PlanScope, string> = { banner: '배너', l
 export const scopeHasBanner = (s: PlanScope) => s === 'banner' || s === 'both';
 export const scopeHasLanding = (s: PlanScope) => s === 'landing' || s === 'both';
 
+// 판촉 로직(기획팀 도구)은 방송명 전체에서 날짜·제품·쿠킹/냉장고/재방송 단어를 읽는다.
+// 이 팀은 재방송을 업무명에 '(재)'로 쓰고 원본은 '재방송'만 알아봐서, 넘길 때만 바꿔 준다 (2026-10-26)
+export const promoCaseName = (title: string) => (title ?? '').normalize('NFC').trim().replace(/\(\s*재\s*\)/g, ' 재방송').replace(/\s+/g, ' ');
+
 export interface PlanDraftBanner {
   kvMain: string;
   kvSub: string;

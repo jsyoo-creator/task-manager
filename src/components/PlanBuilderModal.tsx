@@ -1,17 +1,18 @@
-import { useState, useMemo, useDeferredValue, useRef, type ReactNode } from 'react';
-import { X, Loader2, Wand2, Send, TriangleAlert, CircleCheck, Info, ChevronDown } from 'lucide-react';
+import { useState, useMemo, useDeferredValue, useRef, useEffect, type ReactNode } from 'react';
+import { X, Loader2, Wand2, Send, TriangleAlert, CircleCheck, Info, ChevronDown, GripVertical, Trash2, RotateCcw } from 'lucide-react';
 import type { Task } from '../types';
 import {
   LIM, gen, autoFill, ben, bannerGroups, copiesFromGroups, editsFromCopies, countOver, normLine, alertTxt,
   parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT, HOUR_OPTIONS, pairRowId,
   type BannerHour, type BroadcastType, type BannerGroup, type BannerRow, type GenInput,
 } from '../lib/planTools/bannerCopy';
-import { parsePromo, promoKvOpt, promoJoinProducts, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, promoLiveCards, promoAuto, defaultPromoOpts, PROMO_PREVIEW_CSS, type PromoStructured, type PromoOpts } from '../lib/planTools/promoParse';
+import { parsePromo, promoKvOpt, promoJoinProducts, promoCards, promoHideState, promoOrderState, promoPayState, setPromoPrevCases, type PromoCardRow, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, promoLiveCards, promoAuto, defaultPromoOpts, PROMO_PREVIEW_CSS, type PromoStructured, type PromoOpts } from '../lib/planTools/promoParse';
 import {
-  scopeHasBanner, scopeHasLanding, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
+  scopeHasBanner, scopeHasLanding, promoCaseName, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
 } from '../lib/planDraft';
-import { PlanDraftBusyError, type PlanRequest } from '../hooks/usePlanDraft';
+import { PlanDraftBusyError, loadPrevLiveCases, type PlanRequest } from '../hooks/usePlanDraft';
+import { applyPromoHighlight, type PromoHighlight } from '../lib/planTools/promoHighlight';
 import { isQuotaError, quotaMessage } from '../lib/dbQuota';
 
 type Tab = 'banner' | 'landing';
@@ -109,18 +110,64 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
   // ── 상세 입력 ──
   const [raw, setRaw] = useState(seed?.landing?.raw ?? '');
   const deferredRaw = useDeferredValue(raw);
-  // 판촉 로직(기획팀 도구 v38)은 방송명 전체에서 날짜·제품·쿠킹/냉장고/재방송 단어를 읽는다.
-  // 이 팀은 재방송을 업무명에 '(재)'로 쓰고 원본은 '재방송'만 알아봐서, 넘길 때만 바꿔 준다 (2026-10-26)
-  const promoCase = (task.title ?? '').normalize('NFC').trim().replace(/\(\s*재\s*\)/g, ' 재방송').replace(/\s+/g, ' ');
+  const promoCase = promoCaseName(task.title);
   // 추가 영역·재방송 옵션 — 다시 열면 지난번 선택을 그대로 (없으면 원본 기본값)
   const [opts, setOpts] = useState<PromoOpts>(() => ({ ...defaultPromoOpts(promoCase), ...(seed?.landing?.structured?.opts ?? {}) }));
   const setOpt = <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => setOpts(o => ({ ...o, [k]: v }));
   // 한정 혜택 윗줄 기본값('○○ 라이브')은 원본처럼 KV 메인 카피 → 업무명 순으로 정한다 (통합셋팅기 v13, opts.kv)
   const optsKv = useMemo<PromoOpts>(() => ({ ...opts, kv: promoKvOpt(kvMainJ, kvSubJ) }), [opts, kvMainJ, kvSubJ]);
-  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, optsKv), [deferredRaw, promoCase, optsKv]);
+  // 결제혜택 '직전 라이브와 동일'을 고르면 그때 한 번 지난 방송(같은 팀 1차 기획서 저장분)을 읽는다 (통합셋팅기 v08)
+  const [prevLoad, setPrevLoad] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [prevVer, setPrevVer] = useState(0);
+  useEffect(() => {
+    if (opts.payMode !== 'prev' || prevLoad !== 'idle') return;
+    setPrevLoad('loading');
+    loadPrevLiveCases(teamId ?? '')
+      .then(cs => { setPromoPrevCases(cs); setPrevLoad('ready'); setPrevVer(v => v + 1); })
+      .catch(e => { console.error('[planDraft] prev live load failed', e); setPrevLoad('error'); });
+  }, [opts.payMode, prevLoad, teamId]);
+  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, optsKv), [deferredRaw, promoCase, optsKv, prevVer]);
+  const cards = useMemo(() => promoCards(pv), [pv]);
+  const payState = useMemo(() => promoPayState(pv), [pv]);
+  // 카드 삭제·순서 (통합셋팅기 v05·v13) — 원본처럼 opts.hide / opts.order에 JSON으로 둔다
+  const setLists = (k: 'hide' | 'order', v: { live: string[]; obs: string[] }) => setOpt(k, v.live.length || v.obs.length ? JSON.stringify(v) : '');
+  const deleteCard = (list: 'live' | 'obs', r: PromoCardRow) => {
+    if (r.kind === 'fixed') { setOpt('fridge', 'off'); return; }      // 냉장고 고정 배너 = 추가 영역 체크 해제와 같음
+    if (r.kind === 'hidden2') { setOpt('hidTotal', false); return; }  // 통합 히든 기획전도 같음
+    const h = promoHideState(opts);
+    if (!h[list].includes(r.hideKey)) h[list].push(r.hideKey);
+    setLists('hide', h);
+  };
+  const unhideCard = (list: 'live' | 'obs' | 'all', i = 0) => {
+    const h = promoHideState(opts);
+    if (list === 'all') { h.live = []; h.obs = []; } else h[list].splice(i, 1);
+    setLists('hide', h);
+  };
+  const moveCard = (list: 'live' | 'obs', from: number, to: number) => {
+    const keys = cards[list].map(r => r.key);
+    const [k] = keys.splice(from, 1);
+    keys.splice(to > from ? to - 1 : to, 0, k);
+    const o = promoOrderState(opts);
+    o[list] = keys;
+    setLists('order', o);
+  };
+  // 변경 하이라이트 (통합셋팅기 v09) — 지난번 저장한 상세 내용 대비 바뀐 문구를 미리보기에 노란 배경으로
+  const baseHtml = useMemo(() => {
+    const l = seed?.landing;
+    if (!l?.raw?.trim()) return null;
+    const kv = promoKvOpt(promoJoinProducts(seed?.banner?.kvMain ?? ''), promoJoinProducts(seed?.banner?.kvSub ?? ''));
+    return promoPreviewHtml(parsePromo(l.raw, promoCase, { ...(l.structured?.opts ?? {}), ...(kv ? { kv } : {}) }));
+  }, [seed, promoCase, prevVer]);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [hl, setHl] = useState<PromoHighlight | null>(null);
+  const [hlOff, setHlOff] = useState(false);
   const promoAutoVal = useMemo(() => promoAuto(pv), [pv]);
   const summary = useMemo(() => promoSummary(pv), [pv]);
   const previewHtml = useMemo(() => (deferredRaw.trim() ? promoPreviewHtml(pv) : ''), [pv, deferredRaw]);
+  useEffect(() => {
+    const el = previewRef.current;
+    setHl(el && previewHtml ? applyPromoHighlight(el, baseHtml) : null);
+  }, [previewHtml, baseHtml, tab]);
 
   // ── 파일 이름 ──
   const [fileName, setFileName] = useState(() => {
@@ -392,6 +439,11 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                     placeholder={'알림 신청 판촉\n투썸플레이스 아메리카노 (30명)\n\n라이브 한정 판촉\n1) …\n\nOBS 기획전/기본 판촉\nhttps://www.lge.co.kr/benefits/exhibitions/detail-PE…\n\nLGE닷컴 전사 판촉\n…'} />
                 </div>
                 {raw.trim() && (
+                  <CardOrderPanel cards={cards} opts={opts} onDelete={deleteCard} onUnhide={unhideCard} onMove={moveCard}
+                    onResetOrder={() => setOpt('order', '')} />
+                )}
+                <PayModePanel opts={opts} setOpt={setOpt} state={payState} prevLoad={prevLoad} input={input} />
+                {raw.trim() && (
                   <div className="flex flex-col gap-1.5">
                     <div className="text-[11px] font-semibold text-gray-500">인식 결과</div>
                     <div className="flex flex-wrap gap-1.5">
@@ -407,11 +459,21 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
               </div>
               <div className="md:sticky md:top-0">
                 <div className="text-[11px] font-semibold text-gray-500 mb-1">워싱본 미리보기 · 실제 상세페이지 순서 (알림 신청 → 한정 혜택 → OBS 랜딩링크 → 결제 혜택 → 유의사항)</div>
+                {hl && (hl.total || hl.removed ? (
+                  <div className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] bg-[#FFF8D6] border border-[#F2C200] text-[#5c4a00] rounded-lg px-2.5 py-1.5">
+                    <span className="w-2.5 h-2.5 rounded-[3px] bg-[#FFF1A6] ring-2 ring-[#F2C200] flex-shrink-0" />
+                    <b>변경 하이라이트 {hl.total}곳</b>{hl.removed ? ` · 빠진 항목 ${hl.removed}곳` : ''}<span className="text-[#7a6400]">(지난 저장본 대비)</span>
+                    <button type="button" onClick={() => setHlOff(v => !v)} className="ml-auto font-semibold underline">{hlOff ? '하이라이트 켜기' : '하이라이트 끄기'}</button>
+                    <span className="w-full text-[10px] text-[#7a6400]">{hl.parts.join(' · ')}</span>
+                  </div>
+                ) : (
+                  <div className="mb-1.5 text-[11px] bg-gray-50 border border-black/5 text-gray-500 rounded-lg px-2.5 py-1.5">지난 저장본 대비 · 페이지 문구 변경 없음</div>
+                ))}
                 <div className="rounded-xl bg-gray-50 border border-black/5 max-h-[calc(90vh-230px)] overflow-y-auto p-2">
                   {previewHtml ? (
                     <>
                       <style>{PROMO_PREVIEW_CSS}</style>
-                      <div className="promo-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                      <div ref={previewRef} className={`promo-preview${hlOff ? ' hlOff' : ''}`} dangerouslySetInnerHTML={{ __html: previewHtml }} />
                     </>
                   ) : (
                     <div className="py-16 text-center text-xs text-gray-400">판촉 원문을 붙여넣으면 미리보기가 나와요</div>
@@ -520,4 +582,110 @@ function SummaryChip({ kind, children }: { kind: 'ok' | 'warn' | 'bad' | 'info';
     : kind === 'bad' ? 'text-red-600 bg-red-50 border-red-200' : 'text-gray-600 bg-gray-50 border-gray-200';
   const icon = kind === 'ok' ? <CircleCheck size={11} /> : kind === 'info' ? <Info size={11} /> : <TriangleAlert size={11} />;
   return <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border ${cls}`}>{icon}{children}</span>;
+}
+
+// 한정 혜택·OBS 카드 정리 (기획팀 통합셋팅기 v05 삭제·되돌리기 + v13 끌어서 순서 바꾸기)
+// 순서·삭제는 카드 내용(혜택 원문·URL) 기준으로 기억해서, 원문을 다시 붙여넣어도 유지되고 새 카드는 원문 순서대로 뒤에 붙는다.
+function CardOrderPanel({ cards, opts, onDelete, onUnhide, onMove, onResetOrder }: {
+  cards: { live: PromoCardRow[]; obs: PromoCardRow[] }; opts: PromoOpts;
+  onDelete: (list: 'live' | 'obs', r: PromoCardRow) => void;
+  onUnhide: (list: 'live' | 'obs' | 'all', i?: number) => void;
+  onMove: (list: 'live' | 'obs', from: number, to: number) => void;
+  onResetOrder: () => void;
+}) {
+  const drag = useRef<{ list: 'live' | 'obs'; i: number } | null>(null);
+  const [drop, setDrop] = useState<{ list: 'live' | 'obs'; at: number } | null>(null);
+  const hidden = promoHideState(opts), order = promoOrderState(opts);
+  const ordered = order.live.length > 0 || order.obs.length > 0;
+  const nHidden = hidden.live.length + hidden.obs.length;
+  const KIND: Record<string, string> = { hidden: '제품명 기획전', hidden2: '통합 히든 기획전', fixed: '냉장고 고정 배너' };
+  const list = (name: 'live' | 'obs', title: string, rows: PromoCardRow[]) => (
+    <div className="flex flex-col gap-1">
+      <div className="text-[11px] font-semibold text-gray-500">{title} <span className="font-normal text-gray-400">{rows.length}개</span></div>
+      {rows.length === 0 && <div className="text-[11px] text-gray-400">없음</div>}
+      {rows.map((r, i) => {
+        const line = drop?.list === name ? (drop.at === i ? 'before' : drop.at === i + 1 && i === rows.length - 1 ? 'after' : '') : '';
+        return (
+          <div key={r.key + i} draggable
+            onDragStart={e => { drag.current = { list: name, i }; e.dataTransfer.effectAllowed = 'move'; }}
+            onDragOver={e => {
+              if (drag.current?.list !== name) return;
+              e.preventDefault();
+              const b = e.currentTarget.getBoundingClientRect();
+              setDrop({ list: name, at: e.clientY < b.top + b.height / 2 ? i : i + 1 });
+            }}
+            onDrop={e => { e.preventDefault(); const d = drag.current; if (d && drop && d.list === name && drop.at !== d.i && drop.at !== d.i + 1) onMove(name, d.i, drop.at); drag.current = null; setDrop(null); }}
+            onDragEnd={() => { drag.current = null; setDrop(null); }}
+            className={`flex items-center gap-1.5 rounded-lg bg-white border border-black/8 px-1.5 py-1 ${line === 'before' ? 'shadow-[0_-2px_0_0_#3b82f6]' : line === 'after' ? 'shadow-[0_2px_0_0_#3b82f6]' : ''}`}>
+            <GripVertical size={14} className="text-gray-300 cursor-grab flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-gray-800 truncate">{r.title || '(제목 없음)'}{r.sub ? <span className="text-gray-500"> · {r.sub}</span> : null}</div>
+              {(KIND[r.kind] || r.url) && <div className="text-[10px] text-gray-400 truncate">{KIND[r.kind] ? KIND[r.kind] + (r.url ? ' · ' : '') : ''}{r.url}</div>}
+            </div>
+            {r.kind !== 'hidden' && (
+              <button type="button" onClick={() => onDelete(name, r)} title={r.kind === 'fixed' || r.kind === 'hidden2' ? '추가 영역 체크 해제와 같아요' : '페이지에서 빼기 (아래에서 되돌릴 수 있어요)'}
+                className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"><Trash2 size={13} /></button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+  return (
+    <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-2.5 break-keep">
+      <div className="flex items-center gap-2">
+        <div className="text-[11px] font-semibold text-gray-500">카드 정리 <span className="font-normal text-gray-400">· 끌어서 순서 바꾸기, 휴지통으로 빼기</span></div>
+        {ordered && <span className="ml-auto text-[10px] text-gray-500">순서를 직접 바꾼 상태 · <button type="button" onClick={onResetOrder} className="text-indigo-500 hover:underline">원래 순서로</button></span>}
+      </div>
+      {list('live', '한정 혜택', cards.live)}
+      {list('obs', 'OBS 배너', cards.obs)}
+      {nHidden > 0 && (
+        <div className="flex flex-col gap-1 pt-1 border-t border-black/5">
+          <div className="flex items-center text-[11px] font-semibold text-gray-500">삭제한 카드 {nHidden}건 <span className="font-normal text-gray-400 ml-1">· 원문에서 인식했지만 페이지에서 뺀 카드</span>
+            <button type="button" onClick={() => onUnhide('all')} className="ml-auto text-[10px] font-normal text-indigo-500 hover:underline">모두 되돌리기</button></div>
+          {(['live', 'obs'] as const).flatMap(k => hidden[k].map((t, i) => (
+            <div key={k + i} className="flex items-center gap-1.5 text-[11px] text-gray-600">
+              <span className="text-[10px] text-gray-400 w-7 flex-shrink-0">{k === 'live' ? '혜택' : 'OBS'}</span>
+              <span className="truncate flex-1" title={t}>{t.replace(/^t:/, '').replace(/\n/g, ' / ')}</span>
+              <button type="button" onClick={() => onUnhide(k, i)} className="flex items-center gap-0.5 text-indigo-500 hover:underline flex-shrink-0"><RotateCcw size={11} />되돌리기</button>
+            </div>
+          )))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 결제혜택 · 유의사항 반영 기준 (기획팀 통합셋팅기 v08·v09 3택)
+function PayModePanel({ opts, setOpt, state, prevLoad, input }: {
+  opts: PromoOpts; setOpt: <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => void;
+  state: { mode: '' | 'prev' | 'date'; text: string; kind: 'ok' | 'warn' | 'off'; note: string; prevName: string };
+  prevLoad: 'idle' | 'loading' | 'ready' | 'error'; input: string;
+}) {
+  const mode = state.mode;
+  const seg = (m: '' | 'prev' | 'date', label: string) => (
+    <button type="button" onClick={() => setOpt('payMode', m)} aria-pressed={mode === m}
+      className={`flex-1 px-2 py-1.5 text-[11px] rounded-lg border transition-colors ${mode === m ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'bg-white border-black/10 text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+  );
+  const stCls = state.kind === 'ok' ? 'text-green-700' : state.kind === 'warn' ? 'text-amber-700' : 'text-gray-500';
+  return (
+    <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 break-keep">
+      <div className="flex items-center gap-2">
+        <div className="text-[11px] font-semibold text-gray-500">결제혜택 · 유의사항 반영 기준</div>
+        <span className={`ml-auto text-[10px] truncate ${stCls}`} title={state.text}>{state.text}</span>
+      </div>
+      <div className="flex gap-1.5">
+        {seg('', '판촉안 · 방송일')}
+        {seg('date', '판촉안 · 반영 일자')}
+        {seg('prev', '직전 라이브와 동일')}
+      </div>
+      {mode === 'date' && (
+        <input className={`${input} !py-1.5 !text-xs`} value={opts.payDate} onChange={e => setOpt('payDate', e.target.value)} placeholder="반영 일자 (예: 10/15) — 그날 진행 중인 혜택만 반영" />
+      )}
+      <p className="text-[10px] text-gray-400">
+        {state.note}
+        {mode === 'prev' && (prevLoad === 'loading' ? ' · 지난 방송 불러오는 중…' : prevLoad === 'error' ? ' · 지난 방송을 불러오지 못했어요' : prevLoad === 'ready' && !state.prevName ? ' · 저장된 직전 라이브가 없어 판촉안 기준으로 반영해요' : '')}
+      </p>
+    </div>
+  );
 }

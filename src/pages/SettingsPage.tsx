@@ -9005,7 +9005,7 @@ function TeamSection({ teams, globalRolePermissions, onCreateTeam, onUpdateTeam,
         const liveTasks = teamId ? (liveByTeam.get(teamId) ?? []) : [];
         const candidates = liveTasks.filter(t => t.title === l.title && t.category === origin?.category);
         if (candidates.length === 0) {
-          batch.update(doc(db, 'tasks', l.id), { deletedAt: now, deletedBy: '(지원팀 연결 원본 유실 정리로 자동 이동)', updatedAt: now });
+          batch.update(doc(db, 'tasks', l.id), { deletedAt: now, deletedBy: '(지원팀 연결 원본 유실 정리로 자동 이동)', trashed: true, updatedAt: now });
           applied.push({ supportTaskTitle: l.title, supportTaskId: l.id, action: '휴지통 이동', detail: '살아있는 후보 없음' });
         } else {
           const chosen = candidates.length === 1

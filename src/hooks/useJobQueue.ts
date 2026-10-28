@@ -6,13 +6,18 @@ import { FIGMA_SETUP_META_COLLECTION } from '../lib/figmaSetup';
 // 맥 프로그램이 올려 두는 작업 순서 — 지금 처리 중인 요청과 기다리는 요청 (figmaSetupMeta/queue 문서 하나).
 // 여러 명이 한꺼번에 누르지 않게 요청 팝업·요청대기 칩에서 '지금 누구 요청 진행 중, 대기 N번째'를 보여 준다.
 // 운영은 맥이 2분마다 조회하므로 방금 누른 요청은 최대 2분 늦게 목록에 잡힌다.
-// 2026-10-26 운영은 읽기 한도 절약으로 맥이 오전 9시~저녁 6시에만 요청을 확인한다 (개발기는 하루 종일).
-const PICKUP_HOURS: [number, number] | null = import.meta.env.VITE_APP_ENV === 'stg' ? null : [9, 18];
-/** 지금 요청하면 언제 가져가는지 — 확인 시간 밖이면 '내일(오늘) 오전 9시', 안이면 '최대 2분' */
+// 2026-10-26 운영은 읽기 한도 절약으로 맥이 정해진 시간에만 요청을 확인한다 (개발기는 하루 종일).
+// 2026-10-29 출근 시간에 맞춰 시작을 오전 8시 30분으로 — 분까지 쓰려고 자정부터의 분으로 둔다 (맥 config envs[].hours와 같이 맞출 것).
+const PICKUP_MINS: [number, number] | null = import.meta.env.VITE_APP_ENV === 'stg' ? null : [8 * 60 + 30, 18 * 60];
+const pickupLabel = (mins: number) => {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return `${h < 12 ? '오전' : '저녁'} ${h > 12 ? h - 12 : h}시${m ? ` ${m}분` : ''}`;
+};
+/** 지금 요청하면 언제 가져가는지 — 확인 시간 밖이면 '내일(오늘) 오전 8시 30분', 안이면 '최대 2분' */
 export function pickupNote(now = new Date()): { off: boolean; text: string } {
-  const h = now.getHours();
-  if (PICKUP_HOURS && (h < PICKUP_HOURS[0] || h >= PICKUP_HOURS[1]))
-    return { off: true, text: `맥 프로그램은 오전 ${PICKUP_HOURS[0]}시~저녁 ${PICKUP_HOURS[1] - 12}시에만 요청을 가져가요 — ${h < PICKUP_HOURS[0] ? '오늘' : '내일'} 오전 ${PICKUP_HOURS[0]}시에 시작돼요` };
+  const mins = now.getHours() * 60 + now.getMinutes();
+  if (PICKUP_MINS && (mins < PICKUP_MINS[0] || mins >= PICKUP_MINS[1]))
+    return { off: true, text: `맥 프로그램은 ${pickupLabel(PICKUP_MINS[0])}~${pickupLabel(PICKUP_MINS[1])}에만 요청을 가져가요 — ${mins < PICKUP_MINS[0] ? '오늘' : '내일'} ${pickupLabel(PICKUP_MINS[0])}에 시작돼요` };
   return { off: false, text: '곧 맥 프로그램이 가져가요 (최대 2분) · 디자이너 맥이 꺼져 있으면 켜질 때 시작돼요' };
 }
 

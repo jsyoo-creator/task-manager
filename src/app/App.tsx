@@ -38,7 +38,7 @@ import { useTeams } from '../hooks/useTeams';
 import { useHolidays } from '../hooks/useHolidays';
 import { usePublicHolidays } from '../hooks/usePublicHolidays';
 import { HolidaysContext } from '../contexts/HolidaysContext';
-import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam, resolveFieldDepts, resolveReviewStatusLabels } from '../types';
+import { getPermissions, resolveBuiltinFields, mergeFormConfig, mergeAllPartsConfig, DEFAULT_BUILTIN_FIELD_CONFIGS, resolveRevisionSteps, isMenuEnabled, deriveSubtasksForTeam, resolveFieldDepts, resolveReviewStatusLabels, isRemoteWork } from '../types';
 import type { Task, TaskCategory, SubTask, TeamFormConfig, SubTaskType } from '../types';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import PathConverterWidget from '../components/PathConverterWidget';
@@ -474,6 +474,8 @@ function App() {
   const vacTeamMembers = selectedTeam ? allUsers.filter(u => isBaseMemberOfTeam(u, selectedTeam.id)) : [];
   const vacMemberNames = new Set(vacTeamMembers.map(m => m.displayName));
   const teamVacations = vacations.filter(v => vacMemberNames.has(v.memberName));
+  // 재택은 캘린더·휴가 페이지에만 보이고, 대무 자동 지정·위클리 휴가 시간에는 들어가지 않는다
+  const teamLeaves = teamVacations.filter(v => !isRemoteWork(v));
   // 대시보드도 휴가 현황과 같은 이유로 기본(우선선택) 팀 소속만 인정 — 지원팀 인원이
   // 다른 팀 대시보드의 "담당자별 세부업무 현황"에 섞여 나오는 문제 방지
   const dashboardTeamMembers = vacTeamMembers.map(u => ({ name: u.displayName, department: u.department, email: u.email }));
@@ -964,7 +966,7 @@ function App() {
               <CalendarPage tasks={filteredTasks} subtasks={calendarSubtasks} activeCategory={activeCategory} onCategoryChange={setActiveCategory} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} customHolidays={customHolidays} vacations={teamVacations} subTaskColorMap={subTaskColorMap} teamColor={selectedTeam?.color} subTaskOrderMap={subTaskOrderMap} groupBySubtaskType={selectedTeam?.calendarGroupBy === 'subtaskType'} mainTaskEndDateLabel={selectedTeam?.mainTaskEndDateLabel} mainTaskEndDateShow={selectedTeam?.mainTaskEndDateShow} mainTaskEndDateColor={selectedTeam?.mainTaskEndDateColor} plShowInCalendar={selectedTeam?.plShowInCalendar} />
             )} />
             <Route path="/weekly" element={!menuEnabled('/weekly') ? <Navigate to="/" replace /> : (
-              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} removedPublicHolidays={removedPublicHolidays} vacations={teamVacations} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} reviewStatusLabelsBySubTaskType={reviewStatusLabelsBySubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} />
+              <WeeklyPage tasks={[...filteredTasks, ...supportCrossTeamData.tasks]} subtasks={[...weeklyOwnSubtasks, ...supportCrossTeamData.subtasks]} members={members} parts={activeParts} userPhotoMap={new Map(allUsers.map(u => [u.displayName, u.photoURL]))} customHolidays={customHolidays} removedPublicHolidays={removedPublicHolidays} vacations={teamLeaves} currentUserName={currentUserName} canSeeAll={canSeeAllCalendarWeekly} weeklyExportConfig={selectedTeam?.weeklyExportConfig} metaFields={selectedTeam?.metaFields} onUpdateTask={updateTask} canManage={permissions.canEditTasks} assignees={teamAssignees} assigneesPerSubTaskType={assigneesPerSubTaskType} reviewStatusLabelsBySubTaskType={reviewStatusLabelsBySubTaskType} supportLinkedSubTaskKeys={supportLinkedSubTaskKeys} />
             )} />
             <Route path="/vacation" element={!menuEnabled('/vacation') ? <Navigate to="/" replace /> : (
               <VacationPage
@@ -1116,7 +1118,7 @@ function App() {
               canSeeAll={canSeeAll}
               currentUserName={currentUserName}
               currentUserDept={appUser?.department}
-              vacations={teamVacations}
+              vacations={teamLeaves}
               reviewTasks={(detailTask.plTask || resolvedSubTaskTypes.some(t => t.plFieldType === 'review'))
                 ? (() => {
                     const candidates = tasks.filter(t =>

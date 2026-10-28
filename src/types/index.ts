@@ -1203,7 +1203,9 @@ export interface Member {
   createdAt: string;
 }
 
-export type VacationType = '연차' | '오전반반차' | '오전반차' | '오후반반차' | '오후반차';
+export type VacationType = '연차' | '오전반반차' | '오전반차' | '오후반반차' | '오후반차' | '재택';
+// 재택은 휴가와 같은 곳(vacations)에 저장하지만 휴가가 아니다 — 연차 사용 일수·대무·위클리 휴가 시간에서는 뺀다 (2026-10-28)
+export const isRemoteWork = (v: { type: VacationType }) => v.type === '재택';
 
 export interface Vacation {
   id: string;

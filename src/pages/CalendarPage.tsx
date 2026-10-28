@@ -86,6 +86,7 @@ function vacTypeColor(type: VacationType): string {
     case '오전반반차': return 'bg-teal-100 text-teal-700';
     case '오후반차':   return 'bg-amber-100 text-amber-700';
     case '오후반반차': return 'bg-orange-100 text-orange-700';
+    case '재택':      return 'bg-violet-100 text-violet-700';
     default:          return 'bg-gray-100 text-gray-600';
   }
 }
@@ -250,7 +251,7 @@ export default function CalendarPage({ tasks, subtasks = [], activeCategory, onC
     const toDs = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     vacations.forEach(v => {
-      const spanDays = v.type === '연차' ? Math.max(1, Math.ceil(v.days)) : 1;
+      const spanDays = v.type === '연차' || v.type === '재택' ? Math.max(1, Math.ceil(v.days)) : 1;
       if (spanDays <= 1) {
         if (v.date.startsWith(monthPrefix)) map[v.date] = [...(map[v.date] ?? []), v];
         return;

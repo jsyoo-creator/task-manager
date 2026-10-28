@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, House } from 'lucide-react';
 import DatePicker from '../components/DatePicker';
 import { useHolidayMap } from '../contexts/HolidaysContext';
-import { DEPARTMENTS } from '../types';
+import { DEPARTMENTS, isRemoteWork } from '../types';
 import type { Vacation, VacationType, AppUser } from '../types';
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 }
 
 const VACATION_TYPES: VacationType[] = ['연차', '오전반반차', '오전반차', '오후반반차', '오후반차'];
-const VACATION_DAYS: Record<VacationType, number> = {
+const VACATION_DAYS: Record<Exclude<VacationType, '재택'>, number> = {
   '연차': 1,
   '오전반반차': 0.25,
   '오전반차': 0.5,
@@ -32,6 +32,7 @@ function typeColor(type: VacationType): string {
     case '오전반반차': return 'bg-teal-100 text-teal-700';
     case '오후반차':   return 'bg-amber-100 text-amber-700';
     case '오후반반차': return 'bg-orange-100 text-orange-700';
+    case '재택':      return 'bg-violet-100 text-violet-700';
     default:          return 'bg-gray-100 text-gray-600';
   }
 }
@@ -55,6 +56,9 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
 
   const [showMyForm, setShowMyForm] = useState(false);
   const [myForm, setMyForm] = useState({ date: '', type: '연차' as VacationType, annualDays: 1 });
+  // 재택 신청 — 휴가와 따로 센다 (연차에서 빠지지 않음, 대무 자동 지정 없음)
+  const [showRemoteForm, setShowRemoteForm] = useState(false);
+  const [remoteForm, setRemoteForm] = useState({ date: '', days: 1 });
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11); } else setMonth(m => m - 1); };
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0); } else setMonth(m => m + 1); };
@@ -69,7 +73,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     vacations.forEach(v => {
-      const spanDays = v.type === '연차' ? Math.max(1, Math.ceil(v.days)) : 1;
+      const spanDays = v.type === '연차' || v.type === '재택' ? Math.max(1, Math.ceil(v.days)) : 1;
 
       if (spanDays <= 1) {
         if (v.date.startsWith(monthPrefix)) map[v.date] = [...(map[v.date] ?? []), v];
@@ -99,15 +103,18 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     () => vacations.filter(v => v.memberName === currentUserName && v.date.startsWith(yearPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
     [vacations, currentUserName, yearPrefix]
   );
-  const myUsed = useMemo(() => myVacationsThisYear.reduce((a, v) => a + v.days, 0), [myVacationsThisYear]);
+  const myUsed = useMemo(() => myVacationsThisYear.filter(v => !isRemoteWork(v)).reduce((a, v) => a + v.days, 0), [myVacationsThisYear]);
+  const myRemote = useMemo(() => myVacationsThisYear.filter(isRemoteWork).reduce((a, v) => a + v.days, 0), [myVacationsThisYear]);
   const myRemaining = myAnnualTotal - myUsed;
 
   // 팀 전체 현황 — 본인 포함
   const memberStats = useMemo(
     () => teamMembers.map(m => {
       const annualTotal = m.annualLeave ?? DEFAULT_ANNUAL;
-      const used = vacations.filter(v => v.memberName === m.displayName && v.date.startsWith(yearPrefix)).reduce((a, v) => a + v.days, 0);
-      return { user: m, used, remaining: annualTotal - used, annualTotal };
+      const mine = vacations.filter(v => v.memberName === m.displayName && v.date.startsWith(yearPrefix));
+      const used = mine.filter(v => !isRemoteWork(v)).reduce((a, v) => a + v.days, 0);
+      const remote = mine.filter(isRemoteWork).reduce((a, v) => a + v.days, 0);
+      return { user: m, used, remaining: annualTotal - used, annualTotal, remote };
     }),
     [teamMembers, vacations, yearPrefix]
   );
@@ -154,6 +161,15 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
     onAddVacation({ memberId: me?.uid ?? '', memberName: currentUserName, date: myForm.date, type: myForm.type, days });
     setMyForm({ date: '', type: '연차', annualDays: 1 });
     setShowMyForm(false);
+  };
+
+  const handleRemoteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!remoteForm.date) return;
+    const me = teamMembers.find(m => m.displayName === currentUserName);
+    onAddVacation({ memberId: me?.uid ?? '', memberName: currentUserName, date: remoteForm.date, type: '재택', days: remoteForm.days });
+    setRemoteForm({ date: '', days: 1 });
+    setShowRemoteForm(false);
   };
 
   const mePhotoURL = userPhotoMap?.get(currentUserName) || teamMembers.find(m => m.displayName === currentUserName)?.photoURL;
@@ -257,6 +273,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
               ['오전반반차', 'bg-teal-100 text-teal-700'],
               ['오후반차',   'bg-amber-100 text-amber-700'],
               ['오후반반차', 'bg-orange-100 text-orange-700'],
+              ['재택',      'bg-violet-100 text-violet-700'],
             ] as const).map(([label, cls]) => (
               <div key={label} className="flex items-center gap-1.5">
                 <span className={`w-2.5 h-2.5 rounded-sm inline-block ${cls}`} />
@@ -299,6 +316,10 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                 <p className="text-[10px] text-gray-400 mb-0.5">잔여</p>
                 <p className={`text-sm font-bold ${myRemaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{myRemaining}<span className="text-[10px] font-normal text-gray-400">일</span></p>
               </div>
+              <div className="flex-1 bg-violet-50 rounded-xl py-2">
+                <p className="text-[10px] text-gray-400 mb-0.5">재택</p>
+                <p className="text-sm font-bold text-violet-600">{myRemote}<span className="text-[10px] font-normal text-gray-400">회</span></p>
+              </div>
             </div>
 
             {myVacationsThisYear.length > 0 && (
@@ -306,8 +327,8 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                 {myVacationsThisYear.map(v => (
                   <div key={v.id} className="flex items-center gap-1 bg-black/3 rounded-lg px-2 py-1 group">
                     <span className="text-[11px] text-gray-400">{v.date.slice(5).replace('-', '/')}</span>
-                    <span className={`text-[11px] font-medium ${v.type === '연차' ? 'text-blue-500' : 'text-amber-500'}`}>{v.type}</span>
-                    {v.type === '연차' && v.days > 1 && <span className="text-[11px] text-gray-400">{v.days}일</span>}
+                    <span className={`text-[11px] font-medium ${v.type === '연차' ? 'text-blue-500' : isRemoteWork(v) ? 'text-violet-500' : 'text-amber-500'}`}>{v.type}</span>
+                    {(v.type === '연차' || isRemoteWork(v)) && v.days > 1 && <span className="text-[11px] text-gray-400">{v.days}일</span>}
                     <button onClick={() => onDeleteVacation(v.id)} className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 ml-0.5"><Trash2 size={10} /></button>
                   </div>
                 ))}
@@ -350,6 +371,36 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                 </button>
               )}
             </div>
+
+            {/* 재택 신청 — 모든 사용자, 연차와 별개 */}
+            <div className="mt-2">
+              {showRemoteForm ? (
+                <form onSubmit={handleRemoteSubmit} className="space-y-2 pt-2 border-t border-black/5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 text-xs text-violet-600 font-medium">재택</span>
+                    <div className="flex items-center gap-1 glass-card !rounded-lg px-2.5 py-1.5 shrink-0">
+                      <button type="button" onClick={() => setRemoteForm(f => ({ ...f, days: Math.max(1, f.days - 1) }))}
+                        className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">−</button>
+                      <span className="text-xs text-gray-700 w-6 text-center">{remoteForm.days}일</span>
+                      <button type="button" onClick={() => setRemoteForm(f => ({ ...f, days: f.days + 1 }))}
+                        className="text-gray-400 hover:text-gray-600 font-bold text-sm leading-none">+</button>
+                    </div>
+                  </div>
+                  <DatePicker value={remoteForm.date} onChange={d => setRemoteForm(f => ({ ...f, date: d }))} />
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={!remoteForm.date}
+                      className="flex-1 bg-violet-500 text-white rounded-lg py-1.5 text-xs font-medium hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed">신청</button>
+                    <button type="button" onClick={() => setShowRemoteForm(false)}
+                      className="flex-1 border border-gray-200 text-gray-500 rounded-lg py-1.5 text-xs hover:bg-gray-50">취소</button>
+                  </div>
+                </form>
+              ) : (
+                <button onClick={() => setShowRemoteForm(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-violet-500 hover:bg-violet-50 rounded-lg border border-violet-100 transition-colors">
+                  <House size={12} /> 재택 신청
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 팀 전체 현황 */}
@@ -357,8 +408,8 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
             <div className="px-4 py-3 border-b border-black/5">
               <h3 className="text-sm font-semibold text-gray-800">팀 전체 현황 — {year}년</h3>
             </div>
-            <div className="grid grid-cols-[1fr_56px_56px_80px] text-[10px] text-gray-400 font-semibold uppercase bg-black/2 border-b border-black/4 px-3 py-2">
-              <span>이름</span><span className="text-center">사용</span><span className="text-center">잔여</span><span className="text-center">사용률</span>
+            <div className="grid grid-cols-[1fr_44px_44px_40px_72px] text-[10px] text-gray-400 font-semibold uppercase bg-black/2 border-b border-black/4 px-3 py-2">
+              <span>이름</span><span className="text-center">사용</span><span className="text-center">잔여</span><span className="text-center">재택</span><span className="text-center">사용률</span>
             </div>
             {memberStats.length === 0
               ? <p className="text-xs text-gray-300 text-center py-8">팀원이 없습니다</p>
@@ -368,8 +419,8 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                     <span className="text-[10px] font-semibold text-gray-400">{department}</span>
                     <span className="text-[9px] text-gray-300">{items.length}명</span>
                   </div>
-                  {items.map(({ user, used, remaining, annualTotal }) => (
-                    <div key={user.uid} className={`grid grid-cols-[1fr_56px_56px_80px] items-center px-3 py-2.5 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/40' : ''}`}>
+                  {items.map(({ user, used, remaining, annualTotal, remote }) => (
+                    <div key={user.uid} className={`grid grid-cols-[1fr_44px_44px_40px_72px] items-center px-3 py-2.5 border-b border-black/3 last:border-0 hover:bg-black/2 transition-colors ${user.displayName === currentUserName ? 'bg-blue-50/40' : ''}`}>
                       <div className="flex items-center gap-2 min-w-0">
                         <Avatar photoURL={userPhotoMap?.get(user.displayName || '') || user.photoURL} name={user.displayName} size="sm" />
                         <span className="text-xs text-gray-700 truncate">{user.displayName || user.email || '—'}</span>
@@ -378,6 +429,7 @@ export default function VacationPage({ vacations, teamMembers, currentUserName, 
                       </div>
                       <span className="text-center text-xs text-amber-600 font-semibold">{used}일</span>
                       <span className={`text-center text-xs font-bold ${remaining <= 3 ? 'text-red-500' : 'text-green-600'}`}>{remaining}일</span>
+                      <span className={`text-center text-xs font-semibold ${remote ? 'text-violet-600' : 'text-gray-300'}`}>{remote}회</span>
                       <div className="flex flex-col items-center gap-0.5 px-2">
                         <div className="w-full h-1.5 bg-gray-100 rounded-full">
                           <div className={`h-1.5 rounded-full ${remaining <= 3 ? 'bg-red-400' : 'bg-green-400'}`}

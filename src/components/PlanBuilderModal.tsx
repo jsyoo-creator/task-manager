@@ -1,12 +1,16 @@
 import { useState, useMemo, useDeferredValue, useRef, useEffect, type ReactNode } from 'react';
-import { X, Loader2, Wand2, Send, TriangleAlert, CircleCheck, Info, ChevronDown, GripVertical, Trash2, RotateCcw } from 'lucide-react';
+import { X, Loader2, Send, TriangleAlert, CircleCheck, Info, ChevronDown, RotateCcw, ArrowRight } from 'lucide-react';
 import type { Task } from '../types';
 import {
   LIM, gen, autoFill, ben, bannerGroups, copiesFromGroups, editsFromCopies, countOver, normLine, alertTxt,
-  parseBDate, getTimeLabel, getEvLabel, hourFromLabel, DT_HINT, HOUR_OPTIONS, pairRowId,
-  type BannerHour, type BroadcastType, type BannerGroup, type BannerRow, type GenInput,
+  parseBDate, getTimeLabel, getEvLabel, pairRowId,
+  type BannerHour, type BannerRow, type GenInput,
 } from '../lib/planTools/bannerCopy';
-import { parsePromo, promoKvOpt, promoJoinProducts, promoCards, promoHideState, promoOrderState, promoPayState, setPromoPrevCases, type PromoCardRow, promoPreviewText, promoPreviewHtml, promoSummary, promoPayment, promoLiveCards, promoAuto, defaultPromoOpts, PROMO_PREVIEW_CSS, type PromoStructured, type PromoOpts } from '../lib/planTools/promoParse';
+import {
+  parsePromo, promoKvOpt, promoJoinProducts, promoHideState, promoOrderState, promoPayState, setPromoPrevCases,
+  promoPreviewText, promoEditHtml, promoEdit, promoPlaceLive, promoKvInfo, promoAirHour, promoSummary, promoPayment, promoLiveCards, promoAuto,
+  defaultPromoOpts, PROMO_PREVIEW_CSS, PROMO_EDIT_CSS, type PromoStructured, type PromoOpts,
+} from '../lib/planTools/promoParse';
 import {
   scopeHasBanner, scopeHasLanding, promoCaseName, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
@@ -15,9 +19,12 @@ import { PlanDraftBusyError, loadPrevLiveCases, type PlanRequest } from '../hook
 import { applyPromoHighlight, type PromoHighlight } from '../lib/planTools/promoHighlight';
 import { isQuotaError, quotaMessage } from '../lib/dbQuota';
 
-type Tab = 'banner' | 'landing';
+type Tab = 'landing' | 'banner';
+type Ov = { product?: string; shortName?: string; discount?: string };
 
-// 기획서 편집 화면 — 배너 탭(배너카피생성기 v14 로직) / 상세 탭(판촉 업데이트기 v21 로직), 기획서 차례가 배너 먼저 (2026-10-22 기획 확인), 아래 고정 줄에 파일 이름과 저장 요청.
+// 기획서 편집 화면 — 기획팀 통합셋팅기 v17과 같은 흐름 (2026-11-02 기획팀: "한 파일 내 탭 이동이 원칙, 페이지 확인 후 > 배너 순")
+//  ① 페이지 셋팅: 판촉 원문을 붙여넣으면 워싱본(와이어프레임)이 나오고, 그 위에서 바로 고친다 — KV·문구 클릭 수정, 카드 삭제, ⋮⋮ 끌어서 순서, ＋추가, 아이콘 선택
+//  ② 배너 워싱: 페이지 KV·방송 시간·재방송으로 배너 카피가 자동으로 만들어진다 (생성 버튼 없음). 직접 고친 줄은 KV가 바뀌어도 유지
 // 고른 범위의 탭만 보이고 보낸다. 추가 작성하기·실패 후 다시 요청은 지난번에 보낸 내용으로 채워서 연다.
 export default function PlanBuilderModal({ task, folderName, scope, draft, seed, again, kind = 'initial', title, baseFile, account = '', currentUserName, workplaceId, teamId, requestPlan, onClose }: {
   task: Task;
@@ -38,84 +45,25 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
 }) {
   const showBanner = scopeHasBanner(scope);
   const showLanding = scopeHasLanding(scope);
-  const [tab, setTab] = useState<Tab>(showBanner ? 'banner' : 'landing');
-  const folderDate = liveDateFromFolder(folderName);
+  const [tab, setTab] = useState<Tab>(showLanding ? 'landing' : 'banner');
   const prevBanner = seed?.banner;
+  const promoCase = promoCaseName(task.title);
+  const baseYear = folderYear(folderName);
 
-  // ── 배너 입력 ──
-  const [kvMain, setKvMain] = useState(prevBanner?.kvMain ?? '');
-  const [kvSub, setKvSub] = useState(prevBanner?.kvSub ?? '');
-  const [dateText, setDateText] = useState(() => {
-    const p = prevBanner?.liveDate ? parseBDate(prevBanner.liveDate) : null;
-    return p ? `${p.m}/${p.d}` : folderDate?.text ?? '';
-  });
-  const [dateTouched, setDateTouched] = useState(false);
-  const initHour = hourFromLabel(prevBanner?.liveTime ?? '');
-  const [hour, setHour] = useState<BannerHour>(initHour.hour);
-  const [customTime, setCustomTime] = useState(initHour.custom);
-  const [broadcastType, setBroadcastType] = useState<BroadcastType>(prevBanner?.broadcastType === '재방송' ? '재방송' : '라이브');
-  const [product, setProduct] = useState(prevBanner?.product ?? '');
-  const [shortName, setShortName] = useState(prevBanner?.shortName ?? '');
-  const [discount, setDiscount] = useState(prevBanner?.discount ?? '');
-  // 직접 고친 값은 KV 카피를 바꿔도 유지 (비우면 다시 자동) — 원본 prodTouched와 같은 동작
-  const [touched, setTouched] = useState({ product: !!prevBanner?.product, shortName: !!prevBanner?.shortName, discount: !!prevBanner?.discount });
-  const [prodFromKv, setProdFromKv] = useState(false); // 제품군을 못 찾아 KV 카피 메인으로 채웠는지
-
-  const baseYear = folderDate?.year;
-  const parsedDate = useMemo(() => parseBDate(dateText, baseYear), [dateText, baseYear]);
-  // 통합셋팅기 v13: KV에 쓴 제품 나열도 배너·페이지에는 가운데점으로 ("냉장고세탁기"·"냉장고&세탁기" → "냉장고·세탁기")
-  const kvMainJ = promoJoinProducts(kvMain), kvSubJ = promoJoinProducts(kvSub);
-  const genInput: GenInput = {
-    kvMain: kvMainJ, kvSub: kvSubJ, liveDate: parsedDate?.iso ?? '', timeLabel: getTimeLabel(hour, customTime), evLabel: getEvLabel(hour, customTime),
-    broadcastType, benefit: discount, product, shortName,
-  };
-  const inputKey = JSON.stringify(genInput);
-
-  // ── 생성 결과 (버튼을 눌러야 만든다 — 원본 툴의 결정: 실시간 갱신 없음) ──
-  const [generated, setGenerated] = useState<{ groups: BannerGroup[]; key: string } | null>(() => {
-    if (!prevBanner) return null;
-    return { groups: bannerGroups(gen(genInput)), key: inputKey };
-  });
-  const [edits, setEdits] = useState<Record<string, string[]>>(() => (generated ? editsFromCopies(generated.groups, prevBanner?.copies) : {}));
-  // 줄 하나 고치기 — PC·MO가 함께 들어가는 배너는 짝 행도 같은 문구로 (원본 v18 pairTxt)
-  const rowById = useMemo(() => Object.fromEntries((generated?.groups ?? []).flatMap(gr => gr.rows.map(r => [r.id, r] as [string, BannerRow]))), [generated]);
-  const editLine = (r: BannerRow, li: number, v: string) => setEdits(prev => {
-    const next = { ...prev };
-    const pair = rowById[pairRowId(r.id) ?? ''];
-    for (const row of pair ? [r, pair] : [r]) { const cur = [...(prev[row.id] ?? row.lines)]; cur[li] = v; next[row.id] = cur; }
-    return next;
-  });
-  const groupRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  const applyKv = (main: string, sub: string) => {
-    const af = autoFill(main, sub);
-    const found = !!af.prod;
-    if (!touched.product) setProduct(found ? af.prod! : main.trim());
-    if (!touched.shortName) setShortName(found ? af.prodS! : main.trim());
-    setProdFromKv(!found && !!main.trim());
-    if (!touched.discount) setDiscount(ben({ r1: af.r1 ?? '', r2: af.r2 ?? '', r3: af.r3 ?? '', useMax: af.useMax }));
-  };
-  const editField = (key: keyof typeof touched, set: (v: string) => void) => (v: string) => {
-    set(v);
-    setTouched(t => ({ ...t, [key]: v.trim() !== '' }));
-  };
-
-  const generate = () => {
-    setGenerated({ groups: bannerGroups(gen(genInput)), key: inputKey });
-    setEdits({});
-  };
-  const over = generated ? countOver(generated.groups, edits) : null;
-  const bannerStale = !!generated && generated.key !== inputKey;
-
-  // ── 상세 입력 ──
+  // ── 방송 옵션 (페이지·배너 공통) — KV·방송 시간·재방송까지 원본처럼 opts 하나에 둔다 ──
   const [raw, setRaw] = useState(seed?.landing?.raw ?? '');
   const deferredRaw = useDeferredValue(raw);
-  const promoCase = promoCaseName(task.title);
-  // 추가 영역·재방송 옵션 — 다시 열면 지난번 선택을 그대로 (없으면 원본 기본값)
-  const [opts, setOpts] = useState<PromoOpts>(() => ({ ...defaultPromoOpts(promoCase), ...(seed?.landing?.structured?.opts ?? {}) }));
+  const [opts, setOpts] = useState<PromoOpts>(() => {
+    const o: PromoOpts = { ...defaultPromoOpts(promoCase), ...(seed?.landing?.structured?.opts ?? {}) };
+    const hasLandingOpts = !!seed?.landing?.structured?.opts;
+    // 배너만 저장했던 요청(또는 예전 요청)은 배너 입력값에서 KV·방송 시간·재방송을 가져온다
+    if (!o.kv && prevBanner?.kvMain) o.kv = promoKvOpt(prevBanner.kvMain, prevBanner.kvSub ?? '');
+    if (!hasLandingOpts && prevBanner?.liveTime) o.air = airFromLabel(prevBanner.liveTime);
+    if (!hasLandingOpts && prevBanner?.broadcastType === '재방송') o.rebro = true;
+    return o;
+  });
   const setOpt = <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => setOpts(o => ({ ...o, [k]: v }));
-  // 한정 혜택 윗줄 기본값('○○ 라이브')은 원본처럼 KV 메인 카피 → 업무명 순으로 정한다 (통합셋팅기 v13, opts.kv)
-  const optsKv = useMemo<PromoOpts>(() => ({ ...opts, kv: promoKvOpt(kvMainJ, kvSubJ) }), [opts, kvMainJ, kvSubJ]);
+
   // 결제혜택 '직전 라이브와 동일'을 고르면 그때 한 번 지난 방송(같은 팀 1차 기획서 저장분)을 읽는다 (통합셋팅기 v08)
   const [prevLoad, setPrevLoad] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [prevVer, setPrevVer] = useState(0);
@@ -126,48 +74,195 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
       .then(cs => { setPromoPrevCases(cs); setPrevLoad('ready'); setPrevVer(v => v + 1); })
       .catch(e => { console.error('[planDraft] prev live load failed', e); setPrevLoad('error'); });
   }, [opts.payMode, prevLoad, teamId]);
-  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, optsKv), [deferredRaw, promoCase, optsKv, prevVer]);
-  const cards = useMemo(() => promoCards(pv), [pv]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pv = useMemo<PromoStructured>(() => parsePromo(deferredRaw, promoCase, opts), [deferredRaw, promoCase, opts, prevVer]);
+  const pvRef = useRef(pv);
+  pvRef.current = pv;
   const payState = useMemo(() => promoPayState(pv), [pv]);
-  // 카드 삭제·순서 (통합셋팅기 v05·v13) — 원본처럼 opts.hide / opts.order에 JSON으로 둔다
-  const setLists = (k: 'hide' | 'order', v: { live: string[]; obs: string[] }) => setOpt(k, v.live.length || v.obs.length ? JSON.stringify(v) : '');
-  const deleteCard = (list: 'live' | 'obs', r: PromoCardRow) => {
-    if (r.kind === 'fixed') { setOpt('fridge', 'off'); return; }      // 냉장고 고정 배너 = 추가 영역 체크 해제와 같음
-    if (r.kind === 'hidden2') { setOpt('hidTotal', false); return; }  // 통합 히든 기획전도 같음
-    const h = promoHideState(opts);
-    if (!h[list].includes(r.hideKey)) h[list].push(r.hideKey);
-    setLists('hide', h);
+  const promoAutoVal = useMemo(() => promoAuto(pv), [pv]);
+  const summary = useMemo(() => promoSummary(pv), [pv]);
+
+  // ── KV (페이지 워싱본 KV 점선 영역 = 배너 탭 KV 칸, 같은 값) ──
+  const kv = useMemo(() => promoKvInfo(pv), [pv]);
+  const kvMainJ = promoJoinProducts(kv.m), kvSubJ = promoJoinProducts(kv.s);   // v06: 제품 나열은 표시·배너에서 가운데점
+  const setKv = (f: 'd' | 'm' | 's', v: string) => setOpts(o => {
+    const ov = jparse(o.kv);
+    const orig = f === 'd' ? kv.dateAuto : f === 'm' ? kv.mainAuto : '';
+    const t = v.replace(/\s+/g, ' ');
+    if (t.trim() === orig) delete ov[f]; else ov[f] = t;
+    return { ...o, kv: Object.keys(ov).length ? JSON.stringify(ov) : '' };
+  });
+
+  // ── 방송 일시: KV 날짜("11. 2 (월) 오후 8시")에서 — 업무명 날짜 + 방송 시간이 자동값, KV 날짜를 직접 고치면 그 값 (v17 3장) ──
+  const when = useMemo(() => kvWhen(kv.d) ?? null, [kv.d]);
+  const airHour = promoAirHour(opts.air);
+  const parsedDate = useMemo(() => (when ? parseBDate(`${when.m}/${when.d}`, baseYear) : null), [when, baseYear]);
+  const hourInfo = when ? labelHour(when.h, when.min) : labelHour(airHour, 0);
+  const broadcastType = opts.rebro ? '재방송' : '라이브';
+
+  // ── 제품군·할인율: 비워 두면 KV에서 자동, 입력하면 모든 배너에 일괄 반영 (v10 아코디언) ──
+  const auto = useMemo(() => {
+    const af = autoFill(kvMainJ, kvSubJ);
+    return { product: af.prod ?? kvMainJ.trim(), shortName: af.prodS ?? kvMainJ.trim(), discount: ben({ r1: af.r1 ?? '', r2: af.r2 ?? '', r3: af.r3 ?? '', useMax: af.useMax }), found: !!af.prod };
+  }, [kvMainJ, kvSubJ]);
+  const [ov, setOv] = useState<Ov>(() => {
+    if (!prevBanner) return {};
+    const af = autoFill(promoJoinProducts(prevBanner.kvMain ?? ''), promoJoinProducts(prevBanner.kvSub ?? ''));
+    const a = { product: af.prod ?? prevBanner.kvMain ?? '', shortName: af.prodS ?? prevBanner.kvMain ?? '', discount: ben({ r1: af.r1 ?? '', r2: af.r2 ?? '', r3: af.r3 ?? '', useMax: af.useMax }) };
+    const o: Ov = {};
+    for (const k of ['product', 'shortName', 'discount'] as const) if (prevBanner[k] && prevBanner[k] !== a[k]) o[k] = prevBanner[k];
+    return o;
+  });
+  const product = ov.product ?? auto.product, shortName = ov.shortName ?? auto.shortName, discount = ov.discount ?? auto.discount;
+
+  // ── 배너 카피: 입력이 바뀌면 바로 다시 만든다 (v17: 생성 버튼 없음) ──
+  const genInput: GenInput = {
+    kvMain: kvMainJ, kvSub: kvSubJ, liveDate: parsedDate?.iso ?? '', timeLabel: getTimeLabel(hourInfo.hour, hourInfo.custom), evLabel: getEvLabel(hourInfo.hour, hourInfo.custom),
+    broadcastType, benefit: discount, product, shortName,
   };
-  const unhideCard = (list: 'live' | 'obs' | 'all', i = 0) => {
-    const h = promoHideState(opts);
-    if (list === 'all') { h.live = []; h.obs = []; } else h[list].splice(i, 1);
-    setLists('hide', h);
+  const inputKey = JSON.stringify(genInput);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => bannerGroups(gen(genInput)), [inputKey]);
+  const [edits, setEdits] = useState<Record<string, string[]>>(() => (prevBanner ? editsFromCopies(groups, prevBanner.copies) : {}));
+  // 줄 하나 고치기 — PC·MO가 함께 들어가는 배너는 짝 행도 같은 문구로 (원본 v18 pairTxt)
+  const rowById = useMemo(() => Object.fromEntries(groups.flatMap(gr => gr.rows.map(r => [r.id, r] as [string, BannerRow]))), [groups]);
+  const editLine = (r: BannerRow, li: number, v: string) => setEdits(prev => {
+    const next = { ...prev };
+    const pair = rowById[pairRowId(r.id) ?? ''];
+    for (const row of pair ? [r, pair] : [r]) { const cur = [...(prev[row.id] ?? row.lines)]; cur[li] = v; next[row.id] = cur; }
+    return next;
+  });
+  const revertRow = (r: BannerRow) => setEdits(prev => {
+    const next = { ...prev };
+    delete next[r.id];
+    const pair = pairRowId(r.id);
+    if (pair) delete next[pair];
+    return next;
+  });
+  const over = countOver(groups, edits);
+  const groupRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // ── 워싱본(와이어프레임) 직접 수정 — 원본 함수를 그대로 불러 opts에 반영 ──
+  const previewRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const flash = (m: string) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 2000); };
+  // 문구를 고치고 바로 삭제 버튼을 누르면 화면이 다시 그려지기 전에 두 번 불린다 → 직전 수정 결과(latestOpts)를 바탕으로 이어서 고친다
+  const latestOpts = useRef(opts);
+  const pvOpts = useRef(opts);
+  if (pvOpts.current !== opts) { pvOpts.current = opts; latestOpts.current = opts; }
+  // 점선 영역 수정(포커스가 빠질 때)은 화면을 조금 늦게 다시 그린다 — 바로 그리면 그 클릭이 누른 버튼이 사라져 클릭이 씹힌다 (원본도 200ms 뒤에 그림)
+  const commitTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const doEdit = (call: string, el?: Element | null, defer = false) => {
+    const base = latestOpts.current === pvOpts.current ? pvRef.current : parsePromo(deferredRaw, promoCase, latestOpts.current);
+    const r = promoEdit(base, previewRef.current, call, el);
+    if (!r) return;
+    latestOpts.current = r.opts;
+    clearTimeout(commitTimer.current);
+    if (defer) commitTimer.current = setTimeout(() => setOpts(latestOpts.current), 200);
+    else setOpts(r.opts);
+    if (r.toast) flash(r.toast);
   };
-  const moveCard = (list: 'live' | 'obs', from: number, to: number) => {
-    const keys = cards[list].map(r => r.key);
-    const [k] = keys.splice(from, 1);
-    keys.splice(to > from ? to - 1 : to, 0, k);
-    const o = promoOrderState(opts);
-    o[list] = keys;
-    setLists('order', o);
-  };
-  // 변경 하이라이트 (통합셋팅기 v09) — 지난번 저장한 상세 내용 대비 바뀐 문구를 미리보기에 노란 배경으로
+  const doEditRef = useRef(doEdit);
+  doEditRef.current = doEdit;
+
+  // 변경 하이라이트 (통합셋팅기 v09) — 지난번 저장한 상세 내용 대비 바뀐 문구를 워싱본에 노란 배경으로
   const baseHtml = useMemo(() => {
     const l = seed?.landing;
     if (!l?.raw?.trim()) return null;
-    const kv = promoKvOpt(promoJoinProducts(seed?.banner?.kvMain ?? ''), promoJoinProducts(seed?.banner?.kvSub ?? ''));
-    return promoPreviewHtml(parsePromo(l.raw, promoCase, { ...(l.structured?.opts ?? {}), ...(kv ? { kv } : {}) }));
+    const o = { ...(l.structured?.opts ?? {}) };
+    if (!o.kv && seed?.banner?.kvMain) o.kv = promoKvOpt(seed.banner.kvMain, seed.banner.kvSub ?? '');
+    return promoEditHtml(parsePromo(l.raw, promoCase, o));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed, promoCase, prevVer]);
-  const previewRef = useRef<HTMLDivElement>(null);
   const [hl, setHl] = useState<PromoHighlight | null>(null);
   const [hlOff, setHlOff] = useState(false);
-  const promoAutoVal = useMemo(() => promoAuto(pv), [pv]);
-  const summary = useMemo(() => promoSummary(pv), [pv]);
-  const previewHtml = useMemo(() => (deferredRaw.trim() ? promoPreviewHtml(pv) : ''), [pv, deferredRaw]);
+  const editHtml = useMemo(() => (deferredRaw.trim() ? promoEditHtml(pv) : ''), [pv, deferredRaw]);
   useEffect(() => {
     const el = previewRef.current;
-    setHl(el && previewHtml ? applyPromoHighlight(el, baseHtml) : null);
-  }, [previewHtml, baseHtml, tab]);
+    if (!el || !editHtml) { setHl(null); return; }
+    promoPlaceLive(pvRef.current, el);   // 직접 추가 혜택을 정해 둔 순서 자리에
+    setHl(applyPromoHighlight(el, baseHtml));
+    addDragHandles(el);
+  }, [editHtml, baseHtml, tab]);
+
+  // 점선 영역 수정·버튼·선택·끌기 — 원본 document 이벤트와 같은 동작을 미리보기 영역에서만
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const attr = (t: Element, k: string) => t.getAttribute(k);
+    const editable = (t: Element) => !!(attr(t, 'data-cook') || attr(t, 'data-obs') || (attr(t, 'data-et') !== null && t.classList.contains('txtEdit')) || attr(t, 'data-kv') || attr(t, 'data-add'));
+    const onFocusOut = (e: FocusEvent) => {
+      const t = e.target as Element;
+      if (!t?.getAttribute) return;
+      if (attr(t, 'data-cook')) doEditRef.current('commitCookEdit', t, true);
+      else if (attr(t, 'data-obs')) doEditRef.current('commitObsEdit', t, true);
+      else if (attr(t, 'data-et') !== null && t.classList.contains('txtEdit')) doEditRef.current('commitTxtEdit', t, true);
+      else if (attr(t, 'data-kv')) doEditRef.current('commitKv', t, true);
+      else if (attr(t, 'data-add')) doEditRef.current('commitAddLive', t, true);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t?.getAttribute && editable(t) && e.key === 'Enter' && attr(t, 'data-cook') !== 'rates' && !e.isComposing) { e.preventDefault(); t.blur(); }
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as Element;
+      if (!t?.getAttribute || !editable(t)) return;
+      e.preventDefault();
+      const x = e.clipboardData?.getData('text') ?? '';
+      document.execCommand('insertText', false, attr(t, 'data-cook') === 'rates' ? x : x.replace(/\s*\n\s*/g, ' '));
+    };
+    const onClick = (e: MouseEvent) => {
+      const b = (e.target as Element)?.closest?.('[data-click]');
+      if (!b || !box.contains(b)) return;
+      e.preventDefault();
+      doEditRef.current(b.getAttribute('data-click') ?? '', b);
+    };
+    const onChange = (e: Event) => {
+      const t = e.target as Element;
+      const c = t?.getAttribute?.('data-change');
+      if (c) doEditRef.current(c, t);
+    };
+    // ⋮⋮ 핸들로 끌어서 순서 바꾸기 (v13)
+    let dnd: { item: HTMLElement; kind: string } | null = null;
+    const clearDrop = () => box.querySelectorAll('.dropB,.dropA').forEach(x => x.classList.remove('dropB', 'dropA'));
+    const onDragStart = (e: DragEvent) => {
+      const h = (e.target as Element)?.closest?.('.dragH');
+      if (!h) return;
+      const item = h.parentElement as HTMLElement;
+      dnd = { item, kind: h.getAttribute('data-kind') ?? '' };
+      item.classList.add('dragging');
+      try { e.dataTransfer!.effectAllowed = 'move'; e.dataTransfer!.setData('text/plain', 'card'); e.dataTransfer!.setDragImage(item, 20, 20); } catch { /* 브라우저마다 다름 */ }
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!dnd) return;
+      const t = (e.target as Element)?.closest?.('.dndItem') as HTMLElement | null;
+      if (!t || t === dnd.item || t.parentNode !== dnd.item.parentNode) return;
+      e.preventDefault();
+      const r = t.getBoundingClientRect();
+      clearDrop();
+      t.classList.add(e.clientY > r.top + r.height / 2 ? 'dropA' : 'dropB');
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!dnd) return;
+      const t = (e.target as Element)?.closest?.('.dndItem') as HTMLElement | null;
+      if (t && t !== dnd.item && t.parentNode === dnd.item.parentNode) {
+        e.preventDefault();
+        t.parentNode!.insertBefore(dnd.item, t.classList.contains('dropA') ? t.nextSibling : t);
+        const k = dnd.kind;
+        onDragEnd();
+        doEditRef.current(`commitCardOrder('${k === 'obs' ? 'obs' : 'live'}')`);
+      }
+    };
+    const onDragEnd = () => { dnd?.item.classList.remove('dragging'); clearDrop(); dnd = null; };
+    const ev: [string, EventListener][] = [['focusout', onFocusOut as EventListener], ['keydown', onKey as EventListener], ['paste', onPaste as EventListener], ['click', onClick as EventListener],
+      ['change', onChange], ['dragstart', onDragStart as EventListener], ['dragover', onDragOver as EventListener], ['drop', onDrop as EventListener], ['dragend', onDragEnd]];
+    ev.forEach(([n, f]) => box.addEventListener(n, f));
+    return () => ev.forEach(([n, f]) => box.removeEventListener(n, f));
+  }, [tab, showLanding]);
+
+  const unhideCard = (list: 'live' | 'obs' | 'all', i = 0) => doEdit(list === 'all' ? `unhideCard('all')` : `unhideCard('${list}',${i})`);
 
   // ── 파일 이름 ──
   const [fileName, setFileName] = useState(() => {
@@ -191,36 +286,45 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
+  // 점선 영역을 고치다 바로 저장을 누르면 그 수정이 아직 화면 값에 안 들어가 있다 → 먼저 반영하고 다시 그린 뒤 저장
+  const [saveTick, setSaveTick] = useState(0);
+  useEffect(() => { if (saveTick) void save(); }, [saveTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
+    if (latestOpts.current !== pvOpts.current) {
+      clearTimeout(commitTimer.current);
+      setOpts(latestOpts.current);
+      setSaveTick(t => t + 1);
+      return;
+    }
     setError('');
     if (!cleanName) { setError('파일 이름을 입력해 주세요'); return; }
     if (INVALID_FILE_CHARS.test(cleanName)) { setError('파일 이름에 쓸 수 없는 글자(\\ / : * ? " < > |)가 있어요'); return; }
     let banner: PlanDraftBanner | undefined;
     let landing: PlanDraftLanding | undefined;
+    if (showLanding) {
+      if (!raw.trim()) { setTab('landing'); setError('페이지: 판촉 원문을 붙여넣어 주세요'); return; }
+    }
     if (showBanner) {
-      if (!kvMain.trim()) { setTab('banner'); setError('배너: KV 카피 메인을 입력해 주세요'); return; }
-      if (!parsedDate) { setTab('banner'); setError('배너: 방송일을 확인해 주세요 (예: 10/27)'); return; }
-      if (!generated) { setTab('banner'); setError("배너: '배너 카피 생성'을 먼저 눌러 주세요"); return; }
-      if (bannerStale) { setTab('banner'); setError("배너: 입력이 바뀌었어요. '배너 카피 생성'을 다시 눌러 결과를 맞춰 주세요"); return; }
+      if (!kvMainJ.trim()) { setTab(showLanding ? 'landing' : 'banner'); setError('KV 메인 카피를 입력해 주세요'); return; }
+      if (!parsedDate) { setTab(showLanding ? 'landing' : 'banner'); setError("방송일을 찾지 못했어요 — KV 날짜를 '11. 2 (월) 오후 8시'처럼 적어 주세요"); return; }
       banner = {
         kvMain: kvMainJ.trim(), kvSub: kvSubJ.trim(), liveDate: parsedDate.iso, liveTime: genInput.timeLabel,
         product: product.trim(), shortName: shortName.trim(), discount: discount.trim(), broadcastType,
-        copies: copiesFromGroups(generated.groups, edits),
+        copies: copiesFromGroups(groups, edits),
       };
     }
     if (showLanding) {
-      if (!raw.trim()) { setTab('landing'); setError('상세: 판촉 원문을 붙여넣어 주세요'); return; }
-      const cur = parsePromo(raw, promoCase, optsKv);
+      const cur = parsePromo(raw, promoCase, opts);
       landing = {
         raw,
         structured: {
           notify: cur.notify,
           liveItems: cur.liveItems,
-          liveCards: promoLiveCards(cur),   // 11번 한정 혜택 — 미리보기와 같은 2줄 정리
+          liveCards: promoLiveCards(cur),   // 11번 한정 혜택 — 워싱본과 같은 2줄 정리
           // 12번 기획전 배너 — 실제 노출 목록(히든 기획전·냉장고 Fit&Max 포함)
           obsCards: (cur.obsShow ?? cur.obsCards).map(([code, mainTitle, subTitle, url]) => ({ code: code || '', mainTitle: mainTitle || '', subTitle: subTitle || '', url: url || '' })),
           paymentFullText: cur.paymentFullText,
-          payment: promoPayment(cur),   // 13번 결제 혜택 장 — 미리보기와 같은 결제혜택 엔진 결과
+          payment: promoPayment(cur),   // 13번 결제 혜택 장 — 워싱본과 같은 결제혜택 엔진 결과
           legalNotes: cur.legalNotes,
           opts: cur.opts,
         },
@@ -242,6 +346,11 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
 
   const input = 'w-full bg-black/3 border border-black/8 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 placeholder-gray-400 transition-all';
   const label = 'block text-[11px] font-semibold text-gray-500 mb-1';
+  const tabs: Tab[] = [...(showLanding ? ['landing' as const] : []), ...(showBanner ? ['banner' as const] : [])];
+  const tabName = (t: Tab) => (tabs.length > 1 ? (t === 'landing' ? '① 페이지 셋팅' : '② 배너 워싱') : t === 'landing' ? '페이지 셋팅' : '배너 워싱');
+  const broadcast = <BroadcastPanel opts={opts} setOpt={setOpt} dateText={parsedDate ? `${parsedDate.m}.${parsedDate.d}(${parsedDate.wd})` : ''} input={input} />;
+  const kvNote = `배너 기준 · 메인 ${kvMainJ.trim().length}/${LIM.keyMain}자 · 서브 ${kvSubJ.trim().length}/${LIM.keySub}자`;
+  const kvOver = kvMainJ.trim().length > LIM.keyMain || kvSubJ.trim().length > LIM.keySub;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={e => e.stopPropagation()}>
@@ -255,193 +364,34 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors"><X size={17} /></button>
         </div>
 
-        {/* 탭 */}
-        {showBanner && showLanding && (
-          <div className="flex gap-1 px-5 pt-3 flex-shrink-0">
-            {(['banner', 'landing'] as Tab[]).map(t => (
-              <button key={t} onClick={() => setTab(t)}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tab === t ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
-                {t === 'banner' ? '배너' : '상세'}
-              </button>
+        {/* 단계 탭 — 페이지 확인 후 배너 */}
+        {tabs.length > 1 && (
+          <div className="flex items-center gap-1 px-5 pt-3 flex-shrink-0">
+            {tabs.map((t, i) => (
+              <span key={t} className="flex items-center gap-1">
+                {i > 0 && <ArrowRight size={12} className="text-gray-300" />}
+                <button onClick={() => setTab(t)}
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${tab === t ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
+                  {tabName(t)}
+                </button>
+              </span>
             ))}
           </div>
         )}
 
         {/* 본문 */}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-          {tab === 'banner' && showBanner && (
-            <div className="grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)] gap-5 items-start">
-              {/* 입력 */}
-              <div className="flex flex-col gap-4 md:sticky md:top-0">
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 flex flex-col gap-3">
-                  <div className="text-xs font-semibold text-indigo-600">1단계 · KV 카피</div>
-                  <div>
-                    <label className={label}>KV 카피 메인</label>
-                    <input className={input} value={kvMain} placeholder="예: 10월 결산 특집"
-                      onChange={e => { setKvMain(e.target.value); applyKv(e.target.value, kvSub); }} />
-                    <KvCounter value={kvMain} lim={LIM.keyMain} />
-                  </div>
-                  <div>
-                    <label className={label}>KV 카피 서브</label>
-                    <input className={input} value={kvSub} placeholder="예: 남다른 혜택으로 산다, 라이브 최대 13% 할인"
-                      onChange={e => { setKvSub(e.target.value); applyKv(kvMain, e.target.value); }} />
-                    <KvCounter value={kvSub} lim={LIM.keySub} />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div className="text-xs font-semibold text-gray-600">2단계 · 방송 일시</div>
-                  <div>
-                    <label className={label}>방송일</label>
-                    <input className={input} value={dateText} placeholder="예: 10/27" onChange={e => setDateText(e.target.value)} onBlur={() => setDateTouched(true)} />
-                    <p className={`text-[11px] mt-1 ${parsedDate ? 'text-green-600' : dateTouched && dateText.trim() ? 'text-red-500' : 'text-gray-400'}`}>
-                      {parsedDate ? `${parsedDate.y}년 ${parsedDate.m}.${parsedDate.d}(${parsedDate.wd}) 인식됨`
-                        : dateTouched && dateText.trim() ? '날짜를 확인해 주세요 (예: 10/27, 10월 27일)' : DT_HINT}
-                    </p>
-                  </div>
-                  <div>
-                    <label className={label}>방송 시간</label>
-                    <div className="flex gap-1.5">
-                      {HOUR_OPTIONS.map(([v, l]) => (
-                        <button key={v} type="button" onClick={() => setHour(v)}
-                          className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${hour === v ? 'border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold' : 'border-black/8 text-gray-500 hover:bg-gray-50'}`}>{l}</button>
-                      ))}
-                    </div>
-                    {hour === 'custom' && (
-                      <input className={`${input} mt-1.5`} value={customTime} placeholder="예: 오후 7시 30분" onChange={e => setCustomTime(e.target.value)} />
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <div className="text-xs font-semibold text-gray-600">3단계 · 제품군 · 할인율 확인</div>
-                  {prodFromKv && !touched.product && (
-                    <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">KV 카피에서 제품군을 찾지 못해 KV 카피 메인으로 채웠어요. 맞는지 확인해 주세요</p>
-                  )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className={label}>제품군</label>
-                      <input className={input} value={product} placeholder="예: LG 디오스 냉장고" onChange={e => editField('product', setProduct)(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className={label}>축약명</label>
-                      <input className={input} value={shortName} placeholder="예: 냉장고" onChange={e => editField('shortName', setShortName)(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-[1fr_auto] gap-2">
-                    <div>
-                      <label className={label}>할인율 (혜택 문구)</label>
-                      <input className={input} value={discount} placeholder="예: 최대 13% 할인" onChange={e => editField('discount', setDiscount)(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className={label}>방송구분</label>
-                      <div className="flex gap-1">
-                        {(['라이브', '재방송'] as BroadcastType[]).map(b => (
-                          <button key={b} type="button" onClick={() => setBroadcastType(b)}
-                            className={`px-2.5 py-2 text-xs rounded-lg border transition-colors ${broadcastType === b ? 'border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold' : 'border-black/8 text-gray-500 hover:bg-gray-50'}`}>{b}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <button type="button" onClick={generate}
-                  className="w-full py-2.5 text-sm font-semibold rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white transition-colors flex items-center justify-center gap-1.5">
-                  <Wand2 size={15} />배너 카피 생성
-                </button>
-                {bannerStale && (
-                  <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5 -mt-2">입력이 바뀌었어요 — '배너 카피 생성'을 다시 누르면 반영돼요 (고친 카피는 초기화돼요)</p>
-                )}
-              </div>
-
-              {/* 결과 */}
-              <div className="min-w-0">
-                {!generated ? (
-                  <div className="h-full min-h-[240px] rounded-xl border border-dashed border-black/10 flex flex-col items-center justify-center gap-2 text-center p-6">
-                    <Wand2 size={22} className="text-gray-300" />
-                    <p className="text-sm text-gray-500">KV 카피와 방송 일시를 넣고 '배너 카피 생성'을 눌러 주세요</p>
-                    <p className="text-xs text-gray-400">결과는 바로 고칠 수 있어요 · 글자수 기준(공백 포함)을 넘으면 알려 드려요</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 border border-black/5 px-3 py-2">
-                      {over!.bad
-                        ? <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5">⚠ 글자수 초과 {over!.bad}건</span>
-                        : <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2 py-0.5">✔ 전체 통과</span>}
-                      {generated.groups.map((gr, i) => over!.byGroup[i] ? (
-                        <button key={gr.title} type="button" onClick={() => groupRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                          className="text-[11px] text-red-500 underline underline-offset-2 hover:text-red-600">{gr.title} · {over!.byGroup[i]}건</button>
-                      ) : null)}
-                      <span className="text-[11px] text-gray-400 ml-auto">{generated.groups.length}개 그룹 중 {over!.byGroup.filter(n => !n).length}개 통과 · 카피를 눌러 바로 수정</span>
-                    </div>
-                    {generated.groups.map((gr, gi) => (
-                      <div key={gr.title} ref={el => { groupRefs.current[gi] = el; }} className="rounded-xl border border-black/8 p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-semibold text-gray-800">{gr.title}</span>
-                          <span className="text-[10px] text-gray-400">{gr.en}</span>
-                          <span className={`ml-auto text-[10px] font-semibold rounded-md px-1.5 py-0.5 ${over!.byGroup[gi] ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
-                            {over!.byGroup[gi] ? `초과 ${over!.byGroup[gi]}건` : '통과'}
-                          </span>
-                        </div>
-                        {gr.warn && <p className="text-[10px] text-amber-700 bg-amber-50 rounded-md px-2 py-1 mb-2">⚠ {gr.warn}</p>}
-                        <div className="flex flex-col gap-2.5">
-                          {gr.rows.map(r => {
-                            const lines = edits[r.id] ?? r.lines;
-                            const edited = !!edits[r.id] && edits[r.id].map(normLine).join('\n') !== r.lines.join('\n');
-                            return (
-                              <div key={r.id} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
-                                <div className="pt-1.5">
-                                  <div className="text-xs font-medium text-gray-700">{r.name}</div>
-                                  <div className="text-[9px] text-gray-400 break-all leading-tight">{r.en}</div>
-                                  {edited && <div className="text-[10px] text-indigo-500 mt-0.5">수정됨</div>}
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                  {lines.map((line, li) => {
-                                    const lk = r.limKeys[li];
-                                    const n = normLine(line).length;
-                                    const l = lk ? LIM[lk] : 0;
-                                    const isOver = !!lk && n > l;
-                                    return (
-                                      <div key={li}>
-                                        <div className={`flex items-center gap-2 rounded-lg border px-2 ${isOver ? 'border-red-200 bg-red-50/50' : 'border-black/8 bg-white'}`}>
-                                          <input value={line} spellCheck={false}
-                                            onChange={e => { const v = e.target.value; editLine(r, li, v); }}
-                                            onBlur={e => { const v = normLine(e.target.value); if (v !== line) editLine(r, li, v); }}
-                                            className={`flex-1 min-w-0 py-1.5 text-sm bg-transparent focus:outline-none ${isOver ? 'text-red-600' : 'text-gray-800'}`} />
-                                          {lk && <span className={`text-[10px] flex-shrink-0 ${isOver ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{n}/{l}</span>}
-                                        </div>
-                                        {isOver && <p className="text-[11px] text-red-500 mt-0.5">{alertTxt(n, l)}</p>}
-                                        {r.notes?.[li] && <p className="text-[10px] text-gray-400 mt-0.5">{r.notes[li]}</p>}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                    <p className="text-[10px] text-gray-400">캘린더 썸네일(Lgelive_720x720)·SNS 1200은 카피 없는 이미지 전용이라 빠져 있어요</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {tab === 'landing' && showLanding && (
-            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_420px] gap-5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_460px] gap-5 items-start">
               <div className="flex flex-col gap-3 min-w-0">
-                <PromoOptionsPanel opts={opts} auto={promoAutoVal} setOpt={setOpt} input={input} />
+                {broadcast}
                 <div>
                   <label className={label}>판촉 원문 (수급받은 원문 전체를 그대로 붙여넣기)</label>
-                  <textarea className={`${input} min-h-[360px] font-mono text-xs leading-relaxed resize-y`} value={raw} onChange={e => setRaw(e.target.value)}
+                  <textarea className={`${input} min-h-[300px] font-mono text-xs leading-relaxed resize-y`} value={raw} onChange={e => setRaw(e.target.value)}
                     placeholder={'알림 신청 판촉\n투썸플레이스 아메리카노 (30명)\n\n라이브 한정 판촉\n1) …\n\nOBS 기획전/기본 판촉\nhttps://www.lge.co.kr/benefits/exhibitions/detail-PE…\n\nLGE닷컴 전사 판촉\n…'} />
                 </div>
-                {raw.trim() && (
-                  <CardOrderPanel cards={cards} opts={opts} onDelete={deleteCard} onUnhide={unhideCard} onMove={moveCard}
-                    onResetOrder={() => setOpt('order', '')} />
-                )}
+                <PromoOptionsPanel opts={opts} auto={promoAutoVal} setOpt={setOpt} input={input} />
+                {raw.trim() && <HiddenCardsPanel opts={opts} onUnhide={unhideCard} onResetOrder={() => doEdit('resetCardOrder')} />}
                 <PayModePanel opts={opts} setOpt={setOpt} state={payState} prevLoad={prevLoad} input={input} />
                 {raw.trim() && (
                   <div className="flex flex-col gap-1.5">
@@ -456,9 +406,15 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                     </details>
                   </div>
                 )}
+                {showBanner && (
+                  <button type="button" onClick={() => setTab('banner')}
+                    className="self-end px-3.5 py-2 text-xs font-semibold rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 flex items-center gap-1">
+                    페이지 확인 끝 · ② 배너 워싱으로 <ArrowRight size={13} />
+                  </button>
+                )}
               </div>
-              <div className="md:sticky md:top-0">
-                <div className="text-[11px] font-semibold text-gray-500 mb-1">워싱본 미리보기 · 실제 상세페이지 순서 (알림 신청 → 한정 혜택 → OBS 랜딩링크 → 결제 혜택 → 유의사항)</div>
+              <div className="md:sticky md:top-0 relative">
+                <div className="text-[11px] font-semibold text-gray-500 mb-1">워싱본 · 점선 영역을 눌러 바로 고치고, 카드 삭제·⋮⋮ 끌어서 순서·＋추가도 여기서 해요</div>
                 {hl && (hl.total || hl.removed ? (
                   <div className="mb-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] bg-[#FFF8D6] border border-[#F2C200] text-[#5c4a00] rounded-lg px-2.5 py-1.5">
                     <span className="w-2.5 h-2.5 rounded-[3px] bg-[#FFF1A6] ring-2 ring-[#F2C200] flex-shrink-0" />
@@ -469,17 +425,144 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
                 ) : (
                   <div className="mb-1.5 text-[11px] bg-gray-50 border border-black/5 text-gray-500 rounded-lg px-2.5 py-1.5">지난 저장본 대비 · 페이지 문구 변경 없음</div>
                 ))}
-                <div className="rounded-xl bg-gray-50 border border-black/5 max-h-[calc(90vh-230px)] overflow-y-auto p-2">
-                  {previewHtml ? (
+                {editHtml && <div className={`mb-1.5 text-center text-[11px] font-semibold rounded-full px-2.5 py-0.5 ${kvOver ? 'text-red-700 bg-red-50' : 'text-green-700 bg-green-50'}`}>{kvNote}</div>}
+                <div ref={boxRef} className="rounded-xl bg-gray-50 border border-black/5 max-h-[calc(90vh-250px)] overflow-y-auto p-2">
+                  {editHtml ? (
                     <>
-                      <style>{PROMO_PREVIEW_CSS}</style>
-                      <div ref={previewRef} className={`promo-preview${hlOff ? ' hlOff' : ''}`} dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                      <style>{PROMO_PREVIEW_CSS + PROMO_EDIT_CSS}</style>
+                      <div ref={previewRef} className={`promo-preview editing${hlOff ? ' hlOff' : ''}`} dangerouslySetInnerHTML={{ __html: editHtml }} />
                     </>
                   ) : (
-                    <div className="py-16 text-center text-xs text-gray-400">판촉 원문을 붙여넣으면 미리보기가 나와요</div>
+                    <div className="py-16 text-center text-xs text-gray-400">판촉 원문을 붙여넣으면 워싱본이 나와요</div>
                   )}
                 </div>
+                {toast && <div className="absolute left-1/2 -translate-x-1/2 bottom-8 text-[11px] text-white bg-gray-800/90 rounded-lg px-3 py-1.5 shadow-lg pointer-events-none">{toast}</div>}
                 <p className="text-[10px] text-gray-400 mt-1.5">금액·기간·조건·카드사 문구는 원문과 대조해 주세요 · 아이콘은 대체 그림이에요</p>
+              </div>
+            </div>
+          )}
+
+          {tab === 'banner' && showBanner && (
+            <div className="grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)] gap-5 items-start">
+              {/* 입력 */}
+              <div className="flex flex-col gap-4 md:sticky md:top-0">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 flex flex-col gap-3">
+                  <div className="text-xs font-semibold text-indigo-600">KV 카피 <span className="font-normal text-indigo-400">· 페이지 워싱본 KV와 같은 값</span></div>
+                  <div>
+                    <label className={label}>메인</label>
+                    <input className={input} value={kv.m} placeholder="예: 냉장고·쿠킹 라이브" onChange={e => setKv('m', e.target.value)} />
+                    <KvCounter value={kvMainJ} lim={LIM.keyMain} />
+                  </div>
+                  <div>
+                    <label className={label}>서브</label>
+                    <input className={input} value={kv.s} placeholder="예: 남다른 혜택으로 산다, 라이브 최대 13% 할인" onChange={e => setKv('s', e.target.value)} />
+                    <KvCounter value={kvSubJ} lim={LIM.keySub} />
+                  </div>
+                </div>
+
+                {!showLanding ? broadcast : (
+                  <div className="text-[11px] text-gray-500 rounded-xl bg-gray-50 border border-black/5 px-3 py-2">
+                    방송 {parsedDate ? `${parsedDate.m}.${parsedDate.d}(${parsedDate.wd}) ${genInput.timeLabel}` : '일시 미확인'} · {broadcastType}
+                    <span className="block text-[10px] text-gray-400 mt-0.5">업무명 날짜·① 방송 시간·재방송에서 자동 (KV 날짜를 직접 고치면 그 값)</span>
+                  </div>
+                )}
+
+                <details className="rounded-xl border border-black/8 group" open={!!(ov.product || ov.shortName || ov.discount) || (!auto.found && !!kvMainJ.trim())}>
+                  <summary className="px-3 py-2.5 cursor-pointer select-none flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+                    <ChevronDown size={13} className="group-open:rotate-180 transition-transform" />제품군 · 할인율
+                    <span className="ml-auto font-normal text-[10px] text-gray-400">
+                      {ov.product || ov.shortName || ov.discount ? `직접 입력 중: ${[ov.product !== undefined && '제품군', ov.shortName !== undefined && '축약명', ov.discount !== undefined && '할인율'].filter(Boolean).join('·')}` : '배너 일괄 수정 시 사용'}
+                    </span>
+                  </summary>
+                  <div className="px-3 pb-3 flex flex-col gap-2">
+                    {!auto.found && !!kvMainJ.trim() && ov.product === undefined && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">KV 카피에서 제품군을 찾지 못해 KV 메인 카피로 채웠어요. 맞는지 확인해 주세요</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className={label}>제품군</label>
+                        <input className={input} value={ov.product ?? ''} placeholder={`자동: ${auto.product || '—'}`} onChange={e => setOv(o => ({ ...o, product: e.target.value || undefined }))} />
+                      </div>
+                      <div>
+                        <label className={label}>축약명</label>
+                        <input className={input} value={ov.shortName ?? ''} placeholder={`자동: ${auto.shortName || '—'}`} onChange={e => setOv(o => ({ ...o, shortName: e.target.value || undefined }))} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={label}>할인율 (혜택 문구)</label>
+                      <input className={input} value={ov.discount ?? ''} placeholder={`자동: ${auto.discount || '—'}`} onChange={e => setOv(o => ({ ...o, discount: e.target.value || undefined }))} />
+                    </div>
+                    {(ov.product || ov.shortName || ov.discount) && (
+                      <button type="button" onClick={() => setOv({})} className="self-start text-[11px] text-indigo-500 hover:underline">입력값 지우고 자동값으로</button>
+                    )}
+                  </div>
+                </details>
+              </div>
+
+              {/* 결과 — KV가 바뀌면 바로 다시 만든다 */}
+              <div className="min-w-0 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-gray-50 border border-black/5 px-3 py-2">
+                  {over.bad
+                    ? <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-0.5">⚠ 글자수 초과 {over.bad}건</span>
+                    : <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2 py-0.5">✔ 전체 통과</span>}
+                  {groups.map((gr, i) => over.byGroup[i] ? (
+                    <button key={gr.title} type="button" onClick={() => groupRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                      className="text-[11px] text-red-500 underline underline-offset-2 hover:text-red-600">{gr.title} · {over.byGroup[i]}건</button>
+                  ) : null)}
+                  <span className="text-[11px] text-gray-400 ml-auto">{groups.length}개 그룹 중 {over.byGroup.filter(n => !n).length}개 통과 · 카피를 눌러 바로 수정</span>
+                </div>
+                {groups.map((gr, gi) => (
+                  <div key={gr.title} ref={el => { groupRefs.current[gi] = el; }} className="rounded-xl border border-black/8 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-semibold text-gray-800">{gr.title}</span>
+                      <span className="text-[10px] text-gray-400">{gr.en}</span>
+                      <span className={`ml-auto text-[10px] font-semibold rounded-md px-1.5 py-0.5 ${over.byGroup[gi] ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'}`}>
+                        {over.byGroup[gi] ? `초과 ${over.byGroup[gi]}건` : '통과'}
+                      </span>
+                    </div>
+                    {gr.warn && <p className="text-[10px] text-amber-700 bg-amber-50 rounded-md px-2 py-1 mb-2">⚠ {gr.warn}</p>}
+                    <div className="flex flex-col gap-2.5">
+                      {gr.rows.map(r => {
+                        const lines = edits[r.id] ?? r.lines;
+                        const edited = !!edits[r.id] && edits[r.id].map(normLine).join('\n') !== r.lines.join('\n');
+                        return (
+                          <div key={r.id} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                            <div className="pt-1.5">
+                              <div className="text-xs font-medium text-gray-700">{r.name}</div>
+                              <div className="text-[9px] text-gray-400 break-all leading-tight">{r.en}</div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {lines.map((line, li) => {
+                                const lk = r.limKeys[li];
+                                const n = normLine(line).length;
+                                const l = lk ? LIM[lk] : 0;
+                                const isOver = !!lk && n > l;
+                                return (
+                                  <div key={li}>
+                                    <div className={`flex items-center gap-2 rounded-lg border px-2 ${isOver ? 'border-red-200 bg-red-50/50' : 'border-black/8 bg-white'}`}>
+                                      <input value={line} spellCheck={false}
+                                        onChange={e => { const v = e.target.value; editLine(r, li, v); }}
+                                        onBlur={e => { const v = normLine(e.target.value); if (v !== line) editLine(r, li, v); }}
+                                        className={`flex-1 min-w-0 py-1.5 text-sm bg-transparent focus:outline-none ${isOver ? 'text-red-600' : 'text-gray-800'}`} />
+                                      {lk && <span className={`text-[10px] flex-shrink-0 ${isOver ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{n}/{l}</span>}
+                                    </div>
+                                    {isOver && <p className="text-[11px] text-red-500 mt-0.5">{alertTxt(n, l)}</p>}
+                                    {r.notes?.[li] && <p className="text-[10px] text-gray-400 mt-0.5">{r.notes[li]}</p>}
+                                  </div>
+                                );
+                              })}
+                              {edited && (
+                                <p className="text-[10px] text-indigo-600">직접 수정한 줄 · KV가 바뀌어도 유지돼요 (자동 카피: 「{r.lines.join(' / ')}」)
+                                  <button type="button" onClick={() => revertRow(r)} className="ml-1.5 underline">자동 카피로</button></p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-[10px] text-gray-400">캘린더 썸네일(Lgelive_720x720)·SNS 1200은 카피 없는 이미지 전용이라 빠져 있어요</p>
               </div>
             </div>
           )}
@@ -517,6 +600,37 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
   );
 }
 
+// ── 도움 함수 ──
+function jparse(s: string | undefined): Record<string, string> {
+  try { const v = JSON.parse(s || '{}'); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; }
+}
+// 폴더 이름의 연도 (YYYYMMDD_ 또는 YYMMDD_)
+function folderYear(folderName: string): number | undefined {
+  const a = liveDateFromFolder(folderName);
+  if (a) return a.year;
+  const m = folderName.match(/^(\d{2})\d{4}_/);
+  return m ? 2000 + Number(m[1]) : undefined;
+}
+// KV 날짜 "11. 2 (월) 오후 8시(30분)" → 월·일·시(24시간)·분. 형식이 다르면 null (v17: 그때는 배너가 업무명 날짜 + 방송 시간)
+function kvWhen(d: string): { m: number; d: number; h: number; min: number } | null {
+  const a = /(\d{1,2})\s*\.\s*(\d{1,2})\s*\([^)]*\)\s*(오전|오후)\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/.exec(d || '');
+  if (!a || +a[1] < 1 || +a[2] < 1) return null;
+  const h12 = +a[4] % 12;
+  return { m: +a[1], d: +a[2], h: a[3] === '오후' ? h12 + 12 : h12, min: a[5] ? +a[5] : 0 };
+}
+// 24시간 시·분 → 배너 시간 선택값 (오후 7·8·9시 정시는 원본 선택지, 그 밖은 직접 입력 문구)
+function labelHour(h: number, min: number): { hour: BannerHour; custom: string } {
+  if (!min && (h === 19 || h === 20 || h === 21)) return { hour: String(h) as BannerHour, custom: '' };
+  return { hour: 'custom', custom: `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}시${min ? ` ${min}분` : ''}` };
+}
+// 예전 요청의 배너 시간 문구("오후 7시") → 방송 시간 칸 값("19시")
+function airFromLabel(label: string): string {
+  const a = /(오전|오후)\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/.exec(label || '');
+  if (!a) return '';
+  const h = (+a[2] % 12) + (a[1] === '오후' ? 12 : 0);
+  return h === 20 && !a[3] ? '' : `${h}시${a[3] ? ` ${+a[3]}분` : ''}`;
+}
+
 function KvCounter({ value, lim }: { value: string; lim: number }) {
   const n = value.trim().length;
   return (
@@ -526,7 +640,41 @@ function KvCounter({ value, lim }: { value: string; lim: number }) {
   );
 }
 
-// 추가 영역 (기획팀 판촉 업데이트기 v38의 '워싱본 맨 위 추가 영역'과 같은 동작)
+// 방송 정보 (원본 ① 방송 정보 카드) — 방송일은 업무명에서, 방송 시간·재방송은 여기서. 배너 시간·방송 구분도 이 값을 따른다
+function BroadcastPanel({ opts, setOpt, dateText, input }: {
+  opts: PromoOpts; setOpt: <K extends keyof PromoOpts>(k: K, v: PromoOpts[K]) => void; dateText: string; input: string;
+}) {
+  const cur = promoAirHour(opts.air);
+  const quick: [string, string][] = [['19시', '오후 7시'], ['', '오후 8시'], ['21시', '오후 9시']];
+  return (
+    <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-2 break-keep">
+      <div className="flex items-center gap-2">
+        <div className="text-[11px] font-semibold text-gray-500">방송 정보</div>
+        <span className={`text-[11px] ${dateText ? 'text-gray-600' : 'text-red-500'}`}>방송일 {dateText || '업무명에서 날짜를 못 찾음 — 워싱본 KV 날짜에 직접 적어 주세요'}{dateText && <span className="text-gray-400"> (업무명에서 자동)</span>}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-gray-500 w-14">방송 시간</span>
+        {quick.map(([v, l]) => {
+          const on = (v === '' ? cur === 20 : promoAirHour(v) === cur) && !/분/.test(opts.air);
+          return <button key={l} type="button" onClick={() => setOpt('air', v)}
+            className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${on ? 'border-indigo-300 bg-indigo-50 text-indigo-600 font-semibold' : 'border-black/8 bg-white text-gray-500 hover:bg-gray-50'}`}>{l}</button>;
+        })}
+        <input className={`${input} !w-36 !py-1 !text-xs`} value={opts.air} onChange={e => setOpt('air', e.target.value)} placeholder="직접 (예: 19시 30분)" />
+        <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none ml-auto">
+          <input type="checkbox" className="accent-indigo-500" checked={opts.rebro} onChange={e => setOpt('rebro', e.target.checked)} />재방송
+        </label>
+      </div>
+      {opts.rebro && (
+        <div className="grid grid-cols-2 gap-1.5">
+          <input className={`${input} !py-1.5 !text-xs`} value={opts.orig} onChange={e => setOpt('orig', e.target.value)} placeholder="본방송 일자 (예: 10/22)" />
+          <input className={`${input} !py-1.5 !text-xs`} value={opts.viewers} onChange={e => setOpt('viewers', e.target.value)} placeholder="실시간 시청자 수 (예: 12.3만)" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 추가 영역 (기획팀 통합셋팅기의 '추가 영역'과 같은 동작)
 // 쿠킹·냉장고는 자동 판단이 기본이고, 직접 체크/해제하면 그 선택이 우선 — '자동 감지로'로 되돌린다
 function PromoOptionsPanel({ opts, auto, setOpt, input }: {
   opts: PromoOpts; auto: { cook: boolean; fridge: boolean; hidMains: string[] };
@@ -547,7 +695,7 @@ function PromoOptionsPanel({ opts, auto, setOpt, input }: {
   };
   return (
     <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 break-keep">
-      <div className="text-[11px] font-semibold text-gray-500">추가 영역 <span className="font-normal text-gray-400">· 기획팀 판촉 업데이트기 v38과 같은 규칙</span></div>
+      <div className="text-[11px] font-semibold text-gray-500">추가 영역 <span className="font-normal text-gray-400">· 기획팀 통합셋팅기 v17과 같은 규칙</span></div>
       {tri('cook', '주방가전(쿠킹 기획전) 유의사항', '업무명에 "쿠킹"·"주방가전"이 있고 한정 혜택에 주방가전 제품이 2종 이상일 때 자동으로 켜져요')}
       {tri('fridge', '냉장고 Fit&Max 배너', '업무명·원문에 냉장고가 있으면 OBS 맨 아래에 고정 배너를 자동으로 붙여요')}
       <div className="flex items-center gap-2 min-h-[24px]">
@@ -561,17 +709,6 @@ function PromoOptionsPanel({ opts, auto, setOpt, input }: {
         <input className={`${input} !py-1.5 !text-xs`} value={opts.hidUrl} onChange={e => setOpt('hidUrl', e.target.value)} placeholder="제품명 기획전 URL (선택, 첫 배너에만)" />
         <input className={`${input} !py-1.5 !text-xs ${opts.hidTotal ? '' : 'opacity-40'}`} disabled={!opts.hidTotal} value={opts.hidUrl2} onChange={e => setOpt('hidUrl2', e.target.value)} placeholder="통합 기획전 URL" />
       </div>
-      <div className="flex items-center gap-2 min-h-[24px]">
-        <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
-          <input type="checkbox" className="accent-indigo-500" checked={opts.rebro} onChange={e => setOpt('rebro', e.target.checked)} />
-          재방송 영역
-        </label>
-        <span className="text-[10px] text-gray-400">업무명에 '(재)'·'재방송'이 있으면 자동으로 켜져요</span>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        <input className={`${input} !py-1.5 !text-xs ${opts.rebro ? '' : 'opacity-40'}`} disabled={!opts.rebro} value={opts.orig} onChange={e => setOpt('orig', e.target.value)} placeholder="본방송 일자 (예: 10/22)" />
-        <input className={`${input} !py-1.5 !text-xs ${opts.rebro ? '' : 'opacity-40'}`} disabled={!opts.rebro} value={opts.viewers} onChange={e => setOpt('viewers', e.target.value)} placeholder="실시간 시청자 수 (예: 12.3만)" />
-      </div>
     </div>
   );
 }
@@ -584,63 +721,25 @@ function SummaryChip({ kind, children }: { kind: 'ok' | 'warn' | 'bad' | 'info';
   return <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border ${cls}`}>{icon}{children}</span>;
 }
 
-// 한정 혜택·OBS 카드 정리 (기획팀 통합셋팅기 v05 삭제·되돌리기 + v13 끌어서 순서 바꾸기)
-// 순서·삭제는 카드 내용(혜택 원문·URL) 기준으로 기억해서, 원문을 다시 붙여넣어도 유지되고 새 카드는 원문 순서대로 뒤에 붙는다.
-function CardOrderPanel({ cards, opts, onDelete, onUnhide, onMove, onResetOrder }: {
-  cards: { live: PromoCardRow[]; obs: PromoCardRow[] }; opts: PromoOpts;
-  onDelete: (list: 'live' | 'obs', r: PromoCardRow) => void;
-  onUnhide: (list: 'live' | 'obs' | 'all', i?: number) => void;
-  onMove: (list: 'live' | 'obs', from: number, to: number) => void;
-  onResetOrder: () => void;
+// 삭제한 카드 되돌리기 · 순서 원래대로 (원본 '추가 영역' 아래 목록 — 삭제·순서 바꾸기 자체는 워싱본에서)
+function HiddenCardsPanel({ opts, onUnhide, onResetOrder }: {
+  opts: PromoOpts; onUnhide: (list: 'live' | 'obs' | 'all', i?: number) => void; onResetOrder: () => void;
 }) {
-  const drag = useRef<{ list: 'live' | 'obs'; i: number } | null>(null);
-  const [drop, setDrop] = useState<{ list: 'live' | 'obs'; at: number } | null>(null);
   const hidden = promoHideState(opts), order = promoOrderState(opts);
   const ordered = order.live.length > 0 || order.obs.length > 0;
   const nHidden = hidden.live.length + hidden.obs.length;
-  const KIND: Record<string, string> = { hidden: '제품명 기획전', hidden2: '통합 히든 기획전', fixed: '냉장고 고정 배너' };
-  const list = (name: 'live' | 'obs', title: string, rows: PromoCardRow[]) => (
-    <div className="flex flex-col gap-1">
-      <div className="text-[11px] font-semibold text-gray-500">{title} <span className="font-normal text-gray-400">{rows.length}개</span></div>
-      {rows.length === 0 && <div className="text-[11px] text-gray-400">없음</div>}
-      {rows.map((r, i) => {
-        const line = drop?.list === name ? (drop.at === i ? 'before' : drop.at === i + 1 && i === rows.length - 1 ? 'after' : '') : '';
-        return (
-          <div key={r.key + i} draggable
-            onDragStart={e => { drag.current = { list: name, i }; e.dataTransfer.effectAllowed = 'move'; }}
-            onDragOver={e => {
-              if (drag.current?.list !== name) return;
-              e.preventDefault();
-              const b = e.currentTarget.getBoundingClientRect();
-              setDrop({ list: name, at: e.clientY < b.top + b.height / 2 ? i : i + 1 });
-            }}
-            onDrop={e => { e.preventDefault(); const d = drag.current; if (d && drop && d.list === name && drop.at !== d.i && drop.at !== d.i + 1) onMove(name, d.i, drop.at); drag.current = null; setDrop(null); }}
-            onDragEnd={() => { drag.current = null; setDrop(null); }}
-            className={`flex items-center gap-1.5 rounded-lg bg-white border border-black/8 px-1.5 py-1 ${line === 'before' ? 'shadow-[0_-2px_0_0_#3b82f6]' : line === 'after' ? 'shadow-[0_2px_0_0_#3b82f6]' : ''}`}>
-            <GripVertical size={14} className="text-gray-300 cursor-grab flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <div className="text-xs text-gray-800 truncate">{r.title || '(제목 없음)'}{r.sub ? <span className="text-gray-500"> · {r.sub}</span> : null}</div>
-              {(KIND[r.kind] || r.url) && <div className="text-[10px] text-gray-400 truncate">{KIND[r.kind] ? KIND[r.kind] + (r.url ? ' · ' : '') : ''}{r.url}</div>}
-            </div>
-            {r.kind !== 'hidden' && (
-              <button type="button" onClick={() => onDelete(name, r)} title={r.kind === 'fixed' || r.kind === 'hidden2' ? '추가 영역 체크 해제와 같아요' : '페이지에서 빼기 (아래에서 되돌릴 수 있어요)'}
-                className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"><Trash2 size={13} /></button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+  if (!ordered && !nHidden) return null;
   return (
-    <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-2.5 break-keep">
-      <div className="flex items-center gap-2">
-        <div className="text-[11px] font-semibold text-gray-500">카드 정리 <span className="font-normal text-gray-400">· 끌어서 순서 바꾸기, 휴지통으로 빼기</span></div>
-        {ordered && <span className="ml-auto text-[10px] text-gray-500">순서를 직접 바꾼 상태 · <button type="button" onClick={onResetOrder} className="text-indigo-500 hover:underline">원래 순서로</button></span>}
-      </div>
-      {list('live', '한정 혜택', cards.live)}
-      {list('obs', 'OBS 배너', cards.obs)}
+    <div className="rounded-xl border border-black/5 bg-gray-50/60 p-3 flex flex-col gap-1.5 break-keep">
+      {ordered && (
+        <div className="flex items-center text-[11px] text-gray-600">
+          <span className="text-[10px] text-gray-400 w-7 flex-shrink-0">순서</span>
+          {[order.live.length && '한정 혜택', order.obs.length && 'OBS 배너'].filter(Boolean).join(' · ')} 순서를 직접 바꾼 상태입니다
+          <button type="button" onClick={onResetOrder} className="ml-auto flex items-center gap-0.5 text-indigo-500 hover:underline"><RotateCcw size={11} />원래 순서로</button>
+        </div>
+      )}
       {nHidden > 0 && (
-        <div className="flex flex-col gap-1 pt-1 border-t border-black/5">
+        <>
           <div className="flex items-center text-[11px] font-semibold text-gray-500">삭제한 카드 {nHidden}건 <span className="font-normal text-gray-400 ml-1">· 원문에서 인식했지만 페이지에서 뺀 카드</span>
             <button type="button" onClick={() => onUnhide('all')} className="ml-auto text-[10px] font-normal text-indigo-500 hover:underline">모두 되돌리기</button></div>
           {(['live', 'obs'] as const).flatMap(k => hidden[k].map((t, i) => (
@@ -650,7 +749,7 @@ function CardOrderPanel({ cards, opts, onDelete, onUnhide, onMove, onResetOrder 
               <button type="button" onClick={() => onUnhide(k, i)} className="flex items-center gap-0.5 text-indigo-500 hover:underline flex-shrink-0"><RotateCcw size={11} />되돌리기</button>
             </div>
           )))}
-        </div>
+        </>
       )}
     </div>
   );
@@ -688,4 +787,21 @@ function PayModePanel({ opts, setOpt, state, prevLoad, input }: {
       </p>
     </div>
   );
+}
+
+// ⋮⋮ 끌기 핸들 (원본 addDragHandles) — 미리보기를 그릴 때마다 한정 혜택·OBS 카드에 붙인다
+function addDragHandles(root: HTMLElement) {
+  ([['#secLive .mockBenefitList > .mockAddWrap', 'live'], ['#secObs .mockLinkList > .mockLinkWrap', 'obs']] as const).forEach(([sel, kind]) => {
+    root.querySelectorAll(sel).forEach(w => {
+      if (w.querySelector(':scope > .dragH')) return;
+      const h = document.createElement('span');
+      h.className = 'dragH reviewOnly';
+      h.setAttribute('draggable', 'true');
+      h.setAttribute('data-kind', kind);
+      h.title = '드래그해서 순서 변경';
+      h.textContent = '⋮⋮';
+      w.insertBefore(h, w.firstChild);
+      w.classList.add('dndItem');
+    });
+  });
 }

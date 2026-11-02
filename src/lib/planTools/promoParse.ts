@@ -22,10 +22,12 @@ var localStorage = {
   getItem: function(k){ return k === "promo_mgr_cases_v5" && __PV_CTX.usePrev ? JSON.stringify(__PV_CTX.cases) : null; },
   setItem: function(){}, removeItem: function(){}
 };
+/* 워싱본 직접 수정(promoEdit) 중에만: 원본이 읽고 쓰는 숨은 입력칸(opt_*)을 opts로 만든 가짜 칸으로, DOM 조회는 실제 미리보기 영역으로 돌린다 */
+var __FORM = null, __ROOT = null;
 var document = {
-  getElementById: function(id){ return id === "case_name" ? { value: __PV_CTX.caseName } : null; },
+  getElementById: function(id){ if (__FORM && __FORM[id]) return __FORM[id]; return id === "case_name" ? { value: __PV_CTX.caseName } : null; },
   createElement: function(){ return { innerHTML: "", children: [], classList: { add: function(){}, remove: function(){}, contains: function(){ return false; } }, style: {} }; },
-  querySelector: function(){ return null; }, querySelectorAll: function(){ return []; },
+  querySelector: function(s){ return __ROOT ? __ROOT.querySelector(s) : null; }, querySelectorAll: function(s){ return __ROOT ? __ROOT.querySelectorAll(s) : []; },
   addEventListener: function(){}, body: { classList: { add: function(){}, remove: function(){}, contains: function(){ return false; } } }
 };
 /* 업무명·방송 옵션을 원본이 읽는 자리에 넣고 fn 실행 (원본 collectFormValues가 하던 LIVE_DEF_LABEL·직접 수정 문구 준비 포함) */
@@ -6363,6 +6365,89 @@ export function promoPreviewHtml(pv: PromoStructured): string {
     .replace(/ on(?:click|change|input|dragstart|keydown)="[^"]*"/g, '').replace(/ contenteditable="[^"]*"/g, '').replace(/ draggable="[^"]*"/g, '')
     .replace(/ target="_blank"/g, ' target="_blank" rel="noreferrer"');
 }
+/* ---- 워싱본 직접 수정 (2026-11-02 기획팀: "판촉 수급본으로 구성된 페이지 와이어프레임에서 직접 수정&삭제") ----
+ * 원본 화면처럼 점선 영역 클릭 수정·카드 삭제·끌어서 순서·＋추가·아이콘 선택을 워싱본 위에서 한다.
+ * 원본 함수(commit*·hide*·add*·commitCardOrder 등)를 그대로 부르고, 결과는 원본처럼 opts의 JSON 문자열 칸에 남는다. */
+/** 직접 수정용 미리보기 HTML — 인라인 onclick/onchange는 실행되지 않게 data-click/data-change로 바꿔 둔다(화면이 대신 부른다) */
+export function promoEditHtml(pv: PromoStructured): string {
+  var safeUrl = function(u){ return (u || '').replace(/["'<>`\s]/g, function(c){ return encodeURIComponent(c); }); };
+  var fix = function(list){ return (list || []).map(function(r){ var c = Object.assign(r.slice(), r); c[3] = safeUrl(c[3]); return c; }); };
+  var safe = Object.assign({}, pv, { obsCards: fix(pv.obsCards), obsShow: pv.obsShow ? fix(pv.obsShow) : undefined });
+  return __withPv(pv, function(){ return pageHtmlFix(renderMockPage(safe)); })
+    .replace(/ onclick="/g, ' data-click="').replace(/ onchange="/g, ' data-change="').replace(/ on(?:input|dragstart|keydown)="[^"]*"/g, '')
+    .replace(/ target="_blank"/g, ' target="_blank" rel="noreferrer"');
+}
+/** KV (날짜·메인·서브) — 직접 고친 값이 없으면 업무명에서 만든 자동값 (원본 kvInfo) */
+export function promoKvInfo(pv: PromoStructured): { d: string; m: string; s: string; dateAuto: string; mainAuto: string } {
+  return __withPv(pv, function(){ return kvInfo(pv); });
+}
+/** 방송 시간(opts.air) → 24시간제 시 (비우면 20시) */
+export function promoAirHour(air: string): number { return _airHour(air); }
+
+var __EDIT_FIELDS = { opt_txtedit: 'txtEdit', opt_kv: 'kv', opt_addlive: 'addLive', opt_addobs: 'addObs', opt_obsedit: 'obsEdit', opt_liveicon: 'liveIcon',
+  opt_hide: 'hide', opt_order: 'order', opt_cookhead: 'cookHead', opt_cookrates: 'cookRates', opt_cookprods: 'cookProds' };
+function __editFns() {
+  return { commitTxtEdit: commitTxtEdit, commitKv: commitKv, commitObsEdit: commitObsEdit, commitAddLive: commitAddLive, commitCookEdit: commitCookEdit,
+    commitCardOrder: commitCardOrder, resetCardOrder: resetCardOrder, hideLiveCard: hideLiveCard, hideObsCard: hideObsCard, unhideCard: unhideCard,
+    addLiveItem: addLiveItem, addObsItem: addObsItem, delAddLive: delAddLive, delAddObs: delAddObs, setAddLive: setAddLive, setAddObsUrl: setAddObsUrl, setLiveIcon: setLiveIcon };
+}
+/* "hideObsCard(this.getAttribute('data-k'),'card')" 같은 원본 호출 문자열 → [함수 이름, 인자] (eval 없이 숫자·따옴표 글자·this.value·this.getAttribute만 받는다) */
+function __parseCall(code, el) {
+  var m = /^\s*([A-Za-z_]\w*)\s*\(([\s\S]*)\)\s*;?\s*$/.exec(code || '');
+  if (!m) return null;
+  var args = [], cur = '', q = '', depth = 0;
+  for (var i = 0; i < m[2].length; i++) {
+    var ch = m[2][i];
+    if (q) { cur += ch; if (ch === q && m[2][i - 1] !== '\\') q = ''; continue; }
+    if (ch === "'" || ch === '"') { q = ch; cur += ch; continue; }
+    if (ch === '(') depth++; if (ch === ')') depth--;
+    if (ch === ',' && !depth) { args.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) args.push(cur);
+  var val = function(a) {
+    a = a.trim();
+    if (/^-?\d+(\.\d+)?$/.test(a)) return Number(a);
+    var s = /^(['"])([\s\S]*)\1$/.exec(a); if (s) return s[2];
+    if (a === 'this.value') return el ? el.value : '';
+    var g = /^this\.getAttribute\((['"])([\w-]+)\1\)$/.exec(a); if (g) return el ? el.getAttribute(g[2]) : null;
+    return undefined;
+  };
+  return [m[1], args.map(val)];
+}
+/** 원본 수정 함수 하나를 실행하고 바뀐 opts를 돌려준다.
+ *  call: 함수 이름(예 'commitKv') 또는 원본 호출 문자열(data-click/data-change 값). el: 수정한 요소(this), root: 미리보기 영역 */
+export function promoEdit(pv: PromoStructured, root: Element | null, call: string, el?: Element | null): { opts: PromoOpts; toast: string } | null {
+  var fns = __editFns(), name = call, args = [el];
+  if (!/^[A-Za-z_]\w*$/.test(call)) { var p = __parseCall(call, el); if (!p) return null; name = p[0]; args = p[1]; }
+  if (!Object.prototype.hasOwnProperty.call(fns, name)) return null;
+  var o = Object.assign({}, pv.opts), form = {}, toast = '';
+  var field = function(v){ return { value: v == null ? '' : String(v), checked: false, dispatchEvent: function(){} }; };
+  Object.keys(__EDIT_FIELDS).forEach(function(id){ form[id] = field(o[__EDIT_FIELDS[id]]); });
+  var a = Object.assign({}, pv, { opts: Object.assign({}, o, { fridge: 'auto' }) });
+  form.chk_fridge = field(''); form.chk_fridge.checked = !!__withPv(pv, function(){ return o.fridge === 'auto' ? fridgeOn(a) : o.fridge === 'on'; });
+  form.chk_hidtotal = field(''); form.chk_hidtotal.checked = !!o.hidTotal;
+  var fridgeWas = form.chk_fridge.checked;
+  var saveForm = __FORM, saveRoot = __ROOT, saveCollect = collectFormValues, saveToast = showToast;
+  __FORM = form; __ROOT = root || null;
+  collectFormValues = function(){ return pv; };
+  showToast = function(msg){ toast = String(msg || ''); };
+  try {
+    __withPv(pv, function(){ fns[name].apply(null, args); });
+  } finally {
+    __FORM = saveForm; __ROOT = saveRoot; collectFormValues = saveCollect; showToast = saveToast;
+  }
+  Object.keys(__EDIT_FIELDS).forEach(function(id){ o[__EDIT_FIELDS[id]] = form[id].value; });
+  if (form.chk_fridge.checked !== fridgeWas) o.fridge = form.chk_fridge.checked ? 'on' : 'off';
+  o.hidTotal = !!form.chk_hidtotal.checked;
+  return { opts: o, toast: toast };
+}
+/** 직접 추가 혜택을 opts.order 대로 자동 인식 카드 사이에 끼운다 (원본 placeLiveCards — 미리보기를 그린 뒤 부른다) */
+export function promoPlaceLive(pv: PromoStructured, root: Element | null): void {
+  var save = __ROOT; __ROOT = root || null;
+  try { __withPv(pv, function(){ placeLiveCards(pv); }); } finally { __ROOT = save; }
+}
+
 export function promoSummary(pv: PromoStructured): { chips: PromoChip[]; notes: string[] } {
   return __withPv(pv, function(){ return summarizeParse(pv); });
 }
@@ -6454,3 +6539,33 @@ export {
 
 // 미리보기 HTML용 CSS — 원본 v38(+ 통합셋팅기 v13의 KV 영역) <style>에서 미리보기에 쓰는 규칙만 .promo-preview 안으로 한정 (검수 라벨·직접 수정 표시는 숨김)
 export const PROMO_PREVIEW_CSS: string = ".promo-preview .btn.small{padding:4px 10px;font-size:12px;}.promo-preview .mockPage{width:100%;max-width:390px;margin:8px auto 0;background:#fff;box-shadow:0 0 0 1px var(--line);overflow:hidden;font-family:'Pretendard','Pretendard Variable',-apple-system,'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;letter-spacing:-0.04em;color:#000;}.promo-preview .mockSec{display:flex;flex-direction:column;align-items:center;background:#fff;}.promo-preview .mockEmpty{color:#8a8a8a;font-size:12px;}.promo-preview .mockSecLabel{font-size:11px;color:#9a9a9a;padding:20px 20px 6px;letter-spacing:0;border-top:1px dashed #e5e5e5;margin-top:0;}.promo-preview .mockSec03{padding:64px 20px 0;}.promo-preview .mockEventCard{width:100%;background:#E3E0DC;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockTitle{font-size:22px;line-height:140%;font-weight:700;text-align:center;color:#000;}.promo-preview .mockEventContent{display:flex;flex-direction:column;gap:16px;}.promo-preview .mockHero{display:flex;align-items:center;gap:10px;}.promo-preview .mockImg{width:68px;height:68px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;color:#c9c9c9;}.promo-preview .mockImg.small{width:48px;height:48px;font-size:16px;border-radius:6px;background:#fff;}.promo-preview .mockHeroText{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:14px;line-height:140%;color:#000;}.promo-preview .mockHeroGift{font-weight:600;font-size:18px;line-height:140%;}.promo-preview .mockCaptionList{display:flex;flex-direction:column;gap:2px;}.promo-preview .mockEventContent .mockCaptionList{padding-top:16px;border-top:1px solid #CACACA;}.promo-preview .mockCaption{display:flex;gap:5px;font-size:12px;line-height:140%;color:#262626;letter-spacing:-0.04em;}.promo-preview .mockCaption>span{min-width:0;}.promo-preview .mockCaption:before{content:'';flex:none;width:2px;height:2px;border-radius:50%;background:#262626;margin:8px 3px 0;}.promo-preview .mockSec04{padding:64px 20px;}.promo-preview .mockSec04 .mockTitle{font-size:26px;padding-bottom:16px;width:100%;}.promo-preview .mockBenefitList{width:100%;display:flex;flex-direction:column;gap:8px;}.promo-preview .mockBenefitRow{display:flex;align-items:center;gap:16px;background:#F4F4F4;border:1px solid #E1E1E1;border-radius:6px;padding:19px 15px;min-height:88px;box-sizing:border-box;}.promo-preview .mockBenefitRow>div:last-child{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px;}.promo-preview .mockBenefitLabel{font-size:12px;line-height:140%;font-weight:500;color:#262626;}.promo-preview .mockBenefitMain{font-size:14px;line-height:130%;font-weight:600;color:#000;}.promo-preview .mockSec04 .mockCaptionList{width:100%;padding-top:16px;}.promo-preview .mockLinkList{width:100%;display:flex;flex-direction:column;background:#fff;}.promo-preview .mockLinkWrap{padding:0 20px 12px;}.promo-preview .mockLinkRow{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;gap:8px;width:100%;min-height:88px;padding:0 20px 0 0;border-radius:8px;color:inherit;background:#EBD2CE;}.promo-preview .mockLinkWrap:nth-child(8n+2) .mockLinkRow{background:#CCE2EE;}.promo-preview .mockLinkWrap:nth-child(8n+3) .mockLinkRow{background:#CCEED7;}.promo-preview .mockLinkWrap:nth-child(8n+4) .mockLinkRow{background:#F2E7B9;}.promo-preview .mockLinkWrap:nth-child(8n+5) .mockLinkRow{background:#D3E6E5;}.promo-preview .mockLinkWrap:nth-child(8n+6) .mockLinkRow{background:#EAD1E5;}.promo-preview .mockLinkWrap:nth-child(8n+7) .mockLinkRow{background:#D2D8E6;}.promo-preview .mockLinkWrap:nth-child(8n+8) .mockLinkRow{background:#D9E8C1;}.promo-preview .mockLinkImg{width:82px;height:88px;flex:none;display:flex;align-items:center;justify-content:center;font-size:20px;color:rgba(0,0,0,.25);}.promo-preview .mockLinkBody{flex:1;min-width:0;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:11.73px;}.promo-preview .mockLinkText{flex:1;min-width:0;max-width:200px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:6px 0;}.promo-preview .obsEdit{outline:none;cursor:text;border-radius:2px;border-bottom:1px dashed rgba(232,89,12,.75);min-height:1.4em;word-break:keep-all;}.promo-preview .obsEdit:hover{background:rgba(255,244,229,.7);}.promo-preview .obsEdit:focus{background:#FFE3BF;}.promo-preview .obsEdit:empty:before{content:attr(data-ph);color:rgba(0,0,0,.32);font-weight:400;}.promo-preview .mockLinkMain{font-size:18px;line-height:140%;font-weight:600;letter-spacing:-0.04em;color:#000;opacity:.8;}.promo-preview .mockLinkSub{font-size:14px;line-height:140%;font-weight:500;letter-spacing:-0.03em;color:#262626;opacity:.7;}.promo-preview .mockChevron{flex:none;width:24px;height:24px;display:flex;align-items:center;justify-content:center;text-decoration:none;}.promo-preview .mockChevron i{display:block;width:8px;height:8px;border-top:1.4px solid #000;border-right:1.4px solid #000;transform:rotate(45deg);margin-left:-3px;}.promo-preview .mockLinkUrl{font-size:10px;color:var(--accent-2);margin:4px 2px 0;word-break:break-all;font-family:monospace;user-select:all;letter-spacing:0;}.promo-preview .mockSec13{padding:64px 20px 0;}.promo-preview .mockPayDark{width:100%;box-sizing:border-box;background:#000;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:20px;}.promo-preview .mockPayDarkTitle{color:#fff;font-size:22px;line-height:140%;font-weight:700;text-align:center;}.promo-preview .mockPayHero2{background:#262626;border-radius:8px;padding:16px;min-height:111px;box-sizing:border-box;display:flex;align-items:center;gap:12px;}.promo-preview .mockPayHero2Badge{color:#fff;flex:none;width:90px;display:flex;flex-direction:column;gap:2px;}.promo-preview .mockPayHero2BadgeNum{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:28px;font-weight:700;line-height:100%;letter-spacing:-0.05em;white-space:nowrap;}.promo-preview .mockPayHero2.first .mockPayHero2BadgeNum{font-size:32px;}.promo-preview .mockPayHero2BadgeUnit{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:13px;font-weight:700;letter-spacing:-0.03em;margin-left:1px;}.promo-preview .mockPayHero2BadgePre{font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;font-size:12px;font-weight:600;letter-spacing:-0.02em;margin-right:1px;}.promo-preview .mockPayHero2BadgeLabel{font-size:13px;font-weight:600;line-height:140%;}.promo-preview .mockPayHero2Body{min-width:0;flex:1;display:flex;flex-direction:column;gap:12px;justify-content:center;}.promo-preview .mockPayHero2Title{color:#FD312E;font-size:14px;font-weight:600;line-height:130%;}.promo-preview .mockPayHero2Desc{color:#fff;font-size:12px;line-height:140%;white-space:pre-line;}.promo-preview .mockPayHero2More{color:#fff;font-size:11px;line-height:140%;text-decoration:underline;}.promo-preview .mockPayRows{display:flex;flex-direction:column;gap:16px;}.promo-preview .mockPayRow2{display:flex;align-items:center;gap:8px;}.promo-preview .mockPayIcon2{width:40px;height:40px;box-sizing:border-box;padding:8px;border-radius:4px;background:#fff;color:#000;display:flex;align-items:center;justify-content:center;font-family:'Lexend Mega','Pretendard',sans-serif;font-size:18px;font-weight:700;flex:none;}.promo-preview .mockPayRow2Body{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;padding:4px 0;}.promo-preview .mockPayRow2Label{color:#fff;font-size:14px;font-weight:500;line-height:140%;letter-spacing:-0.04em;}.promo-preview .mockPayRow2Value{color:#FD312E;font-size:14px;font-weight:600;line-height:130%;}.promo-preview .mockPayNum{font-family:'Lexend Mega','Pretendard',sans-serif;font-size:21px;font-weight:700;line-height:18px;}.promo-preview .mockPayNumUnit{margin-left:3px;font-family:'Lexend Mega','Pretendard',sans-serif;font-size:13px;font-weight:700;letter-spacing:-0.03em;}.promo-preview .mockSec14{padding:64px 20px 40px;align-items:stretch;}.promo-preview .mockLegalCta{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:500;line-height:100%;color:#000;letter-spacing:-0.02em;}.promo-preview .mockLegal{margin-top:16px;background:#F4F4F4;border-radius:8px;padding:20px 16px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockLegalTitle{font-size:13px;font-weight:600;line-height:18px;letter-spacing:-0.02em;color:#000;}.promo-preview .mockLegalBody{font-size:12px;line-height:140%;color:#262626;letter-spacing:-0.04em;}.promo-preview .legalBullet{padding-left:9px;text-indent:-9px;margin-bottom:2px;}.promo-preview .legalBullet:last-child{margin-bottom:0;}.promo-preview .legalHeading{font-weight:600;color:#000;margin:12px 0 4px;}.promo-preview .legalHeading:first-child{margin-top:0;}.promo-preview .frame .mockPage{box-shadow:none;margin-top:0;}.promo-preview body.onlyChg .dimmable:not(.chgd){opacity:.22;}.promo-preview .missChip{display:inline-block;font-size:10.5px;font-weight:700;color:#a12020;background:#fdecec;border:1px solid #f3c3c3;border-radius:999px;padding:1px 7px;margin-left:6px;letter-spacing:0;vertical-align:middle;}.promo-preview .accSubBody{padding-top:6px;}.promo-preview .mockIconSvg{display:block;}.promo-preview .mockImg.sv{background:transparent;overflow:visible;position:relative;}.promo-preview .mockImg.sv .mockIconSvg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}.promo-preview .mockImg.small{position:relative;overflow:visible;}.promo-preview .mockImg.small.sv{width:48px;height:48px;}.promo-preview .mockSecRebro{padding:64px 20px 0;}.promo-preview .mockRebroCard{width:100%;background:#E3E0DC;border-radius:16px;padding:32px 24px;display:flex;flex-direction:column;gap:12px;}.promo-preview .mockRebroCard .mockTitle{letter-spacing:-0.04em;}.promo-preview .mockRebroBox{display:flex;align-items:center;gap:10px;background:#fff;border-radius:16px;min-height:68px;padding:0;}.promo-preview .mockRebroImg{flex:none;width:68px;height:68px;display:flex;align-items:center;justify-content:center;}.promo-preview .mockRebroText{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;padding-right:10px;}.promo-preview .mockRebroEyebrow{font-family:'Pretendard',\"Malgun Gothic\",sans-serif;font-weight:400;font-size:14px;line-height:140%;letter-spacing:-0.04em;color:#000;}.promo-preview .mockRebroBig{font-family:'Pretendard',\"Malgun Gothic\",sans-serif;font-weight:600;font-size:18px;line-height:140%;letter-spacing:-0.04em;color:#FD312E;}.promo-preview .cookEdit{border-bottom:1px dashed #E8590C;background:#FFF4E5;border-radius:2px;outline:none;cursor:text;}.promo-preview .cookEdit:focus{background:#FFE3BF;}.promo-preview .capSub.cookEdit{display:block;padding-left:.33em;}.promo-preview .mockCaption .capSub{display:block;padding-left:.33em;}.promo-preview .reviewOnly{display:none}.promo-preview .obsEdit{border-bottom:none;cursor:default}.promo-preview .mockKv{width:100%;background:#fff;}.promo-preview .mockKvTop{box-sizing:border-box;height:440px;padding:46px 35px;display:flex;flex-direction:column;align-items:center;gap:7px;background:#fff;position:relative;}.promo-preview .mockKvHead{width:215px;height:18px;display:flex;align-items:flex-start;gap:7px;flex:none;}.promo-preview .mockKvLogo{width:102px;height:14px;margin-top:2px;flex:none;display:block;}.promo-preview .mockKvDate{flex:1;min-width:0;height:18px;font-size:15px;line-height:18px;font-weight:500;letter-spacing:-0.04em;color:#000;white-space:nowrap;}.promo-preview .mockKvTitle{width:320px;display:flex;flex-direction:column;align-items:center;gap:10px;}.promo-preview .mockKvMain{max-width:320px;font-size:32px;line-height:130%;font-weight:700;letter-spacing:-0.05em;text-align:center;color:#000;word-break:keep-all;}.promo-preview .mockKvSub{width:211px;min-height:40px;font-size:14px;line-height:140%;font-weight:500;letter-spacing:-0.03em;text-align:center;color:#000;}.promo-preview .mockKvImg{position:absolute;left:35px;right:35px;bottom:24px;height:190px;border:1px dashed #d4d4d4;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#b0b0b0;letter-spacing:0;}.promo-preview .mockKvBtns{box-sizing:border-box;height:84px;padding:20px;background:#F1EFEC;display:flex;gap:12px;}.promo-preview .mockKvBtn{flex:1;min-width:145px;height:44px;border-radius:30px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:-0.04em;box-sizing:border-box;}.promo-preview .mockKvBtn.dark{background:#000;color:#fff;}.promo-preview .mockKvBtn.line{border:1px solid #000;color:#000;}.promo-preview .mockAddWrap{display:flex;flex-direction:column;gap:4px;}.promo-preview .txtEdit{outline:none;cursor:default;}.promo-preview .addCtl,.promo-preview .addPlus,.promo-preview .dragH{display:none}.promo-preview:not(.hlOff) .hlChg{background:#FFF1A6 !important;box-shadow:0 0 0 2px #F2C200 !important;border-radius:6px;}.promo-preview:not(.hlOff) #secPay .hlChg{background:#5A4800 !important;box-shadow:0 0 0 2px #FFD400 !important;}.promo-preview:not(.hlOff) .mockLinkWrap.hlChg{padding-top:6px;padding-bottom:6px;}";
+
+// 직접 수정 모드 CSS — 위 PROMO_PREVIEW_CSS가 숨긴 검수 라벨·＋추가·삭제·아이콘 선택·끌기 핸들을 다시 보이고 점선 수정 표시를 켠다
+// (원본 통합셋팅기 v17 <style>의 같은 규칙을 .promo-preview.editing 안으로 한정)
+export const PROMO_EDIT_CSS: string = [
+  ".promo-preview.editing .reviewOnly{display:revert}",
+  ".promo-preview.editing .addCtl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;color:#6b7280;letter-spacing:0;padding:4px 2px 0;}",
+  ".promo-preview.editing .addCtl select,.promo-preview.editing .addCtl input{width:auto;display:inline-block;margin:0;font-size:11px;padding:2px 4px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;}",
+  ".promo-preview.editing .addCtl input.addUrlIn{flex:1;min-width:140px;}",
+  ".promo-preview.editing .addDel{font-size:11px;padding:2px 8px;border:1px solid #fca5a5;color:#b91c1c;background:#fff;border-radius:4px;cursor:pointer;}",
+  ".promo-preview.editing .addDel.obsDel{margin:4px 2px 0;}",
+  ".promo-preview.editing .addPlus{display:block;width:100%;box-sizing:border-box;margin-top:8px;padding:12px 0;border:1.5px dashed #b4b4bd;border-radius:8px;background:#fafafa;color:#4b5563;font-size:14px;font-weight:700;cursor:pointer;letter-spacing:0;}",
+  ".promo-preview.editing .addPlus:hover{background:#f1f5f9;border-color:#6b7280;}",
+  ".promo-preview.editing .txtEdit{outline:none;cursor:text;border-radius:2px;border-bottom:1px dashed transparent;}",
+  ".promo-preview.editing .txtEdit:hover{background:rgba(255,244,229,.7);border-bottom-color:rgba(232,89,12,.55);}",
+  ".promo-preview.editing .txtEdit:focus{background:#FFE3BF;border-bottom-color:rgba(232,89,12,.9);}",
+  ".promo-preview.editing .mockPayDark .txtEdit:hover{background:rgba(255,255,255,.14);}",
+  ".promo-preview.editing .mockPayDark .txtEdit:focus{background:rgba(255,255,255,.22);color:#fff;}",
+  ".promo-preview.editing .obsEdit{cursor:text;border-bottom:1px dashed rgba(232,89,12,.75);}",
+  ".promo-preview.editing .obsEdit:hover{background:rgba(255,244,229,.7);}",
+  ".promo-preview.editing .obsEdit:focus{background:#FFE3BF;}",
+  ".promo-preview.editing .mockPage{overflow:visible;margin-left:22px;width:calc(100% - 22px);}",
+  ".promo-preview.editing .dndItem{position:relative;}",
+  ".promo-preview.editing .dragH{display:flex;position:absolute;left:-20px;top:50%;transform:translateY(-50%);width:16px;height:34px;align-items:center;justify-content:center;font-size:12px;letter-spacing:-3px;color:#9aa3b2;background:#fff;border:1px solid #e5e7eb;border-radius:5px;cursor:grab;z-index:3;user-select:none;}",
+  ".promo-preview.editing .mockAddWrap.dndItem>.dragH{top:44px;}",
+  ".promo-preview.editing .mockLinkWrap.dndItem>.dragH{left:-20px;top:44px;}",
+  ".promo-preview.editing .dragH:hover{color:#4f46e5;border-color:#4f46e5;}",
+  ".promo-preview.editing .dndItem.dragging{opacity:.4;}",
+  ".promo-preview.editing .dndItem.dropB{box-shadow:0 -3px 0 0 #4f46e5;}",
+  ".promo-preview.editing .dndItem.dropA{box-shadow:0 3px 0 0 #4f46e5;}",
+].join('');

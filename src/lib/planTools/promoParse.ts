@@ -1,8 +1,8 @@
 // @ts-nocheck
 /* =============================================================================
  * 라이브 판촉 원문 → 워싱본(상세페이지 미리보기) 로직
- * 원본: Live_통합셋팅기_v13.html (Planning Update 폴더, 문서: Live_통합셋팅기_v13_MD.md)
- *       — 2026-10-21 판촉 업데이트기 v21 이식, 2026-10-26 v38, 2026-10-28 통합셋팅기 v13(= 판촉 v40 + 배너 v18)으로 다시 이식
+ * 원본: Live_통합셋팅기_v17.html (Planning Update 폴더, 문서: Live_통합셋팅기_v17_MD.md)
+ *       — 2026-10-21 판촉 업데이트기 v21 이식, 2026-10-26 v38, 2026-10-28 통합셋팅기 v13(= 판촉 v40 + 배너 v18)으로 다시 이식, 2026-11-02 v17(v13→v17 원본 diff 그대로 적용)
  * 원본 툴과 다시 맞출 수 있도록 원본 스크립트를 통째로 두었다 (함수 이름·본문·var 스타일 유지, 화면용 함수도 남아 있지만 부르지 않는다).
  * 바꾼 것:
  *  - 맨 위 '원본 화면 대신 쓰는 층' — 원본은 화면의 방송명 칸(case_name)과 localStorage를 읽는다. 여기서는
@@ -39,7 +39,7 @@ function __withPv(pv, fn){
     return fn();
   } finally { __PV_CTX.caseName = prev; LIVE_DEF_LABEL = prevLabel; _TXT = prevTxt; __PV_CTX.usePrev = prevUse; }
 }
-/* ---- 여기부터 원본 통합셋팅기 v13 스크립트 ---- */
+/* ---- 여기부터 원본 통합셋팅기 v17 스크립트 ---- */
 
 
 var STORE_KEY = {
@@ -328,7 +328,7 @@ var PayWash = function() {
   /* v11: 하위 혜택에 기간이 없으면 섹션 공통 기간("- 기간: 9/15 ~ 9/30" 등, 1) 앞 줄)을 사용 */
   var pre = body.split(/^\s*\d\)\s*/m)[0], rgCommon = findRange(pre, b.y);
   var out = { notes: [], d: null, any: false };
-  var d = { all: null, bc: null, min: null, maxAll: null, maxBc: null, rAll: null, rBc: null, first: /선착순/.test(body), daily: /매일\s*0?0\s*시\s*선착순/.test(body) };
+  var d = { all: null, bc: null, min: null, maxAll: null, maxBc: null, rAll: null, rBc: null, first: /선착순/.test(body), daily: kakaoDailyHour(body) };
   var tail = (body.match(/※[^\n]+/) || [])[0] || "";
   parts.forEach(function(p) {
    var t = p.head + "\n" + p.lines.join("\n");
@@ -344,7 +344,9 @@ var PayWash = function() {
     return;
    }
    out.any = true;
-   if (isBc) { d.bc = rt[1]; d.maxBc = mx ? num(mx[1]) : null; d.rBc = rg; } else { d.all = rt[1]; d.maxAll = mx ? num(mx[1]) : null; d.rAll = rg; }
+   /* v14: 하위 혜택별 조건금액·할인 방식(즉시/선착순)·1일 선착순 문구를 각자 원문에서 읽음 */
+   var pk = /선착순\s*할인/.test(t) ? "선착순" : "즉시", pdaily = kakaoDailyHour(t) || d.daily;
+   if (isBc) { d.bc = rt[1]; d.maxBc = mx ? num(mx[1]) : null; d.rBc = rg; d.minBc = mn ? num(mn[1]) : null; d.kBc = pk; d.dBc = pdaily; } else { d.all = rt[1]; d.maxAll = mx ? num(mx[1]) : null; d.rAll = rg; d.minAll = mn ? num(mn[1]) : null; d.kAll = pk; d.dAll = pdaily; }
    if (mn && !d.min) d.min = num(mn[1]);
    out.notes.push({ k: "ok", m: nm + " " + rt[1] + "% 포함" + (rg ? " (기간 " + fmt(rg.s, 1) + " ~ " + fmt(rg.e, 1) + ")" : "") });
   });
@@ -356,16 +358,37 @@ var PayWash = function() {
   var kind = d.first ? "선착순" : "즉시";
   function rgt(r) { return r ? fmt(r.s, 1) + " ~ " + fmt(r.e, 1) : ""; }
   var per = d.rAll && d.rBc && rgt(d.rAll) !== rgt(d.rBc) ? "페이머니/전체 카드 " + rgt(d.rAll) + ", 비씨카드 " + rgt(d.rBc) : rgt(d.range);
-  var lim = "실명 인증 기준 1인당 기간 내 최대 1회" + (d.daily ? ", 매일 00시 선착순" : "");
-  var mxt = function(v) { return v ? "(최대 " + v + "만원)" : ""; };
-  var ben;
-  if (d.all && d.bc) ben = "카카오페이로 " + d.min + "만원 이상 결제 시 페이머니/전체 카드 " + d.all + "%" + mxt(d.maxAll) + ", 카카오페이에 등록된 비씨카드는 " + d.bc + "%" + mxt(d.maxBc) + " " + kind + " 할인이 적용됩니다. (" + lim + ")";
-  else if (d.bc) ben = "카카오페이에 등록된 비씨카드로 " + d.min + "만원 이상 결제 시 " + d.bc + "% " + kind + " 할인이 적용됩니다. (" + (d.maxBc ? "최대 " + d.maxBc + "만원, " : "") + lim + ")";
-  else ben = "카카오페이로 " + d.min + "만원 이상 결제 시 페이머니/전체 카드 " + d.all + "% " + kind + " 할인이 적용됩니다. (" + (d.maxAll ? "최대 " + d.maxAll + "만원, " : "") + lim + ")";
+  /* v14: 페이머니/전체 카드 · 비씨카드를 각각 한 문장씩 (10월 실제 출력 기준)
+     "카카오페이에 등록된 페이머니 / 전체 카드로 15만원 이상 결제 시 7% 즉시 할인이 적용됩니다. (최대 50만원, 실명 인증 기준 1인당 기간 내 최대 1회, 매일 00시 선착순)" */
+  function sent(card, min, rate, k, max, daily) {
+   return "카카오페이에 등록된 " + card + "로 " + (min || d.min) + "만원 이상 결제 시 " + rate + "% " + k + " 할인이 적용됩니다. (" + (max ? "최대 " + max + "만원, " : "") + "실명 인증 기준 1인당 기간 내 최대 1회" + (daily ? ", 매일 " + daily + "시 선착순" : "") + ")";
+  }
+  var bens = [];
+  if (d.all) bens.push(sent("페이머니 / 전체 카드", d.minAll, d.all, d.kAll || "즉시", d.maxAll, d.dAll));
+  if (d.bc) bens.push(sent("비씨카드", d.minBc, d.bc, d.kBc || "즉시", d.maxBc, d.dBc));
   if (!per) out.notes.push({ k: "warn", m: "카카오페이 프로모션 기간을 원문에서 찾지 못해 유의사항에 기간을 넣지 못했습니다 — 원문 확인 후 직접 입력" });
-  d.items = [ "프로모션 기간" + (per ? " (" + per + ")" : "") + " 중 " + d.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다.", ben, tail ? tail.replace(/\s+/g, " ").trim() : "※ 선착순 적용여부 및 할인이 적용된 실 결제 금액은 카카오페이 결제창 하단 결제금액을 통해 확인" ];
+  d.items = [ "프로모션 기간" + (per ? " (" + per + ")" : "") + " 중 " + d.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다." ].concat(bens, [ tail ? tail.replace(/\s+/g, " ").trim() : "※ 선착순 적용여부 및 할인이 적용된 실 결제 금액은 카카오페이 결제창 하단 결제금액을 통해 확인" ]);
   out.d = d;
   return out;
+ }
+
+ /* v17: "매일 20시 선착순"처럼 원문의 선착순 시각을 그대로 사용 (없으면 "") */
+ function kakaoDailyHour(t) {
+  var m = /매일\s*(\d{1,2})\s*시\s*선착순/.exec(t || "");
+  return m ? (m[1].length === 1 ? "0" + m[1] : m[1]) : "";
+ }
+ /* v17: 하위 혜택(1) 2)) 없이 한 덩어리로 오는 카카오페이 원문의 유의사항 (11월 실제 출력 기준)
+    "카카오페이로 15만원 이상 결제 시 페이머니/전체 카드 7% 즉시 할인이 적용됩니다. (최대 50만원, 실명 인증 기준 1인당 기간 내 최대 1회, 매일 20시 선착순) ※ 선착순 적용여부 및 일정에 적용된 실 결제 금액은 …" */
+ function kakaoOldItems(k, body) {
+  var hr = kakaoDailyHour(body), kind = /선착순\s*할인/.test(body) ? "선착순" : "즉시";
+  var lim = "실명 인증 기준 1인당 기간 내 최대 1회" + (hr ? ", 매일 " + hr + "시 선착순" : "");
+  var par = function(max) { return " (" + (max ? "최대 " + max + "만원, " : "") + lim + ")"; };
+  var note = "※ 선착순 적용여부 및 일정에 적용된 실 결제 금액은 카카오페이 결제창 하단 결제금액을 통해 확인";
+  var bens = [];
+  if (k.all) bens.push("카카오페이로 " + k.min + "만원 이상 결제 시 페이머니/전체 카드 " + k.all + "% " + kind + " 할인이 적용됩니다." + par(k.max));
+  if (k.bc) bens.push("카카오페이에 등록된 비씨카드로 " + k.min + "만원 이상 결제 시 " + k.bc + "% " + kind + " 할인이 적용됩니다." + par(k.all ? null : k.max));
+  bens[bens.length - 1] += " " + note;
+  return [ "프로모션 기간 (" + fmt(k.range.s, 1) + " ~ " + fmt(k.range.e, 1) + ") 중 " + k.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다." ].concat(bens);
  }
  function splitSections(text) {
   var secs = [], cur = null;
@@ -629,7 +652,8 @@ var PayWash = function() {
      rate: nm2 ? nm2[2] : null,
      max: nx ? num(nx[1]) : null,
      confirm: dateBefore(body, "까지", b.y),
-     pay: dateBefore(body, "포인트\\s*적립", b.y)
+     pay: dateBefore(body, "포인트\\s*적립", b.y),
+     note: ((body.match(/단\s*,\s*([^\n]+)/) || [])[1] || "").replace(/\s+/g, " ").trim()
     };
     if (!D.naver.rate) {
      S("warn", label + " → 적립률/조건을 읽지 못함");
@@ -663,6 +687,7 @@ var PayWash = function() {
      delete D.kakao;
      return;
     }
+    D.kakao.items = kakaoOldItems(D.kakao, body);
     S("warn", "카카오페이 유의사항 문구는 캡처 기반 추정입니다. 원출처와 대조해 주세요.");
    }
    S("ok", label + " → 포함" + (rg ? " (기간 " + fmt(rg.s, 1) + " ~ " + fmt(rg.e, 1) + " 해당)" : ""));
@@ -840,7 +865,7 @@ var PayWash = function() {
   if (D.naver) {
    var nv = D.naver, it7 = [];
    it7.push("프로모션 기간" + (nv.range ? " (" + fmt(nv.range.s, 1) + " ~ " + fmt(nv.range.e, 1) + ")" : "") + " 중 " + nv.min + "만원 이상 결제 건이 있는 경우에 적용되며 결제금액 합산으로 적용되지 않습니다.", "이벤트 기간 결제한 후 결제 취소 시 재결제 건이 이벤트 조건에 부합하면 적립 대상에 포함됩니다.(단, 예산 소진 시 제외)", "네이버페이로 " + nv.min + "만원 이상 결제 시 네이버페이 포인트 " + nv.rate + "% 적립됩니다." + (nv.max ? " (최대 " + nv.max + "만원, 실명 인증 기준 1인당 기간 내 1회)" : ""));
-   if (nv.pay && nv.confirm) it7.push("네이버페이 결제 시 " + fmt(nv.pay) + " 결제하신 간편결제 ID로 지급됩니다. (단, " + fmt(nv.confirm) + "까지 배송 완료된 건에 한함)"); else S("warn", "네이버페이 지급일/배송완료 기준일을 읽지 못해 해당 문구를 생략했습니다.");
+   if (nv.pay && nv.confirm) it7.push("네이버페이로 결제 후 " + fmt(nv.confirm) + "까지 배송 완료된 건에 한하여, " + fmt(nv.pay) + " 결제하신 간편결제 ID로 지급됩니다." + (nv.note ? " (단, " + nv.note + ")" : "")); else S("warn", "네이버페이 지급일/배송완료 기준일을 읽지 못해 해당 문구를 생략했습니다.");
    it7.push("결제 시 네이버페이 자체적으로 제공하는 카드사별 결제일 할인 및 무이자 할부 혜택을 받으실 수 있으며, LGE.COM의 신용카드사별 혜택(결제일 할인, 무이자 할부, 캐시백 등)은 적용되지 않습니다.", "본 이벤트는 예산 소진 시, 프로모션 게시 여부와 상관없이 별도 공지하지 않고 조기 종료될 수 있습니다.");
    N.push({
     title: "네이버페이 간편결제 유의사항",
@@ -4928,7 +4953,7 @@ function renderHideBox(pv) {
 }
 
 /* ── v06: 제품명 나열 → 가운데점(·) 필수 — "냉장고세탁기", "냉장고 세탁기", "냉장고&세탁기" → "냉장고·세탁기" ── */
-var PROD_JOIN_WORDS = "김치냉장고|냉장고|세탁기|건조기|워시타워|워시콤보|스타일러|식기세척기|공기청정기|정수기|제습기|가습기|청소기|에어컨|인덕션|광파오븐|오븐|전자레인지|TV|모니터|노트북|사운드바|프로젝터";
+var PROD_JOIN_WORDS = "김치냉장고|냉장고|쿠킹|세탁기|건조기|워시타워|워시콤보|스타일러|식기세척기|공기청정기|정수기|제습기|가습기|청소기|에어컨|인덕션|광파오븐|오븐|전자레인지|TV|모니터|노트북|사운드바|프로젝터";
 var PROD_JOIN_RE = new RegExp("(" + PROD_JOIN_WORDS + ")\\s*(?:[&＆+/ㆍ・·,，]\\s*)?(?=(?:" + PROD_JOIN_WORDS + "))", "g");
 function joinProducts(s) {
  return String(s == null ? "" : s).replace(PROD_JOIN_RE, "$1·");
@@ -5392,8 +5417,24 @@ function renderOrderNote(pv) {
  box.parentNode.insertBefore(d, box);
 }
 
+/* ── v15: 냉장고&쿠킹 라이브 → 히든 기획전 3종 세트(냉장고 / 식기세척기 / 쿠킹) ──
+   "냉장고&쿠킹", "냉장고,쿠킹", "냉장고 쿠킹", "냉장고·쿠킹" 등 방송명에 냉장고와 쿠킹이 함께 있으면 적용 */
+var COOK_SET = [ "냉장고", "식기세척기", "쿠킹" ];
+function fridgeCookSet(name) {
+ var p = stripCaseParens(name || "").replace(/[0-9]{1,2}\s*[\/\.\-]\s*[0-9]{1,2}(?![0-9\/\.])/, " ").replace(/재방송/g, " ").replace(/남다르게|라이브|특집/g, " ").replace(HID_NOISE_RE, " ").replace(/\s+/g, " ").trim();
+ if (!/(?:^|[^김치])냉장고/.test(p) || !/쿠킹/.test(p)) return null;
+ var i = p.search(/(?:김치)?냉장고|쿠킹/), prefix = i > 0 ? p.slice(0, i).replace(/[&＆·,，\/+]/g, " ").replace(/\s+/g, " ").trim() : "";
+ return COOK_SET.map(function(x) { return (prefix ? prefix + " " : "") + x + " 특집"; });
+}
+var _hidAutoMainsV14 = hidAutoMains;
+hidAutoMains = function() {
+ var name = (document.getElementById("case_name") || {}).value || "";
+ if (eventFromCaseName(name)) return _hidAutoMainsV14();
+ return fridgeCookSet(name) || _hidAutoMainsV14();
+};
+
 /* ===================================================================
-   통합셋팅기 v13 — 2단계 흐름 (① 판촉·페이지 셋팅 → ② 배너 워싱) — v13에서 판촉 업데이트·페이지 수정 단계 통합
+   통합셋팅기 v17 — 2단계 흐름 (① 판촉·페이지 셋팅 → ② 배너 워싱) — v17에서 판촉 업데이트·페이지 수정 단계 통합
    - 앞 단계로 넘어갈 때 저장 안 된 변경이 있으면 "저장(새 버전)"과 같은 동작 후 이동
    - 뒤로 갈 때는 저장하지 않음(미저장 표시 유지)
    =================================================================== */
@@ -5553,7 +5594,7 @@ document.addEventListener("keydown", function(e) {
  }
 });
 
-/* v13: 버전은 ② 배너 워싱의 "최종 저장(확정)"에서만 생성 (단계 이동은 저장하지 않음) */
+/* v17: 버전은 ② 배너 워싱의 "최종 저장(확정)"에서만 생성 (단계 이동은 저장하지 않음) */
 function finalSave() {
  if (!currentCaseId) { showToast("먼저 방송을 선택하거나 새로 만들어 주세요."); return; }
  if (STEP !== STEP_MAX) { goStep(STEP_MAX); showToast("배너 카피까지 확인한 뒤 최종 저장해 주세요"); return; }

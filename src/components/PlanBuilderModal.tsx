@@ -9,6 +9,7 @@ import {
 import {
   parsePromo, promoKvOpt, promoJoinProducts, promoHideState, promoOrderState, promoPayState, setPromoPrevCases,
   promoPreviewText, promoEditHtml, promoEdit, promoPlaceLive, promoKvInfo, promoAirHour, promoSummary, promoPayment, promoLiveCards, promoAuto,
+  promoLegalSections,
   defaultPromoOpts, PROMO_PREVIEW_CSS, PROMO_EDIT_CSS, type PromoStructured, type PromoOpts,
 } from '../lib/planTools/promoParse';
 import {
@@ -322,10 +323,12 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
           liveItems: cur.liveItems,
           liveCards: promoLiveCards(cur),   // 11번 한정 혜택 — 워싱본과 같은 2줄 정리
           // 12번 기획전 배너 — 실제 노출 목록(히든 기획전·냉장고 Fit&Max 포함)
-          obsCards: (cur.obsShow ?? cur.obsCards).map(([code, mainTitle, subTitle, url]) => ({ code: code || '', mainTitle: mainTitle || '', subTitle: subTitle || '', url: url || '' })),
+          // fixed: 냉장고 포함 시 자동으로 붙는 고정 배너 — 기획서 12번 이미지 영역에 모델명을 넣지 않는다
+          obsCards: (cur.obsShow ?? cur.obsCards).map(([code, mainTitle, subTitle, url, kind]) => ({ code: code || '', mainTitle: mainTitle || '', subTitle: subTitle || '', url: url || '', fixed: kind === 'fixed' })),
           paymentFullText: cur.paymentFullText,
           payment: promoPayment(cur),   // 13번 결제 혜택 장 — 워싱본과 같은 결제혜택 엔진 결과
           legalNotes: cur.legalNotes,
+          legalSections: promoLegalSections(cur),   // 워싱본에 보이는 번호 유의사항 (원문에 없는 카카오·네이버페이 포함)
           opts: cur.opts,
         },
         previewText: promoPreviewText(cur),

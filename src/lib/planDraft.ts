@@ -42,10 +42,11 @@ export interface PlanDraftLanding {
   structured: {
     notify: { gift: string; count: string; deadline: string };
     liveItems: { benefit: string; condition: string; tag: string; detailLines: string[] }[];
-    obsCards: { code: string; mainTitle: string; subTitle: string; url: string }[];
+    obsCards: { code: string; mainTitle: string; subTitle: string; url: string; fixed?: boolean }[];
     paymentFullText: string;
     payment?: PromoPayment;
-    legalNotes: string;
+    legalNotes: string;                                             // 판촉 원문의 [유의사항] 블록 그대로
+    legalSections?: { heading: string; bullets: string[] }[];       // 워싱본에 보이는 번호 유의사항 (기획서 15~18번 장)
     liveCards?: { label: string; main: string; cond: string }[];   // 한정 혜택 2줄 정리 결과 (v38, 기획서 11번 장)
     opts?: PromoOpts;                                               // 추가 영역·재방송 등 방송 옵션 (다시 열 때 그대로 복원)
   };

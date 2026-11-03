@@ -6351,6 +6351,17 @@ export function parsePromo(raw: string, caseName: string, opts?: Partial<PromoOp
     return applyCardOrder(pv);
   });
 }
+/** 워싱본 '[LGE.COM 구매혜택 관련 안내]'의 번호 유의사항 — 기획서 15~18번 장에 그대로 들어간다.
+ *  판촉 원문의 [유의사항] 블록(legalNotes)과 다르다: 이쪽은 결제 혜택을 보고 도구가 고르는 목록이라
+ *  카카오·네이버페이처럼 원문에 없는 안내도 들어간다 (2026-11-03 기획팀 ①). */
+export function promoLegalSections(pv: PromoStructured): { heading: string; bullets: string[] }[] {
+  return __withPv(pv, function(){
+    return (matchedNotices(pv) || []).map(function(sec: any){
+      return { heading: String(sec.heading || ''), bullets: (sec.bullets || []).map(function(b: any){ return String(b); }) };
+    });
+  });
+}
+
 /** 워싱본 텍스트(섹션별 순서대로, 사내 공유·기획서 디스클레이머용) — 원본처럼 '할인 쿠폰' 띄어쓰기 표시 보정 */
 export function promoPreviewText(pv: PromoStructured): string {
   return __withPv(pv, function(){ return pageTextFix(buildPromoPreviewText(pv)); });

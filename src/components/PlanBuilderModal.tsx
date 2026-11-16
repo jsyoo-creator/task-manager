@@ -333,6 +333,23 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
         },
         previewText: promoPreviewText(cur),
       };
+      // 2026-11-16 기획팀: 유의사항이 기획서에 6번까지만 — '직전 라이브와 동일'인데 직전 방송을 못 찾으면
+      // 결제혜택·유의사항이 빈 채로 넘어가 PPT에 틀 예시 문구가 그대로 남았다. 빈 채로는 보내지 않는다.
+      const st = landing.structured;
+      const noPay = !st.payment?.heroes?.length && !st.payment?.rows?.length;
+      const noLegal = !st.legalSections?.length && !st.legalNotes?.trim();
+      if (opts.payMode === 'prev' && prevLoad !== 'ready') {
+        setTab('landing');
+        setError(prevLoad === 'error' ? '직전 라이브를 불러오지 못했어요 — 잠시 후 다시 눌러 주세요' : '직전 라이브를 불러오는 중이에요 — 잠시 후 다시 눌러 주세요');
+        return;
+      }
+      if (noPay && noLegal) {
+        setTab('landing');
+        setError(opts.payMode === 'prev'
+          ? '직전 라이브를 찾지 못해 결제혜택·유의사항이 비어 있어요 — 결제혜택 원문을 넣고 반영 기준을 판촉안으로 바꿔 주세요'
+          : '결제혜택·유의사항이 비어 있어요 — 판촉 원문에 결제혜택을 넣거나 반영 기준을 \'직전 라이브와 동일\'로 골라 주세요');
+        return;
+      }
     }
     setSending(true);
     try {

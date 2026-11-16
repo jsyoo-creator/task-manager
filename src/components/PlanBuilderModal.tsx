@@ -161,7 +161,18 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     if (!r) return;
     latestOpts.current = r.opts;
     clearTimeout(commitTimer.current);
-    if (defer) commitTimer.current = setTimeout(() => setOpts(latestOpts.current), 200);
+    // 2026-11-16 기획팀 "우측 화면 직접 수정 시 로드 걸리거나 수정 후 원복": 한 칸을 고치고 곧바로 다음 칸에 쓰기 시작하면
+    // 0.2초 뒤 다시 그리면서 미리보기를 통째로 바꿔, 쓰던 칸이 새 칸으로 교체되고 글자·커서가 사라졌다.
+    // → 미리보기 안의 다른 칸에 쓰는 중이면 다시 그리기를 미룬다. 그 칸에서 나갈 때 두 수정이 함께 반영된다.
+    const typing = () => {
+      const a = document.activeElement as HTMLElement | null;
+      return !!(a && a.isContentEditable && previewRef.current?.contains(a));
+    };
+    const flush = () => {
+      if (typing()) { commitTimer.current = setTimeout(flush, 300); return; }
+      setOpts(latestOpts.current);
+    };
+    if (defer) commitTimer.current = setTimeout(flush, 200);
     else setOpts(r.opts);
     if (r.toast) flash(r.toast);
   };

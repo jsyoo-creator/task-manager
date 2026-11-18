@@ -2581,12 +2581,14 @@ function obsShowCards(pv) {
  out.forEach(function(r, ix) {
   if (r[4] === "fixed") _fi = ix;
  });
- var _rows = _ad.map(function(a, j) {
+ var _rows = [];
+ _ad.forEach(function(a, j) {
+  if (a && a.h) return;   // 직접 추가한 히든 기획전 배너는 아래에서 히든 자리에 넣는다 (2026-11-18 기획팀 ②)
   var k = "add:" + j, e = ed[k] || {}, c = [ "", e.m !== undefined ? e.m : "", e.s !== undefined ? e.s : "", a && a.u || "", "added" ];
   c._o = [ "", "" ];
   c._k = k;
   c._ai = j;
-  return c;
+  _rows.push(c);
  });
  if (_rows.length) {
   if (_fi >= 0) out.splice.apply(out, [ _fi, 0 ].concat(_rows)); else out = out.concat(_rows);
@@ -2608,6 +2610,19 @@ function obsShowCards(pv) {
   pc._k = kk;
   pc._hn = idx ? String(idx + 1) : "";
   return pc;
+ });
+ // 2026-11-18 기획팀 ②: 제품군으로 자동 생긴 히든 배너도 지울 수 있게 (opts.hide.obs의 'h:키'), 직접 추가도 (addObs의 h:1)
+ var _hh = hideState(o2).obs;
+ pcs = pcs.filter(function(pc) { return _hh.indexOf("h:" + pc._k) < 0; });
+ _ad.forEach(function(a, j) {
+  if (!(a && a.h)) return;
+  var k = "add:" + j, e = ed[k] || {};
+  var c = [ "", e.m !== undefined ? e.m : "", e.s !== undefined ? e.s : ps, a.u || "", "hidden" ];
+  c._o = [ "", ps ];
+  c._k = k;
+  c._ai = j;
+  c._hn = "a" + j;
+  pcs.push(c);
  });
  out.unshift.apply(out, pcs);
  return out;
@@ -3671,6 +3686,15 @@ function addObsItem() {
  optSet("opt_addobs", a);
 }
 
+function addHidItem() {
+ var a = optGet("opt_addobs") || [];
+ a.push({
+  u: "",
+  h: 1
+ });
+ optSet("opt_addobs", a);
+}
+
 function setAddObsUrl(i, v) {
  var a = optGet("opt_addobs") || [];
  if (!a[i]) return;
@@ -3738,12 +3762,12 @@ function renderMockPage(pv) {
    var code = r[0], main = r[1], sub = r[2];
    var href = code ? getObsBaseUrl() + code : r[3] || "#";
    var _ok = r._k || obsKeyOf(r, i), _oo = r._o || [ main || "", sub || "" ], _isH = isHidRow(r);
-   html += '<div class="mockLinkWrap dimmable" data-ok="' + _attr(obsOrderKey(r)) + '" data-key="obs:' + (r[4] === "hidden" ? "hid" + (r._hn || "") : r[4] === "hidden2" ? "hid2" : i - _obsList.filter(isHidRow).length) + '"><div class="mockLinkRow" data-href="' + escapeHtml(href) + '">' + '<div class="mockLinkImg">' + obsIconHtml((main || "") + " " + (sub || "") + " " + (r[3] || "")) + "</div>" + '<div class="mockLinkBody"><div class="mockLinkText">' + '<div class="mockLinkMain obsEdit" contenteditable="true" spellcheck="false" data-obs="main" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[0]) + '" data-ph="메인 타이틀 입력">' + escapeHtml(main || "") + "</div>" + '<div class="mockLinkSub obsEdit" contenteditable="true" spellcheck="false" data-obs="sub" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[1]) + '" data-ph="서브 타이틀 입력">' + escapeHtml(sub || "") + "</div>" + '</div><a class="mockChevron" href="' + escapeHtml(href) + '" target="_blank" aria-label="기획전 열기"><i></i></a></div></div>' + (r[4] === "added" ? addObsCtl(r) : r[4] === "hidden" ? "" : obsDelBtn(r)) + '<div class="mockLinkUrl reviewOnly"' + (r[4] === "added" ? ' style="display:none"' : "") + ">" + escapeHtml(r[3] || "(URL 없음)") + (r[4] === "hidden" ? " · 제품명 기획전 배너(맨 위 고정 · KV 카피)" : "") + (r[4] === "hidden2" ? " · 통합 히든 기획전 배너(선택 추가)" : "") + (main ? "" : " · ⚠ 메인 타이틀 미입력 (위 점선 영역에 직접 입력)") + (r[4] === "fixed" ? " · 냉장고 포함 라이브 고정 배너" : "") + (r._o && (r[1] !== r._o[0] || r[2] !== r._o[1]) ? " · 직접 수정됨" : "") + "</div></div>";
+   html += '<div class="mockLinkWrap dimmable" data-ok="' + _attr(obsOrderKey(r)) + '" data-key="obs:' + (r[4] === "hidden" ? "hid" + (r._hn || "") : r[4] === "hidden2" ? "hid2" : i - _obsList.filter(isHidRow).length) + '"><div class="mockLinkRow" data-href="' + escapeHtml(href) + '">' + '<div class="mockLinkImg">' + obsIconHtml((main || "") + " " + (sub || "") + " " + (r[3] || "")) + "</div>" + '<div class="mockLinkBody"><div class="mockLinkText">' + '<div class="mockLinkMain obsEdit" contenteditable="true" spellcheck="false" data-obs="main" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[0]) + '" data-ph="메인 타이틀 입력">' + escapeHtml(main || "") + "</div>" + '<div class="mockLinkSub obsEdit" contenteditable="true" spellcheck="false" data-obs="sub" data-okey="' + _attr(_ok) + '" data-orig="' + _attr(_oo[1]) + '" data-ph="서브 타이틀 입력">' + escapeHtml(sub || "") + "</div>" + '</div><a class="mockChevron" href="' + escapeHtml(href) + '" target="_blank" aria-label="기획전 열기"><i></i></a></div></div>' + (r[4] === "added" || r._ai !== undefined ? addObsCtl(r) : obsDelBtn(r)) + '<div class="mockLinkUrl reviewOnly"' + (r[4] === "added" ? ' style="display:none"' : "") + ">" + escapeHtml(r[3] || "(URL 없음)") + (r[4] === "hidden" ? (r._ai !== undefined ? " · 직접 추가한 히든 기획전 배너" : " · 제품명 기획전 배너(맨 위 고정 · KV 카피)") : "") + (r[4] === "hidden2" ? " · 통합 히든 기획전 배너(선택 추가)" : "") + (main ? "" : " · ⚠ 메인 타이틀 미입력 (위 점선 영역에 직접 입력)") + (r[4] === "fixed" ? " · 냉장고 포함 라이브 고정 배너" : "") + (r._o && (r[1] !== r._o[0] || r[2] !== r._o[1]) ? " · 직접 수정됨" : "") + "</div></div>";
   });
  } else {
   html += '<div class="mockEmpty" style="padding:0 20px 12px;">등록된 OBS 카드가 없습니다.</div>';
  }
- html += '</div><div style="padding:0 20px 12px;"><button type="button" class="addPlus reviewOnly" style="margin-top:0" onclick="addObsItem()">＋ 배너 추가 (동일 사이즈 · 직접 입력)</button></div></div>';
+ html += '</div><div style="padding:0 20px 12px;"><button type="button" class="addPlus reviewOnly" style="margin-top:0" onclick="addHidItem()">＋ 히든 기획전 배너 추가 (맨 위 · 직접 입력)</button><button type="button" class="addPlus reviewOnly" style="margin-top:6px" onclick="addObsItem()">＋ 배너 추가 (동일 사이즈 · 직접 입력)</button></div></div>';
  if (pv.paymentFullText || payWashFor(pv)) {
   html += renderPaymentBenefitBox(pv.paymentFullText, pv);
  } else {
@@ -4917,8 +4941,8 @@ function hideLiveCard(i) {
  showToast("혜택 카드를 삭제했습니다 · \"추가 영역\"에서 되돌릴 수 있습니다");
 }
 function obsDelBtn(r) {
- var t = r[4] === "fixed" ? "fridge" : r[4] === "hidden2" ? "hid2" : "card";
- return '<div class="addCtl reviewOnly"><button type="button" class="addDel obsDel" data-k="' + _attr(obsHideKey(r)) + '" onclick="hideObsCard(this.getAttribute(\'data-k\'),\'' + t + '\')">배너 삭제</button><span>· ' + (t === "fridge" ? "냉장고 고정 배너(추가 영역 체크 해제와 같음)" : t === "hid2" ? "통합 히든 기획전(추가 영역 체크 해제와 같음)" : "원문에서 인식한 배너") + "</span></div>";
+ var t = r[4] === "fixed" ? "fridge" : r[4] === "hidden2" ? "hid2" : r[4] === "hidden" ? "hid" : "card";
+ return '<div class="addCtl reviewOnly"><button type="button" class="addDel obsDel" data-k="' + _attr(t === "hid" ? "h:" + r._k : obsHideKey(r)) + '" onclick="hideObsCard(this.getAttribute(\'data-k\'),\'' + t + '\')">배너 삭제</button><span>· ' + (t === "fridge" ? "냉장고 고정 배너(추가 영역 체크 해제와 같음)" : t === "hid2" ? "통합 히든 기획전(추가 영역 체크 해제와 같음)" : t === "hid" ? "업무명에서 자동으로 만든 히든 기획전 배너" : "원문에서 인식한 배너") + "</span></div>";
 }
 function hideObsCard(key, type) {
  if (type === "fridge") {
@@ -4949,7 +4973,7 @@ function renderHideBox(pv) {
  var rows = h.live.map(function(b, i) {
   return '<div class="hideItem"><span class="k">혜택</span><span title="' + _attr(b) + '">' + escapeHtml(b.replace(/\n/g, " / ")) + '</span><button type="button" class="btn small secondary" onclick="unhideCard(\'live\',' + i + ')">되돌리기</button></div>';
  }).concat(h.obs.map(function(k, i) {
-  return '<div class="hideItem"><span class="k">OBS</span><span title="' + _attr(k) + '">' + escapeHtml(k.replace(/^t:/, "")) + '</span><button type="button" class="btn small secondary" onclick="unhideCard(\'obs\',' + i + ')">되돌리기</button></div>';
+  return '<div class="hideItem"><span class="k">OBS</span><span title="' + _attr(k) + '">' + escapeHtml(/^h:/.test(k) ? "히든 기획전 배너 " + (k.match(/:(\d+)$/) ? k.match(/:(\d+)$/)[1] : "1") : k.replace(/^t:/, "")) + '</span><button type="button" class="btn small secondary" onclick="unhideCard(\'obs\',' + i + ')">되돌리기</button></div>';
  }));
  box.innerHTML = '<div class="cardHead" style="margin:14px 0 6px;"><h3>삭제한 카드 ' + n + '건</h3><span class="hint">원문에서 인식했지만 페이지에서 뺀 카드</span><button type="button" class="btn small secondary act" onclick="unhideCard(\'all\')">모두 되돌리기</button></div><div class="hideList">' + rows.join("") + "</div>";
 }
@@ -6400,7 +6424,7 @@ var __EDIT_FIELDS = { opt_txtedit: 'txtEdit', opt_kv: 'kv', opt_addlive: 'addLiv
 function __editFns() {
   return { commitTxtEdit: commitTxtEdit, commitKv: commitKv, commitObsEdit: commitObsEdit, commitAddLive: commitAddLive, commitCookEdit: commitCookEdit,
     commitCardOrder: commitCardOrder, resetCardOrder: resetCardOrder, hideLiveCard: hideLiveCard, hideObsCard: hideObsCard, unhideCard: unhideCard,
-    addLiveItem: addLiveItem, addObsItem: addObsItem, delAddLive: delAddLive, delAddObs: delAddObs, setAddLive: setAddLive, setAddObsUrl: setAddObsUrl, setLiveIcon: setLiveIcon };
+    addLiveItem: addLiveItem, addObsItem: addObsItem, addHidItem: addHidItem, delAddLive: delAddLive, delAddObs: delAddObs, setAddLive: setAddLive, setAddObsUrl: setAddObsUrl, setLiveIcon: setLiveIcon };
 }
 /* "hideObsCard(this.getAttribute('data-k'),'card')" 같은 원본 호출 문자열 → [함수 이름, 인자] (eval 없이 숫자·따옴표 글자·this.value·this.getAttribute만 받는다) */
 function __parseCall(code, el) {

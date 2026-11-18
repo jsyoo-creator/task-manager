@@ -13,7 +13,7 @@ import {
   defaultPromoOpts, PROMO_PREVIEW_CSS, PROMO_EDIT_CSS, type PromoStructured, type PromoOpts,
 } from '../lib/planTools/promoParse';
 import {
-  scopeHasBanner, scopeHasLanding, promoCaseName, defaultPlanFileName, bumpVersion, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
+  scopeHasBanner, scopeHasLanding, promoCaseName, defaultPlanFileName, bumpVersion, withTodayDate, versionFromFileName, cleanFileName, INVALID_FILE_CHARS, liveDateFromFolder,
   type PlanDraft, type PlanDraftKind, type PlanScope, type PlanDraftBanner, type PlanDraftLanding,
 } from '../lib/planDraft';
 import { PlanDraftBusyError, loadPrevLiveCases, type PlanRequest } from '../hooks/usePlanDraft';
@@ -281,7 +281,7 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
     // 실패한 요청은 같은 이름으로 다시. 단 2026-10-23 폴더 6자리 규칙 직후 버그로 '라이브커머스_261103_이름_…_오늘날짜'처럼
     // 날짜가 이름에 섞여 저장된 요청은 올바른 기본 이름으로 바꿔 준다
     if (draft?.status === 'failed' && draft.fileName)
-      return /라이브커머스_\d{6}_/.test(draft.fileName) ? defaultPlanFileName(folderName) : draft.fileName;
+      return /라이브커머스_\d{6}_/.test(draft.fileName) ? defaultPlanFileName(folderName) : withTodayDate(draft.fileName);
     // 업데이트는 드라이브 최신 기획서(baseFile) 다음 버전으로 — 사람이 그 사이 버전을 올렸어도 겹치지 않게
     const last = (kind === 'update' ? baseFile || draft?.outputFile : draft?.outputFile || baseFile) || '';
     if (kind === 'update') {
@@ -289,8 +289,9 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
       return last ? bumpVersion(cleanFileName(last)) : defaultPlanFileName(folderName);
     }
     if (!draft?.fileName) return defaultPlanFileName(folderName);
-    // 1차 기획서는 같은 파일을 고쳐 쓰는 구조라 버전은 올리지 않고 그대로 둔다 (2026-10-22 사용자)
-    return last ? cleanFileName(last) : draft.fileName;
+    // 1차 기획서는 버전은 그대로 두고 끝 날짜만 오늘로 (2026-11-18 기획팀: 끝 날짜 = 작성일).
+    // 같은 날이면 같은 파일에 덮어쓰고, 다른 날이면 새 파일이 된다 — 워커가 그 전 파일을 바탕으로 만든다
+    return withTodayDate(last ? cleanFileName(last) : draft.fileName);
   });
   const cleanName = cleanFileName(fileName);
   const noVersion = !!cleanName && !versionFromFileName(cleanName);
@@ -335,7 +336,13 @@ export default function PlanBuilderModal({ task, folderName, scope, draft, seed,
           liveCards: promoLiveCards(cur),   // 11번 한정 혜택 — 워싱본과 같은 2줄 정리
           // 12번 기획전 배너 — 실제 노출 목록(히든 기획전·냉장고 Fit&Max 포함)
           // fixed: 냉장고 포함 시 자동으로 붙는 고정 배너 — 기획서 12번 이미지 영역에 모델명을 넣지 않는다
-          obsCards: (cur.obsShow ?? cur.obsCards).map(([code, mainTitle, subTitle, url, kind]) => ({ code: code || '', mainTitle: mainTitle || '', subTitle: subTitle || '', url: url || '', fixed: kind === 'fixed' })),
+          // hidden: 히든 기획전 배너 / edited: 메인 타이틀을 워싱본에서 직접 고쳤거나 직접 추가한 배너 — 워커가 KV 카피로 덮지 않는다 (2026-11-18)
+          obsCards: (cur.obsShow ?? cur.obsCards).map((r) => {
+            const [code, mainTitle, subTitle, url, kind] = r;
+            const o = (r as unknown as { _o?: string[] })._o;
+            return { code: code || '', mainTitle: mainTitle || '', subTitle: subTitle || '', url: url || '', fixed: kind === 'fixed',
+              hidden: kind === 'hidden', edited: kind === 'hidden' && (!o || !o[0] || (mainTitle || '') !== o[0]) };
+          }),
           paymentFullText: cur.paymentFullText,
           payment: promoPayment(cur),   // 13번 결제 혜택 장 — 워싱본과 같은 결제혜택 엔진 결과
           legalNotes: cur.legalNotes,

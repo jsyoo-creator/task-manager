@@ -42,7 +42,7 @@ export interface PlanDraftLanding {
   structured: {
     notify: { gift: string; count: string; deadline: string };
     liveItems: { benefit: string; condition: string; tag: string; detailLines: string[] }[];
-    obsCards: { code: string; mainTitle: string; subTitle: string; url: string; fixed?: boolean }[];
+    obsCards: { code: string; mainTitle: string; subTitle: string; url: string; fixed?: boolean; hidden?: boolean; edited?: boolean }[];
     paymentFullText: string;
     payment?: PromoPayment;
     legalNotes: string;                                             // 판촉 원문의 [유의사항] 블록 그대로
@@ -89,25 +89,29 @@ export function versionFromFileName(name: string): string {
 
 const yymmdd = (d: Date) => `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
-// 처음 만들 때 기본 파일 이름 — "20261027_10월 결산" → "LGE.COM 라이브커머스_10월결산_HSAD_v1.0_261027"
-// 끝 날짜는 업무명(폴더) 날짜를 쓴다 (2026-10-22 사용자 요청). 폴더 이름에 날짜가 없을 때만 오늘 날짜.
+// 처음 만들 때 기본 파일 이름 — "261130_냉장고&김치냉장고" → "LGE.COM 라이브커머스_냉장고&김치냉장고_HSAD_v1.0_<오늘>"
+// 끝 날짜는 기획서를 작성(수정)한 날이다 (2026-11-18 기획팀 요청 — 10/22에 정했던 '업무명 날짜'에서 바꿈).
 export function defaultPlanFileName(folderName: string, today = new Date()): string {
-  // 폴더 이름은 261103_이름(기본)·20261103_이름(예전) 둘 다 온다 (2026-10-23 규칙 변경) — 날짜는 끝 6자리
+  // 폴더 이름은 261103_이름(기본)·20261103_이름(예전) 둘 다 온다 (2026-10-23 규칙 변경)
   const m = folderName.match(/^(\d{6}|\d{8})_(.*)$/);
   const name = (m ? m[2] : folderName).replace(/\s+/g, '');
-  const date = m ? m[1].slice(-6) : yymmdd(today);
-  return `LGE.COM 라이브커머스_${name}_HSAD_v1.0_${date}`;
+  return `LGE.COM 라이브커머스_${name}_HSAD_v1.0_${yymmdd(today)}`;
 }
 
-// "…_HSAD_v1.0_261027" → "…_HSAD_v1.1_261027" (마지막 자리만 올린다). 버전 표시가 없으면 그대로.
-export function bumpVersion(name: string): string {
+// 파일 이름 끝 날짜(_YYMMDD)를 오늘로 바꾼다. 끝에 날짜가 없으면 그대로.
+export function withTodayDate(name: string, today = new Date()): string {
+  return (name ?? '').replace(/_\d{6}$/, `_${yymmdd(today)}`);
+}
+
+// "…_HSAD_v1.0_261027" → "…_HSAD_v1.1_<오늘>" (버전 마지막 자리를 올리고 끝 날짜는 오늘로). 버전 표시가 없으면 그대로.
+export function bumpVersion(name: string, today = new Date()): string {
   const all = [...(name ?? '').matchAll(VERSION_RE)];
   if (!all.length) return name;
   const last = all[all.length - 1];
   const parts = last[1].split('.').map(Number);
   if (parts.length === 1) parts.push(1); else parts[parts.length - 1] += 1;
   const at = last.index ?? 0;
-  return name.slice(0, at) + `_v${parts.join('.')}` + name.slice(at + last[0].length);
+  return withTodayDate(name.slice(0, at) + `_v${parts.join('.')}` + name.slice(at + last[0].length), today);
 }
 
 // 사용자가 붙인 .pptx는 떼고 앞뒤 공백 정리

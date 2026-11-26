@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { Loader2, Clock, Check, AlertCircle, X, FilePlus2, FilePen, Image as ImageIcon, LayoutList, Layers } from 'lucide-react';
+import { Loader2, Clock, Check, AlertCircle, X, FilePlus2, FilePen, Image as ImageIcon, LayoutList, Layers, Download, CloudUpload } from 'lucide-react';
+import { downloadPlanFile, cmpVersion } from '../lib/planDownload';
 import { UsagePanel } from './UsagePanel';
 import type { Task } from '../types';
 import { folderNamesFromTask, resolveFolderName } from '../lib/figmaSetup';
@@ -39,6 +40,16 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
   const [editorScope, setEditorScope] = useState<PlanScope | null>(null);
   const [account, setAccount] = useState('');   // 팝업에서 고른 Claude 계정 ('' = 자동)
 
+  const [dl, setDl] = useState<'' | 'busy' | 'gone'>('');
+  const download = async () => {
+    if (!draft?.downloadId) return;
+    setDl('busy');
+    try { await downloadPlanFile(draft.downloadId, draft.outputFile || `${draft.fileName}.pptx`); setDl(''); }
+    catch (e) { console.error(e); setDl('gone'); }
+  };
+  // 드라이브에 올라갔는지: 드라이브 최신 버전이 생성본보다 높거나, 같은 버전이면 생성 뒤에 드라이브 파일이 바뀌었을 때
+  const vc = latestPlan?.version ? cmpVersion(latestPlan.version, draft?.version) : -1;
+  const uploaded = vc > 0 || (vc === 0 && !!latestPlan?.modifiedAt && !!draft?.finishedAt && latestPlan.modifiedAt.slice(0, 16) >= draft.finishedAt.slice(0, 16));
   const chip = 'flex-shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg border font-medium transition-colors';
   const status = draft?.status;
   const madeOnce = !!draft?.outputFile;   // 한 번이라도 기획서 파일이 만들어졌으면 '추가 작성하기'
@@ -79,10 +90,26 @@ export default function PlanBuilderButton({ task, kind = 'initial', canManage, c
     const doneTitle = [draft?.outputFile, draft?.message].filter(Boolean).join(' · ');
     content = (
       <>
-        {status === 'done' && (
+        {status === 'done' && !draft?.downloadId && (
           <span className={`${chip} text-green-600 border-green-200 bg-green-50`} title={doneTitle || '기획서 생성됨'}>
             <Check size={11} />{draft?.version || '기획서'} {isUpdate ? '업데이트됨' : '생성됨'}
           </span>
+        )}
+        {status === 'done' && draft?.downloadId && (
+          <>
+            <button type="button" disabled={dl === 'busy'} onClick={download}
+              title={`${doneTitle} — 내려받아 확인한 뒤 드라이브 01.기획에 올려 주세요`}
+              className={`${chip} text-green-700 border-green-200 bg-green-50 hover:bg-green-100 disabled:opacity-60`}>
+              {dl === 'busy' ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}{draft.version || '기획서'} 내려받기
+            </button>
+            {dl === 'gone' && <span className={`${chip} text-gray-500 border-gray-200`} title="내려받기 파일은 10일 뒤 지워져요">파일 기간 지남 · 다시 만들어 주세요</span>}
+            {/* 드라이브에 올라간 버전 확인 — 생성본 버전 이상이면 올라간 것으로 본다 */}
+            {uploaded
+              ? <span className={`${chip} text-green-600 border-green-200 bg-white`} title={`드라이브 01.기획: ${latestPlan?.file}`}><Check size={11} />드라이브 {latestPlan?.version}</span>
+              : <span className={`${chip} text-amber-700 border-amber-200 bg-amber-50`} title={`드라이브 01.기획 최신: ${latestPlan?.file ?? '없음'} — 확인 후 ${draft.outputFile}을(를) 올려 주세요. 피그마 세팅·반영은 드라이브에 올라간 기획서로 해요`}>
+                  <CloudUpload size={11} />드라이브 미반영{latestPlan?.version ? ` (지금 ${latestPlan.version})` : ''}
+                </span>}
+          </>
         )}
         <button type="button" disabled={!canRequest} onClick={() => setScopeOpen(true)}
           title={disabledTitle || (isUpdate ? (hasSeed ? `1차 기획서에 입력한 내용을 가져와 고치고, ${latestPlan?.file ?? '최신 기획서'}를 바탕으로 버전을 올린 새 파일로 저장해요`

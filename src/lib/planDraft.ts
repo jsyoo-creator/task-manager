@@ -72,6 +72,8 @@ export interface PlanDraft {
   mode: 'create' | 'update';
   baseFile?: string;       // update일 때 지난번 결과 파일 (.pptx 포함)
   outputFile?: string;     // 맥 프로그램이 완료 때 채움 (fileName + '.pptx')
+  delivery?: 'download';   // 있으면 드라이브 대신 내려받기 (2026-11-26)
+  downloadId?: string;     // planDownloads 문서 id — 맥 프로그램이 완료 때 채움
   banner?: PlanDraftBanner;
   landing?: PlanDraftLanding;
   history?: PlanHistoryEntry[];

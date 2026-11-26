@@ -72,6 +72,9 @@ export function usePlanDraft(folderName: string | null, kind: PlanDraftKind = 'i
         fileName: req.fileName,
         version: versionFromFileName(req.fileName),
         mode: baseFile ? 'update' : 'create',
+        // 드라이브에 바로 넣지 않고 내려받기로 (맥 프로그램이 planDownloads에 올림, 2026-11-26)
+        delivery: 'download',
+        downloadId: deleteField(),
         baseFile: baseFile || deleteField(),
         history,
       };

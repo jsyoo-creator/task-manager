@@ -6493,14 +6493,23 @@ export interface PromoPayment { heroes: PromoPaymentHero[]; rows: PromoPaymentRo
 export function promoPayment(pv: PromoStructured): PromoPayment {
   return __withPv(pv, function(){ return payModelFor(pv); });
 }
-/** 한정 혜택 카드 — 미리보기와 같은 2줄 정리(윗줄·아랫줄) + 지급조건 문장 (기획서 11번 장) */
-export function promoLiveCards(pv: PromoStructured): { label: string; main: string; cond: string }[] {
+/** 한정 혜택 카드 — 미리보기와 같은 2줄 정리(윗줄·아랫줄) + 지급조건 문장 (기획서 11번 장)
+ *  워싱본에서 '＋ 혜택 추가'로 직접 넣은 혜택(opts.addLive)도 미리보기와 같은 순서(opts.order 'p:원문' / 'a:번호')로 함께 넣는다.
+ *  2026-11-27 기획팀 정소희 PL 신고: 직접 추가한 '앱전용 할인 쿠폰'이 PPT 11번에 빠짐 — 원문 혜택만 보내던 것이 원인.
+ *  src: 'p'(원문에서 읽음) · 'a'(직접 추가) — 맥 프로그램이 지급조건 문장을 원문 혜택과 짝지을 때 구분용 */
+export function promoLiveCards(pv: PromoStructured): { label: string; main: string; cond: string; src?: 'p' | 'a' }[] {
   return __withPv(pv, function(){
-    return (pv.liveItems || []).map(function(it){
-      if (!(it.benefit || '').trim()) return { label: '', main: '', cond: '' };
+    var list: { key: string; card: { label: string; main: string; cond: string; src: 'p' | 'a' } }[] = [];
+    (pv.liveItems || []).forEach(function(it){
+      if (!(it.benefit || '').trim()) { list.push({ key: 'p:' + (it.benefit || ''), card: { label: '', main: '', cond: '', src: 'p' } }); return; }
       var sp = splitBenefit(it.benefit);
-      return { label: pageTextFix(sp.label || ''), main: pageTextFix(sp.main || ''), cond: pageTextFix(condSentence(it) || '') };
+      list.push({ key: 'p:' + it.benefit, card: { label: pageTextFix(sp.label || ''), main: pageTextFix(sp.main || ''), cond: pageTextFix(condSentence(it) || ''), src: 'p' } });
     });
+    (jparse(pv.opts && pv.opts.addLive, []) || []).forEach(function(x: { t?: string; m?: string }, i: number){
+      if (x && ((x.t || '').trim() || (x.m || '').trim())) list.push({ key: 'a:' + i, card: { label: pageTextFix(x.t || ''), main: pageTextFix(x.m || ''), cond: '', src: 'a' } });
+    });
+    var keys = orderState(pv.opts).live;
+    return _sortByKeys(list, function(o: { key: string }){ return o.key; }, keys).map(function(o: { card: { label: string; main: string; cond: string; src: 'p' | 'a' } }){ return o.card; });
   });
 }
 /** 자동 판단 결과 — '추가 영역' 체크의 자동 값 표시용 (사용자가 직접 고르기 전) */
